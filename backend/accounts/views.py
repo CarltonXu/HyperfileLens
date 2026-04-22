@@ -10,9 +10,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .models import User, Role, APIToken, UserSession
@@ -201,7 +201,10 @@ class LoginView(APIView):
                 'error': 'Email and password are required.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        user = authenticate(request, username=email, password=password)
+        # Use custom email authentication
+        from core.authentication import EmailAuthBackend
+        backend = EmailAuthBackend()
+        user = backend.authenticate(request, email=email, password=password)
 
         if user is None:
             return Response({
@@ -217,15 +220,29 @@ class LoginView(APIView):
         user.last_login_at = timezone.now()
         user.save(update_fields=['last_login_at'])
 
-        # Get or create token
-        token, _ = Token.objects.get_or_create(user=user)
+        # Get or create API token - ensure user is a proper User instance
+        from accounts.models import User
+        if not isinstance(user, User):
+            return Response({
+                'error': 'Authentication error.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Create token with unique key
+        import secrets
+        token_key = secrets.token_urlsafe(32)
+        api_token = APIToken.objects.create(
+            user=user,
+            name='Default API Token',
+            key=token_key,
+            prefix=token_key[:8]
+        )
 
         # Create session
         login(request, user)
 
         serializer = UserProfileSerializer(user)
         response_data = serializer.data
-        response_data['token'] = token.key
+        response_data['token'] = api_token.key
 
         return Response(response_data)
 
@@ -251,8 +268,8 @@ class LogoutView(APIView):
         Removes user session and deletes token.
         """
         try:
-            # Delete auth token
-            request.user.auth_token.delete()
+            # Delete API token
+            APIToken.objects.filter(user=request.user).delete()
         except Exception:
             pass
 

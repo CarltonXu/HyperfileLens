@@ -2,13 +2,66 @@
 Custom Authentication Backends for HyperFileLens
 
 This module provides custom authentication mechanisms including
-token-based authentication for API access.
+token-based authentication for API access and email-based login.
 """
 
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from django.utils import timezone
+from django.contrib.auth.backends import ModelBackend
+from django.contrib.auth import get_user_model
 from accounts.models import User, APIToken
+
+
+class EmailAuthBackend(ModelBackend):
+    """
+    Custom authentication backend that allows login with email.
+
+    This backend extends ModelBackend to support authentication
+    using email as the primary identifier instead of username.
+    """
+
+    def authenticate(self, request, username=None, password=None, **kwargs):
+        """
+        Authenticate user with email and password.
+
+        Args:
+            request: The HTTP request
+            username: Can be email when used with email login
+            password: User's password
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            User instance if authentication succeeds, None otherwise
+        """
+        # Support both email field and username field
+        email = kwargs.get('email') or username
+        if not email or not password:
+            return None
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # Run the default password hasher to mitigate timing attacks
+            User().set_password(password)
+            return None
+
+        if user.check_password(password) and self.user_can_authenticate(user):
+            return user
+        return None
+
+    def user_can_authenticate(self, user):
+        """
+        Check if the user is allowed to authenticate.
+
+        Args:
+            user: The user instance to check
+
+        Returns:
+            True if user can authenticate, False otherwise
+        """
+        is_active = getattr(user, 'is_active', None)
+        return is_active is not False
 
 
 class TokenAuthentication(BaseAuthentication):

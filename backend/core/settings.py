@@ -42,6 +42,7 @@ DJANGO_APPS = [
 # Third-party apps
 THIRD_PARTY_APPS = [
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     'django_celery_beat',
     'django_celery_results',
@@ -100,9 +101,14 @@ DATABASES = {
     'default': {
         'ENGINE': os.environ.get(
             'DJANGO_DB_ENGINE',
-            'django.db.backends.postgresql'
+            'django.db.backends.postgresql' if os.environ.get('USE_POSTGRES', 'false').lower() == 'true'
+            else 'django.db.backends.sqlite3'
         ),
-        'NAME': os.environ.get('DJANGO_DB_NAME', 'hyperfilelens'),
+        'NAME': os.environ.get(
+            'DJANGO_DB_NAME',
+            BASE_DIR / 'db.sqlite3' if os.environ.get('USE_POSTGRES', 'false').lower() != 'true'
+            else 'hyperfilelens'
+        ),
         'USER': os.environ.get('DJANGO_DB_USER', 'hyperfilelens'),
         'PASSWORD': os.environ.get('DJANGO_DB_PASSWORD', 'hyperfilelens'),
         'HOST': os.environ.get('DJANGO_DB_HOST', 'postgres'),
@@ -144,6 +150,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Custom User Model
+AUTH_USER_MODEL = 'accounts.User'
+
 # CORS settings
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS',
@@ -151,6 +160,11 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
+
+# Authentication backends - support both username and email login
+AUTHENTICATION_BACKENDS = [
+    'core.authentication.EmailAuthBackend',
+]
 
 # REST Framework configuration
 REST_FRAMEWORK = {
@@ -273,7 +287,7 @@ WEBSOCKET_PING_INTERVAL = int(os.environ.get('WEBSOCKET_PING_INTERVAL', '30'))
 WEBSOCKET_PING_TIMEOUT = int(os.environ.get('WEBSOCKET_PING_TIMEOUT', '10'))
 
 # File Analysis Configuration
-MAX_FILE_SIZE_FOR_AI = int(os.environ.get('MAX_FILE_SIZE_FOR_AI', '10 * 1024 * 1024'))  # 10MB
+MAX_FILE_SIZE_FOR_AI = int(os.environ.get('MAX_FILE_SIZE_FOR_AI', str(10 * 1024 * 1024)))  # 10MB
 SUPPORTED_FILE_TYPES = [
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
     '.txt', '.md', '.json', '.xml', '.csv',

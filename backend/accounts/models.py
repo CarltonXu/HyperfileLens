@@ -190,6 +190,22 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name='users',
         help_text='User role for RBAC'
     )
+    groups = models.ManyToManyField(
+        'auth.Group',
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to.',
+        related_name='hfl_user_set',  # Custom related name to avoid clash
+        related_query_name='hfl_user',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name='hfl_user_set',  # Custom related name to avoid clash
+        related_query_name='hfl_user',
+    )
     is_active = models.BooleanField(
         default=True,
         help_text='Whether this user account is active'
