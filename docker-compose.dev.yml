@@ -1,0 +1,169 @@
+version: '3.8'
+
+# =====================================================
+# HyperFileLens Docker Compose - Development
+# =====================================================
+
+services:
+  # =====================================================
+  # PostgreSQL Database
+  # =====================================================
+  db:
+    image: postgres:15-alpine
+    container_name: hyperfilelens-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hyperfilelens_dev
+      POSTGRES_USER: hyperfilelens_dev
+      POSTGRES_PASSWORD: hyperfilelens_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - hyperfilelens-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hyperfilelens_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================================================
+  # Redis Cache
+  # =====================================================
+  redis:
+    image: redis:7-alpine
+    container_name: hyperfilelens-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - hyperfilelens-dev-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================================================
+  # Backend Development Server
+  # =====================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: hyperfilelens-backend-dev
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://hyperfilelens_dev:hyperfilelens_dev@db:5432/hyperfilelens_dev
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-for-development-only
+      - DEBUG=true
+      - DJANGO_SETTINGS_MODULE=core.settings
+      - DEV_MODE=true
+    volumes:
+      - ./backend:/app:rw
+      - ./frontend:/app/frontend:rw
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hyperfilelens-dev-network
+    command: python manage.py runserver 0.0.0.0:8000
+
+  # =====================================================
+  # Frontend Development Server (Vite)
+  # =====================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../Dockerfile.frontend.dev
+    container_name: hyperfilelens-frontend-dev
+    restart: unless-stopped
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_APP_TITLE=HyperFileLens
+    volumes:
+      - ./frontend:/app:rw
+    ports:
+      - "5173:5173"
+    networks:
+      - hyperfilelens-dev-network
+    command: pnpm run dev --host 0.0.0.0
+
+  # =====================================================
+  # Celery Worker (Development)
+  # =====================================================
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: hyperfilelens-celery-dev
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://hyperfilelens_dev:hyperfilelens_dev@db:5432/hyperfilelens_dev
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-for-development-only
+      - DEBUG=true
+      - DJANGO_SETTINGS_MODULE=core.settings
+      - DEV_MODE=true
+    volumes:
+      - ./backend:/app:rw
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hyperfilelens-dev-network
+    command: celery -A core worker --loglevel=debug
+
+  # =====================================================
+  # Celery Beat (Development)
+  # =====================================================
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: hyperfilelens-celery-beat-dev
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://hyperfilelens_dev:hyperfilelens_dev@db:5432/hyperfilelens_dev
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-for-development-only
+      - DEBUG=true
+      - DJANGO_SETTINGS_MODULE=core.settings
+      - DEV_MODE=true
+    volumes:
+      - ./backend:/app:rw
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hyperfilelens-dev-network
+    command: celery -A core beat --loglevel=debug --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+# =====================================================
+# Networks
+# =====================================================
+networks:
+  hyperfilelens-dev-network:
+    driver: bridge
+
+# =====================================================
+# Volumes
+# =====================================================
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local

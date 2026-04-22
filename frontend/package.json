@@ -1,0 +1,42 @@
+{
+  "name": "hyperfilelens-frontend",
+  "version": "1.0.0",
+  "description": "AI-Powered File Intelligence for Backup and Archive Data",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
+    "lint:check": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@headlessui/vue": "^1.7.22",
+    "@heroicons/vue": "^2.1.5",
+    "@tanstack/vue-query": "^5.56.2",
+    "axios": "^1.7.7",
+    "chart.js": "^4.4.4",
+    "date-fns": "^3.6.0",
+    "pinia": "^2.2.2",
+    "vue": "^3.5.8",
+    "vue-chartjs": "^5.3.1",
+    "vue-i18n": "^9.14.1",
+    "vue-router": "^4.4.5",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "@typescript-eslint/eslint-plugin": "^8.6.0",
+    "@typescript-eslint/parser": "^8.6.0",
+    "@vitejs/plugin-vue": "^5.1.4",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.11.1",
+    "eslint-plugin-vue": "^9.28.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.11",
+    "typescript": "~5.6.2",
+    "vite": "^5.4.8",
+    "vue-tsc": "^2.1.6"
+  }
+}
