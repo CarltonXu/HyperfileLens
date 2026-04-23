@@ -4,8 +4,8 @@ entrypoint = "."
 
 [dev]
 build = ["bash", "-c", "cd frontend && pnpm install && pnpm run build"]
-run = ["bash", "-c", "cd frontend && pnpm run dev -- --port 5000 --host"]
+run = ["bash", "-c", "cd frontend/dist && node server.cjs"]
 
 [deploy]
 build = ["bash", "-c", "cd frontend && pnpm install && pnpm run build"]
-run = ["npx", "server", "-l", "5000", "-s", "frontend/dist"]
+run = ["bash", "-c", "cd frontend/dist && node server.cjs"]
