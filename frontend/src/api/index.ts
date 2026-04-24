@@ -192,25 +192,25 @@ export const recoveryTasksApi = {
   list: (params?: { page?: number; page_size?: number; status?: string; node?: number }) =>
     api.get('/api/v1/recovery-tasks/tasks/', { params }),
   
-  detail: (id: number) =>
+  detail: (id: number | string) =>
     api.get(`/api/v1/recovery-tasks/tasks/${id}/`),
   
   create: (data: any) =>
     api.post('/api/v1/recovery-tasks/tasks/', data),
   
-  update: (id: number, data: any) =>
+  update: (id: number | string, data: any) =>
     api.patch(`/api/v1/recovery-tasks/tasks/${id}/`, data),
   
-  delete: (id: number) =>
+  delete: (id: number | string) =>
     api.delete(`/api/v1/recovery-tasks/tasks/${id}/`),
   
   stats: () =>
-    api.get('/api/v1/recovery-tasks/stats/'),
+    api.get('/api/v1/recovery-tasks/tasks/statistics/'),
   
-  execute: (id: number) =>
+  execute: (id: number | string) =>
     api.post(`/api/v1/recovery-tasks/tasks/${id}/execute/`),
   
-  cancel: (id: number) =>
+  cancel: (id: number | string) =>
     api.post(`/api/v1/recovery-tasks/tasks/${id}/cancel/`)
 }
 

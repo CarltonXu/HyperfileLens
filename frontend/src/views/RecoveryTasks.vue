@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { recoveryTasksApi, backupTasksApi, nodesApi, repositoriesApi } from '@/api'
-import type { RecoveryTask, RecoveryTaskCreateData, RecoveryTaskStats, SnapshotInfo } from '@/types/recovery'
+import type { RecoveryTask, RecoveryTaskCreateData, RecoveryTaskStatsBackend, SnapshotInfo } from '@/types/recovery'
 import type { Node } from '@/types/node'
 import type { Repository } from '@/types/repository'
 
@@ -11,7 +11,7 @@ const { t } = useI18n()
 // State
 const isLoading = ref(true)
 const tasks = ref<RecoveryTask[]>([])
-const stats = ref<RecoveryTaskStats | null>(null)
+const stats = ref<RecoveryTaskStatsBackend | null>(null)
 const nodes = ref<Node[]>([])
 const repositories = ref<Repository[]>([])
 const snapshots = ref<SnapshotInfo[]>([])
@@ -30,21 +30,35 @@ const newRecovery = ref<RecoveryTaskCreateData>({
   node: 0,
   repository: 0,
   snapshot_id: '',
-  recovery_type: 'original_location',
+  recovery_type: 'original_location' as const,
   target_path: '',
-  priority: 'normal',
+  priority: 'normal' as const,
   metadata: {}
 })
 
 // Stats computed
-const recoveryStats = computed(() => stats.value || {
-  total_tasks: 0,
-  pending_tasks: 0,
-  running_tasks: 0,
-  completed_tasks: 0,
-  failed_tasks: 0,
-  total_size_bytes: 0,
-  total_files: 0
+const recoveryStats = computed(() => {
+  if (!stats.value) {
+    return {
+      total_tasks: 0,
+      pending_tasks: 0,
+      running_tasks: 0,
+      completed_tasks: 0,
+      failed_tasks: 0,
+      total_size_bytes: 0,
+      total_files: 0
+    }
+  }
+  // Map backend field names to frontend expected names
+  return {
+    total_tasks: stats.value.total || 0,
+    pending_tasks: stats.value.pending || 0,
+    running_tasks: stats.value.running || 0,
+    completed_tasks: stats.value.completed || 0,
+    failed_tasks: stats.value.failed || 0,
+    total_size_bytes: 0,
+    total_files: 0
+  }
 })
 
 // Fetch tasks
@@ -227,11 +241,11 @@ onMounted(() => {
           </tr>
           <tr v-for="task in tasks" :key="task.id" class="hover:bg-gray-50">
             <td class="font-medium">{{ task.name }}</td>
-            <td class="font-mono text-sm">{{ task.snapshot_id.substring(0, 12) }}...</td>
+            <td class="font-mono text-sm">{{ (task.snapshot || task.snapshot_id || '').substring(0, 12) }}...</td>
             <td>
               <span :class="[
                 'badge',
-                task.recovery_type === 'original_location' ? 'badge-info' : 'badge-warning'
+                task.recovery_type === 'original_location' || task.recovery_type === 'original' ? 'badge-info' : 'badge-warning'
               ]">
                 {{ t(`recoveryTasks.types.${task.recovery_type}`) }}
               </span>
@@ -244,9 +258,9 @@ onMounted(() => {
             <td>
               <div v-if="task.status === 'running'" class="w-24">
                 <div class="progress-bar">
-                  <div class="progress-fill" :style="{ width: `${task.progress_percent || 0}%` }"></div>
+                  <div class="progress-fill" :style="{ width: `${task.progress_percent || task.progress || 0}%` }"></div>
                 </div>
-                <span class="text-xs text-gray-500">{{ task.progress_percent || 0 }}%</span>
+                <span class="text-xs text-gray-500">{{ task.progress_percent || task.progress || 0 }}%</span>
               </div>
               <span v-else class="text-gray-500">-</span>
             </td>
@@ -392,7 +406,7 @@ onMounted(() => {
           </div>
           <div>
             <div class="text-sm text-gray-500">{{ t('recoveryTasks.snapshot') }}</div>
-            <div class="mt-1 font-mono text-sm">{{ selectedTask.snapshot_id }}</div>
+            <div class="mt-1 font-mono text-sm">{{ selectedTask.snapshot || selectedTask.snapshot_id || '-' }}</div>
           </div>
           <div>
             <div class="text-sm text-gray-500">{{ t('recoveryTasks.targetPath') }}</div>

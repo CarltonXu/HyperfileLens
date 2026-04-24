@@ -1,41 +1,46 @@
 // Recovery task types
-export type RecoveryType = 'original_location' | 'new_location' | 'browse'
+export type RecoveryType = 'original' | 'original_location' | 'new_location' | 'browse'
 export type RecoveryStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 export type RecoveryPriority = 'low' | 'normal' | 'high' | 'critical'
 
 export interface RecoveryTask {
-  id: number
-  task_id: string
+  id: string
   name: string
-  node: number
-  node_name?: string
-  repository: number
-  repository_name?: string
-  backup_task?: number
-  snapshot_id: string
+  description?: string
+  snapshot?: string
+  snapshot_id?: string
+  snapshot_name?: string
+  target_node?: number
+  target_node_name?: string
+  target_node_id?: number
   recovery_type: RecoveryType
   target_path: string
+  file_patterns?: string[]
+  exclude_patterns?: string[]
   status: RecoveryStatus
-  priority: RecoveryPriority
-  files_total?: number
-  files_processed?: number
-  bytes_total?: number
-  bytes_processed?: number
+  priority?: RecoveryPriority
+  progress?: number
   progress_percent?: number
   error_message?: string
+  user?: number
+  user_email?: string
   started_at?: string
   completed_at?: string
   created_at: string
   updated_at: string
-  owner: number
-  metadata: Record<string, any>
+  total_files?: number
+  restored_files?: number
+  total_size?: number
+  restored_size?: number
+  skipped_files?: number
+  failed_files?: number
+  metadata?: Record<string, any>
 }
 
 export interface RecoveryTaskCreateData {
   name: string
   node: number
   repository: number
-  backup_task?: number
   snapshot_id: string
   recovery_type: RecoveryType
   target_path: string
@@ -52,12 +57,15 @@ export interface RecoveryTaskUpdateData {
 
 export interface SnapshotInfo {
   id: string
-  source_path: string
+  name?: string
+  source_path?: string
   snapshot_time: string
-  files_total: number
-  size_bytes: number
+  files_total?: number
+  size_bytes?: number
+  total_size?: number
+  file_count?: number
   description?: string
-  tags: Record<string, any>
+  tags?: Record<string, any>
   manifests?: SnapshotManifest[]
 }
 
@@ -67,6 +75,15 @@ export interface SnapshotManifest {
   size?: number
   modified?: string
   permissions?: string
+}
+
+// Backend returns these field names
+export interface RecoveryTaskStatsBackend {
+  total: number
+  pending: number
+  running: number
+  completed: number
+  failed: number
 }
 
 export interface RecoveryTaskStats {
