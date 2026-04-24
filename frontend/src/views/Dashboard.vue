@@ -44,10 +44,10 @@ function formatBytes(bytes: number): string {
 async function fetchDashboardData() {
   isLoading.value = true
   try {
-    // Fetch node stats
+    // Fetch node stats and backup tasks
     const [nodesRes, tasksRes] = await Promise.all([
       api.get('/api/v1/nodes/stats/'),
-      api.get('/api/v1/backup-tasks/?ordering=-created_at&page_size=5')
+      api.get('/api/v1/backup-tasks/tasks/?ordering=-created_at&page_size=5')
     ])
 
     stats.value = {

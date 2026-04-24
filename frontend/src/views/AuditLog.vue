@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import api from '@/api'
+import { auditLogApi } from '@/api'
 
 const { t } = useI18n()
 
@@ -11,7 +11,7 @@ const logs = ref<any[]>([])
 async function fetchLogs() {
   isLoading.value = true
   try {
-    const response = await api.get('/api/v1/audit/')
+    const response = await auditLogApi.list()
     logs.value = response.data.results || []
   } catch (error) {
     console.error('Failed to fetch audit logs:', error)

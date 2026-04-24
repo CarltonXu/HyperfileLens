@@ -118,100 +118,100 @@ export const authApi = {
 // ============== Nodes API ==============
 export const nodesApi = {
   list: (params?: { page?: number; page_size?: number; status?: string }) =>
-    api.get('/api/v1/nodes/nodes/', { params }),
+    api.get('/api/v1/nodes/', { params }),
   
   detail: (id: number) =>
-    api.get(`/api/v1/nodes/nodes/${id}/`),
+    api.get(`/api/v1/nodes/${id}/`),
   
   create: (data: any) =>
-    api.post('/api/v1/nodes/nodes/', data),
+    api.post('/api/v1/nodes/', data),
   
   update: (id: number, data: any) =>
-    api.patch(`/api/v1/nodes/nodes/${id}/`, data),
+    api.patch(`/api/v1/nodes/${id}/`, data),
   
   delete: (id: number) =>
-    api.delete(`/api/v1/nodes/nodes/${id}/`),
+    api.delete(`/api/v1/nodes/${id}/`),
   
   stats: () =>
-    api.get('/api/v1/nodes/nodes/stats/'),
+    api.get('/api/v1/nodes/stats/'),
   
   register: (data: { node_key: string; name: string; node_type: string }) =>
     api.post('/api/v1/nodes/register/', data),
   
   heartbeat: (id: number) =>
-    api.post(`/api/v1/nodes/nodes/${id}/heartbeat/`),
+    api.post(`/api/v1/nodes/${id}/heartbeat/`),
   
   syncConfig: (id: number) =>
-    api.post(`/api/v1/nodes/nodes/${id}/sync-config/`),
+    api.post(`/api/v1/nodes/${id}/sync-config/`),
   
   listPaths: (id: number) =>
-    api.get(`/api/v1/nodes/nodes/${id}/list-paths/`),
+    api.get(`/api/v1/nodes/${id}/list-paths/`),
   
   verifyPath: (id: number, path: string) =>
-    api.post(`/api/v1/nodes/nodes/${id}/verify-path/`, { path })
+    api.post(`/api/v1/nodes/${id}/verify-path/`, { path })
 }
 
 // ============== Backup Tasks API ==============
 export const backupTasksApi = {
   list: (params?: { page?: number; page_size?: number; status?: string; node?: number }) =>
-    api.get('/api/v1/backup/tasks/', { params }),
+    api.get('/api/v1/backup-tasks/tasks/', { params }),
   
   detail: (id: number) =>
-    api.get(`/api/v1/backup/tasks/${id}/`),
+    api.get(`/api/v1/backup-tasks/tasks/${id}/`),
   
   create: (data: any) =>
-    api.post('/api/v1/backup/tasks/', data),
+    api.post('/api/v1/backup-tasks/tasks/', data),
   
   update: (id: number, data: any) =>
-    api.patch(`/api/v1/backup/tasks/${id}/`, data),
+    api.patch(`/api/v1/backup-tasks/tasks/${id}/`, data),
   
   delete: (id: number) =>
-    api.delete(`/api/v1/backup/tasks/${id}/`),
+    api.delete(`/api/v1/backup-tasks/tasks/${id}/`),
   
   stats: () =>
-    api.get('/api/v1/backup/tasks/stats/'),
+    api.get('/api/v1/backup-tasks/stats/'),
   
   execute: (id: number) =>
-    api.post(`/api/v1/backup/tasks/${id}/execute/`),
+    api.post(`/api/v1/backup-tasks/tasks/${id}/execute/`),
   
   cancel: (id: number) =>
-    api.post(`/api/v1/backup/tasks/${id}/cancel/`),
+    api.post(`/api/v1/backup-tasks/tasks/${id}/cancel/`),
   
   listSnapshots: (params?: { node?: number; repository?: number; page?: number; page_size?: number }) =>
-    api.get('/api/v1/backup/snapshots/', { params }),
+    api.get('/api/v1/backup-tasks/snapshots/', { params }),
   
   snapshotDetail: (snapshotId: string) =>
-    api.get(`/api/v1/backup/snapshots/${snapshotId}/`),
+    api.get(`/api/v1/backup-tasks/snapshots/${snapshotId}/`),
   
   listFiles: (snapshotId: string, path?: string) =>
-    api.get(`/api/v1/backup/snapshots/${snapshotId}/files/`, { params: { path } })
+    api.get(`/api/v1/backup-tasks/snapshots/${snapshotId}/files/`, { params: { path } })
 }
 
 // ============== Recovery Tasks API ==============
 export const recoveryTasksApi = {
   list: (params?: { page?: number; page_size?: number; status?: string; node?: number }) =>
-    api.get('/api/v1/recovery/tasks/', { params }),
+    api.get('/api/v1/recovery-tasks/tasks/', { params }),
   
   detail: (id: number) =>
-    api.get(`/api/v1/recovery/tasks/${id}/`),
+    api.get(`/api/v1/recovery-tasks/tasks/${id}/`),
   
   create: (data: any) =>
-    api.post('/api/v1/recovery/tasks/', data),
+    api.post('/api/v1/recovery-tasks/tasks/', data),
   
   update: (id: number, data: any) =>
-    api.patch(`/api/v1/recovery/tasks/${id}/`, data),
+    api.patch(`/api/v1/recovery-tasks/tasks/${id}/`, data),
   
   delete: (id: number) =>
-    api.delete(`/api/v1/recovery/tasks/${id}/`),
+    api.delete(`/api/v1/recovery-tasks/tasks/${id}/`),
   
   stats: () =>
-    api.get('/api/v1/recovery/tasks/stats/'),
+    api.get('/api/v1/recovery-tasks/stats/'),
   
   execute: (id: number) =>
-    api.post(`/api/v1/recovery/tasks/${id}/execute/`),
+    api.post(`/api/v1/recovery-tasks/tasks/${id}/execute/`),
   
   cancel: (id: number) =>
-    api.post(`/api/v1/recovery/tasks/${id}/cancel/`)
+    api.post(`/api/v1/recovery-tasks/tasks/${id}/cancel/`)
 }
 
 // ============== Repositories API ==============
@@ -274,25 +274,25 @@ export const policiesApi = {
 // ============== AI Query API ==============
 export const aiQueryApi = {
   query: (data: { query: string; node?: number; repository?: number; snapshot_id?: string }) =>
-    api.post('/api/v1/ai/query/', data),
+    api.post('/api/v1/ai-query/queries/', data),
   
   history: (params?: { page?: number; page_size?: number }) =>
-    api.get('/api/v1/ai/query/history/', { params }),
+    api.get('/api/v1/ai-query/queries/', { params }),
   
   cancel: (id: number) =>
-    api.post(`/api/v1/ai/query/${id}/cancel/`)
+    api.post(`/api/v1/ai-query/queries/${id}/cancel/`)
 }
 
 // ============== Audit Log API ==============
 export const auditLogApi = {
   list: (params?: { page?: number; page_size?: number; action?: string; user?: number }) =>
-    api.get('/api/v1/audit/logs/', { params }),
+    api.get('/api/v1/audit/audit/', { params }),
   
   detail: (id: number) =>
-    api.get(`/api/v1/audit/logs/${id}/`),
+    api.get(`/api/v1/audit/audit/${id}/`),
   
   export: (params: { start_date?: string; end_date?: string; action?: string }) =>
-    api.get('/api/v1/audit/logs/export/', { params, responseType: 'blob' })
+    api.get('/api/v1/audit/audit/export/', { params, responseType: 'blob' })
 }
 
 // Export api instance

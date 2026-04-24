@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import api from '@/api'
+import { repositoriesApi } from '@/api'
 
 const { t } = useI18n()
 
@@ -11,7 +11,7 @@ const repositories = ref<any[]>([])
 async function fetchRepositories() {
   isLoading.value = true
   try {
-    const response = await api.get('/api/v1/repository/')
+    const response = await repositoriesApi.list()
     repositories.value = response.data.results || []
   } catch (error) {
     console.error('Failed to fetch repositories:', error)
