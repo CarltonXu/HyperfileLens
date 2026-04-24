@@ -26,18 +26,21 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
-      const response = await api.post<{ user: User; token: string }>(
+      const response = await api.post<{ token: string; [key: string]: any }>(
         '/api/v1/accounts/login/',
         credentials
       )
 
-      token.value = response.data.token
-      user.value = response.data.user
+      // Backend returns user fields + token directly (not nested under 'user')
+      const { token: authToken, ...userData } = response.data
+      
+      token.value = authToken
+      user.value = userData as User
 
       // Store token
-      localStorage.setItem('token', response.data.token)
+      localStorage.setItem('token', authToken)
 
-      return response.data
+      return { user: userData as User, token: authToken }
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Login failed'
       throw err
@@ -95,18 +98,21 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
-      const response = await api.post<{ user: User; token: string }>(
+      const response = await api.post<{ token: string; [key: string]: any }>(
         '/api/v1/accounts/register/',
         data
       )
 
-      token.value = response.data.token
-      user.value = response.data.user
+      // Backend returns user fields + token directly (not nested under 'user')
+      const { token: authToken, ...userData } = response.data
+      
+      token.value = authToken
+      user.value = userData as User
 
       // Store token
-      localStorage.setItem('token', response.data.token)
+      localStorage.setItem('token', authToken)
 
-      return response.data
+      return { user: userData as User, token: authToken }
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Registration failed'
       throw err
