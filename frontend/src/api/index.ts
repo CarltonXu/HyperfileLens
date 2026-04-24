@@ -6,13 +6,10 @@ import axios, {
 } from 'axios'
 
 // Create axios instance
-// Use relative path when in development mode (via Vite proxy)
-// Use absolute URL when in production mode
+// Use relative path to leverage server-side API proxy (avoids CORS issues)
 const getBaseURL = () => {
-  if (import.meta.env.DEV) {
-    return '' // Use Vite proxy in development
-  }
-  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+  // Always use relative path - server will proxy /api/* requests to backend
+  return ''
 }
 
 const api: AxiosInstance = axios.create({

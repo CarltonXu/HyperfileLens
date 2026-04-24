@@ -21,8 +21,15 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-# Allowed hosts configuration
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# Allowed hosts configuration - allow all hosts for development
+ALLOWED_HOSTS = ['*']
+
+# CSRF trusted origins - allow coze.site domain and localhost
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5000',
+    'http://localhost:8000',
+    'https://' + os.environ.get('COZE_PROJECT_DOMAIN_DEFAULT', '').replace('https://', '').replace('http://', ''),
+]
 
 # Application definition
 DJANGO_APPS = [
