@@ -1,35 +1,126 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
+import {
+  HomeIcon,
+  ServerIcon,
+  CloudArrowUpIcon,
+  ArrowUturnLeftIcon,
+  CircleStackIcon,
+  ClockIcon,
+  SparklesIcon,
+  ClipboardDocumentListIcon,
+  Cog6ToothIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ArrowRightStartOnRectangleIcon,
+  LanguageIcon,
+  ComputerDesktopIcon
+} from '@heroicons/vue/24/outline'
+import {
+  HomeIcon as HomeIconSolid,
+  ServerIcon as ServerIconSolid,
+  CloudArrowUpIcon as CloudArrowUpIconSolid,
+  ArrowUturnLeftIcon as ArrowUturnLeftIconSolid,
+  CircleStackIcon as CircleStackIconSolid,
+  ClockIcon as ClockIconSolid,
+  SparklesIcon as SparklesIconSolid,
+  ClipboardDocumentListIcon as ClipboardDocumentListIconSolid,
+  Cog6ToothIcon as Cog6ToothIconSolid
+} from '@heroicons/vue/24/solid'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const { t, locale } = useI18n()
 
-const isMobileMenuOpen = ref(false)
+const isCollapsed = ref(false)
 const isUserMenuOpen = ref(false)
+const isLangMenuOpen = ref(false)
+const hoverItem = ref<string | null>(null)
 
+// Navigation items with icons
 const navigation = computed(() => [
-  { name: t('nav.dashboard'), path: '/', icon: 'dashboard', current: route.path === '/' },
-  { name: t('nav.nodes'), path: '/nodes', icon: 'nodes', current: route.path.startsWith('/nodes') },
-  { name: t('nav.backupTasks'), path: '/backup-tasks', icon: 'backup', current: route.path === '/backup-tasks' },
-  { name: t('nav.recoveryTasks'), path: '/recovery-tasks', icon: 'recovery', current: route.path === '/recovery-tasks' },
-  { name: t('nav.repository'), path: '/repository', icon: 'repository', current: route.path === '/repository' },
-  { name: t('nav.policies'), path: '/policies', icon: 'policies', current: route.path === '/policies' },
-  { name: t('nav.aiQuery'), path: '/ai-query', icon: 'ai', current: route.path === '/ai-query' },
-  { name: t('nav.auditLog'), path: '/audit-log', icon: 'audit', current: route.path === '/audit-log' },
-  { name: t('nav.settings'), path: '/settings', icon: 'settings', current: route.path === '/settings' }
+  {
+    name: t('nav.dashboard'),
+    path: '/',
+    icon: HomeIcon,
+    iconSolid: HomeIconSolid,
+    current: route.path === '/'
+  },
+  {
+    name: t('nav.nodes'),
+    path: '/nodes',
+    icon: ServerIcon,
+    iconSolid: ServerIconSolid,
+    current: route.path.startsWith('/nodes')
+  },
+  {
+    name: t('nav.backupTasks'),
+    path: '/backup-tasks',
+    icon: CloudArrowUpIcon,
+    iconSolid: CloudArrowUpIconSolid,
+    current: route.path === '/backup-tasks'
+  },
+  {
+    name: t('nav.recoveryTasks'),
+    path: '/recovery-tasks',
+    icon: ArrowUturnLeftIcon,
+    iconSolid: ArrowUturnLeftIconSolid,
+    current: route.path === '/recovery-tasks'
+  },
+  {
+    name: t('nav.repository'),
+    path: '/repository',
+    icon: CircleStackIcon,
+    iconSolid: CircleStackIconSolid,
+    current: route.path === '/repository'
+  },
+  {
+    name: t('nav.policies'),
+    path: '/policies',
+    icon: ClockIcon,
+    iconSolid: ClockIconSolid,
+    current: route.path === '/policies'
+  },
+  {
+    name: t('nav.aiQuery'),
+    path: '/ai-query',
+    icon: SparklesIcon,
+    iconSolid: SparklesIconSolid,
+    current: route.path === '/ai-query'
+  },
+  {
+    name: t('nav.auditLog'),
+    path: '/audit-log',
+    icon: ClipboardDocumentListIcon,
+    iconSolid: ClipboardDocumentListIconSolid,
+    current: route.path === '/audit-log'
+  },
+  {
+    name: t('nav.settings'),
+    path: '/settings',
+    icon: Cog6ToothIcon,
+    iconSolid: Cog6ToothIconSolid,
+    current: route.path === '/settings'
+  }
 ])
 
-function toggleMobileMenu() {
-  isMobileMenuOpen.value = !isMobileMenuOpen.value
+function toggleSidebar() {
+  isCollapsed.value = !isCollapsed.value
+  localStorage.setItem('sidebarCollapsed', String(isCollapsed.value))
 }
 
 function toggleUserMenu() {
   isUserMenuOpen.value = !isUserMenuOpen.value
+  isLangMenuOpen.value = false
+}
+
+function toggleLangMenu() {
+  isLangMenuOpen.value = !isLangMenuOpen.value
+  isUserMenuOpen.value = false
 }
 
 async function handleLogout() {
@@ -40,176 +131,278 @@ async function handleLogout() {
 function setLocale(newLocale: string) {
   locale.value = newLocale
   localStorage.setItem('locale', newLocale)
+  isLangMenuOpen.value = false
+}
+
+function handleClickOutside(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.user-menu') && !target.closest('.lang-menu')) {
+    isUserMenuOpen.value = false
+    isLangMenuOpen.value = false
+  }
 }
 
 onMounted(() => {
-  // Close menus when clicking outside
-  document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement
-    if (!target.closest('.user-menu')) {
-      isUserMenuOpen.value = false
-    }
-  })
+  const savedCollapsed = localStorage.getItem('sidebarCollapsed')
+  if (savedCollapsed !== null) {
+    isCollapsed.value = savedCollapsed === 'true'
+  }
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <!-- Top Navigation Bar -->
-    <nav class="bg-white border-b border-gray-200 sticky top-0 z-40">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <!-- Logo & Mobile Menu Button -->
-          <div class="flex items-center">
-            <button
-              class="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-              @click="toggleMobileMenu"
-            >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-
-            <router-link to="/" class="flex items-center gap-3">
-              <div class="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                </svg>
-              </div>
-              <span class="font-semibold text-gray-900 hidden sm:block">HyperFileLens</span>
-            </router-link>
-          </div>
-
-          <!-- Desktop Navigation -->
-          <div class="hidden lg:flex lg:items-center lg:gap-1">
-            <router-link
-              v-for="item in navigation"
-              :key="item.path"
-              :to="item.path"
-              :class="[
-                'nav-link',
-                item.current ? 'nav-link-active' : ''
-              ]"
-            >
-              {{ item.name }}
-            </router-link>
-          </div>
-
-          <!-- Right Side -->
-          <div class="flex items-center gap-4">
-            <!-- Language Switcher -->
-            <div class="relative">
-              <select
-                :value="locale"
-                @change="setLocale(($event.target as HTMLSelectElement).value)"
-                class="text-sm border-0 bg-transparent text-gray-600 hover:text-gray-900 focus:outline-none cursor-pointer"
-              >
-                <option value="en">EN</option>
-                <option value="zh-CN">中文</option>
-              </select>
+  <div class="min-h-screen bg-slate-50 flex">
+    <!-- Right Sidebar -->
+    <aside
+      :class="[
+        'fixed right-0 top-0 h-full bg-white border-l border-slate-200 shadow-lg z-50 transition-all duration-300 ease-in-out flex flex-col',
+        isCollapsed ? 'w-16' : 'w-64'
+      ]"
+    >
+      <!-- Logo Section -->
+      <div class="h-16 flex items-center justify-between px-3 border-b border-slate-100">
+        <Transition name="fade" mode="out-in">
+          <div v-if="!isCollapsed" class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
+              <ComputerDesktopIcon class="w-5 h-5 text-white" />
             </div>
-
-            <!-- User Menu -->
-            <div class="relative user-menu">
-              <button
-                class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100"
-                @click="toggleUserMenu"
-              >
-                <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                  <span class="text-sm font-medium text-primary-700">
-                    {{ authStore.user?.email?.[0]?.toUpperCase() || 'U' }}
-                  </span>
-                </div>
-                <span class="hidden sm:block text-sm text-gray-700">
-                  {{ authStore.userFullName }}
-                </span>
-                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              <!-- User Dropdown -->
-              <Transition name="fade">
-                <div
-                  v-if="isUserMenuOpen"
-                  class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
-                >
-                  <div class="px-4 py-3 border-b border-gray-100">
-                    <p class="text-sm font-medium text-gray-900">{{ authStore.userFullName }}</p>
-                    <p class="text-xs text-gray-500">{{ authStore.user?.email }}</p>
-                  </div>
-
-                  <router-link
-                    to="/settings"
-                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    @click="isUserMenuOpen = false"
-                  >
-                    {{ t('nav.settings') }}
-                  </router-link>
-
-                  <button
-                    class="w-full text-left px-4 py-2 text-sm text-danger-600 hover:bg-gray-100"
-                    @click="handleLogout"
-                  >
-                    {{ t('nav.logout') }}
-                  </button>
-                </div>
-              </Transition>
+            <span class="font-semibold text-slate-800 text-sm">HyperFileLens</span>
+          </div>
+          <div v-else class="w-10 h-10 flex items-center justify-center mx-auto">
+            <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
+              <ComputerDesktopIcon class="w-5 h-5 text-white" />
             </div>
           </div>
-        </div>
+        </Transition>
       </div>
 
-      <!-- Mobile Navigation -->
-      <Transition name="slide">
-        <div v-if="isMobileMenuOpen" class="lg:hidden bg-white border-b border-gray-200">
-          <div class="px-4 py-3 space-y-1">
+      <!-- Navigation -->
+      <nav class="flex-1 py-4 overflow-y-auto overflow-x-hidden">
+        <ul class="space-y-1 px-2">
+          <li v-for="item in navigation" :key="item.path" class="relative">
             <router-link
-              v-for="item in navigation"
-              :key="item.path"
               :to="item.path"
               :class="[
-                'block px-3 py-2 rounded-lg text-base font-medium',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative group',
                 item.current
-                  ? 'bg-primary-50 text-primary-700'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-indigo-50 text-indigo-600'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               ]"
-              @click="isMobileMenuOpen = false"
+              @mouseenter="hoverItem = item.path"
+              @mouseleave="hoverItem = null"
             >
-              {{ item.name }}
+              <component
+                :is="item.current ? item.iconSolid : item.icon"
+                :class="[
+                  'w-5 h-5 flex-shrink-0 transition-colors',
+                  item.current ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'
+                ]"
+              />
+              <Transition name="fade">
+                <span v-if="!isCollapsed" class="text-sm font-medium truncate">
+                  {{ item.name }}
+                </span>
+              </Transition>
+              
+              <!-- Active indicator -->
+              <div
+                v-if="item.current"
+                class="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-l-full"
+              />
             </router-link>
-          </div>
-        </div>
-      </Transition>
-    </nav>
 
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <router-view />
+            <!-- Tooltip for collapsed sidebar -->
+            <Transition name="tooltip">
+              <div
+                v-if="isCollapsed && hoverItem === item.path"
+                class="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap shadow-lg z-50"
+              >
+                {{ item.name }}
+                <div class="absolute right-0 top-1/2 translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
+              </div>
+            </Transition>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Bottom Section -->
+      <div class="border-t border-slate-100 p-2 space-y-1">
+        <!-- Language Switcher -->
+        <div class="relative lang-menu">
+          <button
+            @click="toggleLangMenu"
+            :class="[
+              'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            ]"
+          >
+            <LanguageIcon class="w-5 h-5 flex-shrink-0 text-slate-400" />
+            <Transition name="fade">
+              <span v-if="!isCollapsed" class="text-sm font-medium">
+                {{ locale === 'zh-CN' ? '中文' : 'EN' }}
+              </span>
+            </Transition>
+          </button>
+
+          <!-- Language Dropdown -->
+          <Transition name="dropdown">
+            <div
+              v-if="isLangMenuOpen"
+              :class="[
+                'absolute bg-white rounded-lg shadow-lg border border-slate-200 z-50',
+                isCollapsed ? 'right-full mr-2 bottom-0 w-32' : 'right-0 bottom-full mb-2 w-full'
+              ]"
+            >
+              <button
+                @click="setLocale('en')"
+                :class="[
+                  'flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 first:rounded-t-lg',
+                  locale === 'en' ? 'bg-indigo-50 text-indigo-600' : ''
+                ]"
+              >
+                <span class="w-6 text-center">EN</span>
+                <span>English</span>
+              </button>
+              <button
+                @click="setLocale('zh-CN')"
+                :class="[
+                  'flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 last:rounded-b-lg',
+                  locale === 'zh-CN' ? 'bg-indigo-50 text-indigo-600' : ''
+                ]"
+              >
+                <span class="w-6 text-center">中</span>
+                <span>中文</span>
+              </button>
+            </div>
+          </Transition>
+        </div>
+
+        <!-- User Menu -->
+        <div class="relative user-menu">
+          <button
+            @click="toggleUserMenu"
+            :class="[
+              'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors',
+              isUserMenuOpen ? 'bg-slate-50' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            ]"
+          >
+            <div class="w-8 h-8 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+              <span class="text-xs font-medium text-white">
+                {{ authStore.user?.email?.[0]?.toUpperCase() || 'U' }}
+              </span>
+            </div>
+            <Transition name="fade">
+              <div v-if="!isCollapsed" class="text-left min-w-0 flex-1">
+                <p class="text-sm font-medium text-slate-800 truncate">
+                  {{ authStore.userFullName }}
+                </p>
+                <p class="text-xs text-slate-400 truncate">
+                  {{ authStore.user?.role?.name || 'User' }}
+                </p>
+              </div>
+            </Transition>
+          </button>
+
+          <!-- User Dropdown -->
+          <Transition name="dropdown">
+            <div
+              v-if="isUserMenuOpen"
+              :class="[
+                'absolute bg-white rounded-lg shadow-lg border border-slate-200 z-50',
+                isCollapsed ? 'right-full mr-2 bottom-0 w-48' : 'right-0 bottom-full mb-2 w-full'
+              ]"
+            >
+              <div class="px-3 py-2 border-b border-slate-100">
+                <p class="text-sm font-medium text-slate-800 truncate">{{ authStore.userFullName }}</p>
+                <p class="text-xs text-slate-400 truncate">{{ authStore.user?.email }}</p>
+              </div>
+              <button
+                @click="handleLogout"
+                class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
+              >
+                <ArrowRightStartOnRectangleIcon class="w-4 h-4" />
+                <span>{{ t('nav.logout') }}</span>
+              </button>
+            </div>
+          </Transition>
+        </div>
+
+        <!-- Collapse Button -->
+        <button
+          @click="toggleSidebar"
+          class="flex items-center justify-center w-full px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"
+        >
+          <component
+            :is="isCollapsed ? ChevronLeftIcon : ChevronRightIcon"
+            class="w-5 h-5"
+          />
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main
+      :class="[
+        'flex-1 transition-all duration-300 ease-in-out',
+        isCollapsed ? 'mr-16' : 'mr-64'
+      ]"
+    >
+      <div class="p-6 lg:p-8">
+        <router-view />
+      </div>
     </main>
   </div>
 </template>
 
 <style scoped>
+/* Fade transition */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.15s ease;
 }
-
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
 }
 
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.2s ease;
+/* Tooltip transition */
+.tooltip-enter-active,
+.tooltip-leave-active {
+  transition: all 0.15s ease;
+}
+.tooltip-enter-from,
+.tooltip-leave-to {
+  opacity: 0;
+  transform: translateX(8px) translateY(-50%);
 }
 
-.slide-enter-from,
-.slide-leave-to {
+/* Dropdown transition */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+.dropdown-enter-from,
+.dropdown-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(8px);
+}
+
+/* Scrollbar styling */
+aside::-webkit-scrollbar {
+  width: 4px;
+}
+aside::-webkit-scrollbar-track {
+  background: transparent;
+}
+aside::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+aside::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
 }
 </style>

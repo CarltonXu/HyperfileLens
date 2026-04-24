@@ -52,7 +52,9 @@ export default {
     details: 'Details',
     description: 'Description',
     required: 'Required',
-    optional: 'Optional'
+    optional: 'Optional',
+    settings: 'Settings',
+    close: 'Close'
   },
 
   // Auth
@@ -136,7 +138,11 @@ export default {
       addTargetGateway: 'Add Target Gateway',
       editNode: 'Edit Node',
       deleteNode: 'Delete Node',
-      deleteConfirm: 'Are you sure you want to delete this node?'
+      deleteConfirm: 'Are you sure you want to delete this node?',
+      name: 'Node Name',
+      type: 'Node Type',
+      ipAddress: 'IP Address',
+      operatingSystem: 'Operating System'
     },
 
     actions: {
@@ -221,14 +227,13 @@ export default {
   recoveryTasks: {
     title: 'Recovery Tasks',
     subtitle: 'Manage data recovery operations',
-    newRecovery: 'New Recovery',
-    node: 'Target Node',
-    repository: 'Repository',
-    snapshot: 'Snapshot',
+    createTask: 'Create Recovery Task',
+
     types: {
       original_location: 'Original Location',
       new_location: 'New Location'
     },
+
     status: {
       pending: 'Pending',
       queued: 'Queued',
@@ -238,23 +243,33 @@ export default {
       failed: 'Failed',
       cancelled: 'Cancelled'
     },
-    originalLocation: 'Restore to Original Location',
-    newLocation: 'Restore to New Location',
-    targetPath: 'Target Path',
-    priority: 'Priority',
-    priorityLow: 'Low',
-    priorityNormal: 'Normal',
-    priorityHigh: 'High',
-    priorityCritical: 'Critical',
-    start: 'Start',
-    cancel: 'Cancel',
-    error: 'Error',
-    createdAt: 'Created At',
-    completedAt: 'Completed At',
-    totalTasks: 'Total Tasks',
-    pendingTasks: 'Pending',
-    completedTasks: 'Completed',
-    failedTasks: 'Failed'
+
+    form: {
+      targetNode: 'Target Node',
+      repository: 'Repository',
+      snapshot: 'Snapshot',
+      type: 'Recovery Type',
+      targetPath: 'Target Path',
+      filePatterns: 'File Patterns',
+      priority: 'Priority'
+    },
+
+    progress: {
+      progress: 'Progress',
+      files: 'files',
+      size: 'Size'
+    },
+
+    actions: {
+      start: 'Start',
+      cancel: 'Cancel',
+      viewDetails: 'View Details'
+    },
+
+    empty: {
+      title: 'No recovery tasks',
+      description: 'Create your first recovery task to restore your data'
+    }
   },
 
   // Repository
@@ -263,7 +278,9 @@ export default {
     subtitle: 'Manage backup storage',
 
     stats: {
+      total: 'Total Repositories',
       totalSize: 'Total Size',
+      totalCapacity: 'Total Capacity',
       usedSpace: 'Used Space',
       availableSpace: 'Available Space',
       snapshots: 'Snapshots',
@@ -277,7 +294,8 @@ export default {
       repositoryType: 'Repository Type',
       connectionString: 'Connection String',
       capacity: 'Capacity',
-      retention: 'Retention Policy'
+      retention: 'Retention Policy',
+      path: 'Path'
     },
 
     types: {
@@ -291,7 +309,9 @@ export default {
     empty: {
       title: 'No repositories',
       description: 'Add a backup repository to store your backup data'
-    }
+    },
+
+    confirmDelete: 'Are you sure you want to delete this repository?'
   },
 
   // Policies
@@ -299,21 +319,41 @@ export default {
     title: 'Backup Policies',
     subtitle: 'Define backup rules and schedules',
 
+    stats: {
+      total: 'Total Policies',
+      enabled: 'Enabled',
+      disabled: 'Disabled'
+    },
+
     form: {
       addPolicy: 'Add Policy',
       editPolicy: 'Edit Policy',
       policyName: 'Policy Name',
       description: 'Description',
       schedule: 'Schedule',
-      retention: 'Retention',
+      scheduleType: 'Schedule Type',
+      retention: 'Retention (days)',
       compression: 'Compression',
-      encryption: 'Encryption'
+      encryption: 'Encryption',
+      backupTask: 'Backup Task',
+      time: 'Time',
+      nextRun: 'Next Run'
+    },
+
+    scheduleTypes: {
+      hourly: 'Hourly',
+      daily: 'Daily',
+      weekly: 'Weekly',
+      monthly: 'Monthly',
+      manual: 'Manual'
     },
 
     empty: {
       title: 'No policies',
       description: 'Create backup policies to automate your backup operations'
-    }
+    },
+
+    confirmDelete: 'Are you sure you want to delete this policy?'
   },
 
   // AI Query
@@ -347,6 +387,16 @@ export default {
     empty: {
       title: 'Start exploring',
       description: 'Ask questions about your backup data using natural language'
+    },
+
+    clearConversation: 'Clear Conversation',
+    analyzing: 'Analyzing backup data...',
+
+    tips: {
+      title: 'Tips for better results',
+      tip1: 'Be specific about file types or date ranges',
+      tip2: 'Use natural language to describe what you need',
+      tip3: 'You can ask for summaries or comparisons'
     }
   },
 
@@ -354,6 +404,12 @@ export default {
   auditLog: {
     title: 'Audit Log',
     subtitle: 'Track system activities',
+
+    stats: {
+      success: 'Success',
+      warning: 'Warning',
+      failure: 'Failure'
+    },
 
     filters: {
       user: 'User',
@@ -374,7 +430,10 @@ export default {
 
     actions: {
       export: 'Export',
-      filter: 'Filter'
+      filter: 'Filter',
+      backupCreate: 'Backup Created',
+      backupExecute: 'Backup Executed',
+      recoveryCreate: 'Recovery Created'
     },
 
     empty: {

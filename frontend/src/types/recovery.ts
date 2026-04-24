@@ -84,6 +84,8 @@ export interface RecoveryTaskStatsBackend {
   running: number
   completed: number
   failed: number
+  total_files?: number
+  total_size?: number
 }
 
 export interface RecoveryTaskStats {

@@ -5,10 +5,24 @@ import { backupTasksApi, nodesApi, repositoriesApi } from '@/api'
 import type { BackupTask, BackupTaskCreateData, BackupTaskStats } from '@/types/backup'
 import type { Node } from '@/types/node'
 import type { Repository } from '@/types/repository'
+import {
+  CloudArrowUpIcon,
+  PlusIcon,
+  MagnifyingGlassIcon,
+  ArrowPathIcon,
+  PlayIcon,
+  StopIcon,
+  EyeIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  ExclamationTriangleIcon,
+  BoltIcon,
+  PauseIcon,
+  XCircleIcon
+} from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
 
-// State
 const isLoading = ref(true)
 const tasks = ref<BackupTask[]>([])
 const stats = ref<BackupTaskStats | null>(null)
@@ -17,13 +31,13 @@ const repositories = ref<Repository[]>([])
 const showCreateModal = ref(false)
 const showDetailModal = ref(false)
 const selectedTask = ref<BackupTask | null>(null)
+const selectedStatus = ref<string>('all')
+const searchQuery = ref('')
 
-// Pagination
 const currentPage = ref(1)
 const totalPages = ref(1)
 const pageSize = ref(20)
 
-// Form state
 const newTask = ref<BackupTaskCreateData>({
   name: '',
   node: 0,
@@ -40,7 +54,6 @@ const newTask = ref<BackupTaskCreateData>({
   metadata: {}
 })
 
-// Stats computed
 const taskStats = computed(() => stats.value || {
   total_tasks: 0,
   active_tasks: 0,
@@ -51,7 +64,18 @@ const taskStats = computed(() => stats.value || {
   total_files: 0
 })
 
-// Fetch tasks
+const filteredTasks = computed(() => {
+  let result = tasks.value
+  if (selectedStatus.value !== 'all') {
+    result = result.filter(t => t.status === selectedStatus.value)
+  }
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(t => t.name.toLowerCase().includes(query))
+  }
+  return result
+})
+
 async function fetchTasks() {
   isLoading.value = true
   try {
@@ -68,7 +92,6 @@ async function fetchTasks() {
   }
 }
 
-// Fetch stats
 async function fetchStats() {
   try {
     const response = await backupTasksApi.stats()
@@ -78,7 +101,6 @@ async function fetchStats() {
   }
 }
 
-// Fetch nodes and repositories for dropdown
 async function fetchNodesAndRepos() {
   try {
     const [nodesRes, reposRes] = await Promise.all([
@@ -92,7 +114,6 @@ async function fetchNodesAndRepos() {
   }
 }
 
-// Execute backup task
 async function executeTask(task: BackupTask) {
   try {
     await backupTasksApi.execute(task.id)
@@ -103,7 +124,6 @@ async function executeTask(task: BackupTask) {
   }
 }
 
-// Cancel backup task
 async function cancelTask(task: BackupTask) {
   try {
     await backupTasksApi.cancel(task.id)
@@ -113,7 +133,6 @@ async function cancelTask(task: BackupTask) {
   }
 }
 
-// Create task
 async function createTask() {
   try {
     await backupTasksApi.create(newTask.value)
@@ -140,7 +159,6 @@ async function createTask() {
   }
 }
 
-// Format bytes
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -149,29 +167,29 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-// Get status color
 function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    pending: 'bg-gray-100 text-gray-800',
-    running: 'bg-blue-100 text-blue-800',
-    completed: 'bg-green-100 text-green-800',
-    failed: 'bg-red-100 text-red-800',
-    cancelled: 'bg-yellow-100 text-yellow-800'
+    pending: 'bg-amber-100 text-amber-700',
+    queued: 'bg-blue-100 text-blue-700',
+    running: 'bg-indigo-100 text-indigo-700',
+    paused: 'bg-purple-100 text-purple-700',
+    completed: 'bg-emerald-100 text-emerald-700',
+    failed: 'bg-red-100 text-red-700',
+    cancelled: 'bg-slate-100 text-slate-600'
   }
-  return colors[status] || 'bg-gray-100 text-gray-800'
+  return colors[status] || 'bg-slate-100 text-slate-600'
 }
 
-// Add path to task
-function addPath() {
-  if (!newTask.value.paths) {
-    newTask.value.paths = []
+function getStatusIcon(status: string) {
+  const icons: Record<string, any> = {
+    pending: ClockIcon,
+    running: BoltIcon,
+    completed: CheckCircleIcon,
+    failed: ExclamationTriangleIcon,
+    paused: PauseIcon,
+    cancelled: XCircleIcon
   }
-  newTask.value.paths.push({ path: '' })
-}
-
-// Remove path
-function removePath(index: number) {
-  newTask.value.paths?.splice(index, 1)
+  return icons[status] || ClockIcon
 }
 
 onMounted(() => {
@@ -186,104 +204,174 @@ onMounted(() => {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">{{ t('backupTasks.title') }}</h1>
-        <p class="text-gray-500 mt-1">{{ t('backupTasks.subtitle') }}</p>
+        <h1 class="text-2xl font-bold text-slate-800">{{ t('backupTasks.title') }}</h1>
+        <p class="text-slate-500 mt-1">{{ t('backupTasks.subtitle') }}</p>
       </div>
-      <button @click="showCreateModal = true" class="btn-primary">
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
+      <button
+        @click="showCreateModal = true"
+        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+      >
+        <PlusIcon class="w-4 h-4" />
         {{ t('backupTasks.createTask') }}
       </button>
     </div>
 
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="card">
-        <div class="text-sm text-gray-500">{{ t('backupTasks.totalTasks') }}</div>
-        <div class="text-2xl font-bold">{{ taskStats.total_tasks }}</div>
+    <!-- Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <p class="text-xs text-slate-500">{{ t('common.total') }}</p>
+        <p class="text-xl font-bold text-slate-800 mt-1">{{ taskStats.total_tasks }}</p>
       </div>
-      <div class="card">
-        <div class="text-sm text-gray-500">{{ t('backupTasks.runningTasks') }}</div>
-        <div class="text-2xl font-bold text-blue-600">{{ taskStats.running_tasks }}</div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <p class="text-xs text-slate-500">{{ t('backupTasks.status.running') }}</p>
+        <p class="text-xl font-bold text-indigo-600 mt-1">{{ taskStats.running_tasks }}</p>
       </div>
-      <div class="card">
-        <div class="text-sm text-gray-500">{{ t('backupTasks.completedTasks') }}</div>
-        <div class="text-2xl font-bold text-green-600">{{ taskStats.completed_tasks }}</div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <p class="text-xs text-slate-500">{{ t('backupTasks.status.completed') }}</p>
+        <p class="text-xl font-bold text-emerald-600 mt-1">{{ taskStats.completed_tasks }}</p>
       </div>
-      <div class="card">
-        <div class="text-sm text-gray-500">{{ t('backupTasks.totalSize') }}</div>
-        <div class="text-2xl font-bold">{{ formatBytes(taskStats.total_size_bytes) }}</div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <p class="text-xs text-slate-500">{{ t('backupTasks.status.failed') }}</p>
+        <p class="text-xl font-bold text-red-600 mt-1">{{ taskStats.failed_tasks }}</p>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <p class="text-xs text-slate-500">{{ t('backupTasks.progress.size') }}</p>
+        <p class="text-xl font-bold text-slate-800 mt-1">{{ formatBytes(taskStats.total_size_bytes) }}</p>
       </div>
     </div>
 
-    <!-- Tasks Table -->
-    <div class="card overflow-hidden">
-      <table class="table">
-        <thead>
+    <!-- Filters -->
+    <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="relative flex-1 min-w-[200px]">
+          <MagnifyingGlassIcon class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            :placeholder="t('common.search')"
+            class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <select
+          v-model="selectedStatus"
+          class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="all">{{ t('common.status') }}: {{ t('common.all') }}</option>
+          <option value="pending">{{ t('backupTasks.status.pending') }}</option>
+          <option value="running">{{ t('backupTasks.status.running') }}</option>
+          <option value="completed">{{ t('backupTasks.status.completed') }}</option>
+          <option value="failed">{{ t('backupTasks.status.failed') }}</option>
+        </select>
+        <button
+          @click="fetchTasks"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+        >
+          <ArrowPathIcon class="w-4 h-4" />
+          {{ t('common.refresh') }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Tasks List -->
+    <div v-if="isLoading" class="flex items-center justify-center py-12">
+      <div class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+    </div>
+
+    <div v-else-if="filteredTasks.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+      <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <CloudArrowUpIcon class="w-8 h-8 text-slate-400" />
+      </div>
+      <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('backupTasks.empty.title') }}</h3>
+      <p class="text-slate-500">{{ t('backupTasks.empty.description') }}</p>
+    </div>
+
+    <div v-else class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <table class="w-full">
+        <thead class="bg-slate-50 border-b border-slate-200">
           <tr>
-            <th>{{ t('common.name') }}</th>
-            <th>{{ t('backupTasks.node') }}</th>
-            <th>{{ t('backupTasks.type') }}</th>
-            <th>{{ t('common.status') }}</th>
-            <th>{{ t('backupTasks.progress') }}</th>
-            <th>{{ t('backupTasks.lastRun') }}</th>
-            <th>{{ t('common.actions') }}</th>
+            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.name') }}</th>
+            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.type') }}</th>
+            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.status') }}</th>
+            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('backupTasks.progress.progress') }}</th>
+            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.date') }}</th>
+            <th class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.actions') }}</th>
           </tr>
         </thead>
-        <tbody>
-          <tr v-if="isLoading">
-            <td colspan="7" class="text-center py-8">
-              <div class="spinner-md mx-auto"></div>
+        <tbody class="divide-y divide-slate-100">
+          <tr v-for="task in filteredTasks" :key="task.id" class="hover:bg-slate-50 transition-colors">
+            <td class="px-6 py-4">
+              <div class="flex items-center gap-3">
+                <div :class="[
+                  'w-9 h-9 rounded-lg flex items-center justify-center',
+                  task.status === 'running' ? 'bg-indigo-100' :
+                  task.status === 'completed' ? 'bg-emerald-100' :
+                  task.status === 'failed' ? 'bg-red-100' : 'bg-slate-100'
+                ]">
+                  <CloudArrowUpIcon :class="[
+                    'w-5 h-5',
+                    task.status === 'running' ? 'text-indigo-600' :
+                    task.status === 'completed' ? 'text-emerald-600' :
+                    task.status === 'failed' ? 'text-red-600' : 'text-slate-400'
+                  ]" />
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-slate-800">{{ task.name }}</p>
+                  <p class="text-xs text-slate-500">{{ task.node_name || 'Node' }}</p>
+                </div>
+              </div>
             </td>
-          </tr>
-          <tr v-else-if="tasks.length === 0">
-            <td colspan="7" class="text-center py-8">
-              <p class="text-gray-500">{{ t('common.noData') }}</p>
+            <td class="px-6 py-4">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                {{ t(`backupTasks.types.${task.task_type || 'full'}`) }}
+              </span>
             </td>
-          </tr>
-          <tr v-for="task in tasks" :key="task.id" class="hover:bg-gray-50">
-            <td class="font-medium">{{ task.name }}</td>
-            <td>{{ task.node_name || task.node }}</td>
-            <td>
-              <span class="badge-info">{{ (task.task_type || 'MANUAL').toUpperCase() }}</span>
-            </td>
-            <td>
-              <span :class="['badge', getStatusColor(task.status)]">
+            <td class="px-6 py-4">
+              <span :class="['inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium', getStatusColor(task.status)]">
+                <component :is="getStatusIcon(task.status)" class="w-3.5 h-3.5" />
                 {{ t(`backupTasks.status.${task.status}`) }}
               </span>
             </td>
-            <td>
-              <div v-if="task.status === 'running'" class="w-24">
-                <div class="progress-bar">
-                  <div class="progress-fill" :style="{ width: `${task.progress_percent || 0}%` }"></div>
+            <td class="px-6 py-4">
+              <div v-if="task.status === 'running' || task.progress_percent" class="w-32">
+                <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  <span>{{ task.progress_percent || 0 }}%</span>
                 </div>
-                <span class="text-xs text-gray-500">{{ task.progress_percent || 0 }}%</span>
+                <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300"
+                    :style="{ width: `${task.progress_percent || 0}%` }"
+                  />
+                </div>
               </div>
-              <span v-else class="text-gray-500">-</span>
+              <span v-else class="text-sm text-slate-400">-</span>
             </td>
-            <td>{{ task.last_run_at ? new Date(task.last_run_at).toLocaleString() : '-' }}</td>
-            <td>
-              <div class="flex items-center gap-2">
+            <td class="px-6 py-4 text-sm text-slate-500">
+              {{ task.created_at ? new Date(task.created_at).toLocaleDateString() : '-' }}
+            </td>
+            <td class="px-6 py-4 text-right">
+              <div class="flex items-center justify-end gap-2">
                 <button
                   v-if="task.status === 'pending' || task.status === 'failed'"
                   @click="executeTask(task)"
-                  class="text-green-600 hover:text-green-700 text-sm"
+                  class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                  :title="t('backupTasks.actions.start')"
                 >
-                  {{ t('backupTasks.run') }}
+                  <PlayIcon class="w-4 h-4" />
                 </button>
                 <button
                   v-if="task.status === 'running'"
                   @click="cancelTask(task)"
-                  class="text-red-600 hover:text-red-700 text-sm"
+                  class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  :title="t('backupTasks.actions.cancel')"
                 >
-                  {{ t('backupTasks.cancel') }}
+                  <StopIcon class="w-4 h-4" />
                 </button>
                 <button
                   @click="selectedTask = task; showDetailModal = true"
-                  class="text-primary-600 hover:text-primary-700 text-sm"
+                  class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+                  :title="t('common.details')"
                 >
-                  {{ t('common.details') }}
+                  <EyeIcon class="w-4 h-4" />
                 </button>
               </div>
             </td>
@@ -292,22 +380,20 @@ onMounted(() => {
       </table>
 
       <!-- Pagination -->
-      <div class="flex items-center justify-between px-4 py-3 border-t">
-        <div class="text-sm text-gray-500">
-          {{ t('common.page') }} {{ currentPage }} / {{ totalPages }}
-        </div>
+      <div class="flex items-center justify-between px-6 py-3 border-t border-slate-100">
+        <p class="text-sm text-slate-500">{{ t('common.total') }}: {{ tasks.length }}</p>
         <div class="flex gap-2">
           <button
             @click="currentPage--; fetchTasks()"
             :disabled="currentPage === 1"
-            class="btn-secondary"
+            class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {{ t('common.previous') }}
           </button>
           <button
             @click="currentPage++; fetchTasks()"
-            :disabled="currentPage === totalPages"
-            class="btn-secondary"
+            :disabled="currentPage >= totalPages"
+            class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {{ t('common.next') }}
           </button>
@@ -316,145 +402,100 @@ onMounted(() => {
     </div>
 
     <!-- Create Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div class="p-6 border-b">
-          <h2 class="text-xl font-bold">{{ t('backupTasks.createTask') }}</h2>
-        </div>
-        <div class="p-6 space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700">{{ t('common.name') }}</label>
-            <input v-model="newTask.name" type="text" class="input mt-1" placeholder="My Backup Task" />
+    <Teleport to="body">
+      <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" @click="showCreateModal = false" />
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div class="sticky top-0 bg-white px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-800">{{ t('backupTasks.createTask') }}</h2>
+            <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
+              <XCircleIcon class="w-5 h-5 text-slate-400" />
+            </button>
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="p-6 space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700">{{ t('backupTasks.node') }}</label>
-              <select v-model="newTask.node" class="input mt-1">
-                <option value="0">Select Node</option>
-                <option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
-              </select>
+              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('common.name') }}</label>
+              <input v-model="newTask.name" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">{{ t('backupTasks.repository') }}</label>
-              <select v-model="newTask.repository" class="input mt-1">
-                <option value="0">Select Repository</option>
-                <option v-for="repo in repositories" :key="repo.id" :value="repo.id">{{ repo.name }}</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700">{{ t('backupTasks.paths') }}</label>
-            <div class="space-y-2 mt-1">
-              <div v-for="(_, index) in (newTask.paths || [])" :key="index" class="flex gap-2">
-                <input v-model="newTask.paths![index].path" type="text" class="input flex-1" placeholder="/path/to/backup" />
-                <button @click="removePath(index)" class="btn-secondary text-red-600">X</button>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('backupTasks.form.sourceNode') }}</label>
+                <select v-model="newTask.node" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option :value="0">Select</option>
+                  <option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
+                </select>
               </div>
-              <button @click="addPath" class="btn-secondary text-sm">+ {{ t('backupTasks.addPath') }}</button>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700">{{ t('backupTasks.taskType') }}</label>
-              <select v-model="newTask.task_type" class="input mt-1">
-                <option value="full">{{ t('backupTasks.full') }}</option>
-                <option value="incremental">{{ t('backupTasks.incremental') }}</option>
-                <option value="differential">{{ t('backupTasks.differential') }}</option>
-              </select>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('backupTasks.form.repository') }}</label>
+                <select v-model="newTask.repository" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option :value="0">Select</option>
+                  <option v-for="repo in repositories" :key="repo.id" :value="repo.id">{{ repo.name }}</option>
+                </select>
+              </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700">{{ t('backupTasks.schedule') }}</label>
-              <select v-model="newTask.schedule_type" class="input mt-1">
-                <option value="manual">{{ t('backupTasks.manual') }}</option>
-                <option value="scheduled">{{ t('backupTasks.scheduled') }}</option>
+              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('backupTasks.form.taskType') }}</label>
+              <select v-model="newTask.task_type" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="full">{{ t('backupTasks.types.full') }}</option>
+                <option value="incremental">{{ t('backupTasks.types.incremental') }}</option>
               </select>
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700">{{ t('backupTasks.retention') }}</label>
-              <input v-model.number="newTask.retention_days" type="number" class="input mt-1" min="1" />
-            </div>
+          <div class="sticky bottom-0 bg-white px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+              {{ t('common.cancel') }}
+            </button>
+            <button @click="createTask" class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+              {{ t('common.create') }}
+            </button>
           </div>
-          <div class="flex gap-4">
-            <label class="flex items-center">
-              <input v-model="newTask.compression_enabled" type="checkbox" class="mr-2" />
-              {{ t('backupTasks.compression') }}
-            </label>
-            <label class="flex items-center">
-              <input v-model="newTask.encryption_enabled" type="checkbox" class="mr-2" />
-              {{ t('backupTasks.encryption') }}
-            </label>
-          </div>
-        </div>
-        <div class="p-6 border-t flex justify-end gap-3">
-          <button @click="showCreateModal = false" class="btn-secondary">
-            {{ t('common.cancel') }}
-          </button>
-          <button @click="createTask" class="btn-primary">
-            {{ t('common.create') }}
-          </button>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <!-- Detail Modal -->
-    <div v-if="showDetailModal && selectedTask" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl">
-        <div class="p-6 border-b">
-          <h2 class="text-xl font-bold">{{ selectedTask.name }}</h2>
-        </div>
-        <div class="p-6 space-y-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <div class="text-sm text-gray-500">{{ t('common.status') }}</div>
-              <div :class="['badge mt-1', getStatusColor(selectedTask.status)]">
+    <Teleport to="body">
+      <div v-if="showDetailModal && selectedTask" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" @click="showDetailModal = false" />
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-800">{{ selectedTask.name }}</h2>
+            <button @click="showDetailModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
+              <XCircleIcon class="w-5 h-5 text-slate-400" />
+            </button>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="flex items-center gap-4">
+              <span :class="['inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium', getStatusColor(selectedTask.status)]">
+                <component :is="getStatusIcon(selectedTask.status)" class="w-4 h-4" />
                 {{ t(`backupTasks.status.${selectedTask.status}`) }}
+              </span>
+              <span class="text-sm text-slate-500">{{ t(`backupTasks.types.${selectedTask.task_type || 'full'}`) }}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+              <div class="bg-slate-50 rounded-lg p-3">
+                <p class="text-slate-500">{{ t('backupTasks.form.sourceNode') }}</p>
+                <p class="font-medium text-slate-800 mt-1">{{ selectedTask.node_name || 'N/A' }}</p>
+              </div>
+              <div class="bg-slate-50 rounded-lg p-3">
+                <p class="text-slate-500">{{ t('backupTasks.form.repository') }}</p>
+                <p class="font-medium text-slate-800 mt-1">{{ selectedTask.repository_name || 'N/A' }}</p>
               </div>
             </div>
-            <div>
-              <div class="text-sm text-gray-500">{{ t('backupTasks.taskType') }}</div>
-              <div class="mt-1">{{ (selectedTask.task_type || 'MANUAL').toUpperCase() }}</div>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <div class="text-sm text-gray-500">{{ t('backupTasks.node') }}</div>
-              <div class="mt-1">{{ selectedTask.node_name || selectedTask.node }}</div>
-            </div>
-            <div>
-              <div class="text-sm text-gray-500">{{ t('backupTasks.repository') }}</div>
-              <div class="mt-1">{{ selectedTask.repository_name || selectedTask.repository }}</div>
-            </div>
-          </div>
-          <div v-if="selectedTask.paths && selectedTask.paths.length > 0">
-            <div class="text-sm text-gray-500">{{ t('backupTasks.paths') }}</div>
-            <div class="mt-1 space-y-1">
-              <div v-for="(path, index) in selectedTask.paths" :key="index" class="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
-                {{ path }}
+            <div v-if="selectedTask.paths?.length" class="bg-slate-50 rounded-lg p-3">
+              <p class="text-sm text-slate-500 mb-2">{{ t('backupTasks.form.sourcePaths') }}</p>
+              <div class="space-y-1">
+                <p v-for="(path, i) in selectedTask.paths" :key="i" class="text-sm font-mono text-slate-700 bg-white px-2 py-1 rounded">{{ path }}</p>
               </div>
             </div>
           </div>
-          <div v-if="selectedTask.error_message" class="p-4 bg-red-50 rounded-lg">
-            <div class="text-sm font-medium text-red-800">{{ t('backupTasks.error') }}</div>
-            <div class="text-sm text-red-600 mt-1">{{ selectedTask.error_message }}</div>
+          <div class="px-6 py-4 border-t border-slate-100 flex justify-end">
+            <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+              {{ t('common.cancel') }}
+            </button>
           </div>
-          <div class="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div class="text-gray-500">{{ t('backupTasks.createdAt') }}</div>
-              <div>{{ new Date(selectedTask.created_at).toLocaleString() }}</div>
-            </div>
-            <div>
-              <div class="text-gray-500">{{ t('backupTasks.lastRun') }}</div>
-              <div>{{ selectedTask.last_run_at ? new Date(selectedTask.last_run_at).toLocaleString() : '-' }}</div>
-            </div>
-          </div>
-        </div>
-        <div class="p-6 border-t flex justify-end">
-          <button @click="showDetailModal = false" class="btn-secondary">
-            {{ t('common.close') }}
-          </button>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>

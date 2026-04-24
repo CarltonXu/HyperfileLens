@@ -5,8 +5,8 @@ export default {
     nodes: '节点管理',
     backupTasks: '备份任务',
     recoveryTasks: '恢复任务',
-    repository: '存储库',
-    policies: '策略管理',
+    repository: '存储仓库',
+    policies: '备份策略',
     aiQuery: 'AI 查询',
     auditLog: '审计日志',
     settings: '设置',
@@ -40,7 +40,7 @@ export default {
     enabled: '已启用',
     disabled: '已禁用',
     active: '活跃',
-    inactive: '未激活',
+    inactive: '不活跃',
     pending: '待处理',
     all: '全部',
     total: '总计',
@@ -52,7 +52,9 @@ export default {
     details: '详情',
     description: '描述',
     required: '必填',
-    optional: '可选'
+    optional: '可选',
+    settings: '设置',
+    close: '关闭'
   },
 
   // Auth
@@ -65,9 +67,9 @@ export default {
     confirmPassword: '确认密码',
     rememberMe: '记住我',
     forgotPassword: '忘记密码？',
-    createAccount: '创建账号',
-    welcomeBack: '欢迎回来',
-    loginSubtitle: '登录账号以继续',
+    createAccount: '创建账户',
+    welcomeBack: '欢迎回来！',
+    loginSubtitle: '登录您的账户以继续',
     invalidCredentials: '邮箱或密码错误',
     loginSuccess: '登录成功',
     logoutSuccess: '退出成功'
@@ -82,8 +84,8 @@ export default {
     stats: {
       totalNodes: '节点总数',
       onlineNodes: '在线节点',
-      activeTasks: '进行中任务',
-      storageUsed: '存储使用量',
+      activeTasks: '活动任务',
+      storageUsed: '已用存储',
       totalBackups: '备份总数',
       successRate: '成功率'
     },
@@ -112,9 +114,9 @@ export default {
     },
 
     status: {
-      pending: '待激活',
-      active: '在线',
-      inactive: '离线',
+      pending: '待处理',
+      active: '活跃',
+      inactive: '不活跃',
       error: '错误',
       maintenance: '维护中'
     },
@@ -127,7 +129,7 @@ export default {
       version: '版本',
       lastHeartbeat: '最后心跳',
       uptime: '运行时间',
-      apiKey: 'API密钥',
+      apiKey: 'API 密钥',
       capabilities: '能力'
     },
 
@@ -136,7 +138,11 @@ export default {
       addTargetGateway: '添加目标网关',
       editNode: '编辑节点',
       deleteNode: '删除节点',
-      deleteConfirm: '确定要删除此节点吗？'
+      deleteConfirm: '确定要删除此节点吗？',
+      name: '节点名称',
+      type: '节点类型',
+      ipAddress: 'IP 地址',
+      operatingSystem: '操作系统'
     },
 
     actions: {
@@ -146,12 +152,12 @@ export default {
       setMaintenance: '设为维护',
       setActive: '设为活跃',
       viewHeartbeats: '查看心跳',
-      copyApiKey: '复制API密钥'
+      copyApiKey: '复制 API 密钥'
     },
 
     empty: {
       title: '暂无节点',
-      description: '添加您的第一个源端代理或目标网关以开始使用'
+      description: '添加您的第一个源端代理或目标网关'
     }
   },
 
@@ -162,13 +168,13 @@ export default {
     createTask: '创建备份任务',
 
     types: {
-      full: '完全备份',
+      full: '完整备份',
       incremental: '增量备份',
       differential: '差异备份'
     },
 
     status: {
-      pending: '待执行',
+      pending: '待处理',
       queued: '排队中',
       running: '运行中',
       paused: '已暂停',
@@ -182,29 +188,29 @@ export default {
       taskType: '备份类型',
       sourceNode: '源节点',
       targetGateway: '目标网关',
-      repository: '存储库',
+      repository: '存储仓库',
       sourcePaths: '源路径',
       excludePaths: '排除路径',
-      schedule: '计划',
-      runNow: '立即执行',
-      scheduleForLater: '计划稍后执行'
+      schedule: '调度',
+      runNow: '立即运行',
+      scheduleForLater: '稍后调度'
     },
 
     progress: {
-      files: '文件数',
+      files: '文件',
       size: '大小',
       progress: '进度',
       speed: '速度',
-      eta: '预计剩余',
+      eta: '预计剩余时间',
       errors: '错误',
       warnings: '警告'
     },
 
     actions: {
       viewDetails: '查看详情',
-      start: '开始',
+      start: '启动',
       pause: '暂停',
-      resume: '继续',
+      resume: '恢复',
       cancel: '取消',
       retry: '重试',
       delete: '删除',
@@ -221,16 +227,15 @@ export default {
   recoveryTasks: {
     title: '恢复任务',
     subtitle: '管理数据恢复操作',
-    newRecovery: '新建恢复',
-    node: '目标节点',
-    repository: '存储库',
-    snapshot: '快照',
+    createTask: '创建恢复任务',
+
     types: {
-      original_location: '原位置恢复',
-      new_location: '新位置恢复'
+      original_location: '原位置',
+      new_location: '新位置'
     },
+
     status: {
-      pending: '等待中',
+      pending: '待处理',
       queued: '排队中',
       running: '运行中',
       paused: '已暂停',
@@ -238,32 +243,44 @@ export default {
       failed: '失败',
       cancelled: '已取消'
     },
-    originalLocation: '恢复到原位置',
-    newLocation: '恢复到新位置',
-    targetPath: '目标路径',
-    priority: '优先级',
-    priorityLow: '低',
-    priorityNormal: '普通',
-    priorityHigh: '高',
-    priorityCritical: '紧急',
-    start: '开始',
-    cancel: '取消',
-    error: '错误',
-    createdAt: '创建时间',
-    completedAt: '完成时间',
-    totalTasks: '总任务数',
-    pendingTasks: '等待中',
-    completedTasks: '已完成',
-    failedTasks: '失败'
+
+    form: {
+      targetNode: '目标节点',
+      repository: '存储仓库',
+      snapshot: '快照',
+      type: '恢复类型',
+      targetPath: '目标路径',
+      filePatterns: '文件模式',
+      priority: '优先级'
+    },
+
+    progress: {
+      progress: '进度',
+      files: '个文件',
+      size: '大小'
+    },
+
+    actions: {
+      start: '启动',
+      cancel: '取消',
+      viewDetails: '查看详情'
+    },
+
+    empty: {
+      title: '暂无恢复任务',
+      description: '创建您的第一个恢复任务以恢复数据'
+    }
   },
 
   // Repository
   repository: {
-    title: '备份存储库',
+    title: '存储仓库',
     subtitle: '管理备份存储',
 
     stats: {
-      totalSize: '总容量',
+      total: '仓库总数',
+      totalSize: '总大小',
+      totalCapacity: '总容量',
       usedSpace: '已用空间',
       availableSpace: '可用空间',
       snapshots: '快照数',
@@ -271,49 +288,72 @@ export default {
     },
 
     form: {
-      addRepository: '添加存储库',
-      editRepository: '编辑存储库',
-      repositoryName: '存储库名称',
-      repositoryType: '存储库类型',
+      addRepository: '添加仓库',
+      editRepository: '编辑仓库',
+      repositoryName: '仓库名称',
+      repositoryType: '仓库类型',
       connectionString: '连接字符串',
       capacity: '容量',
-      retention: '保留策略'
+      retention: '保留策略',
+      path: '路径'
     },
 
     types: {
-      local: '本地存储',
-      s3: 'S3兼容存储',
+      local: '本地',
+      s3: 'S3 兼容',
       azure: 'Azure Blob',
       gcs: 'Google Cloud Storage',
       b2: 'Backblaze B2'
     },
 
     empty: {
-      title: '暂无存储库',
-      description: '添加备份存储库以存储备份数据'
-    }
+      title: '暂无仓库',
+      description: '添加备份仓库以存储备份数据'
+    },
+
+    confirmDelete: '确定要删除此仓库吗？'
   },
 
   // Policies
   policies: {
     title: '备份策略',
-    subtitle: '定义备份规则和计划',
+    subtitle: '定义备份规则和调度',
+
+    stats: {
+      total: '策略总数',
+      enabled: '已启用',
+      disabled: '已禁用'
+    },
 
     form: {
       addPolicy: '添加策略',
       editPolicy: '编辑策略',
       policyName: '策略名称',
       description: '描述',
-      schedule: '计划',
-      retention: '保留',
+      schedule: '调度',
+      scheduleType: '调度类型',
+      retention: '保留天数',
       compression: '压缩',
-      encryption: '加密'
+      encryption: '加密',
+      backupTask: '备份任务',
+      time: '时间',
+      nextRun: '下次运行'
+    },
+
+    scheduleTypes: {
+      hourly: '每小时',
+      daily: '每天',
+      weekly: '每周',
+      monthly: '每月',
+      manual: '手动'
     },
 
     empty: {
       title: '暂无策略',
       description: '创建备份策略以自动化备份操作'
-    }
+    },
+
+    confirmDelete: '确定要删除此策略吗？'
   },
 
   // AI Query
@@ -330,7 +370,7 @@ export default {
     examples: {
       contracts: '查找去年签署的所有合同',
       sensitive: '显示包含敏感数据的目录',
-      changes: '此文件夹发生了什么变化？',
+      changes: '此文件夹有什么变化？',
       summary: '总结此目录中的文档'
     },
 
@@ -338,7 +378,7 @@ export default {
       title: '结果',
       files: '文件',
       folders: '文件夹',
-      matches: '匹配项',
+      matches: '匹配',
       relevance: '相关性',
       preview: '预览',
       download: '下载'
@@ -347,13 +387,29 @@ export default {
     empty: {
       title: '开始探索',
       description: '使用自然语言询问关于备份数据的问题'
+    },
+
+    clearConversation: '清空对话',
+    analyzing: '正在分析备份数据...',
+
+    tips: {
+      title: '获取更好结果的提示',
+      tip1: '具体说明文件类型或日期范围',
+      tip2: '使用自然语言描述您的需求',
+      tip3: '可以要求摘要或比较'
     }
   },
 
   // Audit Log
   auditLog: {
     title: '审计日志',
-    subtitle: '追踪系统活动',
+    subtitle: '跟踪系统活动',
+
+    stats: {
+      success: '成功',
+      warning: '警告',
+      failure: '失败'
+    },
 
     filters: {
       user: '用户',
@@ -367,14 +423,17 @@ export default {
       user: '用户',
       action: '操作',
       resourceType: '资源类型',
-      resourceId: '资源ID',
+      resourceId: '资源 ID',
       details: '详情',
-      ipAddress: 'IP地址'
+      ipAddress: 'IP 地址'
     },
 
     actions: {
       export: '导出',
-      filter: '筛选'
+      filter: '筛选',
+      backupCreate: '创建备份',
+      backupExecute: '执行备份',
+      recoveryCreate: '创建恢复'
     },
 
     empty: {
@@ -386,21 +445,21 @@ export default {
   // Settings
   settings: {
     title: '设置',
-    subtitle: '管理您的账户和偏好设置',
+    subtitle: '管理您的账户和偏好',
 
     sections: {
       profile: '个人资料',
-      security: '安全',
+      security: '安全设置',
       notifications: '通知',
-      apiTokens: 'API令牌',
+      apiTokens: 'API 令牌',
       appearance: '外观',
       language: '语言'
     },
 
     profile: {
-      title: '个人信息',
-      firstName: '名字',
-      lastName: '姓氏',
+      title: '个人资料',
+      firstName: '名',
+      lastName: '姓',
       email: '邮箱',
       phone: '电话',
       avatar: '头像'
@@ -435,19 +494,19 @@ export default {
   errors: {
     general: '发生错误',
     network: '网络错误，请检查您的连接',
-    notFound: '未找到资源',
-    unauthorized: '您无权执行此操作',
+    notFound: '资源未找到',
+    unauthorized: '您没有权限执行此操作',
     serverError: '服务器错误，请稍后重试',
-    validation: '请检查输入',
+    validation: '请检查您的输入',
     required: '此字段为必填项',
     invalidEmail: '请输入有效的邮箱地址',
-    passwordTooShort: '密码至少8个字符',
-    passwordMismatch: '两次输入的密码不一致'
+    passwordTooShort: '密码至少需要 8 个字符',
+    passwordMismatch: '密码不匹配'
   },
 
   // Confirmations
   confirmations: {
-    delete: '确定要删除此项目吗？',
+    delete: '确定要删除此项吗？',
     cancel: '确定要取消此操作吗？',
     logout: '确定要退出登录吗？'
   },
@@ -465,12 +524,12 @@ export default {
   // Time
   time: {
     now: '刚刚',
-    minutesAgo: '{n}分钟前',
-    hoursAgo: '{n}小时前',
-    daysAgo: '{n}天前',
-    weeksAgo: '{n}周前',
-    monthsAgo: '{n}月前',
-    yearsAgo: '{n}年前'
+    minutesAgo: '{n} 分钟前',
+    hoursAgo: '{n} 小时前',
+    daysAgo: '{n} 天前',
+    weeksAgo: '{n} 周前',
+    monthsAgo: '{n} 月前',
+    yearsAgo: '{n} 年前'
   },
 
   // File sizes
