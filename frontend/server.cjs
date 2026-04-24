@@ -1,13 +1,21 @@
+/**
+ * HyperFileLens Frontend Static Server
+ * 
+ * This server serves the built frontend files from the dist/ directory
+ * and proxies API requests to the backend server.
+ * 
+ * Run from: frontend/ directory (parent of dist/)
+ * Command: node server.cjs
+ */
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 5000;
-
-// Get the directory where this script is located
-const SCRIPT_DIR = __dirname;
-// The dist folder is where this script is located
-const SERVE_DIR = SCRIPT_DIR;
+const PORT = process.env.PORT || 5000;
+const SERVE_DIR = path.join(__dirname, 'dist');
+const API_PROXY_HOST = 'localhost';
+const API_PROXY_PORT = 8000;
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -17,12 +25,14 @@ const MIME_TYPES = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
-  '.map': 'application/json'
+  '.map': 'application/json',
+  '.webp': 'image/webp',
+  '.ttf': 'font/ttf',
+  '.eot': 'application/vnd.ms-fontobject'
 };
 
 function serveFile(res, filePath) {
@@ -31,52 +41,139 @@ function serveFile(res, filePath) {
   
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('File not found: ' + filePath);
-      return;
+      console.error(`File not found: ${filePath}`);
+      res.writeHead(404);
+      res.end('Not Found');
+    } else {
+      res.writeHead(200, { 
+        'Content-Type': contentType,
+        'Cache-Control': 'no-cache'
+      });
+      res.end(data);
     }
-    res.writeHead(200, { 'Content-Type': contentType });
-    res.end(data);
   });
 }
 
+function proxyRequest(req, res) {
+  const options = {
+    hostname: API_PROXY_HOST,
+    port: API_PROXY_PORT,
+    path: req.url,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: `${API_PROXY_HOST}:${API_PROXY_PORT}`
+    }
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    // Copy response headers with CORS
+    const headers = {
+      ...proxyRes.headers,
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    };
+    
+    res.writeHead(proxyRes.statusCode, headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error(`Proxy error: ${err.message}`);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Backend service unavailable' }));
+  });
+
+  req.pipe(proxyReq);
+}
+
 const server = http.createServer((req, res) => {
-  // Log request
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  // Always add CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  console.log(`${req.method} ${req.url}`);
+
+  // Proxy API requests to backend
+  if (req.url.startsWith('/api/')) {
+    proxyRequest(req, res);
+    return;
+  }
+
+  // Handle static files
+  let urlPath = req.url.split('?')[0];
   
-  let urlPath = req.url === '/' ? '/index.html' : req.url;
+  // Remove leading slash
+  if (urlPath.startsWith('/')) {
+    urlPath = urlPath.substring(1);
+  }
   
-  // Remove query string if any
-  urlPath = urlPath.split('?')[0];
+  // Default to index.html for root
+  if (urlPath === '' || urlPath === '/') {
+    urlPath = 'index.html';
+  }
+  
+  const filePath = path.join(SERVE_DIR, urlPath);
   
   // Security: prevent directory traversal
-  const safePath = path.normalize(urlPath).replace(/^(\.\.[\/\\])+/, '');
-  const fullPath = path.join(SERVE_DIR, safePath);
-  
-  // Check if path is within SERVE_DIR
-  if (!fullPath.startsWith(SERVE_DIR)) {
-    res.writeHead(403, { 'Content-Type': 'text/plain' });
+  const normalizedPath = path.normalize(filePath);
+  if (!normalizedPath.startsWith(SERVE_DIR)) {
+    res.writeHead(403);
     res.end('Forbidden');
     return;
   }
-  
+
   // Check if file exists
-  fs.stat(fullPath, (err, stats) => {
-    if (err || !stats.isFile()) {
-      // Serve index.html for SPA routing
+  fs.stat(normalizedPath, (err, stats) => {
+    if (!err && stats.isFile()) {
+      serveFile(res, normalizedPath);
+    } else {
+      // SPA fallback: serve index.html for client-side routing
       const indexPath = path.join(SERVE_DIR, 'index.html');
-      console.log(`  -> 404, serving index.html from: ${indexPath}`);
-      serveFile(res, indexPath);
-      return;
+      fs.stat(indexPath, (indexErr, indexStats) => {
+        if (!indexErr && indexStats.isFile()) {
+          serveFile(res, indexPath);
+        } else {
+          res.writeHead(404, { 'Content-Type': 'text/html' });
+          res.end(`
+            <html>
+              <head><title>HyperFileLens</title></head>
+              <body>
+                <h1>HyperFileLens</h1>
+                <p>Frontend not built. Please run: <code>pnpm run build</code></p>
+              </body>
+            </html>
+          `);
+        }
+      });
     }
-    console.log(`  -> 200 OK: ${fullPath}`);
-    serveFile(res, fullPath);
   });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('='.repeat(60));
-  console.log(`Static server running at http://localhost:${PORT}`);
+  console.log('='.repeat(50));
+  console.log('HyperFileLens Frontend Server');
+  console.log('='.repeat(50));
+  console.log(`Server running at: http://localhost:${PORT}`);
   console.log(`Serving files from: ${SERVE_DIR}`);
-  console.log('='.repeat(60));
+  console.log(`API proxy target: http://${API_PROXY_HOST}:${API_PROXY_PORT}`);
+  console.log('='.repeat(50));
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', err);
+  }
 });
