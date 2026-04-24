@@ -3,9 +3,9 @@ requires = ["nodejs-24"]
 entrypoint = "."
 
 [dev]
-build = ["bash", "-c", "cd frontend && pnpm install && pnpm run build"]
-run = ["bash", "-c", "cd frontend/dist && node server.cjs"]
+build = ["bash", "-c", "cd frontend && pnpm install && pnpm run build && cp server.cjs dist/"]
+run = ["bash", "-c", "cd frontend && node server.cjs"]
 
 [deploy]
-build = ["bash", "-c", "cd frontend && pnpm install && pnpm run build"]
-run = ["bash", "-c", "cd frontend/dist && node server.cjs"]
+build = ["bash", "-c", "cd frontend && pnpm install && pnpm run build && cp server.cjs dist/"]
+run = ["bash", "-c", "cd frontend && node server.cjs"]
