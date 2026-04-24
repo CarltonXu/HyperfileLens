@@ -221,21 +221,40 @@ export default {
   recoveryTasks: {
     title: 'Recovery Tasks',
     subtitle: 'Manage data recovery operations',
-
+    newRecovery: 'New Recovery',
+    node: 'Target Node',
+    repository: 'Repository',
+    snapshot: 'Snapshot',
     types: {
-      original: 'Original Location',
-      new: 'New Location'
+      original_location: 'Original Location',
+      new_location: 'New Location'
     },
-
-    form: {
-      taskName: 'Task Name',
-      recoveryType: 'Recovery Type',
-      sourceSnapshot: 'Source Snapshot',
-      sourceNode: 'Source Node',
-      targetGateway: 'Target Gateway',
-      targetPath: 'Target Path',
-      overwrite: 'Overwrite Existing'
-    }
+    status: {
+      pending: 'Pending',
+      queued: 'Queued',
+      running: 'Running',
+      paused: 'Paused',
+      completed: 'Completed',
+      failed: 'Failed',
+      cancelled: 'Cancelled'
+    },
+    originalLocation: 'Restore to Original Location',
+    newLocation: 'Restore to New Location',
+    targetPath: 'Target Path',
+    priority: 'Priority',
+    priorityLow: 'Low',
+    priorityNormal: 'Normal',
+    priorityHigh: 'High',
+    priorityCritical: 'Critical',
+    start: 'Start',
+    cancel: 'Cancel',
+    error: 'Error',
+    createdAt: 'Created At',
+    completedAt: 'Completed At',
+    totalTasks: 'Total Tasks',
+    pendingTasks: 'Pending',
+    completedTasks: 'Completed',
+    failedTasks: 'Failed'
   },
 
   // Repository

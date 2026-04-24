@@ -221,21 +221,40 @@ export default {
   recoveryTasks: {
     title: '恢复任务',
     subtitle: '管理数据恢复操作',
-
+    newRecovery: '新建恢复',
+    node: '目标节点',
+    repository: '存储库',
+    snapshot: '快照',
     types: {
-      original: '原位置恢复',
-      new: '新位置恢复'
+      original_location: '原位置恢复',
+      new_location: '新位置恢复'
     },
-
-    form: {
-      taskName: '任务名称',
-      recoveryType: '恢复类型',
-      sourceSnapshot: '源快照',
-      sourceNode: '源节点',
-      targetGateway: '目标网关',
-      targetPath: '目标路径',
-      overwrite: '覆盖已有'
-    }
+    status: {
+      pending: '等待中',
+      queued: '排队中',
+      running: '运行中',
+      paused: '已暂停',
+      completed: '已完成',
+      failed: '失败',
+      cancelled: '已取消'
+    },
+    originalLocation: '恢复到原位置',
+    newLocation: '恢复到新位置',
+    targetPath: '目标路径',
+    priority: '优先级',
+    priorityLow: '低',
+    priorityNormal: '普通',
+    priorityHigh: '高',
+    priorityCritical: '紧急',
+    start: '开始',
+    cancel: '取消',
+    error: '错误',
+    createdAt: '创建时间',
+    completedAt: '完成时间',
+    totalTasks: '总任务数',
+    pendingTasks: '等待中',
+    completedTasks: '已完成',
+    failedTasks: '失败'
   },
 
   // Repository

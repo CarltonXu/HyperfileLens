@@ -14,6 +14,7 @@ HyperFileLens is an AI-powered file intelligence platform for backup and archive
 - Redis (broker/cache)
 - PostgreSQL 15+
 - Django Channels (WebSocket)
+- Kopia (backup engine)
 
 ### Frontend
 - Vue 3.4+
@@ -24,30 +25,47 @@ HyperFileLens is an AI-powered file intelligence platform for backup and archive
 - Headless UI
 - vue-i18n
 
+### Agent (Node-side)
+- Python 3.11+
+- Kopia CLI
+- WebSocket client (async)
+
 ## Project Structure
 
 ```
 hyperfilelens/
 ├── backend/
-│   ├── core/           # Django project configuration
-│   ├── accounts/       # User authentication & management
-│   ├── nodes/          # Proxy node management & WebSocket
-│   ├── backup_tasks/   # Backup operations
-│   ├── recovery_tasks/ # Recovery operations
-│   ├── repository/     # Storage repository management
-│   ├── policies/       # Backup policy scheduling
-│   ├── ai_query/       # AI-powered queries
-│   └── audit_log/      # Audit logging
+│   ├── core/              # Django project configuration
+│   ├── accounts/          # User authentication & management
+│   ├── nodes/             # Proxy node management & WebSocket
+│   ├── backup_tasks/      # Backup operations
+│   ├── recovery_tasks/    # Recovery operations
+│   ├── repository/        # Storage repository management
+│   ├── policies/          # Backup policy scheduling
+│   ├── ai_query/          # AI-powered queries
+│   ├── audit_log/         # Audit logging
+│   └── services/          # Business services
+│       └── kopia_service.py  # Kopia integration
 ├── frontend/
 │   ├── src/
-│   │   ├── api/       # Axios API client
-│   │   ├── components/# Reusable UI components
-│   │   ├── views/     # Page components
-│   │   ├── stores/    # Pinia stores
-│   │   ├── router/    # Vue Router config
-│   │   └── i18n/      # Internationalization
+│   │   ├── api/          # Axios API client
+│   │   ├── components/   # Reusable UI components
+│   │   ├── views/        # Page components
+│   │   ├── stores/       # Pinia stores
+│   │   ├── router/       # Vue Router config
+│   │   ├── types/        # TypeScript type definitions
+│   │   └── i18n/         # Internationalization
 │   └── package.json
-└── docker/             # Docker configurations
+├── agent/                  # Source-side agent (Python)
+│   ├── install.sh         # Agent installer
+│   ├── bin/agent          # Agent entry point
+│   └── lib/agent/         # Agent library
+│       ├── config.py      # Configuration management
+│       ├── node.py        # Node registration
+│       ├── ws_client.py   # WebSocket client
+│       ├── backup.py      # Backup operations
+│       └── recovery.py    # Recovery operations
+└── docker/                 # Docker configurations
 ```
 
 ## Development Setup
