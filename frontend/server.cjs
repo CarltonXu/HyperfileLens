@@ -3,10 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 5000;
-// Get the directory where this script is located
-const SCRIPT_DIR = __dirname;
-// If running from frontend/, use current directory; if running from frontend/dist/, go up one level
-const DIST_DIR = path.basename(SCRIPT_DIR) === 'dist' ? SCRIPT_DIR : path.join(SCRIPT_DIR, 'dist');
+// Always serve from the directory where this script is located
+const SERVE_DIR = __dirname;
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -47,10 +45,10 @@ const server = http.createServer((req, res) => {
   
   // Security: prevent directory traversal
   const safePath = path.normalize(filePath).replace(/^(\.\.[\/\\])+/, '');
-  const fullPath = path.join(DIST_DIR, safePath);
+  const fullPath = path.join(SERVE_DIR, safePath);
   
-  // Check if path is within DIST_DIR
-  if (!fullPath.startsWith(DIST_DIR)) {
+  // Check if path is within SERVE_DIR
+  if (!fullPath.startsWith(SERVE_DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
     return;
@@ -60,7 +58,7 @@ const server = http.createServer((req, res) => {
   fs.stat(fullPath, (err, stats) => {
     if (err || !stats.isFile()) {
       // Serve index.html for SPA routing
-      serveFile(res, path.join(DIST_DIR, 'index.html'));
+      serveFile(res, path.join(SERVE_DIR, 'index.html'));
       return;
     }
     serveFile(res, fullPath);
@@ -69,5 +67,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Static server running at http://localhost:${PORT}`);
-  console.log(`Serving files from: ${DIST_DIR}`);
+  console.log(`Serving files from: ${SERVE_DIR}`);
 });
