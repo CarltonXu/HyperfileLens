@@ -1,11 +1,11 @@
 [project]
 requires = ["nodejs-24"]
-entrypoint = "."
+entrypoint = "frontend"
 
 [dev]
 build = ["bash", "-c", "cd frontend && pnpm install"]
 run = ["bash", "-c", "cd frontend && pnpm run dev -- --port 5000 --host"]
 
 [deploy]
-build = ["bash", "-c", "cd frontend && pnpm install && pnpm run build"]
+build = ["bash", "-c", "cd frontend && pnpm install && pnpm run build && cp server.cjs dist/"]
 run = ["bash", "-c", "cd frontend && node dist/server.cjs"]
