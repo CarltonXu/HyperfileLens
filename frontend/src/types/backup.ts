@@ -2,6 +2,14 @@
 export type BackupType = 'full' | 'incremental' | 'differential'
 export type BackupStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 export type BackupPriority = 'low' | 'normal' | 'high' | 'critical'
+export type TaskType = 'manual' | 'scheduled'
+export type ScheduleType = 'once' | 'daily' | 'weekly' | 'monthly'
+
+export interface BackupPath {
+  path: string
+  size_bytes?: number
+  file_count?: number
+}
 
 export interface BackupTask {
   id: number
@@ -12,11 +20,17 @@ export interface BackupTask {
   repository: number
   repository_name?: string
   source_path: string
+  paths?: BackupPath[]
   backup_type: BackupType
+  task_type?: TaskType
+  schedule_type?: ScheduleType
   status: BackupStatus
   priority: BackupPriority
   schedule?: number
   schedule_name?: string
+  retention_days?: number
+  compression_enabled?: boolean
+  encryption_enabled?: boolean
   snapshot_id?: string
   files_total?: number
   files_processed?: number
@@ -27,6 +41,7 @@ export interface BackupTask {
   error_message?: string
   started_at?: string
   completed_at?: string
+  last_run_at?: string
   created_at: string
   updated_at: string
   owner: number
@@ -38,9 +53,15 @@ export interface BackupTaskCreateData {
   node: number
   repository: number
   source_path: string
+  paths?: BackupPath[]
   backup_type: BackupType
+  task_type?: TaskType
+  schedule_type?: ScheduleType
   priority?: BackupPriority
   schedule?: number
+  retention_days?: number
+  compression_enabled?: boolean
+  encryption_enabled?: boolean
   metadata?: Record<string, any>
 }
 

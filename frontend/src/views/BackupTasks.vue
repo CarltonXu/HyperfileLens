@@ -2,8 +2,9 @@
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { backupTasksApi, nodesApi, repositoriesApi } from '@/api'
-import type { BackupTask, BackupTaskCreateData, BackupTaskStats, Node, Repository } from '@/types/backup'
-import type { Repository as RepoType } from '@/types/repository'
+import type { BackupTask, BackupTaskCreateData, BackupTaskStats } from '@/types/backup'
+import type { Node } from '@/types/node'
+import type { Repository } from '@/types/repository'
 
 const { t } = useI18n()
 
@@ -12,7 +13,7 @@ const isLoading = ref(true)
 const tasks = ref<BackupTask[]>([])
 const stats = ref<BackupTaskStats | null>(null)
 const nodes = ref<Node[]>([])
-const repositories = ref<RepoType[]>([])
+const repositories = ref<Repository[]>([])
 const showCreateModal = ref(false)
 const showDetailModal = ref(false)
 const selectedTask = ref<BackupTask | null>(null)
@@ -27,9 +28,12 @@ const newTask = ref<BackupTaskCreateData>({
   name: '',
   node: 0,
   repository: 0,
+  source_path: '',
   paths: [],
-  task_type: 'full',
-  schedule_type: 'manual',
+  backup_type: 'full',
+  task_type: 'manual',
+  schedule_type: 'once',
+  priority: 'normal',
   retention_days: 30,
   compression_enabled: true,
   encryption_enabled: false,
@@ -118,9 +122,12 @@ async function createTask() {
       name: '',
       node: 0,
       repository: 0,
+      source_path: '',
       paths: [],
-      task_type: 'full',
-      schedule_type: 'manual',
+      backup_type: 'full',
+      task_type: 'manual',
+      schedule_type: 'once',
+      priority: 'normal',
       retention_days: 30,
       compression_enabled: true,
       encryption_enabled: false,
@@ -159,7 +166,7 @@ function addPath() {
   if (!newTask.value.paths) {
     newTask.value.paths = []
   }
-  newTask.value.paths.push('')
+  newTask.value.paths.push({ path: '' })
 }
 
 // Remove path
@@ -239,7 +246,7 @@ onMounted(() => {
             <td class="font-medium">{{ task.name }}</td>
             <td>{{ task.node_name || task.node }}</td>
             <td>
-              <span class="badge-info">{{ task.task_type.toUpperCase() }}</span>
+              <span class="badge-info">{{ (task.task_type || 'MANUAL').toUpperCase() }}</span>
             </td>
             <td>
               <span :class="['badge', getStatusColor(task.status)]">
@@ -338,8 +345,8 @@ onMounted(() => {
           <div>
             <label class="block text-sm font-medium text-gray-700">{{ t('backupTasks.paths') }}</label>
             <div class="space-y-2 mt-1">
-              <div v-for="(path, index) in newTask.paths" :key="index" class="flex gap-2">
-                <input v-model="newTask.paths[index]" type="text" class="input flex-1" placeholder="/path/to/backup" />
+              <div v-for="(_, index) in (newTask.paths || [])" :key="index" class="flex gap-2">
+                <input v-model="newTask.paths![index].path" type="text" class="input flex-1" placeholder="/path/to/backup" />
                 <button @click="removePath(index)" class="btn-secondary text-red-600">X</button>
               </div>
               <button @click="addPath" class="btn-secondary text-sm">+ {{ t('backupTasks.addPath') }}</button>
@@ -406,7 +413,7 @@ onMounted(() => {
             </div>
             <div>
               <div class="text-sm text-gray-500">{{ t('backupTasks.taskType') }}</div>
-              <div class="mt-1">{{ selectedTask.task_type.toUpperCase() }}</div>
+              <div class="mt-1">{{ (selectedTask.task_type || 'MANUAL').toUpperCase() }}</div>
             </div>
           </div>
           <div class="grid grid-cols-2 gap-4">

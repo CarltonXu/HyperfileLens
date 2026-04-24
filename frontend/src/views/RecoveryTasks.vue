@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { recoveryTasksApi, backupTasksApi, nodesApi, repositoriesApi } from '@/api'
 import type { RecoveryTask, RecoveryTaskCreateData, RecoveryTaskStats, SnapshotInfo } from '@/types/recovery'
-import type { Node } from '@/types/backup'
+import type { Node } from '@/types/node'
 import type { Repository } from '@/types/repository'
 
 const { t } = useI18n()
@@ -143,15 +143,6 @@ async function createRecovery() {
   } catch (error) {
     console.error('Failed to create recovery:', error)
   }
-}
-
-// Format bytes
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 // Get status color
