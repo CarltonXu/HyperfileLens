@@ -153,13 +153,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
 
-# CORS settings
+# CORS settings - Allow all origins for development
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS',
     'http://localhost:5000,http://localhost:5173,http://localhost:8000,http://127.0.0.1:5000'
 ).split(',')
-
+CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'true').lower() == 'true'
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept', 'accept-encoding', 'authorization', 'content-type', 'dnt',
+    'origin', 'user-agent', 'x-csrftoken', 'x-requested-with',
+]
 
 # Authentication backends - support both username and email login
 AUTHENTICATION_BACKENDS = [
