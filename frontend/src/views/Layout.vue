@@ -40,6 +40,7 @@ const isCollapsed = ref(false)
 const isUserMenuOpen = ref(false)
 const isLangMenuOpen = ref(false)
 const hoverItem = ref<string | null>(null)
+const tooltipPosition = ref({ top: 0, show: false, text: '' })
 
 // Navigation items with icons
 const navigation = computed(() => [
@@ -134,6 +135,24 @@ function setLocale(newLocale: string) {
   isLangMenuOpen.value = false
 }
 
+function handleMouseEnter(item: any, event: MouseEvent) {
+  hoverItem.value = item.path
+  if (isCollapsed.value) {
+    const target = event.currentTarget as HTMLElement
+    const rect = target.getBoundingClientRect()
+    tooltipPosition.value = {
+      top: rect.top + rect.height / 2,
+      show: true,
+      text: item.name
+    }
+  }
+}
+
+function handleMouseLeave() {
+  hoverItem.value = null
+  tooltipPosition.value.show = false
+}
+
 function handleClickOutside(e: MouseEvent) {
   const target = e.target as HTMLElement
   if (!target.closest('.user-menu') && !target.closest('.lang-menu')) {
@@ -182,9 +201,9 @@ onUnmounted(() => {
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 py-4 overflow-y-auto overflow-x-hidden">
+      <nav class="flex-1 py-4 overflow-y-auto">
         <ul class="space-y-1 px-2">
-          <li v-for="item in navigation" :key="item.path" class="relative">
+          <li v-for="item in navigation" :key="item.path">
             <router-link
               :to="item.path"
               :class="[
@@ -193,8 +212,8 @@ onUnmounted(() => {
                   ? 'bg-indigo-50 text-indigo-600'
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               ]"
-              @mouseenter="hoverItem = item.path"
-              @mouseleave="hoverItem = null"
+              @mouseenter="(e) => handleMouseEnter(item, e)"
+              @mouseleave="handleMouseLeave"
             >
               <component
                 :is="item.current ? item.iconSolid : item.icon"
@@ -215,17 +234,6 @@ onUnmounted(() => {
                 class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"
               />
             </router-link>
-
-            <!-- Tooltip for collapsed sidebar -->
-            <Transition name="tooltip">
-              <div
-                v-if="isCollapsed && hoverItem === item.path"
-                class="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap shadow-lg z-50"
-              >
-                {{ item.name }}
-                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
-              </div>
-            </Transition>
           </li>
         </ul>
       </nav>
@@ -355,6 +363,18 @@ onUnmounted(() => {
         <router-view />
       </div>
     </main>
+
+    <!-- Global Tooltip for collapsed sidebar -->
+    <Transition name="tooltip">
+      <div
+        v-if="tooltipPosition.show"
+        class="fixed bg-slate-800 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap shadow-xl z-[9999] pointer-events-none"
+        :style="{ left: '68px', top: `${tooltipPosition.top}px`, transform: 'translateY(-50%)' }"
+      >
+        {{ tooltipPosition.text }}
+        <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -378,6 +398,10 @@ onUnmounted(() => {
 .tooltip-leave-to {
   opacity: 0;
   transform: translateX(-8px) translateY(-50%);
+}
+.tooltip-enter-to,
+.tooltip-leave-from {
+  transform: translateX(0) translateY(-50%);
 }
 
 /* Dropdown transition */
