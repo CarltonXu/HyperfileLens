@@ -9,6 +9,7 @@ const NodeDetail = () => import('@/views/NodeDetail.vue')
 const BackupTasks = () => import('@/views/BackupTasks.vue')
 const RecoveryTasks = () => import('@/views/RecoveryTasks.vue')
 const Repository = () => import('@/views/Repository.vue')
+const SourceResources = () => import('@/views/SourceResources.vue')
 const Policies = () => import('@/views/Policies.vue')
 const AIQuery = () => import('@/views/AIQuery.vue')
 const AuditLog = () => import('@/views/AuditLog.vue')
@@ -79,6 +80,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Repository',
         component: Repository,
         meta: { title: 'Backup Repository' }
+      },
+      {
+        path: 'source-resources',
+        name: 'SourceResources',
+        component: SourceResources,
+        meta: { title: 'Source Resources' }
       },
       {
         path: 'policies',

@@ -16,6 +16,9 @@ from accounts.models import User
 class BackupTask(models.Model):
     """
     Represents a backup task that defines what, when, and how to backup.
+    
+    A backup task connects a SourceResource (source data) to a Repository (target storage).
+    The actual backup is executed by the Node bound to the SourceResource.
     """
     
     # Task status choices
@@ -24,6 +27,7 @@ class BackupTask(models.Model):
     STATUS_COMPLETED = 'completed'
     STATUS_FAILED = 'failed'
     STATUS_CANCELLED = 'cancelled'
+    STATUS_PAUSED = 'paused'
     
     STATUS_CHOICES = [
         (STATUS_PENDING, 'Pending'),
@@ -31,6 +35,7 @@ class BackupTask(models.Model):
         (STATUS_COMPLETED, 'Completed'),
         (STATUS_FAILED, 'Failed'),
         (STATUS_CANCELLED, 'Cancelled'),
+        (STATUS_PAUSED, 'Paused'),
     ]
     
     # Task type choices
@@ -44,48 +49,85 @@ class BackupTask(models.Model):
         (TYPE_DIFFERENTIAL, 'Differential Backup'),
     ]
     
+    # Priority choices
+    PRIORITY_LOW = 'low'
+    PRIORITY_NORMAL = 'normal'
+    PRIORITY_HIGH = 'high'
+    
+    PRIORITY_CHOICES = [
+        (PRIORITY_LOW, 'Low'),
+        (PRIORITY_NORMAL, 'Normal'),
+        (PRIORITY_HIGH, 'High'),
+    ]
+    
     # Fields
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, help_text="Task name")
     description = models.TextField(blank=True, help_text="Task description")
     
-    # Source and target
-    source_node = models.ForeignKey(
-        'nodes.Node',
+    # Source and target - updated to use SourceResource
+    source_resource = models.ForeignKey(
+        'source_resources.SourceResource',
         on_delete=models.CASCADE,
-        related_name='source_backup_tasks',
-        help_text="Source node for backup"
+        related_name='backup_tasks',
+        null=True,
+        blank=True,
+        help_text="Source resource for backup data"
     )
     target_repository = models.ForeignKey(
         'repository.Repository',
         on_delete=models.CASCADE,
         related_name='backup_tasks',
-        help_text="Target repository for backup"
+        help_text="Target repository for backup storage"
     )
     
     # Task configuration
     task_type = models.CharField(
         max_length=20,
         choices=TYPE_CHOICES,
-        default=TYPE_FULL,
+        default=TYPE_INCREMENTAL,
         help_text="Type of backup"
     )
-    paths = models.JSONField(
+    priority = models.CharField(
+        max_length=10,
+        choices=PRIORITY_CHOICES,
+        default=PRIORITY_NORMAL,
+        help_text="Task priority"
+    )
+    
+    # Backup paths - relative to source resource mount point
+    # For LOCAL source: absolute paths on the node
+    # For NFS/CIFS/NAS: paths relative to the mount point
+    # For S3 source: prefixes/keys
+    backup_paths = models.JSONField(
         default=list,
-        help_text="List of paths to backup"
+        help_text="List of paths to backup (relative to source)"
     )
     exclude_patterns = models.JSONField(
         default=list,
         blank=True,
-        help_text="Patterns to exclude from backup"
+        help_text="Patterns to exclude from backup (glob patterns)"
     )
+    include_patterns = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Patterns to include in backup (glob patterns)"
+    )
+    
+    # Compression and encryption
     compression_enabled = models.BooleanField(
         default=True,
         help_text="Enable compression"
     )
+    compression_type = models.CharField(
+        max_length=20,
+        default='zstd',
+        blank=True,
+        help_text="Compression algorithm"
+    )
     encryption_enabled = models.BooleanField(
-        default=False,
-        help_text="Enable encryption"
+        default=True,
+        help_text="Enable encryption (uses repository encryption)"
     )
     
     # Scheduling
@@ -95,12 +137,17 @@ class BackupTask(models.Model):
         null=True,
         blank=True,
         related_name='tasks',
-        help_text="Associated backup policy"
+        help_text="Associated backup policy/schedule"
     )
     next_run_time = models.DateTimeField(
         null=True,
         blank=True,
         help_text="Next scheduled run time"
+    )
+    last_run_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last run time"
     )
     
     # Status and progress
@@ -109,6 +156,10 @@ class BackupTask(models.Model):
         choices=STATUS_CHOICES,
         default=STATUS_PENDING,
         help_text="Current task status"
+    )
+    status_message = models.TextField(
+        blank=True,
+        help_text="Status message or details"
     )
     progress = models.IntegerField(
         default=0,
@@ -149,12 +200,19 @@ class BackupTask(models.Model):
     skipped_files = models.IntegerField(default=0)
     failed_files = models.IntegerField(default=0)
     
+    # Speed tracking
+    bytes_per_second = models.BigIntegerField(
+        default=0,
+        help_text="Backup speed in bytes per second"
+    )
+    
     class Meta:
         db_table = 'backup_tasks'
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['status']),
-            models.Index(fields=['source_node', 'status']),
+            models.Index(fields=['source_resource', 'status']),
+            models.Index(fields=['target_repository', 'status']),
             models.Index(fields=['next_run_time']),
         ]
     
@@ -162,11 +220,54 @@ class BackupTask(models.Model):
         return f"{self.name} ({self.status})"
     
     @property
+    def execution_node(self):
+        """Get the node that executes this backup task."""
+        # The node that executes the backup is the one bound to the source resource
+        return self.source_resource.bound_node
+    
+    @property
     def duration(self):
         """Calculate task duration in seconds."""
         if self.started_at and self.completed_at:
             return (self.completed_at - self.started_at).total_seconds()
+        if self.started_at:
+            return (timezone.now() - self.started_at).total_seconds()
         return None
+    
+    @property
+    def duration_formatted(self):
+        """Format duration as human readable string."""
+        duration = self.duration
+        if duration is None:
+            return 'N/A'
+        
+        hours = int(duration // 3600)
+        minutes = int((duration % 3600) // 60)
+        seconds = int(duration % 60)
+        
+        if hours > 0:
+            return f"{hours}h {minutes}m {seconds}s"
+        elif minutes > 0:
+            return f"{minutes}m {seconds}s"
+        else:
+            return f"{seconds}s"
+    
+    @property
+    def progress_percent(self):
+        """Get progress as percentage (alias for progress)."""
+        return self.progress
+    
+    @property
+    def is_running(self):
+        return self.status == self.STATUS_RUNNING
+    
+    @property
+    def is_completed(self):
+        return self.status == self.STATUS_COMPLETED
+    
+    @property
+    def is_failed(self):
+        return self.status == self.STATUS_FAILED
     
     def update_progress(self, backed_up_files, backed_up_size):
         """Update backup progress."""
@@ -180,7 +281,8 @@ class BackupTask(models.Model):
         """Mark task as running."""
         self.status = self.STATUS_RUNNING
         self.started_at = timezone.now()
-        self.save(update_fields=['status', 'started_at', 'updated_at'])
+        self.last_run_time = timezone.now()
+        self.save(update_fields=['status', 'started_at', 'last_run_time', 'updated_at'])
     
     def mark_completed(self):
         """Mark task as completed."""
@@ -195,6 +297,13 @@ class BackupTask(models.Model):
         self.error_message = error_message
         self.completed_at = timezone.now()
         self.save(update_fields=['status', 'error_message', 'completed_at', 'updated_at'])
+    
+    def mark_pending(self):
+        """Reset task to pending status."""
+        self.status = self.STATUS_PENDING
+        self.progress = 0
+        self.error_message = ''
+        self.save(update_fields=['status', 'progress', 'error_message', 'updated_at'])
 
 
 class BackupSnapshot(models.Model):

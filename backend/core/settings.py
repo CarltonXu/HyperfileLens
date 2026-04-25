@@ -61,6 +61,7 @@ PROJECT_APPS = [
     'core',
     'accounts',
     'nodes',
+    'source_resources',
     'backup_tasks',
     'recovery_tasks',
     'repository',

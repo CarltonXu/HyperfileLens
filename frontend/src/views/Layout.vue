@@ -80,6 +80,13 @@ const navigation = computed(() => [
     current: route.path === '/repository'
   },
   {
+    name: t('nav.sourceResources'),
+    path: '/source-resources',
+    icon: ComputerDesktopIcon,
+    iconSolid: ComputerDesktopIcon,
+    current: route.path === '/source-resources'
+  },
+  {
     name: t('nav.policies'),
     path: '/policies',
     icon: ClockIcon,

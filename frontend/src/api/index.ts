@@ -214,37 +214,73 @@ export const recoveryTasksApi = {
     api.post(`/api/v1/recovery-tasks/tasks/${id}/cancel/`)
 }
 
+// ============== Source Resources API ==============
+export const sourceResourcesApi = {
+  list: (params?: { page?: number; page_size?: number; status?: string; resource_type?: string }) =>
+    api.get('/api/v1/source-resources/', { params }),
+  
+  detail: (id: number | string) =>
+    api.get(`/api/v1/source-resources/${id}/`),
+  
+  create: (data: any) =>
+    api.post('/api/v1/source-resources/', data),
+  
+  update: (id: number | string, data: any) =>
+    api.patch(`/api/v1/source-resources/${id}/`, data),
+  
+  delete: (id: number | string) =>
+    api.delete(`/api/v1/source-resources/${id}/`),
+  
+  stats: () =>
+    api.get('/api/v1/source-resources/stats/'),
+  
+  testConnection: (id: number | string) =>
+    api.post(`/api/v1/source-resources/${id}/test-connection/`),
+  
+  mount: (id: number | string) =>
+    api.post(`/api/v1/source-resources/${id}/mount/`),
+  
+  unmount: (id: number | string) =>
+    api.post(`/api/v1/source-resources/${id}/unmount/`),
+  
+  bindNode: (id: number | string, nodeId: number | string) =>
+    api.post(`/api/v1/source-resources/${id}/bind-node/`, { node_id: nodeId }),
+  
+  unbindNode: (id: number | string) =>
+    api.post(`/api/v1/source-resources/${id}/unbind-node/`)
+}
+
 // ============== Repositories API ==============
 export const repositoriesApi = {
-  list: (params?: { page?: number; page_size?: number; status?: string }) =>
+  list: (params?: { page?: number; page_size?: number; status?: string; repository_type?: string }) =>
     api.get('/api/v1/repository/repositories/', { params }),
   
-  detail: (id: number) =>
+  detail: (id: number | string) =>
     api.get(`/api/v1/repository/repositories/${id}/`),
   
   create: (data: any) =>
     api.post('/api/v1/repository/repositories/', data),
   
-  update: (id: number, data: any) =>
+  update: (id: number | string, data: any) =>
     api.patch(`/api/v1/repository/repositories/${id}/`, data),
   
-  delete: (id: number) =>
+  delete: (id: number | string) =>
     api.delete(`/api/v1/repository/repositories/${id}/`),
   
   stats: () =>
-    api.get('/api/v1/repository/repositories/stats/'),
+    api.get('/api/v1/repository/repositories/statistics/'),
   
-  health: (id: number) =>
-    api.get(`/api/v1/repository/repositories/${id}/health/`),
+  testConnection: (id: number | string) =>
+    api.post(`/api/v1/repository/repositories/${id}/test-connection/`),
   
-  testConnection: (data: any) =>
-    api.post('/api/v1/repository/repositories/test-connection/', data),
+  initKopia: (id: number | string) =>
+    api.post(`/api/v1/repository/repositories/${id}/init-kopia/`),
   
-  sync: (id: number) =>
-    api.post(`/api/v1/repository/repositories/${id}/sync/`),
+  bindNode: (id: number | string, nodeId: number | string) =>
+    api.post(`/api/v1/repository/repositories/${id}/bind-node/`, { node_id: nodeId }),
   
-  browseSnapshots: (id: number) =>
-    api.get(`/api/v1/repository/repositories/${id}/browse/`)
+  unbindNode: (id: number | string) =>
+    api.post(`/api/v1/repository/repositories/${id}/unbind-node/`)
 }
 
 // ============== Policies API ==============

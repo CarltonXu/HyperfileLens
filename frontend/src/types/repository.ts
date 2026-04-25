@@ -1,33 +1,39 @@
 // Repository types
-export type RepositoryType = 'local' | 's3' | 'azure' | 'gcs' | 'nfs' | 'smb'
-export type RepositoryStatus = 'active' | 'inactive' | 'error' | 'syncing'
-export type RepositoryHealthStatus = 'healthy' | 'warning' | 'critical' | 'unknown'
+export type RepositoryType = 'local' | 's3' | 'azure' | 'gcs' | 'nfs'
+export type RepositoryStatus = 'active' | 'inactive' | 'error' | 'maintenance'
+export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'unknown'
 
 export interface Repository {
-  id: number
-  repository_id: string
+  id: string
   name: string
   description?: string
   repository_type: RepositoryType
   status: RepositoryStatus
-  health_status: RepositoryHealthStatus
+  
+  // Connection config
   config: RepositoryConfig
-  capacity_bytes?: number
-  used_bytes?: number
-  available_bytes?: number
-  snapshot_count?: number
-  total_size_bytes?: number
-  last_snapshot_at?: string
-  node?: number
-  node_name?: string
-  owner: number
-  is_default?: boolean
-  is_encrypted?: boolean
-  encryption_algorithm?: string
-  compression_enabled?: boolean
-  compression_algorithm?: string
-  retention_policy?: RetentionPolicy
-  metadata: Record<string, any>
+  
+  // Credentials (encrypted, not returned in API usually)
+  credentials?: RepositoryCredentials
+  
+  // Bound node for operations
+  bound_node?: string | null
+  bound_node_name?: string
+  
+  // Kopia repository state
+  kopia_initialized: boolean
+  kopia_repository_id?: string
+  
+  // Connection status (reported by node)
+  connection_status: ConnectionStatus
+  last_connection_test?: string
+  connection_error?: string
+  
+  // Storage stats
+  capacity: number
+  used_space: number
+  
+  // Timestamps
   created_at: string
   updated_at: string
 }
@@ -40,30 +46,34 @@ export interface RepositoryConfig {
   endpoint?: string
   bucket?: string
   region?: string
+  
+  // NFS
+  server?: string
+  export_path?: string
+  
+  // Azure
+  account_name?: string
+  container?: string
+  
+  // GCS
+  project_id?: string
+  bucket_name?: string
+}
+
+export interface RepositoryCredentials {
+  // S3
   access_key?: string
   secret_key?: string
   
-  // NFS/SMB
-  host?: string
-  share_path?: string
+  // Azure
+  account_key?: string
   
-  // Common
+  // GCS
+  credentials_json?: string
+  
+  // NFS/Local (usually empty)
   username?: string
   password?: string
-  tls_enabled?: boolean
-  verify_ssl?: boolean
-  bandwidth_limit?: number
-}
-
-export interface RetentionPolicy {
-  retention_days?: number
-  retention_weeks?: number
-  retention_months?: number
-  retention_years?: number
-  keep_daily?: number
-  keep_weekly?: number
-  keep_monthly?: number
-  keep_yearly?: number
 }
 
 export interface RepositoryCreateData {
@@ -71,42 +81,24 @@ export interface RepositoryCreateData {
   description?: string
   repository_type: RepositoryType
   config: RepositoryConfig
-  capacity_bytes?: number
-  is_default?: boolean
-  retention_policy?: RetentionPolicy
-  metadata?: Record<string, any>
+  credentials?: RepositoryCredentials
+  bound_node?: string | null
+  capacity?: number
 }
 
 export interface RepositoryUpdateData {
   name?: string
   description?: string
-  status?: RepositoryStatus
   config?: RepositoryConfig
-  capacity_bytes?: number
-  retention_policy?: RetentionPolicy
-  metadata?: Record<string, any>
+  credentials?: RepositoryCredentials
+  bound_node?: string | null
+  status?: RepositoryStatus
 }
 
 export interface RepositoryStats {
-  total_repositories: number
-  active_repositories: number
-  total_capacity_bytes: number
-  used_capacity_bytes: number
-  available_capacity_bytes: number
-  total_snapshots: number
-  total_size_bytes: number
-}
-
-export interface RepositoryHealth {
-  repository_id: number
-  status: RepositoryHealthStatus
-  last_check: string
-  issues: RepositoryIssue[]
-}
-
-export interface RepositoryIssue {
-  severity: 'info' | 'warning' | 'error'
-  code: string
-  message: string
-  details?: Record<string, any>
+  total: number
+  active: number
+  initialized: number
+  total_capacity: number
+  total_used: number
 }

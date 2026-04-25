@@ -16,6 +16,7 @@ urlpatterns = [
 
     # API v1 endpoints
     path('api/v1/nodes/', include('nodes.urls')),
+    path('api/v1/source-resources/', include('source_resources.urls')),
     path('api/v1/backup-tasks/', include('backup_tasks.urls')),
     path('api/v1/recovery-tasks/', include('recovery_tasks.urls')),
     path('api/v1/repository/', include('repository.urls')),

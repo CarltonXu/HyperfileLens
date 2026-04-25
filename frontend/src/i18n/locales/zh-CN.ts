@@ -5,7 +5,8 @@ export default {
     nodes: '节点管理',
     backupTasks: '备份任务',
     recoveryTasks: '恢复任务',
-    repository: '存储仓库',
+    repository: '目标存储仓库',
+    sourceResources: '源端资源',
     policies: '备份策略',
     aiQuery: 'AI 查询',
     auditLog: '审计日志',
@@ -337,6 +338,58 @@ export default {
     },
 
     confirmDelete: '确定要删除此仓库吗？'
+  },
+
+  // Source Resources
+  sourceResources: {
+    title: '源端资源',
+    subtitle: '管理备份数据源（NAS、NFS、CIFS、对象存储、本地）',
+
+    stats: {
+      total: '资源总数',
+      active: '活跃',
+      mounted: '已挂载',
+      error: '错误'
+    },
+
+    addResource: '添加源端资源',
+    allTypes: '全部类型',
+    allStatus: '全部状态',
+    noBoundNode: '未绑定节点',
+    notMounted: '未挂载',
+    testConnection: '测试连接',
+    mountStatus: '挂载状态',
+    mountPoint: '挂载点',
+    boundNode: '绑定节点',
+    noResources: '暂无源端资源',
+    noResourcesDesc: '添加源端资源以开始备份数据',
+    deleteConfirm: '删除源端资源',
+    deleteConfirmDesc: '确定要删除 "{name}" 吗？',
+
+    status: {
+      label: '状态',
+      connected: '已连接',
+      disconnected: '未连接',
+      error: '错误'
+    },
+
+    form: {
+      name: '名称',
+      type: '资源类型',
+      boundNode: '绑定节点',
+      selectNode: '选择节点',
+      server: '服务器',
+      exportPath: '导出路径',
+      share: '共享名称',
+      endpoint: '端点 URL',
+      bucket: '存储桶名称',
+      region: '区域',
+      accessKey: '访问密钥',
+      secretKey: '秘密密钥',
+      username: '用户名',
+      password: '密码',
+      path: '路径'
+    }
   },
 
   // Policies

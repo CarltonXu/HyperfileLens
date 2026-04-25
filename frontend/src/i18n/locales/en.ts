@@ -5,7 +5,8 @@ export default {
     nodes: 'Nodes',
     backupTasks: 'Backup Tasks',
     recoveryTasks: 'Recovery Tasks',
-    repository: 'Repository',
+    repository: 'Target Repository',
+    sourceResources: 'Source Resources',
     policies: 'Policies',
     aiQuery: 'AI Query',
     auditLog: 'Audit Log',
@@ -337,6 +338,58 @@ export default {
     },
 
     confirmDelete: 'Are you sure you want to delete this repository?'
+  },
+
+  // Source Resources
+  sourceResources: {
+    title: 'Source Resources',
+    subtitle: 'Manage backup data sources (NAS, NFS, CIFS, Object Storage, Local)',
+
+    stats: {
+      total: 'Total Resources',
+      active: 'Active',
+      mounted: 'Mounted',
+      error: 'Error'
+    },
+
+    addResource: 'Add Source Resource',
+    allTypes: 'All Types',
+    allStatus: 'All Status',
+    noBoundNode: 'No bound node',
+    notMounted: 'Not mounted',
+    testConnection: 'Test Connection',
+    mountStatus: 'Mount Status',
+    mountPoint: 'Mount Point',
+    boundNode: 'Bound Node',
+    noResources: 'No source resources',
+    noResourcesDesc: 'Add a source resource to start backing up data',
+    deleteConfirm: 'Delete Source Resource',
+    deleteConfirmDesc: 'Are you sure you want to delete "{name}"?',
+
+    status: {
+      label: 'Status',
+      connected: 'Connected',
+      disconnected: 'Disconnected',
+      error: 'Error'
+    },
+
+    form: {
+      name: 'Name',
+      type: 'Resource Type',
+      boundNode: 'Bound Node',
+      selectNode: 'Select a node',
+      server: 'Server',
+      exportPath: 'Export Path',
+      share: 'Share Name',
+      endpoint: 'Endpoint URL',
+      bucket: 'Bucket Name',
+      region: 'Region',
+      accessKey: 'Access Key',
+      secretKey: 'Secret Key',
+      username: 'Username',
+      password: 'Password',
+      path: 'Path'
+    }
   },
 
   // Policies
