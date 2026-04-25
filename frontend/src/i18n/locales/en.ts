@@ -107,6 +107,9 @@ export default {
     title: 'Node Management',
     subtitle: 'Manage source proxies and target gateways',
     addNode: 'Add Node',
+    online: 'Online',
+    offline: 'Offline',
+    neverConnected: 'Never connected',
 
     types: {
       source_proxy: 'Source Proxy',
@@ -121,16 +124,26 @@ export default {
       maintenance: 'Maintenance'
     },
 
-    details: {
-      hostname: 'Hostname',
-      port: 'Port',
-      protocol: 'Protocol',
-      os: 'Operating System',
-      version: 'Version',
+    detail: {
+      connection: 'Connection',
+      operatingSystem: 'Operating System',
       lastHeartbeat: 'Last Heartbeat',
       uptime: 'Uptime',
-      apiKey: 'API Key',
-      capabilities: 'Capabilities'
+      cpuCores: 'CPU Cores',
+      memory: 'Memory',
+      disk: 'Disk',
+      version: 'Version',
+      credentials: 'Node Credentials',
+      credentialsHint: 'Use these credentials to configure the agent on your server',
+      recentHeartbeats: 'Recent Heartbeats'
+    },
+
+    heartbeat: {
+      time: 'Time',
+      cpu: 'CPU',
+      memory: 'Memory',
+      disk: 'Disk',
+      tasks: 'Tasks'
     },
 
     form: {
@@ -140,7 +153,13 @@ export default {
       deleteNode: 'Delete Node',
       deleteConfirm: 'Are you sure you want to delete this node?',
       name: 'Node Name',
+      namePlaceholder: 'e.g. production-server-01',
       type: 'Node Type',
+      hostname: 'Hostname / IP',
+      port: 'Port',
+      protocol: 'Protocol',
+      os: 'Operating System',
+      heartbeatInterval: 'Heartbeat Interval (seconds)',
       ipAddress: 'IP Address',
       operatingSystem: 'Operating System'
     },
@@ -150,9 +169,15 @@ export default {
       edit: 'Edit',
       delete: 'Delete',
       setMaintenance: 'Set Maintenance',
+      activate: 'Activate',
       setActive: 'Set Active',
       viewHeartbeats: 'View Heartbeats',
       copyApiKey: 'Copy API Key'
+    },
+
+    deleteConfirm: {
+      title: 'Delete Node',
+      message: 'Are you sure you want to delete "{name}"? This action cannot be undone.'
     },
 
     empty: {

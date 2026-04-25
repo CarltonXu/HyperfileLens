@@ -107,6 +107,9 @@ export default {
     title: '节点管理',
     subtitle: '管理源端代理和目标网关',
     addNode: '添加节点',
+    online: '在线',
+    offline: '离线',
+    neverConnected: '从未连接',
 
     types: {
       source_proxy: '源端代理',
@@ -121,16 +124,26 @@ export default {
       maintenance: '维护中'
     },
 
-    details: {
-      hostname: '主机名',
-      port: '端口',
-      protocol: '协议',
-      os: '操作系统',
-      version: '版本',
+    detail: {
+      connection: '连接地址',
+      operatingSystem: '操作系统',
       lastHeartbeat: '最后心跳',
       uptime: '运行时间',
-      apiKey: 'API 密钥',
-      capabilities: '能力'
+      cpuCores: 'CPU 核心数',
+      memory: '内存',
+      disk: '磁盘',
+      version: '版本',
+      credentials: '节点凭证',
+      credentialsHint: '使用这些凭证在您的服务器上配置代理程序',
+      recentHeartbeats: '最近心跳记录'
+    },
+
+    heartbeat: {
+      time: '时间',
+      cpu: 'CPU',
+      memory: '内存',
+      disk: '磁盘',
+      tasks: '任务数'
     },
 
     form: {
@@ -140,7 +153,13 @@ export default {
       deleteNode: '删除节点',
       deleteConfirm: '确定要删除此节点吗？',
       name: '节点名称',
+      namePlaceholder: '例如：production-server-01',
       type: '节点类型',
+      hostname: '主机名 / IP',
+      port: '端口',
+      protocol: '协议',
+      os: '操作系统',
+      heartbeatInterval: '心跳间隔（秒）',
       ipAddress: 'IP 地址',
       operatingSystem: '操作系统'
     },
@@ -150,9 +169,15 @@ export default {
       edit: '编辑',
       delete: '删除',
       setMaintenance: '设为维护',
+      activate: '激活',
       setActive: '设为活跃',
       viewHeartbeats: '查看心跳',
       copyApiKey: '复制 API 密钥'
+    },
+
+    deleteConfirm: {
+      title: '删除节点',
+      message: '确定要删除节点 "{name}" 吗？此操作无法撤销。'
     },
 
     empty: {
