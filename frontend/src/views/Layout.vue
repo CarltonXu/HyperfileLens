@@ -157,10 +157,10 @@ onUnmounted(() => {
 
 <template>
   <div class="min-h-screen bg-slate-50 flex">
-    <!-- Right Sidebar -->
+    <!-- Left Sidebar -->
     <aside
       :class="[
-        'fixed right-0 top-0 h-full bg-white border-l border-slate-200 shadow-lg z-50 transition-all duration-300 ease-in-out flex flex-col',
+        'fixed left-0 top-0 h-full bg-white border-r border-slate-200 shadow-lg z-50 transition-all duration-300 ease-in-out flex flex-col',
         isCollapsed ? 'w-16' : 'w-64'
       ]"
     >
@@ -212,7 +212,7 @@ onUnmounted(() => {
               <!-- Active indicator -->
               <div
                 v-if="item.current"
-                class="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-l-full"
+                class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"
               />
             </router-link>
 
@@ -220,10 +220,10 @@ onUnmounted(() => {
             <Transition name="tooltip">
               <div
                 v-if="isCollapsed && hoverItem === item.path"
-                class="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap shadow-lg z-50"
+                class="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap shadow-lg z-50"
               >
                 {{ item.name }}
-                <div class="absolute right-0 top-1/2 translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
+                <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
               </div>
             </Transition>
           </li>
@@ -254,7 +254,7 @@ onUnmounted(() => {
               v-if="isLangMenuOpen"
               :class="[
                 'absolute bg-white rounded-lg shadow-lg border border-slate-200 z-50',
-                isCollapsed ? 'right-full mr-2 bottom-0 w-32' : 'right-0 bottom-full mb-2 w-full'
+                isCollapsed ? 'left-full ml-2 bottom-0 w-32' : 'left-0 bottom-full mb-2 w-full'
               ]"
             >
               <button
@@ -313,7 +313,7 @@ onUnmounted(() => {
               v-if="isUserMenuOpen"
               :class="[
                 'absolute bg-white rounded-lg shadow-lg border border-slate-200 z-50',
-                isCollapsed ? 'right-full mr-2 bottom-0 w-48' : 'right-0 bottom-full mb-2 w-full'
+                isCollapsed ? 'left-full ml-2 bottom-0 w-48' : 'left-0 bottom-full mb-2 w-full'
               ]"
             >
               <div class="px-3 py-2 border-b border-slate-100">
@@ -337,7 +337,7 @@ onUnmounted(() => {
           class="flex items-center justify-center w-full px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"
         >
           <component
-            :is="isCollapsed ? ChevronLeftIcon : ChevronRightIcon"
+            :is="isCollapsed ? ChevronRightIcon : ChevronLeftIcon"
             class="w-5 h-5"
           />
         </button>
@@ -348,7 +348,7 @@ onUnmounted(() => {
     <main
       :class="[
         'flex-1 transition-all duration-300 ease-in-out',
-        isCollapsed ? 'mr-16' : 'mr-64'
+        isCollapsed ? 'ml-16' : 'ml-64'
       ]"
     >
       <div class="p-6 lg:p-8">
@@ -377,7 +377,7 @@ onUnmounted(() => {
 .tooltip-enter-from,
 .tooltip-leave-to {
   opacity: 0;
-  transform: translateX(8px) translateY(-50%);
+  transform: translateX(-8px) translateY(-50%);
 }
 
 /* Dropdown transition */
