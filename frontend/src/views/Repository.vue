@@ -1356,7 +1356,7 @@ onMounted(() => {
                 </div>
                 <div>
                   <p class="text-xs text-slate-500">{{ t('repository.s3.accessKey') }}</p>
-                  <p class="text-slate-700 font-mono">{{ selectedRepo.config?.access_key ? '••••••••' + selectedRepo.config.access_key.slice(-4) : '-' }}</p>
+                  <p class="text-slate-700 font-mono">{{ selectedRepo.credentials_masked?.access_key || '-' }}</p>
                 </div>
                 <div>
                   <p class="text-xs text-slate-500">{{ t('repository.s3.useSSL') }}</p>

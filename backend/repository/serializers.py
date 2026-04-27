@@ -49,12 +49,14 @@ class RepositorySerializer(serializers.ModelSerializer):
     capacity_formatted = serializers.SerializerMethodField()
     used_space_formatted = serializers.SerializerMethodField()
     is_ready = serializers.ReadOnlyField()
+    # Masked credentials for display (access_key visible, secret_key/password masked)
+    credentials_masked = serializers.SerializerMethodField()
     
     class Meta:
         model = Repository
         fields = [
             'id', 'name', 'description', 'repo_type', 'repo_type_display',
-            'config', 'credentials',
+            'config', 'credentials_masked',
             'bound_node', 'bound_node_name', 'bound_node_status',
             'kopia_initialized', 'kopia_repository_id', 'encryption_algorithm',
             'capacity', 'capacity_formatted', 'used_space', 'used_space_formatted',
@@ -73,6 +75,10 @@ class RepositorySerializer(serializers.ModelSerializer):
             'snapshot_count', 'last_backup_at', 'last_sync_at',
             'user', 'created_at', 'updated_at'
         ]
+    
+    def get_credentials_masked(self, obj):
+        """Return credentials with sensitive fields masked."""
+        return obj.get_masked_credentials()
     
     def get_available_space_formatted(self, obj):
         return _format_bytes(obj.available_space)
@@ -115,14 +121,16 @@ class RepositoryListSerializer(serializers.ModelSerializer):
     usage_percentage_formatted = serializers.SerializerMethodField()
     capacity_formatted = serializers.SerializerMethodField()
     is_ready = serializers.ReadOnlyField()
-    # Include config for display (credentials are sensitive, not included in list)
+    # Include config for display
     config = serializers.JSONField(read_only=True)
+    # Include masked credentials (access_key visible, secret_key/password masked)
+    credentials_masked = serializers.SerializerMethodField()
     
     class Meta:
         model = Repository
         fields = [
             'id', 'name', 'description', 'repo_type', 'repo_type_display',
-            'config',
+            'config', 'credentials_masked',
             'bound_node', 'bound_node_name', 'bound_node_status',
             'kopia_initialized', 'status', 'status_display',
             'capacity', 'capacity_formatted', 'used_space', 'used_space_formatted',
@@ -130,6 +138,10 @@ class RepositoryListSerializer(serializers.ModelSerializer):
             'last_backup_at', 'last_connection_test',
             'is_ready', 'created_at', 'updated_at'
         ]
+    
+    def get_credentials_masked(self, obj):
+        """Return credentials with sensitive fields masked."""
+        return obj.get_masked_credentials()
     
     def get_used_space_formatted(self, obj):
         return _format_bytes(obj.used_space)

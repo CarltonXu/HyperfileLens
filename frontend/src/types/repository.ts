@@ -49,14 +49,12 @@ export interface Repository {
   // Connection config
   config?: RepositoryConfig
   
-  // Credentials (encrypted, not returned in API usually)
-  credentials?: {
+  // Masked credentials (access_key visible, secret_key/password masked)
+  credentials_masked?: {
     access_key?: string
-    secret_key?: string
+    secret_key?: string  // Masked, e.g. "AKIA****AMPLE"
     username?: string
-    password?: string
-    account_key?: string
-    credentials_json?: string
+    password?: string    // Always "****"
   }
   
   // Bound node for operations

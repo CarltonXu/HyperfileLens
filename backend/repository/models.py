@@ -9,6 +9,7 @@ import uuid
 from django.db import models
 from accounts.models import User
 from nodes.models import Node
+from common.encryption import encrypt_value, decrypt_value, is_encrypted
 
 
 class Repository(models.Model):
@@ -249,3 +250,90 @@ class Repository(models.Model):
         """Synchronize space usage with actual storage."""
         # In production, this would query the Node for actual space usage
         pass
+    
+    def save(self, *args, **kwargs):
+        """
+        Override save to automatically encrypt sensitive credential fields.
+        
+        The following fields are encrypted before storage:
+        - credentials.secret_key (for S3)
+        - credentials.password (for NAS/CIFS)
+        """
+        # Encrypt sensitive fields in credentials
+        if self.credentials:
+            credentials = self.credentials.copy()  # Don't modify original
+            
+            # Encrypt secret_key if present and not already encrypted
+            if 'secret_key' in credentials and credentials['secret_key']:
+                if not is_encrypted(credentials['secret_key']):
+                    credentials['secret_key'] = encrypt_value(credentials['secret_key'])
+            
+            # Encrypt password if present and not already encrypted
+            if 'password' in credentials and credentials['password']:
+                if not is_encrypted(credentials['password']):
+                    credentials['password'] = encrypt_value(credentials['password'])
+            
+            # Update credentials with encrypted values
+            self.credentials = credentials
+        
+        super().save(*args, **kwargs)
+    
+    def get_decrypted_credentials(self):
+        """
+        Get credentials with decrypted sensitive fields.
+        
+        This method should only be used when passing credentials to
+        authorized components (like Proxy nodes for backup operations).
+        
+        Returns:
+            dict: Credentials with decrypted secret_key and password
+        """
+        if not self.credentials:
+            return {}
+        
+        credentials = self.credentials.copy()
+        
+        # Decrypt secret_key
+        if 'secret_key' in credentials and credentials['secret_key']:
+            try:
+                credentials['secret_key'] = decrypt_value(credentials['secret_key'])
+            except Exception:
+                # If decryption fails, the value might not be encrypted (legacy data)
+                pass
+        
+        # Decrypt password
+        if 'password' in credentials and credentials['password']:
+            try:
+                credentials['password'] = decrypt_value(credentials['password'])
+            except Exception:
+                # If decryption fails, the value might not be encrypted (legacy data)
+                pass
+        
+        return credentials
+    
+    def get_masked_credentials(self):
+        """
+        Get credentials with masked sensitive fields for display.
+        
+        Returns:
+            dict: Credentials with masked secret_key and password,
+                  suitable for API responses and UI display.
+        """
+        if not self.credentials:
+            return {}
+        
+        credentials = self.credentials.copy()
+        
+        # Mask secret_key (show first 4 and last 4 characters)
+        if 'secret_key' in credentials and credentials['secret_key']:
+            key = credentials['secret_key']
+            if len(key) > 8:
+                credentials['secret_key'] = f"{key[:4]}{'*' * (len(key) - 8)}{key[-4:]}"
+            else:
+                credentials['secret_key'] = '****'
+        
+        # Remove password entirely (never show even masked)
+        if 'password' in credentials:
+            credentials['password'] = '****'
+        
+        return credentials
