@@ -27,7 +27,9 @@ import {
   ClipboardDocumentIcon,
   ArrowDownTrayIcon,
   DocumentDuplicateIcon,
-  KeyIcon
+  KeyIcon,
+  Squares2X2Icon,
+  Bars3Icon
 } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
@@ -39,6 +41,7 @@ const stats = ref<ProxyStats | null>(null)
 const selectedRole = ref<string>('all')
 const selectedStatus = ref<string>('all')
 const searchQuery = ref('')
+const viewMode = ref<'card' | 'list'>('card') // View mode: card or list
 const showInstallInfoModal = ref(false)
 
 // Installation Wizard
@@ -519,10 +522,34 @@ onUnmounted(() => {
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
         </button>
+        <!-- View Toggle -->
+        <div class="flex items-center gap-1 border border-slate-200 rounded-lg p-1">
+          <button
+            @click="viewMode = 'card'"
+            :class="[
+              'p-2 rounded-md transition-colors',
+              viewMode === 'card' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+            ]"
+            :title="t('proxies.viewModes.card')"
+          >
+            <Squares2X2Icon class="w-4 h-4" />
+          </button>
+          <button
+            @click="viewMode = 'list'"
+            :class="[
+              'p-2 rounded-md transition-colors',
+              viewMode === 'list' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+            ]"
+            :title="t('proxies.viewModes.list')"
+          >
+            <Bars3Icon class="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Proxies Grid -->
+    <!-- Proxies Card View -->
+    <template v-if="viewMode === 'card'">
     <div v-if="isLoading" class="flex items-center justify-center py-12">
       <div class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
     </div>
@@ -694,6 +721,196 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+    </template>
+
+    <!-- Proxies List View -->
+    <template v-else>
+      <div v-if="isLoading" class="flex items-center justify-center py-12">
+        <div class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+
+      <div v-else-if="filteredProxies.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <ServerIcon class="w-8 h-8 text-slate-400" />
+        </div>
+        <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('proxies.empty.title') }}</h3>
+        <p class="text-slate-500">{{ t('proxies.empty.description') }}</p>
+        <button
+          @click="openInstallWizard"
+          class="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+        >
+          <PlusIcon class="w-4 h-4" />
+          {{ t('proxies.installProxy') }}
+        </button>
+      </div>
+
+      <div v-else class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.name') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.role') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.status') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.hostname') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.ip') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.os') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.cpu') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.memory') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.lastHeartbeat') }}</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-slate-200">
+            <tr
+              v-for="proxy in filteredProxies"
+              :key="proxy.id"
+              class="hover:bg-slate-50 transition-colors"
+            >
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="flex items-center gap-3">
+                  <div :class="[
+                    'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
+                    proxy.role === 'agent'
+                      ? 'bg-gradient-to-br from-indigo-500 to-blue-600'
+                      : 'bg-gradient-to-br from-purple-500 to-violet-600'
+                  ]">
+                    <component :is="proxy.role === 'agent' ? AgentIcon : SyncIcon" class="w-4 h-4 text-white" />
+                  </div>
+                  <span class="font-medium text-slate-800">{{ proxy.name }}</span>
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
+                  {{ t(`proxies.roles.${proxy.role}`) }}
+                </span>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <span :class="['inline-flex items-center px-2 py-1 rounded-full text-xs font-medium', getStatusColor(proxy.status)]">
+                  {{ t(`proxies.status.${proxy.status}`) }}
+                </span>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
+                {{ proxy.hostname || '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
+                {{ proxy.internal_ip || '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
+                {{ proxy.operating_system || '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div v-if="proxy.cpu_usage !== null" class="flex items-center gap-2">
+                  <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all"
+                      :class="proxy.cpu_usage > 80 ? 'bg-red-500' : proxy.cpu_usage > 60 ? 'bg-amber-500' : 'bg-emerald-500'"
+                      :style="{ width: `${Math.min(proxy.cpu_usage, 100)}%` }"
+                    />
+                  </div>
+                  <span class="text-xs text-slate-500 w-10">{{ proxy.cpu_usage?.toFixed(0) }}%</span>
+                </div>
+                <span v-else class="text-slate-400">-</span>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div v-if="proxy.memory_usage !== null" class="flex items-center gap-2">
+                  <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all"
+                      :class="proxy.memory_usage > 80 ? 'bg-red-500' : proxy.memory_usage > 60 ? 'bg-amber-500' : 'bg-emerald-500'"
+                      :style="{ width: `${Math.min(proxy.memory_usage, 100)}%` }"
+                    />
+                  </div>
+                  <span class="text-xs text-slate-500 w-10">{{ proxy.memory_usage?.toFixed(0) }}%</span>
+                </div>
+                <span v-else class="text-slate-400">-</span>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500">
+                {{ timeSince(proxy.last_heartbeat) }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-right">
+                <div class="flex items-center justify-end gap-2">
+                  <button
+                    v-if="proxy.status === 'pending'"
+                    @click="viewInstallInfo(proxy)"
+                    class="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                    :title="t('proxies.actions.viewInstall')"
+                  >
+                    <ExclamationTriangleIcon class="w-4 h-4" />
+                  </button>
+                  <button
+                    @click="viewProxyDetail(proxy)"
+                    class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                    :title="t('proxies.actions.viewDetails')"
+                  >
+                    <InformationCircleIcon class="w-4 h-4" />
+                  </button>
+                  <div class="relative" @click.stop>
+                    <button
+                      @click="toggleMenu(proxy.id)"
+                      class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      <EllipsisHorizontalIcon class="w-4 h-4" />
+                    </button>
+                    <!-- Dropdown Menu -->
+                    <div
+                      v-if="openMenuId === proxy.id"
+                      class="absolute right-0 top-8 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50"
+                    >
+                      <button
+                        @click="viewProxyDetail(proxy)"
+                        class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      >
+                        <InformationCircleIcon class="w-4 h-4" />
+                        {{ t('proxies.actions.viewDetails') }}
+                      </button>
+                      <button
+                        @click="editProxy(proxy)"
+                        class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      >
+                        <PencilIcon class="w-4 h-4" />
+                        {{ t('proxies.actions.edit') }}
+                      </button>
+                      <button
+                        @click="regenerateToken(proxy)"
+                        class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      >
+                        <ArrowPathIcon class="w-4 h-4" />
+                        {{ t('proxies.actions.regenerateToken') }}
+                      </button>
+                      <hr class="my-1 border-slate-100" />
+                      <button
+                        v-if="proxy.status === 'active'"
+                        @click="updateProxyStatus(proxy, 'maintenance')"
+                        class="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
+                      >
+                        <PauseIcon class="w-4 h-4" />
+                        {{ t('proxies.actions.setMaintenance') }}
+                      </button>
+                      <button
+                        v-else-if="proxy.status === 'maintenance'"
+                        @click="updateProxyStatus(proxy, 'active')"
+                        class="w-full px-4 py-2 text-left text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2"
+                      >
+                        <PlayIcon class="w-4 h-4" />
+                        {{ t('proxies.actions.activate') }}
+                      </button>
+                      <hr class="my-1 border-slate-100" />
+                      <button
+                        @click="confirmDeleteProxy(proxy)"
+                        class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      >
+                        <TrashIcon class="w-4 h-4" />
+                        {{ t('proxies.actions.delete') }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
 
     <!-- Install Wizard Modal -->
     <div v-if="showInstallWizard" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">

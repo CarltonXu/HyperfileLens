@@ -245,6 +245,18 @@ export default {
       capabilities: '能力'
     },
 
+    listView: {
+      name: '名称',
+      role: '角色',
+      status: '状态',
+      hostname: '主机名',
+      ip: 'IP 地址',
+      cpuCores: 'CPU',
+      memory: '内存',
+      lastHeartbeat: '最后心跳',
+      actions: '操作'
+    },
+
     detail: {
       hostname: '主机名',
       internalIp: '内部 IP',

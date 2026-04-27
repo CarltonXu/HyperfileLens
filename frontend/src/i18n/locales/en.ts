@@ -245,6 +245,18 @@ export default {
       capabilities: 'Capabilities'
     },
 
+    listView: {
+      name: 'Name',
+      role: 'Role',
+      status: 'Status',
+      hostname: 'Hostname',
+      ip: 'IP Address',
+      cpuCores: 'CPU',
+      memory: 'Memory',
+      lastHeartbeat: 'Last Heartbeat',
+      actions: 'Actions'
+    },
+
     detail: {
       hostname: 'Hostname',
       internalIp: 'Internal IP',
