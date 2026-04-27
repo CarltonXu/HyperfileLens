@@ -106,20 +106,29 @@ class RepositoryListSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True
     )
+    bound_node_status = serializers.CharField(
+        source='bound_node.status',
+        read_only=True,
+        allow_null=True
+    )
     used_space_formatted = serializers.SerializerMethodField()
     usage_percentage_formatted = serializers.SerializerMethodField()
+    capacity_formatted = serializers.SerializerMethodField()
     is_ready = serializers.ReadOnlyField()
+    # Include config for display (credentials are sensitive, not included in list)
+    config = serializers.JSONField(read_only=True)
     
     class Meta:
         model = Repository
         fields = [
             'id', 'name', 'description', 'repo_type', 'repo_type_display',
-            'bound_node', 'bound_node_name',
+            'config',
+            'bound_node', 'bound_node_name', 'bound_node_status',
             'kopia_initialized', 'status', 'status_display',
-            'capacity', 'used_space', 'used_space_formatted',
+            'capacity', 'capacity_formatted', 'used_space', 'used_space_formatted',
             'usage_percentage_formatted', 'snapshot_count',
             'last_backup_at', 'last_connection_test',
-            'is_ready', 'created_at'
+            'is_ready', 'created_at', 'updated_at'
         ]
     
     def get_used_space_formatted(self, obj):
@@ -130,6 +139,9 @@ class RepositoryListSerializer(serializers.ModelSerializer):
         if usage is None:
             return 'N/A'
         return f"{usage:.1f}%"
+    
+    def get_capacity_formatted(self, obj):
+        return _format_bytes(obj.capacity) if obj.capacity else 'Unlimited'
 
 
 class RepositoryCreateSerializer(serializers.ModelSerializer):
