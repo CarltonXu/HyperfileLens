@@ -251,11 +251,11 @@ const filteredRepos = computed(() => {
     const query = searchQuery.value.toLowerCase()
     result = result.filter(r => 
       r.name.toLowerCase().includes(query) ||
-      r.repository_type?.toLowerCase().includes(query)
+      r.repo_type?.toLowerCase().includes(query)
     )
   }
   if (typeFilter.value) {
-    result = result.filter(r => r.repository_type === typeFilter.value)
+    result = result.filter(r => r.repo_type === typeFilter.value)
   }
   return result
 })
@@ -636,8 +636,8 @@ onMounted(() => {
         class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow"
       >
         <div class="flex items-start justify-between mb-3">
-          <div :class="['w-10 h-10 rounded-lg flex items-center justify-center', getRepoTypeColor(repo.repository_type)]">
-            <component :is="getRepoTypeIcon(repo.repository_type)" class="w-5 h-5" />
+          <div :class="['w-10 h-10 rounded-lg flex items-center justify-center', getRepoTypeColor(repo.repo_type)]">
+            <component :is="getRepoTypeIcon(repo.repo_type)" class="w-5 h-5" />
           </div>
           <div class="flex items-center gap-2">
             <span v-if="repo.kopia_initialized" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
@@ -654,12 +654,12 @@ onMounted(() => {
         </div>
         
         <h3 class="text-base font-semibold text-slate-800 mb-1">{{ repo.name }}</h3>
-        <p class="text-sm text-slate-500 mb-3">{{ repo.description || getRepoTypeLabel(repo.repository_type) }}</p>
+        <p class="text-sm text-slate-500 mb-3">{{ repo.description || getRepoTypeLabel(repo.repo_type) }}</p>
         
         <!-- Connection Info -->
         <div class="bg-slate-50 rounded-lg p-3 mb-3 space-y-2">
           <!-- S3 Info -->
-          <template v-if="repo.repository_type === 's3'">
+          <template v-if="repo.repo_type === 's3'">
             <div class="flex items-center gap-2 text-sm">
               <GlobeAltIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
               <span class="text-slate-600 truncate" :title="repo.config?.endpoint">{{ repo.config?.endpoint || '-' }}</span>
@@ -672,7 +672,7 @@ onMounted(() => {
           </template>
           
           <!-- NAS Info -->
-          <template v-else-if="repo.repository_type === 'nas'">
+          <template v-else-if="repo.repo_type === 'nas'">
             <div class="flex items-center gap-2 text-sm">
               <ServerIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
               <span class="text-slate-600">{{ repo.config?.server || '-' }}</span>
@@ -687,7 +687,7 @@ onMounted(() => {
           </template>
           
           <!-- Local Info -->
-          <template v-else-if="repo.repository_type === 'local'">
+          <template v-else-if="repo.repo_type === 'local'">
             <div class="flex items-center gap-2 text-sm">
               <FolderIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
               <span class="text-slate-600 truncate" :title="repo.config?.path">{{ repo.config?.path || '-' }}</span>
@@ -716,7 +716,7 @@ onMounted(() => {
         </div>
         
         <div class="flex items-center justify-between pt-3 border-t border-slate-100">
-          <span class="text-xs text-slate-400 uppercase">{{ getRepoTypeLabel(repo.repository_type) }}</span>
+          <span class="text-xs text-slate-400 uppercase">{{ getRepoTypeLabel(repo.repo_type) }}</span>
           <div class="flex items-center gap-1">
             <button
               v-if="!repo.kopia_initialized && repo.bound_node"
@@ -791,8 +791,8 @@ onMounted(() => {
                 <!-- Name -->
                 <td class="sticky left-0 bg-white px-4 py-3 whitespace-nowrap z-10">
                   <div class="flex items-center gap-3">
-                    <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', getRepoTypeColor(repo.repository_type)]">
-                      <component :is="getRepoTypeIcon(repo.repository_type)" class="w-4 h-4 text-white" />
+                    <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', getRepoTypeColor(repo.repo_type)]">
+                      <component :is="getRepoTypeIcon(repo.repo_type)" class="w-4 h-4 text-white" />
                     </div>
                     <button
                       @click="selectedRepo = repo; showDetailModal = true"
@@ -805,11 +805,11 @@ onMounted(() => {
                 <!-- Type -->
                 <td class="px-4 py-3 whitespace-nowrap">
                   <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                    repo.repository_type === 's3' ? 'bg-orange-100 text-orange-700' :
-                    repo.repository_type === 'nas' ? 'bg-purple-100 text-purple-700' :
+                    repo.repo_type === 's3' ? 'bg-orange-100 text-orange-700' :
+                    repo.repo_type === 'nas' ? 'bg-purple-100 text-purple-700' :
                     'bg-blue-100 text-blue-700'
                   ]">
-                    {{ getRepoTypeLabel(repo.repository_type) }}
+                    {{ getRepoTypeLabel(repo.repo_type) }}
                   </span>
                 </td>
                 <!-- Status -->
@@ -823,10 +823,10 @@ onMounted(() => {
                 </td>
                 <!-- Connection Info -->
                 <td class="px-4 py-3 text-sm text-slate-600 max-w-[200px]">
-                  <template v-if="repo.repository_type === 's3'">
+                  <template v-if="repo.repo_type === 's3'">
                     <div class="truncate" :title="repo.config?.endpoint">{{ repo.config?.bucket || '-' }}</div>
                   </template>
-                  <template v-else-if="repo.repository_type === 'nas'">
+                  <template v-else-if="repo.repo_type === 'nas'">
                     <div class="truncate" :title="repo.config?.server">{{ repo.config?.server || '-' }}</div>
                   </template>
                   <template v-else>
@@ -1299,11 +1299,11 @@ onMounted(() => {
           <div class="p-6 space-y-4">
             <!-- Type & Status -->
             <div class="flex items-center gap-3">
-              <div :class="['w-12 h-12 rounded-lg flex items-center justify-center', getRepoTypeColor(selectedRepo.repository_type)]">
-                <component :is="getRepoTypeIcon(selectedRepo.repository_type)" class="w-6 h-6" />
+              <div :class="['w-12 h-12 rounded-lg flex items-center justify-center', getRepoTypeColor(selectedRepo.repo_type)]">
+                <component :is="getRepoTypeIcon(selectedRepo.repo_type)" class="w-6 h-6" />
               </div>
               <div class="flex-1">
-                <p class="font-medium text-slate-800">{{ getRepoTypeLabel(selectedRepo.repository_type) }}</p>
+                <p class="font-medium text-slate-800">{{ getRepoTypeLabel(selectedRepo.repo_type) }}</p>
                 <p class="text-sm text-slate-500">{{ selectedRepo.status === 'active' ? t('common.active') : t('common.inactive') }}</p>
               </div>
               <span v-if="selectedRepo.kopia_initialized" class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
@@ -1331,7 +1331,7 @@ onMounted(() => {
             </div>
             
             <!-- S3 Configuration -->
-            <div v-if="selectedRepo.repository_type === 's3'" class="bg-slate-50 rounded-lg p-4 space-y-3">
+            <div v-if="selectedRepo.repo_type === 's3'" class="bg-slate-50 rounded-lg p-4 space-y-3">
               <h4 class="font-medium text-slate-700 flex items-center gap-2">
                 <GlobeAltIcon class="w-5 h-5" />
                 {{ t('repository.types.s3') }} {{ t('repository.configInfo') }}
@@ -1365,7 +1365,7 @@ onMounted(() => {
             </div>
             
             <!-- NAS Configuration -->
-            <div v-if="selectedRepo.repository_type === 'nas'" class="bg-slate-50 rounded-lg p-4 space-y-3">
+            <div v-if="selectedRepo.repo_type === 'nas'" class="bg-slate-50 rounded-lg p-4 space-y-3">
               <h4 class="font-medium text-slate-700 flex items-center gap-2">
                 <ServerIcon class="w-5 h-5" />
                 {{ t('repository.types.nas') }} {{ t('repository.configInfo') }}
@@ -1395,7 +1395,7 @@ onMounted(() => {
             </div>
             
             <!-- Local Configuration -->
-            <div v-if="selectedRepo.repository_type === 'local'" class="bg-slate-50 rounded-lg p-4 space-y-3">
+            <div v-if="selectedRepo.repo_type === 'local'" class="bg-slate-50 rounded-lg p-4 space-y-3">
               <h4 class="font-medium text-slate-700 flex items-center gap-2">
                 <FolderIcon class="w-5 h-5" />
                 {{ t('repository.types.local') }} {{ t('repository.configInfo') }}
@@ -1424,7 +1424,7 @@ onMounted(() => {
               </div>
               <div>
                 <p class="text-xs text-slate-500">{{ t('common.updatedAt') }}</p>
-                <p class="text-slate-700">{{ new Date(selectedRepo.updated_at).toLocaleString() }}</p>
+                <p class="text-slate-700">{{ selectedRepo.updated_at ? new Date(selectedRepo.updated_at).toLocaleString() : '-' }}</p>
               </div>
             </div>
           </div>

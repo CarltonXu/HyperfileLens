@@ -41,8 +41,10 @@ export interface Repository {
   id: string
   name: string
   description?: string
-  repository_type: RepositoryType
+  repo_type: RepositoryType
+  repo_type_display?: string
   status: RepositoryStatus
+  status_display?: string
   
   // Connection config
   config?: RepositoryConfig
@@ -60,23 +62,45 @@ export interface Repository {
   // Bound node for operations
   bound_node?: string | null
   bound_node_name?: string
+  bound_node_status?: string
   
   // Kopia repository state
   kopia_initialized: boolean
   kopia_repository_id?: string
+  encryption_algorithm?: string
   
-  // Connection status (reported by node)
-  connection_status: ConnectionStatus
+  // Connection status
   last_connection_test?: string
-  connection_error?: string
+  connection_test_result?: string
+  status_message?: string
   
   // Storage stats
-  capacity: number
-  used_space: number
+  capacity?: number
+  capacity_formatted?: string
+  used_space?: number
+  used_space_formatted?: string
+  available_space_formatted?: string
+  usage_percentage?: number
+  usage_percentage_formatted?: string
+  
+  // Snapshot stats
+  snapshot_count?: number
+  last_backup_at?: string
+  
+  // Flags
+  is_ready?: boolean
+  supports_compression?: boolean
+  supports_encryption?: boolean
+  compression_type?: string
+  is_readonly?: boolean
+  
+  // User info
+  user?: string
+  user_email?: string
   
   // Timestamps
   created_at: string
-  updated_at: string
+  updated_at?: string
 }
 
 export interface RepositoryCredentials {
@@ -98,7 +122,7 @@ export interface RepositoryCredentials {
 export interface RepositoryCreateData {
   name: string
   description?: string
-  repository_type: RepositoryType
+  repo_type: RepositoryType
   config: RepositoryConfig
   credentials?: RepositoryCredentials
   bound_node?: string | null
