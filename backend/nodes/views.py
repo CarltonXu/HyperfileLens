@@ -5,6 +5,8 @@ This module provides API views for proxy management,
 including CRUD operations, installation, heartbeat handling, and statistics.
 """
 
+import secrets
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -154,7 +156,9 @@ curl -sSL {server_url}/install.sh | bash -s -- \\
             name=data['name'],
             role=data['role'],
             owner=request.user,
-            status=ProxyNode.NodeStatus.PENDING
+            status=ProxyNode.NodeStatus.PENDING,
+            api_token=secrets.token_urlsafe(32),
+            install_token=secrets.token_urlsafe(32)
         )
 
         # Get server URL

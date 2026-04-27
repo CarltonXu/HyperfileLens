@@ -923,8 +923,8 @@ onUnmounted(() => {
                   </div>
                   <p class="text-xs text-slate-500 mb-2">{{ t('proxies.install.apiTokenDesc') }}</p>
                   <div class="flex items-center gap-2 bg-slate-50 rounded px-3 py-2">
-                    <p class="text-sm font-mono text-slate-800 flex-1 truncate">{{ installResult.api_token.substring(0, 24) }}...</p>
-                    <button @click="copyCommand(installResult.api_token)" class="text-slate-400 hover:text-slate-600">
+                    <p class="text-sm font-mono text-slate-800 flex-1 break-all">{{ installResult.api_token || 'N/A' }}</p>
+                    <button @click="copyCommand(installResult.api_token)" class="text-slate-400 hover:text-slate-600 flex-shrink-0">
                       <DocumentDuplicateIcon class="w-4 h-4" />
                     </button>
                   </div>
