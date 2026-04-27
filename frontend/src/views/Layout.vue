@@ -17,7 +17,8 @@ import {
   ChevronRightIcon,
   ArrowRightStartOnRectangleIcon,
   LanguageIcon,
-  ComputerDesktopIcon
+  ComputerDesktopIcon,
+  Bars3Icon
 } from '@heroicons/vue/24/outline'
 import {
   HomeIcon as HomeIconSolid,
@@ -182,95 +183,44 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 flex">
-    <!-- Left Sidebar -->
-    <aside
-      :class="[
-        'fixed left-0 top-0 h-full bg-white border-r border-slate-200 shadow-lg z-50 transition-all duration-300 ease-in-out flex flex-col',
-        isCollapsed ? 'w-16' : 'w-64'
-      ]"
-    >
-      <!-- Logo Section -->
-      <div class="h-16 flex items-center justify-between px-3 border-b border-slate-100">
-        <Transition name="fade" mode="out-in">
-          <div v-if="!isCollapsed" class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
-              <ComputerDesktopIcon class="w-5 h-5 text-white" />
-            </div>
-            <span class="font-semibold text-slate-800 text-sm">HyperFileLens</span>
+  <div class="min-h-screen bg-slate-50 flex flex-col">
+    <!-- Top Header Bar -->
+    <header class="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 shadow-sm z-40 flex items-center justify-between px-4">
+      <!-- Left: Logo & Toggle -->
+      <div class="flex items-center gap-3">
+        <button
+          @click="toggleSidebar"
+          class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors lg:hidden"
+        >
+          <Bars3Icon class="w-5 h-5" />
+        </button>
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
+            <ComputerDesktopIcon class="w-4 h-4 text-white" />
           </div>
-          <div v-else class="w-10 h-10 flex items-center justify-center mx-auto">
-            <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
-              <ComputerDesktopIcon class="w-5 h-5 text-white" />
-            </div>
-          </div>
-        </Transition>
+          <span class="font-semibold text-slate-800 text-sm hidden sm:block">HyperFileLens</span>
+        </div>
       </div>
 
-      <!-- Navigation -->
-      <nav class="flex-1 py-4 overflow-y-auto">
-        <ul class="space-y-1 px-2">
-          <li v-for="item in navigation" :key="item.path">
-            <router-link
-              :to="item.path"
-              :class="[
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative group',
-                item.current
-                  ? 'bg-indigo-50 text-indigo-600'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              ]"
-              @mouseenter="(e) => handleMouseEnter(item, e)"
-              @mouseleave="handleMouseLeave"
-            >
-              <component
-                :is="item.current ? item.iconSolid : item.icon"
-                :class="[
-                  'w-5 h-5 flex-shrink-0 transition-colors',
-                  item.current ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'
-                ]"
-              />
-              <Transition name="fade">
-                <span v-if="!isCollapsed" class="text-sm font-medium truncate">
-                  {{ item.name }}
-                </span>
-              </Transition>
-              
-              <!-- Active indicator -->
-              <div
-                v-if="item.current"
-                class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"
-              />
-            </router-link>
-          </li>
-        </ul>
-      </nav>
-
-      <!-- Bottom Section -->
-      <div class="border-t border-slate-100 p-2 space-y-1">
+      <!-- Right: Language Switcher & User Menu -->
+      <div class="flex items-center gap-2">
         <!-- Language Switcher -->
         <div class="relative lang-menu">
           <button
             @click="toggleLangMenu"
-            :class="[
-              'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            ]"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
           >
-            <LanguageIcon class="w-5 h-5 flex-shrink-0 text-slate-400" />
-            <Transition name="fade">
-              <span v-if="!isCollapsed" class="text-sm font-medium">
-                {{ locale === 'zh-CN' ? '中文' : 'EN' }}
-              </span>
-            </Transition>
+            <LanguageIcon class="w-4 h-4" />
+            <span class="text-sm font-medium">
+              {{ locale === 'zh-CN' ? '中文' : 'EN' }}
+            </span>
           </button>
 
           <!-- Language Dropdown -->
           <Transition name="dropdown">
             <div
               v-if="isLangMenuOpen"
-              :class="[
-                'absolute bg-white rounded-lg shadow-lg border border-slate-200 z-50',
-                isCollapsed ? 'left-full ml-2 bottom-0 w-32' : 'left-0 bottom-full mb-2 w-full'
-              ]"
+              class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-50 w-32"
             >
               <button
                 @click="setLocale('en')"
@@ -301,39 +251,32 @@ onUnmounted(() => {
           <button
             @click="toggleUserMenu"
             :class="[
-              'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors',
-              isUserMenuOpen ? 'bg-slate-50' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              'flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors',
+              isUserMenuOpen ? 'bg-slate-100' : 'hover:bg-slate-50'
             ]"
           >
-            <div class="w-8 h-8 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div class="w-7 h-7 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center shadow-sm">
               <span class="text-xs font-medium text-white">
                 {{ authStore.user?.email?.[0]?.toUpperCase() || 'U' }}
               </span>
             </div>
-            <Transition name="fade">
-              <div v-if="!isCollapsed" class="text-left min-w-0 flex-1">
-                <p class="text-sm font-medium text-slate-800 truncate">
-                  {{ authStore.userFullName }}
-                </p>
-                <p class="text-xs text-slate-400 truncate">
-                  {{ authStore.user?.role?.name || 'User' }}
-                </p>
-              </div>
-            </Transition>
+            <div class="text-left hidden sm:block">
+              <p class="text-sm font-medium text-slate-800">
+                {{ authStore.userFullName }}
+              </p>
+            </div>
           </button>
 
           <!-- User Dropdown -->
           <Transition name="dropdown">
             <div
               v-if="isUserMenuOpen"
-              :class="[
-                'absolute bg-white rounded-lg shadow-lg border border-slate-200 z-50',
-                isCollapsed ? 'left-full ml-2 bottom-0 w-48' : 'left-0 bottom-full mb-2 w-full'
-              ]"
+              class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-50 w-56"
             >
               <div class="px-3 py-2 border-b border-slate-100">
                 <p class="text-sm font-medium text-slate-800 truncate">{{ authStore.userFullName }}</p>
                 <p class="text-xs text-slate-400 truncate">{{ authStore.user?.email }}</p>
+                <p class="text-xs text-slate-400 truncate">{{ authStore.user?.role?.name || 'User' }}</p>
               </div>
               <button
                 @click="handleLogout"
@@ -345,31 +288,82 @@ onUnmounted(() => {
             </div>
           </Transition>
         </div>
+      </div>
+    </header>
+
+    <!-- Main Layout: Sidebar + Content -->
+    <div class="flex flex-1 pt-14">
+      <!-- Left Sidebar -->
+      <aside
+        :class="[
+          'fixed left-0 top-14 h-[calc(100vh-3.5rem)] bg-white border-r border-slate-200 shadow-lg z-30 transition-all duration-300 ease-in-out flex flex-col',
+          isCollapsed ? 'w-16' : 'w-64'
+        ]"
+      >
+        <!-- Navigation -->
+        <nav class="flex-1 py-4 overflow-y-auto">
+          <ul class="space-y-1 px-2">
+            <li v-for="item in navigation" :key="item.path">
+              <router-link
+                :to="item.path"
+                :class="[
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative group',
+                  item.current
+                    ? 'bg-indigo-50 text-indigo-600'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                ]"
+                @mouseenter="(e) => handleMouseEnter(item, e)"
+                @mouseleave="handleMouseLeave"
+              >
+                <component
+                  :is="item.current ? item.iconSolid : item.icon"
+                  :class="[
+                    'w-5 h-5 flex-shrink-0 transition-colors',
+                    item.current ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'
+                  ]"
+                />
+                <Transition name="fade">
+                  <span v-if="!isCollapsed" class="text-sm font-medium truncate">
+                    {{ item.name }}
+                  </span>
+                </Transition>
+                
+                <!-- Active indicator -->
+                <div
+                  v-if="item.current"
+                  class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"
+                />
+              </router-link>
+            </li>
+          </ul>
+        </nav>
 
         <!-- Collapse Button -->
-        <button
-          @click="toggleSidebar"
-          class="flex items-center justify-center w-full px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"
-        >
-          <component
-            :is="isCollapsed ? ChevronRightIcon : ChevronLeftIcon"
-            class="w-5 h-5"
-          />
-        </button>
-      </div>
-    </aside>
+        <div class="border-t border-slate-100 p-2">
+          <button
+            @click="toggleSidebar"
+            class="flex items-center justify-center w-full px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"
+          >
+            <component
+              :is="isCollapsed ? ChevronRightIcon : ChevronLeftIcon"
+              class="w-5 h-5"
+            />
+          </button>
+        </div>
+      </aside>
 
-    <!-- Main Content Area -->
-    <main
-      :class="[
-        'flex-1 transition-all duration-300 ease-in-out',
-        isCollapsed ? 'ml-16' : 'ml-64'
-      ]"
-    >
-      <div class="p-6 lg:p-8">
-        <router-view />
-      </div>
-    </main>
+      <!-- Main Content Area -->
+      <main
+        :class="[
+          'flex-1 transition-all duration-300 ease-in-out',
+          isCollapsed ? 'ml-16' : 'ml-64'
+        ]"
+      >
+        <div class="p-6 lg:p-8">
+          <router-view />
+        </div>
+      </main>
+    </div>
 
     <!-- Global Tooltip for collapsed sidebar -->
     <Transition name="tooltip">
@@ -419,7 +413,7 @@ onUnmounted(() => {
 .dropdown-enter-from,
 .dropdown-leave-to {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(-8px);
 }
 
 /* Scrollbar styling */
