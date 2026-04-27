@@ -193,6 +193,10 @@ class ProxyNode(models.Model):
         blank=True,
         help_text='One-time installation token'
     )
+    install_token_used = models.BooleanField(
+        default=False,
+        help_text='Whether the install token has been used'
+    )
     install_command = models.TextField(
         blank=True,
         help_text='Generated installation command'

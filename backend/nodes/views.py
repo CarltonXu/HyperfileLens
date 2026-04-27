@@ -103,6 +103,7 @@ class ProxyViewSet(viewsets.ModelViewSet):
         install_command = self._build_install_command(
             server_url=server_url,
             role=proxy.role,
+            proxy_id=proxy.id,
             install_token=proxy.install_token,
             os_type=os_type,
             name=proxy.name
@@ -112,15 +113,16 @@ class ProxyViewSet(viewsets.ModelViewSet):
         proxy.installed_by = request.user
         proxy.save(update_fields=['install_command', 'installed_by'])
 
-    def _build_install_command(self, server_url, role, install_token, os_type, name):
+    def _build_install_command(self, server_url, role, proxy_id, install_token, os_type, name):
         """Build the installation command string."""
         if os_type == 'windows':
             return f'''# PowerShell (Run as Administrator)
 Invoke-WebRequest -Uri "{server_url}/install.ps1" -OutFile "install.ps1"
-./install.ps1 -Role {role} -Server "{server_url}" -Token "{install_token}" -Name "{name}"'''
+./install.ps1 -ProxyId "{proxy_id}" -Role {role} -Server "{server_url}" -Token "{install_token}" -Name "{name}"'''
         else:
             return f'''# Linux/macOS
 curl -sSL {server_url}/install.sh | bash -s -- \\
+  --proxy-id {proxy_id} \\
   --role {role} \\
   --server {server_url} \\
   --token {install_token} \\
@@ -171,6 +173,7 @@ curl -sSL {server_url}/install.sh | bash -s -- \\
         install_command = self._build_install_command(
             server_url=server_url,
             role=proxy.role,
+            proxy_id=proxy.id,
             install_token=proxy.install_token,
             os_type=data['os'],
             name=proxy.name
@@ -179,6 +182,7 @@ curl -sSL {server_url}/install.sh | bash -s -- \\
         windows_command = self._build_install_command(
             server_url=server_url,
             role=proxy.role,
+            proxy_id=proxy.id,
             install_token=proxy.install_token,
             os_type='windows',
             name=proxy.name
@@ -395,6 +399,66 @@ logging:
         return Response(serializer.data)
 
     @extend_schema(
+        summary='Register proxy',
+        description='Register a proxy using install_token to get api_token.',
+        request=ProxyRegisterSerializer,
+        responses={200: OpenApiResponse(description='Registration successful')}
+    )
+    @action(detail=False, methods=['post'], authentication_classes=[], permission_classes=[])
+    def register(self, request):
+        """
+        Register a proxy using proxy_id and install_token.
+        
+        This is called by the proxy during installation to:
+        1. Verify the installation is authorized
+        2. Get the api_token for ongoing communication
+        3. Report system information
+        
+        Flow:
+        1. User creates proxy in Web UI → gets install command with proxy_id and install_token
+        2. Install script calls this API with proxy_id, install_token, and system info
+        3. Server verifies and returns api_token
+        4. Proxy saves api_token locally for future communication
+        """
+        serializer = ProxyRegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        
+        proxy = data['proxy']
+        
+        # Verify proxy_id matches (additional security check)
+        if 'node_id' in data and str(proxy.id) != str(data['node_id']):
+            return Response(
+                {'error': 'Proxy ID mismatch'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Update proxy with registration info
+        proxy.hostname = data.get('hostname', '')
+        proxy.internal_ip = data.get('internal_ip', '')
+        proxy.os_type = data.get('os', '')
+        proxy.os_version = data.get('os_version', '')
+        proxy.version = data.get('version', '')
+        proxy.kopia_version = data.get('kopia_version', '')
+        proxy.cpu_cores = data.get('cpu_cores')
+        proxy.memory_total = data.get('memory_total')
+        proxy.disk_total = data.get('disk_total')
+        if data.get('capabilities'):
+            proxy.capabilities = data['capabilities']
+        proxy.status = ProxyNode.NodeStatus.ACTIVE
+        proxy.install_token_used = True  # Mark install token as used
+        proxy.save()
+        
+        return Response({
+            'proxy_id': str(proxy.id),
+            'api_token': proxy.api_token,
+            'name': proxy.name,
+            'role': proxy.role,
+            'server_url': request.build_absolute_uri('/').rstrip('/'),
+            'message': 'Registration successful'
+        })
+
+    @extend_schema(
         summary='Regenerate API token',
         description='Regenerate the API token for a proxy.',
     )
@@ -430,57 +494,6 @@ logging:
             'install_token': proxy.install_token,
             'install_command': install_cmd,
             'message': 'Tokens regenerated successfully'
-        })
-
-
-class ProxyRegisterView(APIView):
-    """
-    View for proxy registration.
-
-    Called by the proxy during installation to complete registration.
-    """
-
-    permission_classes = [AllowAny]
-
-    @extend_schema(
-        summary='Register proxy',
-        description='Complete proxy registration during installation.',
-        request=ProxyRegisterSerializer,
-        responses={
-            200: ProxyNodeSerializer,
-            400: OpenApiResponse(description='Invalid registration data'),
-        }
-    )
-    def post(self, request):
-        """Register a proxy."""
-        serializer = ProxyRegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        proxy = serializer.validated_data['proxy']
-        data = serializer.validated_data
-
-        # Clear install token (one-time use)
-        proxy.install_token = ''
-
-        # Update proxy info
-        proxy.update_heartbeat({
-            'hostname': data.get('hostname'),
-            'internal_ip': data.get('internal_ip'),
-            'os': data.get('os'),
-            'os_version': data.get('os_version'),
-            'version': data.get('version'),
-            'kopia_version': data.get('kopia_version'),
-            'cpu_cores': data.get('cpu_cores'),
-            'memory_total': data.get('memory_total'),
-            'disk_total': data.get('disk_total'),
-            'capabilities': data.get('capabilities', {}),
-        })
-
-        return Response({
-            'node_id': str(proxy.id),
-            'api_token': proxy.api_token,
-            'status': proxy.status,
-            'message': 'Registration successful'
         })
 
 

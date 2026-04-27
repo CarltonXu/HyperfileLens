@@ -190,28 +190,33 @@ class ProxyNodeDetailSerializer(ProxyNodeSerializer):
 class ProxyRegisterSerializer(serializers.Serializer):
     """Serializer for proxy registration."""
 
+    proxy_id = serializers.UUIDField()
     install_token = serializers.CharField()
-    node_id = serializers.UUIDField()
-    hostname = serializers.CharField()
-    internal_ip = serializers.IPAddressField(required=False)
-    os = serializers.CharField()
-    os_version = serializers.CharField(required=False)
-    version = serializers.CharField()
-    kopia_version = serializers.CharField()
-    cpu_cores = serializers.IntegerField(required=False)
-    memory_total = serializers.BigIntegerField(required=False)
-    disk_total = serializers.BigIntegerField(required=False)
+    hostname = serializers.CharField(required=False, default='')
+    internal_ip = serializers.IPAddressField(required=False, allow_null=True)
+    os = serializers.CharField(required=False, default='')
+    os_version = serializers.CharField(required=False, default='')
+    version = serializers.CharField(required=False, default='')
+    kopia_version = serializers.CharField(required=False, default='')
+    cpu_cores = serializers.IntegerField(required=False, allow_null=True)
+    memory_total = serializers.BigIntegerField(required=False, allow_null=True)
+    disk_total = serializers.BigIntegerField(required=False, allow_null=True)
     capabilities = serializers.JSONField(required=False, default=dict)
 
     def validate(self, attrs):
-        """Validate install token and get proxy."""
+        """Validate proxy_id and install_token."""
         try:
-            proxy = ProxyNode.objects.get(install_token=attrs['install_token'])
+            proxy = ProxyNode.objects.get(
+                id=attrs['proxy_id'],
+                install_token=attrs['install_token']
+            )
             if proxy.status != ProxyNode.NodeStatus.PENDING:
                 raise serializers.ValidationError('Proxy already registered')
+            if proxy.install_token_used:
+                raise serializers.ValidationError('Install token already used')
             attrs['proxy'] = proxy
         except ProxyNode.DoesNotExist:
-            raise serializers.ValidationError('Invalid install token')
+            raise serializers.ValidationError('Invalid proxy_id or install_token')
         return attrs
 
 
