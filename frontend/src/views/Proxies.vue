@@ -309,14 +309,26 @@ async function regenerateToken(proxy: ProxyNode) {
 }
 
 async function regenerateTokenFromModal() {
-  if (!selectedProxy.value) return
+  const proxyId = selectedProxy.value?.id
+  if (!proxyId) {
+    console.error('No proxy ID found')
+    return
+  }
   if (!confirm(t('proxies.actions.regenerateTokenConfirm'))) return
+  
   try {
-    const response = await api.post(`/api/v1/proxies/${selectedProxy.value.id}/regenerate_token/`)
-    selectedProxy.value = response.data
+    const response = await api.post(`/api/v1/proxies/${proxyId}/regenerate_token/`)
+    console.log('Regenerate response:', response.data)
+    // Update selectedProxy with the new data, ensuring id is preserved
+    selectedProxy.value = {
+      ...selectedProxy.value,
+      ...response.data,
+      id: response.data.id || response.data.proxy_id || proxyId // Ensure id is always set
+    }
     await fetchProxies()
   } catch (error) {
     console.error('Failed to regenerate token:', error)
+    alert(t('proxies.actions.regenerateTokenFailed') || 'Failed to regenerate token')
   }
 }
 

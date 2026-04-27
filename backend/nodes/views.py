@@ -489,10 +489,15 @@ logging:
         install_cmd = f"curl -sSL {base_url}/install.sh | bash -s -- --proxy-id {proxy.id} --token {proxy.install_token} --server {base_url}"
         
         return Response({
+            'id': str(proxy.id),
             'proxy_id': str(proxy.id),
+            'name': proxy.name,
+            'role': proxy.role,
+            'status': proxy.status,
             'api_token': proxy.api_token,
             'install_token': proxy.install_token,
             'install_command': install_cmd,
+            'install_token_used': proxy.install_token_used,
             'message': 'Tokens regenerated successfully'
         })
 

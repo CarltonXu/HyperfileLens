@@ -47,6 +47,7 @@ export interface ProxyNode {
   
   // Installation info (only for pending status)
   api_token: string | null
+  install_token: string | null
   install_command: string | null
   install_token_used: boolean
   

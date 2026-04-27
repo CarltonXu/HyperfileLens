@@ -86,10 +86,11 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
             'tags', 'labels', 'metadata',
             'created_at', 'updated_at', 'registered_at', 'installed_at',
             'owner', 'is_online', 'uptime_seconds', 'heartbeat_count',
-            'api_token', 'install_command'
+            'api_token', 'install_token', 'install_token_used', 'install_command'
         ]
         read_only_fields = [
-            'id', 'api_token', 'install_command', 'status', 'created_at', 'updated_at',
+            'id', 'api_token', 'install_token', 'install_token_used', 'install_command',
+            'status', 'created_at', 'updated_at',
             'registered_at', 'last_heartbeat', 'installed_at'
         ]
 
