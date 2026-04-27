@@ -3,7 +3,6 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
-import ProfileModal from '@/components/ProfileModal.vue'
 import {
   HomeIcon,
   ServerIcon,
@@ -44,7 +43,6 @@ const isUserMenuOpen = ref(false)
 const isLangMenuOpen = ref(false)
 const hoverItem = ref<string | null>(null)
 const tooltipPosition = ref({ top: 0, show: false, text: '' })
-const isProfileModalOpen = ref(false)
 
 // Navigation items with icons
 const navigation = computed(() => [
@@ -141,12 +139,8 @@ async function handleLogout() {
 }
 
 function openProfile() {
-  isProfileModalOpen.value = true
   isUserMenuOpen.value = false
-}
-
-function closeProfile() {
-  isProfileModalOpen.value = false
+  router.push('/settings')
 }
 
 function setLocale(newLocale: string) {
@@ -398,11 +392,6 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Profile Modal -->
-    <ProfileModal
-      :is-open="isProfileModalOpen"
-      @close="closeProfile"
-    />
   </div>
 </template>
 

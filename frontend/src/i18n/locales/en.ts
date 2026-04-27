@@ -801,7 +801,16 @@ export default {
       lastName: 'Last Name',
       email: 'Email',
       phone: 'Phone',
-      avatar: 'Avatar'
+      avatar: 'Avatar',
+      username: 'Username',
+      role: 'Role',
+      createdAt: 'Created At',
+      accountInfo: 'Account Information',
+      roles: {
+        admin: 'Administrator',
+        operator: 'Operator',
+        viewer: 'Viewer'
+      }
     },
 
     security: {
@@ -810,8 +819,15 @@ export default {
       currentPassword: 'Current Password',
       newPassword: 'New Password',
       confirmPassword: 'Confirm Password',
+      passwordHint: 'Password must be at least 8 characters',
       sessions: 'Active Sessions',
-      revokeSessions: 'Revoke All Sessions'
+      revokeSessions: 'Revoke All Sessions',
+      errors: {
+        currentRequired: 'Current password is required',
+        minLength: 'Password must be at least 8 characters',
+        mismatch: 'Passwords do not match'
+      },
+      success: 'Password changed successfully'
     },
 
     appearance: {
@@ -893,35 +909,5 @@ export default {
     prevPage: 'Previous page',
     nextPage: 'Next page',
     goToPage: 'Go to page {page}'
-  },
-
-  // Profile
-  profile: {
-    title: 'Profile Settings',
-    tabs: {
-      profile: 'Profile',
-      password: 'Password',
-      preferences: 'Preferences'
-    },
-    name: 'Name',
-    email: 'Email',
-    role: 'Role',
-    createdAt: 'Created At',
-    language: 'Language',
-    currentPassword: 'Current Password',
-    currentPasswordPlaceholder: 'Enter current password',
-    newPassword: 'New Password',
-    newPasswordPlaceholder: 'Enter new password',
-    confirmPassword: 'Confirm Password',
-    confirmPasswordPlaceholder: 'Confirm new password',
-    changePassword: 'Change Password',
-    changing: 'Changing...',
-    passwordChanged: 'Password changed successfully',
-    savePreferences: 'Save Preferences',
-    currentPasswordRequired: 'Current password is required',
-    newPasswordRequired: 'New password is required',
-    passwordTooShort: 'Password must be at least 8 characters',
-    passwordMismatch: 'Passwords do not match',
-    passwordChangeFailed: 'Failed to change password, please try again'
   }
 }

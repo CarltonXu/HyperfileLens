@@ -801,7 +801,16 @@ export default {
       lastName: '姓',
       email: '邮箱',
       phone: '电话',
-      avatar: '头像'
+      avatar: '头像',
+      username: '用户名',
+      role: '角色',
+      createdAt: '创建时间',
+      accountInfo: '账户信息',
+      roles: {
+        admin: '管理员',
+        operator: '操作员',
+        viewer: '查看者'
+      }
     },
 
     security: {
@@ -810,8 +819,15 @@ export default {
       currentPassword: '当前密码',
       newPassword: '新密码',
       confirmPassword: '确认密码',
+      passwordHint: '密码至少需要 8 个字符',
       sessions: '活跃会话',
-      revokeSessions: '撤销所有会话'
+      revokeSessions: '撤销所有会话',
+      errors: {
+        currentRequired: '请输入当前密码',
+        minLength: '密码至少需要 8 个字符',
+        mismatch: '两次输入的密码不一致'
+      },
+      success: '密码修改成功'
     },
 
     appearance: {
@@ -893,35 +909,5 @@ export default {
     prevPage: '上一页',
     nextPage: '下一页',
     goToPage: '跳转到第 {page} 页'
-  },
-
-  // Profile
-  profile: {
-    title: '个人设置',
-    tabs: {
-      profile: '个人信息',
-      password: '修改密码',
-      preferences: '偏好设置'
-    },
-    name: '姓名',
-    email: '邮箱',
-    role: '角色',
-    createdAt: '创建时间',
-    language: '语言',
-    currentPassword: '当前密码',
-    currentPasswordPlaceholder: '请输入当前密码',
-    newPassword: '新密码',
-    newPasswordPlaceholder: '请输入新密码',
-    confirmPassword: '确认密码',
-    confirmPasswordPlaceholder: '请再次输入新密码',
-    changePassword: '修改密码',
-    changing: '修改中...',
-    passwordChanged: '密码修改成功',
-    savePreferences: '保存设置',
-    currentPasswordRequired: '请输入当前密码',
-    newPasswordRequired: '请输入新密码',
-    passwordTooShort: '密码长度至少为 8 位',
-    passwordMismatch: '两次输入的密码不一致',
-    passwordChangeFailed: '密码修改失败，请重试'
   }
 }
