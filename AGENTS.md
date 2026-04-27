@@ -6,7 +6,7 @@ HyperFileLens is an AI-powered file intelligence platform for backup and archive
 
 ## Technology Stack
 
-### Backend
+### Control Plane (Backend)
 - Python 3.11+
 - Django 5.x
 - Django REST Framework
@@ -25,10 +25,49 @@ HyperFileLens is an AI-powered file intelligence platform for backup and archive
 - Headless UI
 - vue-i18n
 
-### Agent (Node-side)
+### Gateway (AI + Index Service)
 - Python 3.11+
-- Kopia CLI
-- WebSocket client (async)
+- FastAPI
+- Kopia mount + indexing
+- AI query integration
+
+### Proxy (Node-side Agent)
+- Go 1.21+
+- Kopia CLI integration
+- WebSocket client
+- Cross-platform support (Linux, Windows, macOS)
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      HyperFileLens                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │   Frontend  │    │   Control   │    │   Gateway   │     │
+│  │   (Vue 3)   │───▶│  (Django)   │◀──▶│  (FastAPI)  │     │
+│  └─────────────┘    └──────┬──────┘    └─────────────┘     │
+│                            │                                │
+│                     ┌──────┴──────┐                         │
+│                     │  WebSocket  │                         │
+│                     └──────┬──────┘                         │
+│                            │                                │
+│         ┌──────────────────┼──────────────────┐            │
+│         ▼                  ▼                  ▼            │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │   Proxy 1   │    │   Proxy 2   │    │   Proxy N   │     │
+│  │    (Go)     │    │    (Go)     │    │    (Go)     │     │
+│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘     │
+│         │                  │                  │            │
+│         ▼                  ▼                  ▼            │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │   Kopia     │    │   Kopia     │    │   Kopia     │     │
+│  │  (Backup)   │    │  (Backup)   │    │  (Backup)   │     │
+│  └─────────────┘    └─────────────┘    └─────────────┘     │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## Project Structure
 
@@ -41,6 +80,7 @@ hyperfilelens/
 │   ├── backup_tasks/      # Backup operations
 │   ├── recovery_tasks/    # Recovery operations
 │   ├── repository/        # Storage repository management
+│   ├── source_resources/  # Backup source resources (NAS/S3/etc)
 │   ├── policies/          # Backup policy scheduling
 │   ├── ai_query/          # AI-powered queries
 │   ├── audit_log/         # Audit logging
@@ -56,15 +96,21 @@ hyperfilelens/
 │   │   ├── types/        # TypeScript type definitions
 │   │   └── i18n/         # Internationalization
 │   └── package.json
-├── agent/                  # Source-side agent (Python)
-│   ├── install.sh         # Agent installer
-│   ├── bin/agent          # Agent entry point
-│   └── lib/agent/         # Agent library
-│       ├── config.py      # Configuration management
-│       ├── node.py        # Node registration
-│       ├── ws_client.py   # WebSocket client
-│       ├── backup.py      # Backup operations
-│       └── recovery.py    # Recovery operations
+├── gateway/                # AI + Index service
+│   ├── app/
+│   │   ├── main.py       # FastAPI app
+│   │   ├── mount.py      # Kopia mount
+│   │   ├── indexer.py    # File indexing
+│   │   └── ai.py         # AI query integration
+│   └── requirements.txt
+├── proxy/                  # Node-side proxy agent (Go)
+│   ├── main.go            # Entry point
+│   ├── config.go          # Configuration management
+│   ├── node.go            # Node registration & API
+│   ├── kopia.go           # Kopia operations
+│   ├── install.sh         # Installation script
+│   ├── build.sh           # Cross-platform build
+│   └── config.example.yaml
 └── docker/                 # Docker configurations
 ```
 
@@ -72,6 +118,7 @@ hyperfilelens/
 
 ### Prerequisites
 - Python 3.11+
+- Go 1.21+
 - Node.js 20+
 - pnpm
 - Docker & Docker Compose
@@ -108,6 +155,35 @@ pnpm install
 pnpm run dev
 ```
 
+### Gateway Setup
+```bash
+cd gateway
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run dev server
+uvicorn app.main:app --reload --port 8001
+```
+
+### Proxy Setup
+```bash
+cd proxy
+
+# Build locally
+go build -o hyperfilelens-proxy .
+
+# Run with config
+./hyperfilelens-proxy --config config.yaml
+
+# Or run with environment variables
+SERVER_URL=http://localhost:8000 ./hyperfilelens-proxy
+```
+
 ### Docker Development
 ```bash
 # Copy environment file
@@ -115,6 +191,66 @@ cp env.sample .env.dev
 
 # Start all services
 docker-compose -f docker-compose.dev.yml up -d
+```
+
+## Proxy (Node Agent)
+
+The Proxy is a Go-based agent that runs on source and target nodes. It:
+
+1. **Registers** with the control plane via REST API
+2. **Connects** via WebSocket for real-time communication
+3. **Executes** Kopia commands for backup/restore operations
+4. **Reports** status and task results back to control plane
+
+### Proxy Configuration
+
+Configuration can be provided via YAML file or environment variables:
+
+```yaml
+# config.yaml
+version: "1.0.0"
+
+server:
+  url: "http://control:8000"
+  api_token: "your-token"
+  ws_protocol: "ws"
+  reconnect_delay: 5s
+  heartbeat_interval: 30s
+
+agent:
+  type: "source"  # or "target"
+  name: "node-01"
+  hostname: "backup-server-01"
+
+backup:
+  kopia_path: "/usr/bin/kopia"
+  data_path: "/var/lib/hyperfilelens/data"
+```
+
+### Proxy Commands
+
+```bash
+# Start proxy
+./hyperfilelens-proxy --config /opt/hyperfilelens/config.yaml
+
+# Start with environment variables
+SERVER_URL=http://control:8000 API_TOKEN=xxx ./hyperfilelens-proxy
+
+# Show version
+./hyperfilelens-proxy --version
+```
+
+### Proxy Installation
+
+```bash
+# Download and run installer
+curl -sSL https://get.hyperfilelens.com/install-proxy.sh | bash
+
+# With options
+curl -sSL https://get.hyperfilelens.com/install-proxy.sh | bash -s -- \
+  --type source \
+  --server https://control.hyperfilelens.com \
+  --token your-api-token
 ```
 
 ## Coding Standards
@@ -131,6 +267,12 @@ docker-compose -f docker-compose.dev.yml up -d
 - Use TypeScript for type safety
 - Component naming: PascalCase
 - CSS: Use Tailwind CSS utility classes
+
+### Proxy (Go)
+- Follow Go standard formatting (gofmt)
+- Use meaningful variable names
+- Handle errors explicitly
+- Write unit tests for core functions
 
 ### Git Commits
 Follow Conventional Commits:
@@ -191,6 +333,13 @@ pnpm run test           # Unit tests
 pnpm run test:e2e      # E2E tests
 ```
 
+### Proxy Tests
+```bash
+cd proxy
+go test ./...           # Run all tests
+go test -v ./...        # Verbose output
+```
+
 ## Database Migrations
 
 ```bash
@@ -222,6 +371,19 @@ WebSocket consumers handle real-time communication with proxy nodes:
 - `nodes/consumers.py`: Node connection management
 - `nodes/routing.py`: WebSocket URL routing
 
+### Message Types
+
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `register` | Proxy → Control | Node registration |
+| `heartbeat` | Proxy → Control | Periodic health check |
+| `backup_task` | Control → Proxy | Backup task dispatch |
+| `restore_task` | Control → Proxy | Restore task dispatch |
+| `task_completed` | Proxy → Control | Task completion report |
+| `task_failed` | Proxy → Control | Task failure report |
+| `list_snapshots` | Control → Proxy | Request snapshot list |
+| `mount` | Control → Proxy | Mount snapshot request |
+
 ## Docker Deployment
 
 ### Production Build
@@ -236,6 +398,7 @@ docker-compose -f docker-compose.dev.yml up -d --build
 
 ## Environment Variables
 
+### Control Plane
 | Variable | Description | Required |
 |----------|-------------|----------|
 | DATABASE_URL | PostgreSQL connection string | Yes |
@@ -243,6 +406,21 @@ docker-compose -f docker-compose.dev.yml up -d --build
 | SECRET_KEY | Django secret key | Yes |
 | DEBUG | Enable debug mode | No |
 | ALLOWED_HOSTS | Allowed hostnames | Yes (prod) |
+
+### Gateway
+| Variable | Description | Required |
+|----------|-------------|----------|
+| KOPIA_MOUNT_PATH | Path for Kopia mounts | No |
+| REPO_PATH | Default repository path | No |
+
+### Proxy
+| Variable | Description | Required |
+|----------|-------------|----------|
+| SERVER_URL | Control plane URL | Yes |
+| API_TOKEN | Authentication token | Yes |
+| NODE_ID | Unique node identifier | No (auto-generated) |
+| CONFIG_PATH | Path to config file | No |
+| KOPIA_PATH | Path to Kopia binary | No |
 
 ## Common Issues
 
@@ -258,9 +436,17 @@ Ensure PostgreSQL is running and credentials are correct in `.env`.
 - Clear node_modules: `rm -rf node_modules`
 - Reinstall: `pnpm install`
 
+### Proxy Connection Issues
+- Check control plane URL is correct
+- Verify API token is valid
+- Check network connectivity
+- Review proxy logs: `journalctl -u hyperfilelens-proxy -f`
+
 ## Resources
 
 - [Django Documentation](https://docs.djangoproject.com/)
 - [Vue 3 Documentation](https://vuejs.org/guide/)
 - [Tailwind CSS](https://tailwindcss.com/docs)
 - [Django REST Framework](https://www.django-rest-framework.org/)
+- [Go Documentation](https://golang.org/doc/)
+- [Kopia Documentation](https://kopia.io/docs/)

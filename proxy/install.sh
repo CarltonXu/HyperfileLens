@@ -1,22 +1,22 @@
 #!/bin/bash
 #
-# HyperFileLens Agent Installation Script
+# HyperFileLens Proxy Installation Script
 #
-# This script installs and configures the HyperFileLens proxy agent
+# This script installs and configures the HyperFileLens proxy
 # on source and target nodes.
 #
 # Usage:
-#   curl -sSL https://get.hyperfilelens.com/install.sh | bash
-#   curl -sSL https://get.hyperfilelens.com/install.sh | bash -s -- --type source --server https://control.hyperfilelens.com --token <token>
+#   curl -sSL https://get.hyperfilelens.com/install-proxy.sh | bash
+#   curl -sSL https://get.hyperfilelens.com/install-proxy.sh | bash -s -- --type source --server https://control.hyperfilelens.com --token <token>
 #
 
 set -e
 
 # Configuration
-AGENT_VERSION="1.0.0"
-AGENT_HOME="/opt/hyperfilelens"
-AGENT_USER="hyperfilelens"
-AGENT_SERVICE="hyperfilelens-agent"
+PROXY_VERSION="1.0.0"
+PROXY_HOME="/opt/hyperfilelens"
+PROXY_USER="hyperfilelens"
+PROXY_SERVICE="hyperfilelens-proxy"
 LOG_FILE="/var/log/hyperfilelens/install.log"
 
 # Colors for output
@@ -59,7 +59,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --type TYPE           Agent type: 'source' or 'target'"
+            echo "  --type TYPE           Proxy type: 'source' or 'target'"
             echo "  --server URL          Control server URL"
             echo "  --token TOKEN         API token for authentication"
             echo "  --skip-deps           Skip dependency installation"
@@ -179,73 +179,138 @@ create_log_directory() {
 }
 
 create_user() {
-    if id "$AGENT_USER" &>/dev/null; then
-        log_info "User $AGENT_USER already exists"
+    if id "$PROXY_USER" &>/dev/null; then
+        log_info "User $PROXY_USER already exists"
     else
-        useradd -r -s /bin/false -d "$AGENT_HOME" -c "HyperFileLens Agent" "$AGENT_USER"
-        log_info "Created user: $AGENT_USER"
+        useradd -r -s /bin/false -d "$PROXY_HOME" -c "HyperFileLens Proxy" "$PROXY_USER"
+        log_info "Created user: $PROXY_USER"
     fi
 }
 
-download_agent() {
-    log_info "Downloading HyperFileLens Agent v${AGENT_VERSION}..."
+install_kopia() {
+    log_info "Checking Kopia installation..."
     
-    local download_url="${SERVER_URL:-https://releases.hyperfilelens.com}/agents/${AGENT_VERSION}/hyperfilelens-agent-${AGENT_VERSION}-linux-${ARCH_NAME}.tar.gz"
+    if command -v kopia &> /dev/null; then
+        KOPIA_VERSION=$(kopia --version 2>/dev/null || echo "unknown")
+        log_info "Kopia already installed: $KOPIA_VERSION"
+        return
+    fi
+    
+    log_info "Installing Kopia..."
+    
+    # Install Kopia based on OS
+    case $OS in
+        ubuntu|debian)
+            curl -sSL https://kopia.io/signing-key | gpg --dearmor -o /usr/share/keyrings/kopia-keyring.gpg
+            echo "deb [signed-by=/usr/share/keyrings/kopia-keyring.gpg] https://kopia.io/apt stable main" > /etc/apt/sources.list.d/kopia.list
+            apt-get update
+            apt-get install -y kopia
+            ;;
+        centos|rhel|rocky|almalinux)
+            rpm --import https://kopia.io/signing-key
+            cat > /etc/yum.repos.d/kopia.repo << 'EOF'
+[kopia]
+name=Kopia
+baseurl=https://kopia.io/yum
+enabled=1
+gpgcheck=1
+EOF
+            yum install -y kopia
+            ;;
+        *)
+            log_warning "Could not install Kopia automatically for $OS"
+            log_info "Please install Kopia manually from: https://kopia.io/docs/installation/"
+            ;;
+    esac
+    
+    if command -v kopia &> /dev/null; then
+        log_success "Kopia installed successfully"
+    else
+        log_warning "Kopia installation may have failed. Please verify manually."
+    fi
+}
+
+download_proxy() {
+    log_info "Downloading HyperFileLens Proxy v${PROXY_VERSION}..."
+    
+    local download_url="${SERVER_URL:-https://releases.hyperfilelens.com}/proxies/${PROXY_VERSION}/hyperfilelens-proxy-${PROXY_VERSION}-linux-${ARCH_NAME}.tar.gz"
     
     # Create temporary directory
     local temp_dir=$(mktemp -d)
-    local archive_file="$temp_dir/agent.tar.gz"
+    local archive_file="$temp_dir/proxy.tar.gz"
     
     trap "rm -rf $temp_dir" EXIT
     
-    # Download agent
-    if curl -fSL -o "$archive_file" "$download_url"; then
-        log_info "Downloaded agent from: $download_url"
+    # Download proxy binary
+    if curl -fSL -o "$archive_file" "$download_url" 2>/dev/null; then
+        log_info "Downloaded proxy from: $download_url"
     else
-        log_error "Failed to download agent"
-        log_info "Please check your server URL or download the agent manually"
-        exit 1
+        # Try local build
+        log_warning "Could not download proxy binary, attempting local build..."
+        
+        # Check if Go is installed
+        if ! command -v go &> /dev/null; then
+            log_error "Go is not installed. Cannot build proxy locally."
+            log_info "Please install Go or download the proxy binary manually."
+            exit 1
+        fi
+        
+        # Build locally
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        if [[ -f "$script_dir/main.go" ]]; then
+            log_info "Building proxy from source..."
+            mkdir -p "$PROXY_HOME/bin"
+            cd "$script_dir"
+            go build -o "$PROXY_HOME/bin/hyperfilelens-proxy" .
+            log_success "Proxy built successfully"
+        else
+            log_error "Proxy source not found. Cannot build."
+            exit 1
+        fi
     fi
     
-    # Extract agent
-    log_info "Extracting agent..."
-    mkdir -p "$AGENT_HOME"
-    tar -xzf "$archive_file" -C "$AGENT_HOME"
+    if [[ -f "$archive_file" ]]; then
+        # Extract proxy
+        log_info "Extracting proxy..."
+        mkdir -p "$PROXY_HOME"
+        tar -xzf "$archive_file" -C "$PROXY_HOME"
+    fi
     
     # Set permissions
-    chown -R "$AGENT_USER:$AGENT_USER" "$AGENT_HOME"
+    chown -R "$PROXY_USER:$PROXY_USER" "$PROXY_HOME"
+    chmod +x "$PROXY_HOME/bin/hyperfilelens-proxy" 2>/dev/null || true
     
-    log_success "Agent extracted to: $AGENT_HOME"
+    log_success "Proxy installed to: $PROXY_HOME"
 }
 
 create_systemd_service() {
     log_info "Creating systemd service..."
     
-    cat > /etc/systemd/system/${AGENT_SERVICE}.service << EOF
+    cat > /etc/systemd/system/${PROXY_SERVICE}.service << EOF
 [Unit]
-Description=HyperFileLens Agent
+Description=HyperFileLens Proxy
 After=network.target
 
 [Service]
 Type=simple
-User=$AGENT_USER
-Group=$AGENT_USER
-WorkingDirectory=$AGENT_HOME
-ExecStart=$AGENT_HOME/bin/agent start
-ExecStop=$AGENT_HOME/bin/agent stop
+User=$PROXY_USER
+Group=$PROXY_USER
+WorkingDirectory=$PROXY_HOME
+ExecStart=$PROXY_HOME/bin/hyperfilelens-proxy
 Restart=on-failure
 RestartSec=10
 
 # Environment variables
-Environment=AGENT_HOME=$AGENT_HOME
+Environment=PROXY_HOME=$PROXY_HOME
 Environment=SERVER_URL=${SERVER_URL:-http://localhost:8000}
 Environment=API_TOKEN=${API_TOKEN:-}
 Environment=AGENT_TYPE=${AGENT_TYPE:-source}
+Environment=CONFIG_PATH=$PROXY_HOME/config.yaml
 
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=hyperfilelens-agent
+SyslogIdentifier=hyperfilelens-proxy
 
 [Install]
 WantedBy=multi-user.target
@@ -258,17 +323,17 @@ EOF
 create_config() {
     log_info "Creating configuration file..."
     
-    cat > "$AGENT_HOME/config.yaml" << EOF
-# HyperFileLens Agent Configuration
-version: "${AGENT_VERSION}"
+    cat > "$PROXY_HOME/config.yaml" << EOF
+# HyperFileLens Proxy Configuration
+version: "${PROXY_VERSION}"
 
 # Server connection
 server:
   url: "${SERVER_URL:-http://localhost:8000}"
   api_token: "${API_TOKEN:-}"
-  ws_protocol: "wss"
-  reconnect_delay: 5
-  heartbeat_interval: 30
+  ws_protocol: "ws"
+  reconnect_delay: 5s
+  heartbeat_interval: 30s
 
 # Agent settings
 agent:
@@ -281,12 +346,12 @@ backup:
   data_path: "/var/lib/hyperfilelens/data"
   temp_path: "/tmp/hyperfilelens"
   max_concurrent_backups: 2
-  kopia_path: "/usr/local/bin/kopia"
+  kopia_path: "/usr/bin/kopia"
 
 # Logging
 logging:
   level: "info"
-  file: "/var/log/hyperfilelens/agent.log"
+  file: "/var/log/hyperfilelens/proxy.log"
   max_size: "100MB"
   max_backups: 5
 
@@ -297,24 +362,24 @@ performance:
   compression: true
 EOF
     
-    chown "$AGENT_USER:$AGENT_USER" "$AGENT_HOME/config.yaml"
+    chown "$PROXY_USER:$PROXY_USER" "$PROXY_HOME/config.yaml"
     log_success "Configuration file created"
 }
 
-start_agent() {
-    log_info "Starting HyperFileLens Agent..."
+start_proxy() {
+    log_info "Starting HyperFileLens Proxy..."
     
-    systemctl enable ${AGENT_SERVICE}
-    systemctl start ${AGENT_SERVICE}
+    systemctl enable ${PROXY_SERVICE}
+    systemctl start ${PROXY_SERVICE}
     
     sleep 2
     
-    if systemctl is-active --quiet ${AGENT_SERVICE}; then
-        log_success "Agent started successfully"
-        systemctl status ${AGENT_SERVICE} --no-pager
+    if systemctl is-active --quiet ${PROXY_SERVICE}; then
+        log_success "Proxy started successfully"
+        systemctl status ${PROXY_SERVICE} --no-pager
     else
-        log_error "Failed to start agent"
-        log_info "Check logs with: journalctl -u ${AGENT_SERVICE} -f"
+        log_error "Failed to start proxy"
+        log_info "Check logs with: journalctl -u ${PROXY_SERVICE} -f"
         exit 1
     fi
 }
@@ -322,22 +387,22 @@ start_agent() {
 print_summary() {
     echo ""
     echo "=========================================="
-    echo "  HyperFileLens Agent Installation"
+    echo "  HyperFileLens Proxy Installation"
     echo "=========================================="
     echo ""
-    echo "Agent Type: ${AGENT_TYPE:-source}"
+    echo "Proxy Type: ${AGENT_TYPE:-source}"
     echo "Server URL: ${SERVER_URL:-http://localhost:8000}"
-    echo "Install Path: $AGENT_HOME"
-    echo "Log File: /var/log/hyperfilelens/agent.log"
+    echo "Install Path: $PROXY_HOME"
+    echo "Log File: /var/log/hyperfilelens/proxy.log"
     echo ""
     echo "Useful Commands:"
-    echo "  Start agent:    systemctl start ${AGENT_SERVICE}"
-    echo "  Stop agent:     systemctl stop ${AGENT_SERVICE}"
-    echo "  Restart agent:  systemctl restart ${AGENT_SERVICE}"
-    echo "  View logs:      journalctl -u ${AGENT_SERVICE} -f"
-    echo "  Check status:   systemctl status ${AGENT_SERVICE}"
+    echo "  Start proxy:    systemctl start ${PROXY_SERVICE}"
+    echo "  Stop proxy:     systemctl stop ${PROXY_SERVICE}"
+    echo "  Restart proxy:  systemctl restart ${PROXY_SERVICE}"
+    echo "  View logs:      journalctl -u ${PROXY_SERVICE} -f"
+    echo "  Check status:   systemctl status ${PROXY_SERVICE}"
     echo ""
-    echo "Configuration file: $AGENT_HOME/config.yaml"
+    echo "Configuration file: $PROXY_HOME/config.yaml"
     echo ""
     echo "=========================================="
     echo ""
@@ -347,8 +412,8 @@ print_summary() {
 main() {
     echo ""
     echo "=========================================="
-    echo "  HyperFileLens Agent Installer"
-    echo "  Version: ${AGENT_VERSION}"
+    echo "  HyperFileLens Proxy Installer"
+    echo "  Version: ${PROXY_VERSION}"
     echo "=========================================="
     echo ""
     
@@ -358,10 +423,11 @@ main() {
     create_log_directory
     check_dependencies
     create_user
-    download_agent
+    install_kopia
+    download_proxy
     create_config
     create_systemd_service
-    start_agent
+    start_proxy
     
     log_success "Installation completed!"
     print_summary

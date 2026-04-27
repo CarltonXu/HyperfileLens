@@ -7,10 +7,10 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Copy go mod files
-COPY go.mod go.sum* ./
+COPY go.mod ./
 
 # Download dependencies
-RUN go mod download || true
+RUN go mod download
 
 # Copy source code
 COPY *.go ./
@@ -29,13 +29,22 @@ RUN apk add --no-cache ca-certificates curl bash && \
     chmod +x /usr/local/bin/kopia
 
 # Copy binary from builder
-COPY --from=builder /app/proxy .
+COPY --from=builder /app/proxy /usr/local/bin/hyperfilelens-proxy
 
 # Create directories
-RUN mkdir -p /data /logs
+RUN mkdir -p /data /logs /var/lib/hyperfilelens/data /var/log/hyperfilelens
 
+# Create config directory
+RUN mkdir -p /opt/hyperfilelens
+
+# Copy default config
+COPY config.example.yaml /opt/hyperfilelens/config.yaml
+
+ENV SERVER_URL=http://control:8000
 ENV CONTROL_URL=ws://control:8000/ws/node/
-ENV NODE_ID=proxy-1
+ENV NODE_ID=""
+ENV API_TOKEN=""
 ENV LOG_LEVEL=info
+ENV CONFIG_PATH=/opt/hyperfilelens/config.yaml
 
-ENTRYPOINT ["./proxy"]
+ENTRYPOINT ["/usr/local/bin/hyperfilelens-proxy"]

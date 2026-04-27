@@ -1,0 +1,38 @@
+# HyperFileLens Proxy Configuration Example
+# Copy this file to /opt/hyperfilelens/config.yaml and modify as needed
+
+version: "1.0.0"
+
+# Server connection
+server:
+  url: "http://localhost:8000"
+  api_token: ""  # Set via API_TOKEN env var or here
+  ws_protocol: "ws"  # "ws" or "wss"
+  reconnect_delay: 5s
+  heartbeat_interval: 30s
+
+# Agent settings
+agent:
+  type: "source"  # "source" or "target"
+  name: ""  # Optional: custom name for this node
+  hostname: ""  # Auto-detected if empty
+  
+# Backup settings (for source nodes)
+backup:
+  data_path: "/var/lib/hyperfilelens/data"
+  temp_path: "/tmp/hyperfilelens"
+  max_concurrent_backups: 2
+  kopia_path: "/usr/bin/kopia"
+
+# Logging
+logging:
+  level: "info"  # "debug", "info", "warn", "error"
+  file: "/var/log/hyperfilelens/proxy.log"
+  max_size: "100MB"
+  max_backups: 5
+
+# Performance
+performance:
+  worker_threads: 4
+  buffer_size: 8192
+  compression: true

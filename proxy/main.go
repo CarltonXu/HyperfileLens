@@ -4,12 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"os"
-	"os/exec"
 	"os/signal"
-	"runtime"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -17,17 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
-
-// Config holds proxy configuration
-type Config struct {
-	ControlURL   string
-	NodeID       string
-	Token        string
-	KopiaPath    string
-	RepoPath     string
-	LogLevel     string
-	ReconnectDelay time.Duration
-}
 
 // Message represents a message from control plane
 type Message struct {
@@ -60,6 +45,8 @@ type Proxy struct {
 	config      *Config
 	conn        *websocket.Conn
 	connMutex   sync.Mutex
+	nodeClient  *NodeClient
+	kopia       *KopiaExecutor
 	tasks       map[string]*TaskStatus
 	tasksMutex  sync.RWMutex
 	stopCh      chan struct{}
@@ -69,19 +56,21 @@ type Proxy struct {
 // NewProxy creates a new proxy instance
 func NewProxy(cfg *Config) *Proxy {
 	return &Proxy{
-		config: cfg,
-		tasks:  make(map[string]*TaskStatus),
-		stopCh: make(chan struct{}),
+		config:     cfg,
+		nodeClient: NewNodeClient(cfg),
+		kopia:      NewKopiaExecutor(cfg),
+		tasks:      make(map[string]*TaskStatus),
+		stopCh:     make(chan struct{}),
 	}
 }
 
 // Connect establishes WebSocket connection to control plane
 func (p *Proxy) Connect() error {
-	url := fmt.Sprintf("%s%s", p.config.ControlURL, p.config.NodeID)
+	url := p.config.GetWebSocketURL()
 	
 	headers := make(map[string][]string)
-	if p.config.Token != "" {
-		headers["Authorization"] = []string{"Bearer " + p.config.Token}
+	if p.config.Server.APIToken != "" {
+		headers["Authorization"] = []string{"Token " + p.config.Server.APIToken}
 	}
 
 	dialer := websocket.DefaultDialer
@@ -95,17 +84,18 @@ func (p *Proxy) Connect() error {
 	p.connected = true
 	p.connMutex.Unlock()
 
-	log.Printf("Connected to control plane: %s", url)
-	
+	logInfo("Connected to control plane: %s", url)
+
 	// Send registration message
 	p.Send(Message{
 		Type: "register",
 		Payload: map[string]interface{}{
 			"node_id":    p.config.NodeID,
-			"version":    "1.0.0",
-			"hostname":   getHostname(),
+			"version":    p.config.Version,
+			"hostname":   p.config.Agent.Hostname,
 			"platform":   getPlatform(),
-			"kopia_path": p.config.KopiaPath,
+			"kopia_path": p.config.Backup.KopiaPath,
+			"agent_type": p.config.Agent.Type,
 		},
 	})
 
@@ -116,24 +106,24 @@ func (p *Proxy) Connect() error {
 func (p *Proxy) Disconnect() {
 	p.connMutex.Lock()
 	defer p.connMutex.Unlock()
-	
+
 	if p.conn != nil {
 		p.conn.Close()
 		p.conn = nil
 	}
 	p.connected = false
-	log.Println("Disconnected from control plane")
+	logInfo("Disconnected from control plane")
 }
 
 // Send sends a message to control plane
 func (p *Proxy) Send(msg Message) error {
 	p.connMutex.Lock()
 	defer p.connMutex.Unlock()
-	
+
 	if p.conn == nil {
 		return fmt.Errorf("not connected")
 	}
-	
+
 	return p.conn.WriteJSON(msg)
 }
 
@@ -147,7 +137,7 @@ func (p *Proxy) Listen() {
 			p.connMutex.Lock()
 			conn := p.conn
 			p.connMutex.Unlock()
-			
+
 			if conn == nil {
 				time.Sleep(1 * time.Second)
 				continue
@@ -155,14 +145,14 @@ func (p *Proxy) Listen() {
 
 			_, message, err := conn.ReadMessage()
 			if err != nil {
-				log.Printf("Read error: %v", err)
+				logError("Read error: %v", err)
 				p.handleDisconnect()
 				continue
 			}
 
 			var msg Message
 			if err := json.Unmarshal(message, &msg); err != nil {
-				log.Printf("JSON parse error: %v", err)
+				logError("JSON parse error: %v", err)
 				continue
 			}
 
@@ -173,20 +163,26 @@ func (p *Proxy) Listen() {
 
 // handleMessage processes incoming messages
 func (p *Proxy) handleMessage(msg Message) {
-	log.Printf("Received message: type=%s, id=%s", msg.Type, msg.ID)
+	logInfo("Received message: type=%s, id=%s", msg.Type, msg.ID)
 
 	switch msg.Type {
 	case "ping":
 		p.Send(Message{Type: "pong", ID: msg.ID})
 
-	case "backup":
+	case "backup", "backup_task":
 		go p.executeBackup(msg)
 
-	case "restore":
+	case "restore", "recovery_task":
 		go p.executeRestore(msg)
 
 	case "mount":
 		go p.executeMount(msg)
+
+	case "list_snapshots":
+		go p.listSnapshots(msg)
+
+	case "list_contents":
+		go p.listContents(msg)
 
 	case "status":
 		p.reportStatus(msg.ID)
@@ -194,8 +190,11 @@ func (p *Proxy) handleMessage(msg Message) {
 	case "cancel":
 		p.cancelTask(msg)
 
+	case "verify_repo":
+		go p.verifyRepository(msg)
+
 	default:
-		log.Printf("Unknown message type: %s", msg.Type)
+		logInfo("Unknown message type: %s", msg.Type)
 	}
 }
 
@@ -203,9 +202,10 @@ func (p *Proxy) handleMessage(msg Message) {
 func (p *Proxy) executeBackup(msg Message) {
 	taskID := getString(msg.Payload, "task_id", msg.ID)
 	sourcePath := getString(msg.Payload, "source_path", "")
-	repoPath := getString(msg.Payload, "repo_path", p.config.RepoPath)
-	snapshotID := getString(msg.Payload, "snapshot_id", "")
-	
+	repoPath := getString(msg.Payload, "repo_path", "")
+	password := getString(msg.Payload, "password", "")
+	snapshotPrefix := getString(msg.Payload, "snapshot_prefix", "hyperfilelens")
+
 	if sourcePath == "" {
 		p.sendError(msg.ID, taskID, "source_path is required")
 		return
@@ -228,45 +228,38 @@ func (p *Proxy) executeBackup(msg Message) {
 		Type: "task_start",
 		ID:   msg.ID,
 		Payload: map[string]interface{}{
-			"task_id":  taskID,
-			"task_type": "backup",
+			"task_id":    taskID,
+			"task_type":  "backup",
 			"start_time": status.StartTime,
 		},
 	})
 
-	// Execute Kopia snapshot create command
-	args := []string{"snapshot", "create", sourcePath}
-	if repoPath != "" {
-		args = append(args, "--repo", repoPath)
+	// Execute Kopia backup
+	tags := map[string]string{
+		"task_id": taskID,
+		"prefix":  snapshotPrefix,
 	}
-	if snapshotID != "" {
-		args = append(args, "--hostname", snapshotID)
-	}
+	
+	result, err := p.kopia.CreateSnapshot(taskID, sourcePath, repoPath, password, tags)
 
-	log.Printf("Executing: kopia %s", strings.Join(args, " "))
-	
-	cmd := exec.Command(p.config.KopiaPath, args...)
-	cmd.Env = append(os.Environ(), 
-		"KOPIA_PASSWORD="+getString(msg.Payload, "password", ""),
-	)
-	
-	output, err := cmd.CombinedOutput()
-	
 	p.tasksMutex.Lock()
 	defer p.tasksMutex.Unlock()
-	
+
 	if err != nil {
 		status.Status = "failed"
 		status.Message = fmt.Sprintf("Backup failed: %v", err)
 		status.EndTime = time.Now()
-		
+
+		// Report error to control server
+		p.nodeClient.ReportTaskError(taskID, err.Error())
+
 		p.Send(Message{
 			Type: "task_failed",
 			ID:   msg.ID,
 			Payload: map[string]interface{}{
 				"task_id":  taskID,
 				"error":    err.Error(),
-				"output":   string(output),
+				"output":   result.Output,
 				"end_time": status.EndTime,
 			},
 		})
@@ -275,15 +268,25 @@ func (p *Proxy) executeBackup(msg Message) {
 		status.Progress = 100
 		status.Message = "Backup completed successfully"
 		status.EndTime = time.Now()
-		
+
+		// Report success to control server
+		p.nodeClient.ReportTaskResult(taskID, map[string]interface{}{
+			"snapshot_id":     result.SnapshotID,
+			"source_path":     result.SourcePath,
+			"files_processed": result.FilesProcessed,
+			"bytes_processed": result.BytesProcessed,
+			"duration":        result.Duration,
+		})
+
 		p.Send(Message{
 			Type: "task_completed",
 			ID:   msg.ID,
 			Payload: map[string]interface{}{
-				"task_id":    taskID,
-				"output":     string(output),
-				"end_time":   status.EndTime,
-				"duration":   status.EndTime.Sub(status.StartTime).Seconds(),
+				"task_id":     taskID,
+				"snapshot_id": result.SnapshotID,
+				"output":      result.Output,
+				"end_time":    status.EndTime,
+				"duration":    result.Duration,
 			},
 		})
 	}
@@ -294,8 +297,10 @@ func (p *Proxy) executeRestore(msg Message) {
 	taskID := getString(msg.Payload, "task_id", msg.ID)
 	snapshotID := getString(msg.Payload, "snapshot_id", "")
 	targetPath := getString(msg.Payload, "target_path", "")
-	repoPath := getString(msg.Payload, "repo_path", p.config.RepoPath)
-	
+	repoPath := getString(msg.Payload, "repo_path", "")
+	password := getString(msg.Payload, "password", "")
+	overwrite := getBool(msg.Payload, "overwrite", false)
+
 	if snapshotID == "" || targetPath == "" {
 		p.sendError(msg.ID, taskID, "snapshot_id and target_path are required")
 		return
@@ -316,42 +321,32 @@ func (p *Proxy) executeRestore(msg Message) {
 		Type: "task_start",
 		ID:   msg.ID,
 		Payload: map[string]interface{}{
-			"task_id":   taskID,
-			"task_type": "restore",
+			"task_id":    taskID,
+			"task_type":  "restore",
 			"start_time": status.StartTime,
 		},
 	})
 
-	// Execute Kopia restore command
-	args := []string{"snapshot", "restore", snapshotID, targetPath}
-	if repoPath != "" {
-		args = append(args, "--repo", repoPath)
-	}
+	// Execute Kopia restore
+	result, err := p.kopia.RestoreSnapshot(taskID, snapshotID, targetPath, repoPath, password, overwrite)
 
-	log.Printf("Executing: kopia %s", strings.Join(args, " "))
-	
-	cmd := exec.Command(p.config.KopiaPath, args...)
-	cmd.Env = append(os.Environ(), 
-		"KOPIA_PASSWORD="+getString(msg.Payload, "password", ""),
-	)
-	
-	output, err := cmd.CombinedOutput()
-	
 	p.tasksMutex.Lock()
 	defer p.tasksMutex.Unlock()
-	
+
 	if err != nil {
 		status.Status = "failed"
 		status.Message = fmt.Sprintf("Restore failed: %v", err)
 		status.EndTime = time.Now()
-		
+
+		p.nodeClient.ReportTaskError(taskID, err.Error())
+
 		p.Send(Message{
 			Type: "task_failed",
 			ID:   msg.ID,
 			Payload: map[string]interface{}{
 				"task_id":  taskID,
 				"error":    err.Error(),
-				"output":   string(output),
+				"output":   result.Output,
 				"end_time": status.EndTime,
 			},
 		})
@@ -360,15 +355,24 @@ func (p *Proxy) executeRestore(msg Message) {
 		status.Progress = 100
 		status.Message = "Restore completed successfully"
 		status.EndTime = time.Now()
-		
+
+		p.nodeClient.ReportTaskResult(taskID, map[string]interface{}{
+			"snapshot_id":  result.SnapshotID,
+			"target_path":  result.TargetPath,
+			"restore_type": result.RestoreType,
+			"duration":     result.Duration,
+		})
+
 		p.Send(Message{
 			Type: "task_completed",
 			ID:   msg.ID,
 			Payload: map[string]interface{}{
-				"task_id":    taskID,
-				"output":     string(output),
-				"end_time":   status.EndTime,
-				"duration":   status.EndTime.Sub(status.StartTime).Seconds(),
+				"task_id":     taskID,
+				"snapshot_id": result.SnapshotID,
+				"target_path": result.TargetPath,
+				"output":      result.Output,
+				"end_time":    status.EndTime,
+				"duration":    result.Duration,
 			},
 		})
 	}
@@ -378,25 +382,16 @@ func (p *Proxy) executeRestore(msg Message) {
 func (p *Proxy) executeMount(msg Message) {
 	snapshotID := getString(msg.Payload, "snapshot_id", "")
 	mountPath := getString(msg.Payload, "mount_path", "/mnt/kopia")
-	repoPath := getString(msg.Payload, "repo_path", p.config.RepoPath)
+	repoPath := getString(msg.Payload, "repo_path", "")
+	password := getString(msg.Payload, "password", "")
 
 	if snapshotID == "" {
 		p.sendError(msg.ID, "", "snapshot_id is required")
 		return
 	}
 
-	// Execute Kopia mount command
-	args := []string{"mount", snapshotID, mountPath}
-	if repoPath != "" {
-		args = append(args, "--repo", repoPath)
-	}
-
-	cmd := exec.Command(p.config.KopiaPath, args...)
-	cmd.Env = append(os.Environ(), 
-		"KOPIA_PASSWORD="+getString(msg.Payload, "password", ""),
-	)
-	
-	if err := cmd.Start(); err != nil {
+	pid, err := p.kopia.MountSnapshot(snapshotID, mountPath, repoPath, password)
+	if err != nil {
 		p.sendError(msg.ID, "", fmt.Sprintf("Mount failed: %v", err))
 		return
 	}
@@ -407,7 +402,83 @@ func (p *Proxy) executeMount(msg Message) {
 		Payload: map[string]interface{}{
 			"snapshot_id": snapshotID,
 			"mount_path":  mountPath,
-			"pid":         cmd.Process.Pid,
+			"pid":         pid,
+		},
+	})
+}
+
+// listSnapshots lists available snapshots
+func (p *Proxy) listSnapshots(msg Message) {
+	repoPath := getString(msg.Payload, "repo_path", "")
+	password := getString(msg.Payload, "password", "")
+	sourcePath := getString(msg.Payload, "source_path", "")
+
+	snapshots, err := p.kopia.ListSnapshots(repoPath, password, sourcePath)
+	if err != nil {
+		p.sendError(msg.ID, "", fmt.Sprintf("Failed to list snapshots: %v", err))
+		return
+	}
+
+	p.Send(Message{
+		Type: "snapshot_list",
+		ID:   msg.ID,
+		Payload: map[string]interface{}{
+			"snapshots": snapshots,
+		},
+	})
+}
+
+// listContents lists contents of a snapshot
+func (p *Proxy) listContents(msg Message) {
+	snapshotID := getString(msg.Payload, "snapshot_id", "")
+	repoPath := getString(msg.Payload, "repo_path", "")
+	password := getString(msg.Payload, "password", "")
+	recursive := getBool(msg.Payload, "recursive", true)
+
+	if snapshotID == "" {
+		p.sendError(msg.ID, "", "snapshot_id is required")
+		return
+	}
+
+	files, err := p.kopia.GetSnapshotContents(snapshotID, repoPath, password, recursive)
+	if err != nil {
+		p.sendError(msg.ID, "", fmt.Sprintf("Failed to list contents: %v", err))
+		return
+	}
+
+	p.Send(Message{
+		Type: "content_list",
+		ID:   msg.ID,
+		Payload: map[string]interface{}{
+			"snapshot_id": snapshotID,
+			"files":       files,
+		},
+	})
+}
+
+// verifyRepository verifies repository connectivity
+func (p *Proxy) verifyRepository(msg Message) {
+	repoPath := getString(msg.Payload, "repo_path", "")
+	password := getString(msg.Payload, "password", "")
+
+	err := p.kopia.VerifyRepository(repoPath, password)
+	if err != nil {
+		p.Send(Message{
+			Type: "repo_verification",
+			ID:   msg.ID,
+			Payload: map[string]interface{}{
+				"success": false,
+				"error":   err.Error(),
+			},
+		})
+		return
+	}
+
+	p.Send(Message{
+		Type: "repo_verification",
+		ID:   msg.ID,
+		Payload: map[string]interface{}{
+			"success": true,
 		},
 	})
 }
@@ -432,12 +503,14 @@ func (p *Proxy) reportStatus(msgID string) {
 		Type: "status_report",
 		ID:   msgID,
 		Payload: map[string]interface{}{
-			"node_id":     p.config.NodeID,
-			"connected":   p.connected,
+			"node_id":      p.config.NodeID,
+			"connected":    p.connected,
 			"active_tasks": len(tasks),
-			"tasks":       tasks,
-			"hostname":    getHostname(),
-			"platform":    getPlatform(),
+			"tasks":        tasks,
+			"hostname":     p.config.Agent.Hostname,
+			"platform":     getPlatform(),
+			"kopia_version": p.kopia.GetVersion(),
+			"agent_type":   p.config.Agent.Type,
 		},
 	})
 }
@@ -445,23 +518,30 @@ func (p *Proxy) reportStatus(msgID string) {
 // cancelTask cancels a running task
 func (p *Proxy) cancelTask(msg Message) {
 	taskID := getString(msg.Payload, "task_id", "")
-	
+
+	// Try to cancel via Kopia executor
+	cancelled := p.kopia.CancelTask(taskID)
+
 	p.tasksMutex.Lock()
 	defer p.tasksMutex.Unlock()
-	
-	if status, exists := p.tasks[taskID]; exists {
-		status.Status = "cancelled"
-		status.Message = "Task cancelled by user"
-		status.EndTime = time.Now()
-		
+
+	if status, exists := p.tasks[taskID]; exists || cancelled {
+		if status != nil {
+			status.Status = "cancelled"
+			status.Message = "Task cancelled by user"
+			status.EndTime = time.Now()
+		}
+
 		p.Send(Message{
 			Type: "task_cancelled",
 			ID:   msg.ID,
 			Payload: map[string]interface{}{
 				"task_id":  taskID,
-				"end_time": status.EndTime,
+				"end_time": time.Now(),
 			},
 		})
+	} else {
+		p.sendError(msg.ID, taskID, "task not found or cannot be cancelled")
 	}
 }
 
@@ -480,24 +560,24 @@ func (p *Proxy) sendError(msgID, taskID, errMsg string) {
 // handleDisconnect handles disconnection
 func (p *Proxy) handleDisconnect() {
 	p.Disconnect()
-	
+
 	// Reconnect with backoff
 	for {
-		log.Printf("Attempting to reconnect in %v...", p.config.ReconnectDelay)
-		time.Sleep(p.config.ReconnectDelay)
-		
+		logInfo("Attempting to reconnect in %v...", p.config.Server.ReconnectDelay)
+		time.Sleep(p.config.Server.ReconnectDelay)
+
 		if err := p.Connect(); err != nil {
-			log.Printf("Reconnect failed: %v", err)
+			logError("Reconnect failed: %v", err)
 			continue
 		}
-		
+
 		break
 	}
 }
 
 // heartbeat sends periodic heartbeats
 func (p *Proxy) heartbeat() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(p.config.Server.HeartbeatInterval)
 	defer ticker.Stop()
 
 	for {
@@ -508,24 +588,87 @@ func (p *Proxy) heartbeat() {
 			p.Send(Message{
 				Type: "heartbeat",
 				Payload: map[string]interface{}{
-					"node_id":   p.config.NodeID,
-					"timestamp": time.Now(),
-					"status":    "healthy",
+					"node_id":     p.config.NodeID,
+					"timestamp":   time.Now(),
+					"status":      "healthy",
+					"active_tasks": len(p.tasks),
 				},
 			})
+			
+			// Also update status via API
+			p.nodeClient.UpdateStatus("online", map[string]interface{}{
+				"active_tasks": len(p.tasks),
+			})
+		}
+	}
+}
+
+// taskPolling polls for pending tasks
+func (p *Proxy) taskPolling() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-p.stopCh:
+			return
+		case <-ticker.C:
+			tasks, err := p.nodeClient.GetPendingTasks()
+			if err != nil {
+				logDebug("Failed to get pending tasks: %v", err)
+				continue
+			}
+
+			for _, task := range tasks {
+				taskType := getString(task, "type", "")
+				taskID := getString(task, "id", "")
+				
+				if taskType == "" || taskID == "" {
+					continue
+				}
+
+				// Create message from task
+				msg := Message{
+					Type:    taskType + "_task",
+					ID:      taskID,
+					Payload: task,
+				}
+
+				go p.handleMessage(msg)
+			}
 		}
 	}
 }
 
 // Run starts the proxy
 func (p *Proxy) Run() error {
-	// Connect to control plane
+	// Check Kopia installation
+	if !p.kopia.CheckInstalled() {
+		logError("Kopia is not installed or not accessible at: %s", p.config.Backup.KopiaPath)
+		return fmt.Errorf("kopia not found")
+	}
+	
+	logInfo("Kopia version: %s", p.kopia.GetVersion())
+
+	// Register with control server
+	nodeID, err := p.nodeClient.Register()
+	if err != nil {
+		logError("Failed to register with control server: %v", err)
+		// Continue anyway, WebSocket connection might work
+	} else {
+		p.config.NodeID = nodeID
+	}
+
+	// Connect to WebSocket
 	if err := p.Connect(); err != nil {
 		return err
 	}
 
 	// Start heartbeat goroutine
 	go p.heartbeat()
+
+	// Start task polling goroutine
+	go p.taskPolling()
 
 	// Listen for messages
 	p.Listen()
@@ -536,6 +679,8 @@ func (p *Proxy) Run() error {
 // Stop stops the proxy
 func (p *Proxy) Stop() {
 	close(p.stopCh)
+	p.nodeClient.Unregister()
+	p.nodeClient.Close()
 	p.Disconnect()
 }
 
@@ -550,51 +695,60 @@ func getString(m map[string]interface{}, key, defaultValue string) string {
 	return defaultValue
 }
 
-func getHostname() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return "unknown"
+func getBool(m map[string]interface{}, key string, defaultValue bool) bool {
+	if v, ok := m[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
 	}
-	return hostname
-}
-
-func getPlatform() string {
-	return fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+	return defaultValue
 }
 
 func main() {
 	// Parse command line flags
-	controlURL := flag.String("control", os.Getenv("CONTROL_URL"), "Control plane WebSocket URL")
+	configPath := flag.String("config", os.Getenv("CONFIG_PATH"), "Path to config file")
+	controlURL := flag.String("control", os.Getenv("CONTROL_URL"), "Control plane URL")
 	nodeID := flag.String("node", os.Getenv("NODE_ID"), "Node ID")
-	token := flag.String("token", os.Getenv("TOKEN"), "Authentication token")
+	token := flag.String("token", os.Getenv("API_TOKEN"), "Authentication token")
 	kopiaPath := flag.String("kopia", os.Getenv("KOPIA_PATH"), "Path to Kopia binary")
-	repoPath := flag.String("repo", os.Getenv("REPO_PATH"), "Default repository path")
-	logLevel := flag.String("log", os.Getenv("LOG_LEVEL"), "Log level (debug, info, warn, error)")
+	showVersion := flag.Bool("version", false, "Show version information")
 	flag.Parse()
 
-	// Set defaults
-	if *controlURL == "" {
-		*controlURL = "ws://localhost:8000/ws/node/"
-	}
-	if *nodeID == "" {
-		*nodeID = "proxy-" + uuid.New().String()[:8]
-	}
-	if *kopiaPath == "" {
-		*kopiaPath = "kopia"
-	}
-	if *logLevel == "" {
-		*logLevel = "info"
+	if *showVersion {
+		fmt.Println("HyperFileLens Proxy v1.0.0")
+		fmt.Println("Platform:", getPlatform())
+		return
 	}
 
-	// Create config
-	cfg := &Config{
-		ControlURL:     *controlURL,
-		NodeID:         *nodeID,
-		Token:          *token,
-		KopiaPath:      *kopiaPath,
-		RepoPath:       *repoPath,
-		LogLevel:       *logLevel,
-		ReconnectDelay: 5 * time.Second,
+	// Load configuration
+	cfg, err := LoadConfig(*configPath)
+	if err != nil {
+		logError("Failed to load config: %v", err)
+		os.Exit(1)
+	}
+
+	// Override with command line flags
+	if *controlURL != "" {
+		cfg.Server.URL = *controlURL
+	}
+	if *nodeID != "" {
+		cfg.NodeID = *nodeID
+	}
+	if *token != "" {
+		cfg.Server.APIToken = *token
+	}
+	if *kopiaPath != "" {
+		cfg.Backup.KopiaPath = *kopiaPath
+	}
+
+	// Generate node ID if not set
+	if cfg.NodeID == "" {
+		cfg.NodeID = "proxy-" + uuid.New().String()[:8]
+	}
+
+	// Ensure directories exist
+	if err := cfg.EnsureDataDir(); err != nil {
+		logError("Failed to create data directories: %v", err)
 	}
 
 	// Create proxy
@@ -603,20 +757,23 @@ func main() {
 	// Handle shutdown signals
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	go func() {
 		<-sigCh
-		log.Println("Received shutdown signal")
+		logInfo("Received shutdown signal")
 		proxy.Stop()
 		os.Exit(0)
 	}()
 
 	// Run proxy
-	log.Printf("Starting HyperFileLens Proxy (node: %s)", cfg.NodeID)
-	log.Printf("Control plane: %s", cfg.ControlURL)
-	log.Printf("Kopia path: %s", cfg.KopiaPath)
-	
+	logInfo("Starting HyperFileLens Proxy v%s", cfg.Version)
+	logInfo("Node ID: %s", cfg.NodeID)
+	logInfo("Control plane: %s", cfg.Server.URL)
+	logInfo("Kopia path: %s", cfg.Backup.KopiaPath)
+	logInfo("Agent type: %s", cfg.Agent.Type)
+
 	if err := proxy.Run(); err != nil {
-		log.Fatalf("Proxy error: %v", err)
+		logError("Proxy error: %v", err)
+		os.Exit(1)
 	}
 }
