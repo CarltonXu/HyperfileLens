@@ -698,7 +698,29 @@ export default {
       username: '用户名',
       password: '密码',
       path: '路径'
-    }
+    },
+
+    validation: {
+      nameRequired: '请输入仓库名称',
+      endpointRequired: '请输入 Endpoint URL',
+      bucketRequired: '请输入存储桶名称',
+      accessKeyRequired: '请输入 Access Key',
+      secretKeyRequired: '请输入 Secret Key',
+      serverRequired: '请输入服务器地址',
+      exportPathRequired: '请输入导出路径',
+      usernameRequired: '请输入用户名',
+      passwordRequired: '请输入密码',
+      proxyRequired: '请选择 Sync Proxy',
+      pathRequired: '请选择目标路径',
+      formInvalid: '表单验证失败',
+      checkFields: '请检查必填字段',
+      configError: '配置错误',
+      credentialsError: '凭证错误'
+    },
+
+    createSuccess: '仓库创建成功',
+    createFailed: '仓库创建失败',
+    confirmDelete: '确定要删除此仓库吗？'
   },
 
   // Policies

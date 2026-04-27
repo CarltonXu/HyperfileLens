@@ -190,6 +190,19 @@ class RepositoryCreateSerializer(serializers.ModelSerializer):
                     'config': 'NFS requires "server" and "export_path" in config'
                 })
         
+        elif repo_type == Repository.TYPE_NAS:
+            # NAS/NFS/CIFS unified type
+            if 'server' not in config or 'export_path' not in config:
+                raise serializers.ValidationError({
+                    'config': 'NAS requires "server" and "export_path" in config'
+                })
+            mount_type = config.get('mount_type', 'nfs')
+            if mount_type == 'cifs':
+                if 'username' not in credentials or 'password' not in credentials:
+                    raise serializers.ValidationError({
+                        'credentials': 'CIFS mount requires "username" and "password" in credentials'
+                    })
+        
         elif repo_type == Repository.TYPE_LOCAL:
             if 'path' not in config:
                 raise serializers.ValidationError({

@@ -22,6 +22,7 @@ class Repository(models.Model):
     # Repository type choices
     TYPE_LOCAL = 'local'
     TYPE_NFS = 'nfs'
+    TYPE_NAS = 'nas'  # NAS/NFS/CIFS unified type
     TYPE_S3 = 's3'
     TYPE_AZURE = 'azure'
     TYPE_GCS = 'gcs'
@@ -29,6 +30,7 @@ class Repository(models.Model):
     TYPE_CHOICES = [
         (TYPE_LOCAL, 'Local Filesystem'),
         (TYPE_NFS, 'NFS Share'),
+        (TYPE_NAS, 'NAS/NFS/CIFS'),
         (TYPE_S3, 'Amazon S3'),
         (TYPE_AZURE, 'Azure Blob Storage'),
         (TYPE_GCS, 'Google Cloud Storage'),
