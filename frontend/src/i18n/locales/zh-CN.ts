@@ -6,7 +6,7 @@ export default {
     proxies: '代理管理',
     backupTasks: '备份任务',
     recoveryTasks: '恢复任务',
-    repository: '目标存储仓库',
+    repository: '备份仓库',
     sourceResources: '源端资源',
     policies: '备份策略',
     aiQuery: 'AI 查询',
@@ -561,8 +561,8 @@ export default {
 
   // Repository
   repository: {
-    title: '存储仓库',
-    subtitle: '管理备份存储',
+    title: '备份仓库',
+    subtitle: '管理备份存储仓库',
 
     stats: {
       total: '仓库总数',

@@ -6,7 +6,7 @@ export default {
     proxies: 'Proxies',
     backupTasks: 'Backup Tasks',
     recoveryTasks: 'Recovery Tasks',
-    repository: 'Target Repository',
+    repository: 'Backup Repository',
     sourceResources: 'Source Resources',
     policies: 'Policies',
     aiQuery: 'AI Query',
@@ -562,7 +562,7 @@ export default {
   // Repository
   repository: {
     title: 'Backup Repository',
-    subtitle: 'Manage backup storage',
+    subtitle: 'Manage backup repositories',
 
     stats: {
       total: 'Total Repositories',
