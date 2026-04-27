@@ -3,6 +3,7 @@ export default {
   nav: {
     dashboard: '仪表盘',
     nodes: '节点管理',
+    proxies: '代理管理',
     backupTasks: '备份任务',
     recoveryTasks: '恢复任务',
     repository: '目标存储仓库',
@@ -30,6 +31,7 @@ export default {
     download: '下载',
     upload: '上传',
     copy: '复制',
+    copied: '已复制！',
     back: '返回',
     next: '下一步',
     previous: '上一步',
@@ -48,6 +50,7 @@ export default {
     name: '名称',
     status: '状态',
     type: '类型',
+    role: '角色',
     date: '日期',
     actions: '操作',
     details: '详情',
@@ -55,7 +58,12 @@ export default {
     required: '必填',
     optional: '可选',
     settings: '设置',
-    close: '关闭'
+    close: '关闭',
+    never: '从未',
+    justNow: '刚刚',
+    minutesAgo: '分钟前',
+    hoursAgo: '小时前',
+    daysAgo: '天前'
   },
 
   // Auth
@@ -185,6 +193,120 @@ export default {
     empty: {
       title: '暂无节点',
       description: '添加您的第一个源端代理或目标网关'
+    }
+  },
+
+  // Proxies
+  proxies: {
+    title: '代理管理',
+    subtitle: '管理 Agent 和 Sync 代理节点',
+    installProxy: '安装代理',
+    online: '在线',
+    noConnection: '未连接',
+
+    stats: {
+      total: '代理总数',
+      online: '在线',
+      agent: 'Agent 代理',
+      sync: 'Sync 代理'
+    },
+
+    roles: {
+      agent: 'Agent 代理',
+      sync: 'Sync 代理'
+    },
+
+    status: {
+      active: '活跃',
+      pending: '待安装',
+      offline: '离线',
+      error: '错误',
+      maintenance: '维护中',
+      installing: '安装中'
+    },
+
+    actions: {
+      viewDetails: '查看详情',
+      edit: '编辑',
+      delete: '删除',
+      setMaintenance: '设为维护',
+      activate: '激活',
+      regenerateToken: '重新生成令牌',
+      regenerateTokenConfirm: '这将使当前令牌失效，代理需要重新配置。是否继续？'
+    },
+
+    form: {
+      name: '代理名称',
+      hostname: '主机名',
+      heartbeatInterval: '心跳间隔（秒）',
+      labels: '标签',
+      capabilities: '能力'
+    },
+
+    detail: {
+      hostname: '主机名',
+      internalIp: '内部 IP',
+      operatingSystem: '操作系统',
+      version: '版本',
+      kopiaVersion: 'Kopia 版本',
+      uptime: '运行时间',
+      lastHeartbeat: '最后心跳',
+      registeredAt: '注册时间',
+      heartbeatInterval: '心跳间隔',
+      capabilities: '能力',
+      labels: '标签',
+      systemInfo: '系统信息',
+      currentlyOnline: '当前在线',
+      currentlyOffline: '当前离线',
+      recentTasks: '最近任务',
+      noTasks: '暂无最近任务',
+      noHeartbeats: '暂无心跳历史',
+      tabs: {
+        overview: '概览',
+        tasks: '任务',
+        heartbeats: '心跳'
+      }
+    },
+
+    install: {
+      title: '安装新代理',
+      subtitle: '生成代理安装命令',
+      agentDescription: '运行在源端服务器。读取本地文件系统，执行备份，上报状态。无挂载能力。',
+      syncDescription: '运行在跳板机。挂载 NAS，接入对象存储，提供统一数据接入点。',
+      proxyName: '代理名称',
+      namePlaceholder: '例如：prod-backup-proxy-01',
+      targetOS: '目标操作系统',
+      labels: '标签（可选）',
+      labelPlaceholder: '添加标签',
+      generateCommand: '生成安装命令',
+      generating: '生成中...',
+      installCommand: '安装命令',
+      downloadConfig: '下载配置',
+      proxyId: '代理 ID',
+      apiToken: 'API 令牌',
+      ready: '安装准备就绪',
+      readyDescription: '复制下面的命令在目标服务器上运行以安装代理。',
+      done: '完成',
+      os: {
+        linux: 'Linux',
+        windows: 'Windows',
+        macos: 'macOS'
+      }
+    },
+
+    edit: {
+      title: '编辑代理'
+    },
+
+    delete: {
+      title: '删除代理',
+      description: '确定要删除代理 "{name}" 吗？此操作无法撤销。',
+      confirm: '确定要删除此代理吗？所有任务历史将丢失。'
+    },
+
+    empty: {
+      title: '暂无已安装代理',
+      description: '安装代理以开始管理备份节点'
     }
   },
 

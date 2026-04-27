@@ -52,11 +52,11 @@ const navigation = computed(() => [
     current: route.path === '/'
   },
   {
-    name: t('nav.nodes'),
-    path: '/nodes',
+    name: t('nav.proxies'),
+    path: '/proxies',
     icon: ServerIcon,
     iconSolid: ServerIconSolid,
-    current: route.path.startsWith('/nodes')
+    current: route.path.startsWith('/proxies')
   },
   {
     name: t('nav.backupTasks'),

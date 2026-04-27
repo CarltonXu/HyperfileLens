@@ -1,8 +1,8 @@
 """
-WebSocket Consumers for Nodes Application
+WebSocket Consumers for Proxy Nodes
 
 This module provides WebSocket consumers for real-time
-node communication, task execution, and status updates.
+proxy communication, task execution, and status updates.
 """
 
 import json
@@ -13,24 +13,29 @@ from django.utils import timezone
 from asgiref.sync import sync_to_async
 
 
-class NodeConsumer(AsyncWebsocketConsumer):
+class ProxyConsumer(AsyncWebsocketConsumer):
     """
-    WebSocket consumer for node connections.
+    WebSocket consumer for proxy connections.
 
-    Handles real-time communication with source proxy
-    and target gateway nodes.
+    Handles real-time communication with agent and sync proxies.
     """
 
     async def connect(self):
         """
         Handle WebSocket connection.
 
-        Authenticates the node and establishes the connection.
+        Authenticates the proxy and establishes the connection.
         """
-        self.node_id = self.scope['url_route']['kwargs']['node_id']
-        self.room_group_name = f'node_{self.node_id}'
+        self.proxy_id = self.scope['url_route']['kwargs']['proxy_id']
+        self.room_group_name = f'proxy_{self.proxy_id}'
 
-        # Join node group
+        # Verify proxy credentials
+        valid = await self.verify_proxy()
+        if not valid:
+            await self.close(code=4001)
+            return
+
+        # Join proxy group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
@@ -38,13 +43,16 @@ class NodeConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
-        # Update node connection status
-        await self.update_node_online_status(True)
+        # Update proxy connection status
+        await self.update_proxy_online_status(True)
+
+        # Create connection record
+        await self.create_connection_record()
 
         # Send connection acknowledgment
         await self.send(text_data=json.dumps({
             'type': 'connection_established',
-            'node_id': self.node_id,
+            'proxy_id': self.proxy_id,
             'server_time': timezone.now().isoformat()
         }))
 
@@ -52,45 +60,47 @@ class NodeConsumer(AsyncWebsocketConsumer):
         """
         Handle WebSocket disconnection.
 
-        Cleans up connection state and updates node status.
+        Cleans up connection state and updates proxy status.
         """
-        # Leave node group
+        # Leave proxy group
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
 
-        # Update node connection status
-        await self.update_node_online_status(False)
+        # Update proxy connection status
+        await self.update_proxy_online_status(False)
+
+        # Update connection record
+        await self.close_connection_record()
 
     async def receive(self, text_data):
         """
         Handle incoming WebSocket messages.
 
-        Processes commands from the node and responds accordingly.
+        Processes commands from the proxy and responds accordingly.
         """
         try:
             data = json.loads(text_data)
             message_type = data.get('type')
 
-            if message_type == 'heartbeat':
-                await self.handle_heartbeat(data)
-            elif message_type == 'task_update':
-                await self.handle_task_update(data)
-            elif message_type == 'log':
-                await self.handle_log(data)
-            elif message_type == 'status':
-                await self.handle_status(data)
-            elif message_type == 'backup_result':
-                await self.handle_backup_result(data)
-            elif message_type == 'restore_result':
-                await self.handle_restore_result(data)
-            elif message_type == 'test_connection_result':
-                await self.handle_test_connection_result(data)
-            elif message_type == 'init_repo_result':
-                await self.handle_init_repo_result(data)
-            elif message_type == 'mount_result':
-                await self.handle_mount_result(data)
+            handlers = {
+                'heartbeat': self.handle_heartbeat,
+                'register': self.handle_register,
+                'task_update': self.handle_task_update,
+                'task_result': self.handle_task_result,
+                'log': self.handle_log,
+                'status': self.handle_status,
+                'backup_result': self.handle_backup_result,
+                'restore_result': self.handle_restore_result,
+                'mount_result': self.handle_mount_result,
+                'snapshot_list_result': self.handle_snapshot_list_result,
+                'test_connection_result': self.handle_test_connection_result,
+            }
+
+            handler = handlers.get(message_type)
+            if handler:
+                await handler(data)
             else:
                 await self.send(text_data=json.dumps({
                     'type': 'error',
@@ -102,35 +112,56 @@ class NodeConsumer(AsyncWebsocketConsumer):
                 'message': 'Invalid JSON format'
             }))
 
+    async def handle_register(self, data):
+        """
+        Handle initial registration message from proxy.
+        """
+        install_token = data.get('install_token')
+        proxy_info = data.get('proxy_info', {})
+
+        success = await self.complete_registration(install_token, proxy_info)
+
+        if success:
+            await self.send(text_data=json.dumps({
+                'type': 'register_ack',
+                'status': 'success',
+                'proxy_id': self.proxy_id
+            }))
+        else:
+            await self.send(text_data=json.dumps({
+                'type': 'register_ack',
+                'status': 'failed',
+                'message': 'Invalid install token or proxy already registered'
+            }))
+
     async def handle_heartbeat(self, data):
         """
-        Handle heartbeat message from node.
+        Handle heartbeat message from proxy.
 
-        Updates node status and responds with any pending commands.
+        Updates proxy status and responds with any pending commands.
         """
-        await self.update_node_heartbeat(data)
+        metrics = data.get('metrics', {})
+        await self.update_proxy_heartbeat(metrics)
 
-        # Check for pending tasks or commands
-        pending_commands = await self.get_pending_commands()
+        # Check for pending tasks
+        pending_tasks = await self.get_pending_tasks()
 
         await self.send(text_data=json.dumps({
             'type': 'heartbeat_ack',
             'server_time': timezone.now().isoformat(),
-            'pending_commands': pending_commands
+            'pending_tasks': pending_tasks
         }))
 
     async def handle_task_update(self, data):
         """
-        Handle task update message from node.
-
-        Updates task status and progress.
+        Handle task update message from proxy.
         """
         task_id = data.get('task_id')
         status = data.get('status')
         progress = data.get('progress', 0)
-        result = data.get('result', {})
+        message = data.get('message', '')
 
-        await self.update_task_status(task_id, status, progress, result)
+        await self.update_task_status(task_id, status, progress, message)
 
         # Broadcast to task group for real-time UI updates
         await self.channel_layer.group_send(
@@ -141,321 +172,388 @@ class NodeConsumer(AsyncWebsocketConsumer):
                     'task_id': task_id,
                     'status': status,
                     'progress': progress,
-                    'result': result
+                    'message': message
+                }
+            }
+        )
+
+    async def handle_task_result(self, data):
+        """
+        Handle task result message from proxy.
+        """
+        task_id = data.get('task_id')
+        task_type = data.get('task_type')
+        success = data.get('success', False)
+        result = data.get('result', {})
+        error = data.get('error')
+
+        await self.complete_task(task_id, success, result, error)
+
+        # Broadcast to task group
+        await self.channel_layer.group_send(
+            f'task_{task_id}',
+            {
+                'type': 'task_result',
+                'data': {
+                    'task_id': task_id,
+                    'task_type': task_type,
+                    'success': success,
+                    'result': result,
+                    'error': error
                 }
             }
         )
 
     async def handle_log(self, data):
         """
-        Handle log message from node.
-
-        Stores or forwards log data.
+        Handle log message from proxy.
         """
-        log_level = data.get('level', 'info')
+        level = data.get('level', 'info')
         message = data.get('message')
-        metadata = data.get('metadata', {})
+        context = data.get('context', {})
 
-        await self.store_log(log_level, message, metadata)
+        await self.store_log(level, message, context)
 
     async def handle_status(self, data):
         """
-        Handle status report from node.
-
-        Updates node system information.
+        Handle status report from proxy.
         """
-        cpu_usage = data.get('cpu_usage')
-        memory_usage = data.get('memory_usage')
-        disk_usage = data.get('disk_usage')
-
-        await self.update_node_status(cpu_usage, memory_usage, disk_usage)
+        status_data = data.get('data', {})
+        await self.update_proxy_status(status_data)
 
     async def handle_backup_result(self, data):
         """
-        Handle backup task result from node.
-
-        Updates backup task status and creates snapshot record.
+        Handle backup task result from proxy.
         """
         task_id = data.get('task_id')
-        success = data.get('success', False)
         snapshot_id = data.get('snapshot_id')
-        error = data.get('error')
         stats = data.get('stats', {})
+        error = data.get('error')
 
-        await self.update_backup_task_result(task_id, success, snapshot_id, error, stats)
-
-        # Broadcast to task group
-        await self.channel_layer.group_send(
-            f'task_{task_id}',
-            {
-                'type': 'task_result',
-                'data': {
-                    'task_id': task_id,
-                    'success': success,
-                    'snapshot_id': snapshot_id,
-                    'error': error,
-                    'stats': stats
-                }
-            }
-        )
+        await self.update_backup_result(task_id, snapshot_id, stats, error)
 
     async def handle_restore_result(self, data):
         """
-        Handle restore task result from node.
-
-        Updates recovery task status.
+        Handle restore task result from proxy.
         """
         task_id = data.get('task_id')
-        success = data.get('success', False)
-        error = data.get('error')
         stats = data.get('stats', {})
-
-        await self.update_recovery_task_result(task_id, success, error, stats)
-
-        # Broadcast to task group
-        await self.channel_layer.group_send(
-            f'task_{task_id}',
-            {
-                'type': 'task_result',
-                'data': {
-                    'task_id': task_id,
-                    'success': success,
-                    'error': error,
-                    'stats': stats
-                }
-            }
-        )
-
-    async def handle_test_connection_result(self, data):
-        """
-        Handle connection test result from node.
-
-        Updates repository or source resource connection status.
-        """
-        resource_type = data.get('resource_type')  # 'repository' or 'source_resource'
-        resource_id = data.get('resource_id')
-        success = data.get('success', False)
         error = data.get('error')
 
-        await self.update_connection_status(resource_type, resource_id, success, error)
-
-    async def handle_init_repo_result(self, data):
-        """
-        Handle repository initialization result from node.
-
-        Updates repository Kopia status.
-        """
-        repository_id = data.get('repository_id')
-        success = data.get('success', False)
-        repo_id = data.get('repo_id')  # Kopia repository ID
-        error = data.get('error')
-
-        await self.update_repo_init_status(repository_id, success, repo_id, error)
+        await self.update_restore_result(task_id, stats, error)
 
     async def handle_mount_result(self, data):
         """
-        Handle mount result from node.
-
-        Updates mount status for gateway nodes.
+        Handle mount result from sync proxy.
         """
         repository_id = data.get('repository_id')
-        success = data.get('success', False)
         mount_point = data.get('mount_point')
+        success = data.get('success', False)
         error = data.get('error')
 
-        await self.update_mount_status(repository_id, success, mount_point, error)
+        await self.update_mount_status(repository_id, mount_point, success, error)
+
+    async def handle_snapshot_list_result(self, data):
+        """
+        Handle snapshot list result from proxy.
+        """
+        task_id = data.get('task_id')
+        snapshots = data.get('snapshots', [])
+        error = data.get('error')
+
+        await self.update_snapshot_list_result(task_id, snapshots, error)
+
+    async def handle_test_connection_result(self, data):
+        """
+        Handle connection test result from proxy.
+        """
+        resource_type = data.get('resource_type')
+        resource_id = data.get('resource_id')
+        success = data.get('success', False)
+        error = data.get('error')
+        details = data.get('details', {})
+
+        await self.update_connection_status(resource_type, resource_id, success, error, details)
 
     # Send methods for group broadcasts
-    async def node_message(self, event):
-        """
-        Handler for node message events.
-
-        Sends messages to the node via WebSocket.
-        """
+    async def proxy_message(self, event):
+        """Handler for proxy message events."""
         await self.send(text_data=json.dumps(event['data']))
 
     async def command_message(self, event):
-        """
-        Handler for command message events.
+        """Handler for command message events."""
+        await self.send(text_data=json.dumps(event['data']))
 
-        Sends commands to the node via WebSocket.
-        """
+    async def task_message(self, event):
+        """Handler for task message events."""
         await self.send(text_data=json.dumps(event['data']))
 
     # Database operations
     @sync_to_async
-    def update_node_online_status(self, online):
-        """
-        Update node online status in database.
-        """
-        from .models import Node
-
+    def verify_proxy(self):
+        """Verify proxy exists and is valid."""
+        from .models import ProxyNode
         try:
-            node = Node.objects.get(id=self.node_id)
+            ProxyNode.objects.get(id=self.proxy_id)
+            return True
+        except ProxyNode.DoesNotExist:
+            return False
+
+    @sync_to_async
+    def update_proxy_online_status(self, online):
+        """Update proxy online status."""
+        from .models import ProxyNode, NodeConnection
+        try:
+            proxy = ProxyNode.objects.get(id=self.proxy_id)
             if online:
-                node.status = Node.NodeStatus.ACTIVE
+                proxy.status = ProxyNode.NodeStatus.ACTIVE
+                if not proxy.registered_at:
+                    proxy.registered_at = timezone.now()
             else:
-                node.status = Node.NodeStatus.INACTIVE
-            node.save(update_fields=['status', 'updated_at'])
-        except Node.DoesNotExist:
+                proxy.status = ProxyNode.NodeStatus.OFFLINE
+            proxy.save(update_fields=['status', 'registered_at', 'updated_at'])
+        except ProxyNode.DoesNotExist:
             pass
 
     @sync_to_async
-    def update_node_heartbeat(self, data):
-        """
-        Update node heartbeat in database.
-
-        Args:
-            data: Heartbeat data dictionary
-        """
-        from .models import Node, NodeHeartbeat
-
+    def create_connection_record(self):
+        """Create connection record."""
+        from .models import ProxyNode, NodeConnection
         try:
-            node = Node.objects.get(id=self.node_id)
-            node.last_heartbeat = timezone.now()
-            node.save(update_fields=['last_heartbeat', 'updated_at'])
+            proxy = ProxyNode.objects.get(id=self.proxy_id)
+            NodeConnection.objects.create(
+                proxy=proxy,
+                status=NodeConnection.ConnectionStatus.CONNECTED,
+                remote_address=self.scope.get('client', [None])[0],
+                user_agent=self.scope.get('headers', {}).get(b'user-agent', b'').decode()
+            )
+        except Exception:
+            pass
+
+    @sync_to_async
+    def close_connection_record(self):
+        """Close connection record."""
+        from .models import NodeConnection
+        try:
+            conn = NodeConnection.objects.filter(
+                proxy_id=self.proxy_id,
+                status=NodeConnection.ConnectionStatus.CONNECTED
+            ).order_by('-connected_at').first()
+            if conn:
+                conn.disconnect()
+        except Exception:
+            pass
+
+    @sync_to_async
+    def complete_registration(self, install_token, proxy_info):
+        """Complete proxy registration."""
+        from .models import ProxyNode
+        try:
+            proxy = ProxyNode.objects.get(id=self.proxy_id, install_token=install_token)
+            proxy.install_token = ''  # Clear token after use
+            proxy.status = ProxyNode.NodeStatus.ACTIVE
+            proxy.registered_at = timezone.now()
+            proxy.installed_at = timezone.now()
+
+            if proxy_info:
+                proxy.hostname = proxy_info.get('hostname', '')
+                proxy.internal_ip = proxy_info.get('internal_ip')
+                proxy.operating_system = proxy_info.get('os', '')
+                proxy.os_version = proxy_info.get('os_version', '')
+                proxy.version = proxy_info.get('version', '')
+                proxy.kopia_version = proxy_info.get('kopia_version', '')
+                proxy.cpu_cores = proxy_info.get('cpu_cores')
+                proxy.memory_total = proxy_info.get('memory_total')
+                proxy.disk_total = proxy_info.get('disk_total')
+                proxy.capabilities = proxy_info.get('capabilities', {})
+
+            proxy.save()
+            return True
+        except ProxyNode.DoesNotExist:
+            return False
+
+    @sync_to_async
+    def update_proxy_heartbeat(self, metrics):
+        """Update proxy heartbeat."""
+        from .models import ProxyNode, ProxyHeartbeat
+        try:
+            proxy = ProxyNode.objects.get(id=self.proxy_id)
+            proxy.last_heartbeat = timezone.now()
+
+            if metrics:
+                proxy.cpu_usage = metrics.get('cpu_usage')
+                proxy.memory_usage = metrics.get('memory_usage')
+                proxy.disk_usage = metrics.get('disk_usage')
+                proxy.active_tasks = metrics.get('active_tasks', 0)
+
+            proxy.save()
 
             # Create heartbeat record
-            NodeHeartbeat.objects.create(
-                node=node,
-                cpu_usage=data.get('cpu_usage'),
-                memory_usage=data.get('memory_usage'),
-                disk_usage=data.get('disk_usage'),
-                network_in=data.get('network_in'),
-                network_out=data.get('network_out'),
-                active_tasks=data.get('active_tasks', 0),
-                metadata=data.get('metadata', {})
+            ProxyHeartbeat.objects.create(
+                proxy=proxy,
+                cpu_usage=metrics.get('cpu_usage'),
+                memory_usage=metrics.get('memory_usage'),
+                disk_usage=metrics.get('disk_usage'),
+                network_in=metrics.get('network_in'),
+                network_out=metrics.get('network_out'),
+                active_tasks=metrics.get('active_tasks', 0),
+                completed_tasks=metrics.get('completed_tasks', 0),
+                failed_tasks=metrics.get('failed_tasks', 0),
+                metadata=metrics.get('metadata', {})
             )
-        except Node.DoesNotExist:
+        except ProxyNode.DoesNotExist:
             pass
 
     @sync_to_async
-    def get_pending_commands(self):
-        """
-        Get pending commands for the node.
+    def get_pending_tasks(self):
+        """Get pending tasks for the proxy."""
+        from .models import ProxyTask
+        tasks = ProxyTask.objects.filter(
+            proxy_id=self.proxy_id,
+            status=ProxyTask.TaskStatus.PENDING
+        ).values('id', 'task_type', 'parameters', 'timeout_seconds')
 
-        Returns:
-            List of pending commands
-        """
-        # TODO: Implement command queue retrieval
-        return []
+        result = []
+        for task in tasks:
+            result.append({
+                'task_id': str(task['id']),
+                'task_type': task['task_type'],
+                'parameters': task['parameters'],
+                'timeout_seconds': task['timeout_seconds']
+            })
+        return result
 
     @sync_to_async
-    def update_task_status(self, task_id, status, progress, result):
-        """
-        Update task status in database.
-        """
-        from backup_tasks.models import BackupTask
-
+    def update_task_status(self, task_id, status, progress, message):
+        """Update task status."""
+        from .models import ProxyTask
         try:
-            task = BackupTask.objects.get(id=task_id)
+            task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
             task.status = status
             task.progress = progress
-            if result:
-                task.result = result
-            if status == BackupTask.STATUS_COMPLETED:
-                task.completed_at = timezone.now()
+            task.progress_message = message
+            if status == 'accepted':
+                task.accepted_at = timezone.now()
+            elif status == 'running':
+                task.started_at = timezone.now()
             task.save()
-        except BackupTask.DoesNotExist:
+        except ProxyTask.DoesNotExist:
             pass
 
     @sync_to_async
-    def store_log(self, level, message, metadata):
-        """
-        Store log message from node.
-        """
+    def complete_task(self, task_id, success, result, error):
+        """Complete a task."""
+        from .models import ProxyTask
+        try:
+            task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
+            if success:
+                task.status = ProxyTask.TaskStatus.COMPLETED
+            else:
+                task.status = ProxyTask.TaskStatus.FAILED
+                task.error_message = error or ''
+            task.result = result
+            task.progress = 100
+            task.completed_at = timezone.now()
+            task.save()
+        except ProxyTask.DoesNotExist:
+            pass
+
+    @sync_to_async
+    def store_log(self, level, message, context):
+        """Store log message from proxy."""
         import logging
-        logger = logging.getLogger('hyperfilelens.node')
-        
+        logger = logging.getLogger('hyperfilelens.proxy')
+
+        log_msg = f"[Proxy {self.proxy_id}] {message}"
         if level == 'error':
-            logger.error(f"[Node {self.node_id}] {message}", extra=metadata)
+            logger.error(log_msg, extra=context)
         elif level == 'warning':
-            logger.warning(f"[Node {self.node_id}] {message}", extra=metadata)
+            logger.warning(log_msg, extra=context)
         else:
-            logger.info(f"[Node {self.node_id}] {message}", extra=metadata)
+            logger.info(log_msg, extra=context)
 
     @sync_to_async
-    def update_node_status(self, cpu_usage, memory_usage, disk_usage):
-        """
-        Update node status information.
-        """
-        from .models import Node
-
+    def update_proxy_status(self, status_data):
+        """Update proxy status information."""
+        from .models import ProxyNode
         try:
-            node = Node.objects.get(id=self.node_id)
-            if not node.metadata:
-                node.metadata = {}
-            node.metadata['last_status'] = {
-                'cpu_usage': cpu_usage,
-                'memory_usage': memory_usage,
-                'disk_usage': disk_usage,
-                'timestamp': timezone.now().isoformat()
-            }
-            node.save(update_fields=['metadata', 'updated_at'])
-        except Node.DoesNotExist:
+            proxy = ProxyNode.objects.get(id=self.proxy_id)
+            proxy.version = status_data.get('version', proxy.version)
+            proxy.kopia_version = status_data.get('kopia_version', proxy.kopia_version)
+            proxy.capabilities = status_data.get('capabilities', proxy.capabilities)
+            proxy.save(update_fields=['version', 'kopia_version', 'capabilities', 'updated_at'])
+        except ProxyNode.DoesNotExist:
             pass
 
     @sync_to_async
-    def update_backup_task_result(self, task_id, success, snapshot_id, error, stats):
-        """
-        Update backup task result and create snapshot.
-        """
+    def update_backup_result(self, task_id, snapshot_id, stats, error):
+        """Update backup task result."""
+        from .models import ProxyTask
         from backup_tasks.models import BackupTask, BackupSnapshot
-
         try:
-            task = BackupTask.objects.get(id=task_id)
-            
-            if success:
-                task.status = BackupTask.STATUS_COMPLETED
-                task.progress = 100
-                
-                # Create snapshot record
-                BackupSnapshot.objects.create(
-                    name=f'{task.name} - {timezone.now().strftime("%Y%m%d_%H%M%S")}',
-                    task=task,
-                    repository=task.target_repository,
-                    storage_path=snapshot_id,
-                    manifest_path='',
-                    total_size=stats.get('total_size', 0),
-                    file_count=stats.get('file_count', 0),
-                    checksum=stats.get('checksum', '')
-                )
+            task = ProxyTask.objects.get(id=task_id)
+            if error:
+                task.fail(error)
             else:
-                task.status = BackupTask.STATUS_FAILED
-                task.error_message = error
-            
-            task.save()
-        except BackupTask.DoesNotExist:
+                task.complete({'snapshot_id': snapshot_id, 'stats': stats})
+
+                # Create snapshot record if backup task exists
+                if task.repository_id:
+                    BackupSnapshot.objects.create(
+                        name=f'snapshot-{timezone.now().strftime("%Y%m%d_%H%M%S")}',
+                        repository_id=task.repository_id,
+                        storage_path=snapshot_id,
+                        total_size=stats.get('total_size', 0),
+                        file_count=stats.get('file_count', 0),
+                    )
+        except ProxyTask.DoesNotExist:
             pass
 
     @sync_to_async
-    def update_recovery_task_result(self, task_id, success, error, stats):
-        """
-        Update recovery task result.
-        """
-        from recovery_tasks.models import RecoveryTask
-
+    def update_restore_result(self, task_id, stats, error):
+        """Update restore task result."""
+        from .models import ProxyTask
         try:
-            task = RecoveryTask.objects.get(id=task_id)
-            
-            if success:
-                task.status = RecoveryTask.STATUS_COMPLETED
-                task.progress = 100
-                task.restored_files = stats.get('restored_files', 0)
-                task.restored_size = stats.get('restored_size', 0)
+            task = ProxyTask.objects.get(id=task_id)
+            if error:
+                task.fail(error)
             else:
-                task.status = RecoveryTask.STATUS_FAILED
-                task.error_message = error
-            
-            task.save()
-        except RecoveryTask.DoesNotExist:
+                task.complete(stats)
+        except ProxyTask.DoesNotExist:
             pass
 
     @sync_to_async
-    def update_connection_status(self, resource_type, resource_id, success, error):
-        """
-        Update connection status for repository or source resource.
-        """
+    def update_mount_status(self, repository_id, mount_point, success, error):
+        """Update mount status."""
+        from repository.models import Repository
+        try:
+            repo = Repository.objects.get(id=repository_id)
+            if success:
+                repo.mount_status = 'mounted'
+                repo.mount_point = mount_point
+            else:
+                repo.mount_status = 'error'
+                repo.mount_error = error
+            repo.save()
+        except Repository.DoesNotExist:
+            pass
+
+    @sync_to_async
+    def update_snapshot_list_result(self, task_id, snapshots, error):
+        """Update snapshot list result."""
+        from .models import ProxyTask
+        try:
+            task = ProxyTask.objects.get(id=task_id)
+            if error:
+                task.fail(error)
+            else:
+                task.complete({'snapshots': snapshots, 'count': len(snapshots)})
+        except ProxyTask.DoesNotExist:
+            pass
+
+    @sync_to_async
+    def update_connection_status(self, resource_type, resource_id, success, error, details):
+        """Update connection status for repository or source resource."""
         if resource_type == 'repository':
             from repository.models import Repository
             try:
@@ -479,44 +577,6 @@ class NodeConsumer(AsyncWebsocketConsumer):
             except SourceResource.DoesNotExist:
                 pass
 
-    @sync_to_async
-    def update_repo_init_status(self, repository_id, success, repo_id, error):
-        """
-        Update repository Kopia initialization status.
-        """
-        from repository.models import Repository
-
-        try:
-            repo = Repository.objects.get(id=repository_id)
-            repo.kopia_initialized = success
-            if success:
-                repo.kopia_repository_id = repo_id
-                repo.status = Repository.STATUS_ACTIVE
-            else:
-                repo.connection_error = error
-            repo.save()
-        except Repository.DoesNotExist:
-            pass
-
-    @sync_to_async
-    def update_mount_status(self, repository_id, success, mount_point, error):
-        """
-        Update mount status for gateway nodes.
-        """
-        from repository.models import Repository
-
-        try:
-            repo = Repository.objects.get(id=repository_id)
-            if success:
-                repo.mount_status = 'mounted'
-                repo.mount_point = mount_point
-            else:
-                repo.mount_status = 'error'
-                repo.mount_error = error
-            repo.save()
-        except Repository.DoesNotExist:
-            pass
-
 
 class TaskConsumer(AsyncWebsocketConsumer):
     """
@@ -526,9 +586,7 @@ class TaskConsumer(AsyncWebsocketConsumer):
     """
 
     async def connect(self):
-        """
-        Handle WebSocket connection for task.
-        """
+        """Handle WebSocket connection for task."""
         self.task_id = self.scope['url_route']['kwargs']['task_id']
         self.room_group_name = f'task_{self.task_id}'
 
@@ -548,67 +606,49 @@ class TaskConsumer(AsyncWebsocketConsumer):
         }))
 
     async def disconnect(self, close_code):
-        """
-        Handle WebSocket disconnection.
-        """
+        """Handle WebSocket disconnection."""
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
 
     async def receive(self, text_data):
-        """
-        Handle incoming messages.
-        """
+        """Handle incoming messages."""
         pass
 
     async def task_progress(self, event):
-        """
-        Handler for task progress events.
-
-        Sends progress updates to connected clients.
-        """
+        """Handler for task progress events."""
         await self.send(text_data=json.dumps(event['data']))
 
     async def task_result(self, event):
-        """
-        Handler for task result events.
-
-        Sends final results to connected clients.
-        """
+        """Handler for task result events."""
         await self.send(text_data=json.dumps(event['data']))
 
     @sync_to_async
     def get_task_status(self):
-        """
-        Get current task status.
-        """
-        from backup_tasks.models import BackupTask
-
+        """Get current task status."""
+        from .models import ProxyTask
         try:
-            task = BackupTask.objects.get(id=self.task_id)
+            task = ProxyTask.objects.get(id=self.task_id)
             return {
                 'task_id': str(task.id),
-                'name': task.name,
+                'task_type': task.task_type,
                 'status': task.status,
                 'progress': task.progress,
+                'progress_message': task.progress_message,
                 'created_at': task.created_at.isoformat() if task.created_at else None
             }
-        except BackupTask.DoesNotExist:
+        except ProxyTask.DoesNotExist:
             return {'error': 'Task not found'}
 
 
 class StatusConsumer(AsyncWebsocketConsumer):
     """
     WebSocket consumer for system status streaming.
-
-    Provides real-time system status updates to administrators.
     """
 
     async def connect(self):
-        """
-        Handle WebSocket connection.
-        """
+        """Handle WebSocket connection."""
         self.room_group_name = 'system_status'
 
         # Join status group
@@ -627,76 +667,59 @@ class StatusConsumer(AsyncWebsocketConsumer):
         }))
 
     async def disconnect(self, close_code):
-        """
-        Handle WebSocket disconnection.
-        """
+        """Handle WebSocket disconnection."""
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
 
     async def receive(self, text_data):
-        """
-        Handle incoming messages.
-        """
+        """Handle incoming messages."""
         pass
 
     async def status_update(self, event):
-        """
-        Handler for status update events.
-
-        Sends status updates to connected clients.
-        """
+        """Handler for status update events."""
         await self.send(text_data=json.dumps(event['data']))
 
     @sync_to_async
     def get_system_status(self):
-        """
-        Get current system status.
-
-        Returns:
-            Dictionary with system status information
-        """
-        from .models import Node
+        """Get current system status."""
+        from .models import ProxyNode, ProxyTask
         from backup_tasks.models import BackupTask
         from repository.models import Repository
 
-        total_nodes = Node.objects.count()
-        online_nodes = Node.objects.filter(
-            last_heartbeat__gte=timezone.now() - timezone.timedelta(minutes=5)
-        ).count()
+        total_proxies = ProxyNode.objects.count()
+        online_proxies = sum(1 for p in ProxyNode.objects.all() if p.is_online())
 
         return {
-            'total_nodes': total_nodes,
-            'online_nodes': online_nodes,
-            'offline_nodes': total_nodes - online_nodes,
+            'total_proxies': total_proxies,
+            'online_proxies': online_proxies,
+            'offline_proxies': total_proxies - online_proxies,
+            'agent_proxies': ProxyNode.objects.filter(role=ProxyNode.Role.AGENT).count(),
+            'sync_proxies': ProxyNode.objects.filter(role=ProxyNode.Role.SYNC).count(),
             'total_backup_tasks': BackupTask.objects.count(),
-            'running_tasks': BackupTask.objects.filter(status=BackupTask.STATUS_RUNNING).count(),
+            'running_tasks': ProxyTask.objects.filter(status='running').count(),
             'total_repositories': Repository.objects.count(),
             'server_time': timezone.now().isoformat()
         }
 
 
-# Utility functions for sending commands to nodes
-async def send_backup_command(node_id, task_data):
+# Utility functions for sending commands to proxies
+async def send_backup_command(proxy_id, task_data):
     """
-    Send backup command to a node.
+    Send backup command to a proxy.
 
     Args:
-        node_id: Target node ID
-        task_data: Backup task data including:
-            - task_id: Backup task ID
-            - source_path: Path to backup
-            - repo_config: Repository configuration
-            - exclude_patterns: Patterns to exclude
+        proxy_id: Target proxy ID
+        task_data: Backup task data
     """
     from channels.layers import get_channel_layer
 
     channel_layer = get_channel_layer()
     await channel_layer.group_send(
-        f'node_{node_id}',
+        f'proxy_{proxy_id}',
         {
-            'type': 'command_message',
+            'type': 'task_message',
             'data': {
                 'type': 'backup',
                 'payload': task_data
@@ -705,25 +728,15 @@ async def send_backup_command(node_id, task_data):
     )
 
 
-async def send_restore_command(node_id, task_data):
-    """
-    Send restore command to a node.
-
-    Args:
-        node_id: Target node ID
-        task_data: Restore task data including:
-            - task_id: Recovery task ID
-            - snapshot_id: Snapshot to restore from
-            - target_path: Path to restore to
-            - repo_config: Repository configuration
-    """
+async def send_restore_command(proxy_id, task_data):
+    """Send restore command to a proxy."""
     from channels.layers import get_channel_layer
 
     channel_layer = get_channel_layer()
     await channel_layer.group_send(
-        f'node_{node_id}',
+        f'proxy_{proxy_id}',
         {
-            'type': 'command_message',
+            'type': 'task_message',
             'data': {
                 'type': 'restore',
                 'payload': task_data
@@ -732,23 +745,49 @@ async def send_restore_command(node_id, task_data):
     )
 
 
-async def send_test_connection_command(node_id, resource_type, resource_id, config):
-    """
-    Send test connection command to a node.
-
-    Args:
-        node_id: Target node ID
-        resource_type: 'repository' or 'source_resource'
-        resource_id: Resource ID
-        config: Connection configuration
-    """
+async def send_mount_command(proxy_id, task_data):
+    """Send mount command to a sync proxy."""
     from channels.layers import get_channel_layer
 
     channel_layer = get_channel_layer()
     await channel_layer.group_send(
-        f'node_{node_id}',
+        f'proxy_{proxy_id}',
         {
-            'type': 'command_message',
+            'type': 'task_message',
+            'data': {
+                'type': 'mount',
+                'payload': task_data
+            }
+        }
+    )
+
+
+async def send_snapshot_list_command(proxy_id, task_data):
+    """Send snapshot list command to a proxy."""
+    from channels.layers import get_channel_layer
+
+    channel_layer = get_channel_layer()
+    await channel_layer.group_send(
+        f'proxy_{proxy_id}',
+        {
+            'type': 'task_message',
+            'data': {
+                'type': 'snapshot_list',
+                'payload': task_data
+            }
+        }
+    )
+
+
+async def send_test_connection_command(proxy_id, resource_type, resource_id, config):
+    """Send test connection command to a proxy."""
+    from channels.layers import get_channel_layer
+
+    channel_layer = get_channel_layer()
+    await channel_layer.group_send(
+        f'proxy_{proxy_id}',
+        {
+            'type': 'task_message',
             'data': {
                 'type': 'test_connection',
                 'payload': {
@@ -761,28 +800,5 @@ async def send_test_connection_command(node_id, resource_type, resource_id, conf
     )
 
 
-async def send_init_repo_command(node_id, repository_id, config):
-    """
-    Send initialize repository command to a node.
-
-    Args:
-        node_id: Target node ID
-        repository_id: Repository ID
-        config: Repository configuration including credentials
-    """
-    from channels.layers import get_channel_layer
-
-    channel_layer = get_channel_layer()
-    await channel_layer.group_send(
-        f'node_{node_id}',
-        {
-            'type': 'command_message',
-            'data': {
-                'type': 'init_repo',
-                'payload': {
-                    'repository_id': str(repository_id),
-                    'config': config
-                }
-            }
-        }
-    )
+# Alias for backwards compatibility
+NodeConsumer = ProxyConsumer

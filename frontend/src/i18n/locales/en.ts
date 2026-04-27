@@ -3,6 +3,7 @@ export default {
   nav: {
     dashboard: 'Dashboard',
     nodes: 'Nodes',
+    proxies: 'Proxies',
     backupTasks: 'Backup Tasks',
     recoveryTasks: 'Recovery Tasks',
     repository: 'Target Repository',
@@ -30,6 +31,7 @@ export default {
     download: 'Download',
     upload: 'Upload',
     copy: 'Copy',
+    copied: 'Copied!',
     back: 'Back',
     next: 'Next',
     previous: 'Previous',
@@ -48,6 +50,7 @@ export default {
     name: 'Name',
     status: 'Status',
     type: 'Type',
+    role: 'Role',
     date: 'Date',
     actions: 'Actions',
     details: 'Details',
@@ -55,7 +58,12 @@ export default {
     required: 'Required',
     optional: 'Optional',
     settings: 'Settings',
-    close: 'Close'
+    close: 'Close',
+    never: 'Never',
+    justNow: 'Just now',
+    minutesAgo: 'm ago',
+    hoursAgo: 'h ago',
+    daysAgo: 'd ago'
   },
 
   // Auth
@@ -185,6 +193,120 @@ export default {
     empty: {
       title: 'No nodes yet',
       description: 'Add your first source proxy or target gateway to get started'
+    }
+  },
+
+  // Proxies
+  proxies: {
+    title: 'Proxy Management',
+    subtitle: 'Manage Agent and Sync proxies',
+    installProxy: 'Install Proxy',
+    online: 'Online',
+    noConnection: 'No connection',
+
+    stats: {
+      total: 'Total Proxies',
+      online: 'Online',
+      agent: 'Agent Proxies',
+      sync: 'Sync Proxies'
+    },
+
+    roles: {
+      agent: 'Agent Proxy',
+      sync: 'Sync Proxy'
+    },
+
+    status: {
+      active: 'Active',
+      pending: 'Pending',
+      offline: 'Offline',
+      error: 'Error',
+      maintenance: 'Maintenance',
+      installing: 'Installing'
+    },
+
+    actions: {
+      viewDetails: 'View Details',
+      edit: 'Edit',
+      delete: 'Delete',
+      setMaintenance: 'Set Maintenance',
+      activate: 'Activate',
+      regenerateToken: 'Regenerate Token',
+      regenerateTokenConfirm: 'This will invalidate the current token. The proxy will need to be reconfigured. Continue?'
+    },
+
+    form: {
+      name: 'Proxy Name',
+      hostname: 'Hostname',
+      heartbeatInterval: 'Heartbeat Interval (seconds)',
+      labels: 'Labels',
+      capabilities: 'Capabilities'
+    },
+
+    detail: {
+      hostname: 'Hostname',
+      internalIp: 'Internal IP',
+      operatingSystem: 'Operating System',
+      version: 'Version',
+      kopiaVersion: 'Kopia Version',
+      uptime: 'Uptime',
+      lastHeartbeat: 'Last Heartbeat',
+      registeredAt: 'Registered At',
+      heartbeatInterval: 'Heartbeat Interval',
+      capabilities: 'Capabilities',
+      labels: 'Labels',
+      systemInfo: 'System Information',
+      currentlyOnline: 'Currently online',
+      currentlyOffline: 'Currently offline',
+      recentTasks: 'Recent Tasks',
+      noTasks: 'No recent tasks',
+      noHeartbeats: 'No heartbeat history',
+      tabs: {
+        overview: 'Overview',
+        tasks: 'Tasks',
+        heartbeats: 'Heartbeats'
+      }
+    },
+
+    install: {
+      title: 'Install New Proxy',
+      subtitle: 'Generate installation command for your proxy',
+      agentDescription: 'Runs on source servers. Reads local filesystem, executes backups, reports status. No mount capability.',
+      syncDescription: 'Runs on jump hosts. Mounts NAS, accesses object storage, provides unified data access point.',
+      proxyName: 'Proxy Name',
+      namePlaceholder: 'e.g. prod-backup-proxy-01',
+      targetOS: 'Target Operating System',
+      labels: 'Labels (optional)',
+      labelPlaceholder: 'Add a label',
+      generateCommand: 'Generate Install Command',
+      generating: 'Generating...',
+      installCommand: 'Installation Command',
+      downloadConfig: 'Download Config',
+      proxyId: 'Proxy ID',
+      apiToken: 'API Token',
+      ready: 'Installation Ready',
+      readyDescription: 'Copy and run the command below on your target server to install the proxy.',
+      done: 'Done',
+      os: {
+        linux: 'Linux',
+        windows: 'Windows',
+        macos: 'macOS'
+      }
+    },
+
+    edit: {
+      title: 'Edit Proxy'
+    },
+
+    delete: {
+      title: 'Delete Proxy',
+      description: 'Are you sure you want to delete "{name}"? This action cannot be undone.',
+      confirm: 'Are you sure you want to delete this proxy? All task history will be lost.'
+    },
+
+    empty: {
+      title: 'No proxies installed',
+      description: 'Install a proxy to start managing backup nodes'
     }
   },
 

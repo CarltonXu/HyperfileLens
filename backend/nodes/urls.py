@@ -1,27 +1,30 @@
 """
-URL Configuration for Nodes Application
+URL Configuration for Proxy Nodes Application
 
-Defines URL patterns for node management, heartbeat,
-and task assignment endpoints.
+Defines URL patterns for proxy management, installation,
+heartbeat, and task assignment endpoints.
 """
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    NodeViewSet, NodeHeartbeatView,
-    NodeConnectionViewSet, NodeTaskAssignmentViewSet
+    ProxyViewSet, ProxyHeartbeatView, ProxyRegisterView,
+    ProxyTaskViewSet, NodeConnectionViewSet
 )
 
 
 # Create router for viewsets
 router = DefaultRouter()
-router.register(r'', NodeViewSet, basename='node')
-router.register(r'connections', NodeConnectionViewSet, basename='node-connection')
-router.register(r'assignments', NodeTaskAssignmentViewSet, basename='task-assignment')
+router.register(r'', ProxyViewSet, basename='proxy')
+router.register(r'tasks', ProxyTaskViewSet, basename='proxy-task')
+router.register(r'connections', NodeConnectionViewSet, basename='proxy-connection')
 
 urlpatterns = [
-    # Heartbeat endpoint (no auth required for nodes)
-    path('heartbeat/', NodeHeartbeatView.as_view(), name='node-heartbeat'),
+    # Registration endpoint (no auth required for initial setup)
+    path('register/', ProxyRegisterView.as_view(), name='proxy-register'),
+
+    # Heartbeat endpoint (no auth required for proxies)
+    path('heartbeat/', ProxyHeartbeatView.as_view(), name='proxy-heartbeat'),
 
     # Router URLs
     path('', include(router.urls)),

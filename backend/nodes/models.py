@@ -1,33 +1,39 @@
 """
-Node Models for HyperFileLens
+Proxy Node Models for HyperFileLens
 
-This module defines models for source proxy nodes and target gateway nodes,
-including connection management and health monitoring.
+This module defines models for Proxy nodes with dual roles (agent/sync),
+including connection management, health monitoring, and installation tracking.
 """
 
 from django.db import models
 from django.utils import timezone
 from accounts.models import User
 import uuid
+import secrets
 
 
-class Node(models.Model):
+class ProxyNode(models.Model):
     """
-    Base model for all nodes (source proxies and target gateways).
+    Proxy Node model with dual roles: agent and sync.
 
-    This model stores common node information and status.
+    Agent Proxy: Runs on production systems, reads local filesystem,
+                 executes backup tasks, reports status.
+    Sync Proxy:  Runs on standalone nodes/jump hosts, mounts NAS,
+                 provides unified data access point, executes backup tasks.
     """
 
-    class NodeType(models.TextChoices):
-        """Node type enumeration."""
-        SOURCE_PROXY = 'source_proxy', 'Source Proxy'
-        TARGET_GATEWAY = 'target_gateway', 'Target Gateway'
+    class Role(models.TextChoices):
+        """Proxy role enumeration."""
+        AGENT = 'agent', 'Agent Proxy'
+        SYNC = 'sync', 'Sync Proxy'
 
     class NodeStatus(models.TextChoices):
         """Node status enumeration."""
-        PENDING = 'pending', 'Pending'
+        PENDING = 'pending', 'Pending Installation'
+        INSTALLING = 'installing', 'Installing'
         ACTIVE = 'active', 'Active'
         INACTIVE = 'inactive', 'Inactive'
+        OFFLINE = 'offline', 'Offline'
         ERROR = 'error', 'Error'
         MAINTENANCE = 'maintenance', 'Maintenance'
 
@@ -37,62 +43,68 @@ class Node(models.Model):
         LINUX = 'linux', 'Linux'
         MACOS = 'macos', 'macOS'
 
-    # Basic information
-    node_id = models.UUIDField(
+    # === Basic Information ===
+    id = models.UUIDField(
+        primary_key=True,
         default=uuid.uuid4,
-        unique=True,
         editable=False,
-        help_text='Unique identifier for the node'
+        help_text='Unique identifier for the proxy'
     )
     name = models.CharField(
         max_length=255,
         unique=True,
-        help_text='Display name for the node'
+        help_text='Display name for the proxy'
     )
-    node_type = models.CharField(
-        max_length=20,
-        choices=NodeType.choices,
-        help_text='Type of node (source proxy or target gateway)'
+    role = models.CharField(
+        max_length=10,
+        choices=Role.choices,
+        default=Role.AGENT,
+        help_text='Proxy role: agent (source-side) or sync (collector)'
     )
 
-    # Connection information
+    # === Connection Information ===
     hostname = models.CharField(
         max_length=255,
-        help_text='Hostname or IP address of the node'
+        blank=True,
+        help_text='Hostname or IP address of the proxy'
     )
-    port = models.IntegerField(
-        default=8080,
-        help_text='Port number for node communication'
-    )
-    protocol = models.CharField(
-        max_length=10,
-        default='https',
-        help_text='Protocol for node communication (http/https)'
+    internal_ip = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text='Internal IP address of the proxy'
     )
 
-    # Authentication
-    api_key = models.CharField(
+    # === Authentication ===
+    api_token = models.CharField(
         max_length=64,
         unique=True,
-        help_text='API key for node authentication'
-    )
-    api_secret = models.CharField(
-        max_length=128,
-        blank=True,
-        help_text='API secret for node authentication (encrypted)'
+        help_text='API token for proxy authentication'
     )
 
-    # System information
+    # === System Information (reported by proxy) ===
     operating_system = models.CharField(
         max_length=20,
         choices=OperatingSystem.choices,
-        help_text='Operating system of the node'
+        blank=True,
+        help_text='Operating system of the proxy'
+    )
+    os_version = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='OS version details'
     )
     version = models.CharField(
         max_length=50,
         blank=True,
-        help_text='Node software version'
+        help_text='Proxy software version'
     )
+    kopia_version = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Kopia version installed on proxy'
+    )
+
+    # Hardware info
     cpu_cores = models.IntegerField(
         null=True,
         blank=True,
@@ -109,172 +121,218 @@ class Node(models.Model):
         help_text='Total disk space in bytes'
     )
 
-    # Status and monitoring
+    # === Status and Monitoring ===
     status = models.CharField(
         max_length=20,
         choices=NodeStatus.choices,
         default=NodeStatus.PENDING,
-        help_text='Current status of the node'
+        help_text='Current status of the proxy'
     )
     last_heartbeat = models.DateTimeField(
         null=True,
         blank=True,
-        help_text='Last heartbeat timestamp from the node'
+        help_text='Last heartbeat timestamp from the proxy'
     )
     heartbeat_interval = models.IntegerField(
-        default=30,
+        default=10,
         help_text='Expected heartbeat interval in seconds'
     )
 
-    # Capabilities
-    capabilities = models.JSONField(
-        default=dict,
-        help_text='Node capabilities and supported features'
+    # Current metrics (updated via heartbeat)
+    cpu_usage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Current CPU usage percentage'
+    )
+    memory_usage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Current memory usage percentage'
+    )
+    disk_usage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Current disk usage percentage'
+    )
+    active_tasks = models.IntegerField(
+        default=0,
+        help_text='Number of active tasks'
     )
 
-    # Tags and metadata
+    # === Capabilities ===
+    capabilities = models.JSONField(
+        default=dict,
+        help_text='Proxy capabilities (mount_types, backup_types, etc.)'
+    )
+
+    # For Sync Proxy: mount capabilities
+    mount_types = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Supported mount types for Sync Proxy (nfs, smb, etc.)'
+    )
+
+    # === Tags and Metadata ===
     tags = models.JSONField(
         default=dict,
         help_text='Custom tags for organization'
     )
+    labels = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Labels for categorization'
+    )
     metadata = models.JSONField(
         default=dict,
-        help_text='Additional node metadata'
+        help_text='Additional proxy metadata'
     )
 
-    # Timestamps
+    # === Installation Info ===
+    install_token = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text='One-time installation token'
+    )
+    install_command = models.TextField(
+        blank=True,
+        help_text='Generated installation command'
+    )
+    installed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the proxy was installed'
+    )
+    installed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='installed_proxies',
+        help_text='User who initiated the installation'
+    )
+
+    # === Timestamps ===
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     registered_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text='When the node was registered and activated'
+        help_text='When the proxy first connected'
     )
 
-    # Ownership
+    # === Ownership ===
     owner = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
-        related_name='owned_nodes',
-        help_text='User who owns this node'
+        related_name='owned_proxies',
+        help_text='User who owns this proxy'
     )
 
     class Meta:
-        db_table = 'nodes_node'
-        verbose_name = 'Node'
-        verbose_name_plural = 'Nodes'
+        db_table = 'nodes_proxy'
+        verbose_name = 'Proxy'
+        verbose_name_plural = 'Proxies'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['node_id']),
-            models.Index(fields=['name']),
-            models.Index(fields=['node_type']),
+            models.Index(fields=['role']),
             models.Index(fields=['status']),
+            models.Index(fields=['name']),
         ]
 
     def __str__(self):
-        return f'{self.name} ({self.node_type})'
+        return f'{self.name} ({self.role})'
 
     def is_online(self) -> bool:
-        """
-        Check if the node is currently online based on heartbeat.
-
-        Returns:
-            True if last heartbeat was within the expected interval, False otherwise
-        """
+        """Check if the proxy is currently online based on heartbeat."""
         if not self.last_heartbeat:
             return False
         elapsed = (timezone.now() - self.last_heartbeat).total_seconds()
         return elapsed <= (self.heartbeat_interval * 3)
 
-    def update_heartbeat(self) -> None:
-        """
-        Update the last heartbeat timestamp to the current time.
-        """
+    def generate_install_token(self) -> str:
+        """Generate a one-time installation token."""
+        self.install_token = secrets.token_urlsafe(32)
+        self.save(update_fields=['install_token', 'updated_at'])
+        return self.install_token
+
+    def generate_api_token(self) -> str:
+        """Generate API token for authentication."""
+        self.api_token = secrets.token_urlsafe(32)
+        self.save(update_fields=['api_token', 'updated_at'])
+        return self.api_token
+
+    def update_heartbeat(self, data: dict = None) -> None:
+        """Update heartbeat timestamp and metrics."""
         self.last_heartbeat = timezone.now()
-        if self.status == NodeStatus.PENDING:
-            self.status = NodeStatus.ACTIVE
-            self.registered_at = timezone.now()
-        self.save(update_fields=['last_heartbeat', 'status', 'updated_at'])
 
-    def update_status(self, status: str) -> None:
-        """
-        Update the node status.
+        if self.status == self.NodeStatus.PENDING:
+            self.status = self.NodeStatus.ACTIVE
+            if not self.registered_at:
+                self.registered_at = timezone.now()
+            if not self.installed_at:
+                self.installed_at = timezone.now()
 
-        Args:
-            status: New status value
-        """
-        self.status = status
-        self.save(update_fields=['status', 'updated_at'])
+        if data:
+            if 'version' in data:
+                self.version = data['version']
+            if 'kopia_version' in data:
+                self.kopia_version = data['kopia_version']
+            if 'hostname' in data:
+                self.hostname = data['hostname']
+            if 'internal_ip' in data:
+                self.internal_ip = data['internal_ip']
+            if 'os' in data:
+                self.operating_system = data['os']
+            if 'os_version' in data:
+                self.os_version = data['os_version']
+            if 'cpu_cores' in data:
+                self.cpu_cores = data['cpu_cores']
+            if 'memory_total' in data:
+                self.memory_total = data['memory_total']
+            if 'disk_total' in data:
+                self.disk_total = data['disk_total']
+            if 'cpu_usage' in data:
+                self.cpu_usage = data['cpu_usage']
+            if 'memory_usage' in data:
+                self.memory_usage = data['memory_usage']
+            if 'disk_usage' in data:
+                self.disk_usage = data['disk_usage']
+            if 'active_tasks' in data:
+                self.active_tasks = data['active_tasks']
+            if 'capabilities' in data:
+                self.capabilities = data['capabilities']
 
-    def get_connection_url(self) -> str:
-        """
-        Get the full connection URL for the node.
+        self.save()
 
-        Returns:
-            Full URL for node communication
-        """
-        return f'{self.protocol}://{self.hostname}:{self.port}'
+    def get_capabilities_display(self) -> dict:
+        """Get capabilities with role-specific defaults."""
+        defaults = {
+            'backup': True,
+            'restore': True,
+            'snapshot_list': True,
+        }
+
+        if self.role == self.Role.SYNC:
+            defaults.update({
+                'mount_nfs': True,
+                'mount_smb': True,
+                'mount_s3': False,  # S3 uses native API, not mount
+            })
+
+        return {**defaults, **self.capabilities}
 
 
-class SourceProxyNode(Node):
+class ProxyHeartbeat(models.Model):
     """
-    Source proxy node model.
-
-    Represents a node that runs on production systems to
-    scan files and execute backup/recovery tasks.
-    """
-
-    class Meta:
-        proxy = True
-        verbose_name = 'Source Proxy Node'
-        verbose_name_plural = 'Source Proxy Nodes'
-
-    def __str__(self):
-        return f'Source Proxy: {self.name}'
-
-    def save(self, *args, **kwargs):
-        """
-        Ensure node_type is set to source_proxy.
-        """
-        self.node_type = Node.NodeType.SOURCE_PROXY
-        super().save(*args, **kwargs)
-
-
-class TargetGatewayNode(Node):
-    """
-    Target gateway node model.
-
-    Represents a node that runs on the DR/backup side to
-    receive backup data and execute recovery tasks.
-    """
-
-    class Meta:
-        proxy = True
-        verbose_name = 'Target Gateway Node'
-        verbose_name_plural = 'Target Gateway Nodes'
-
-    def __str__(self):
-        return f'Target Gateway: {self.name}'
-
-    def save(self, *args, **kwargs):
-        """
-        Ensure node_type is set to target_gateway.
-        """
-        self.node_type = Node.NodeType.TARGET_GATEWAY
-        super().save(*args, **kwargs)
-
-
-class NodeHeartbeat(models.Model):
-    """
-    Node heartbeat log for tracking node health over time.
+    Proxy heartbeat log for tracking health over time.
     """
 
-    node = models.ForeignKey(
-        Node,
+    proxy = models.ForeignKey(
+        ProxyNode,
         on_delete=models.CASCADE,
         related_name='heartbeats',
-        help_text='Node that sent this heartbeat'
+        help_text='Proxy that sent this heartbeat'
     )
     timestamp = models.DateTimeField(
         default=timezone.now,
@@ -307,7 +365,15 @@ class NodeHeartbeat(models.Model):
     )
     active_tasks = models.IntegerField(
         default=0,
-        help_text='Number of active tasks on the node'
+        help_text='Number of active tasks'
+    )
+    completed_tasks = models.IntegerField(
+        default=0,
+        help_text='Number of completed tasks since last heartbeat'
+    )
+    failed_tasks = models.IntegerField(
+        default=0,
+        help_text='Number of failed tasks since last heartbeat'
     )
     metadata = models.JSONField(
         default=dict,
@@ -315,16 +381,194 @@ class NodeHeartbeat(models.Model):
     )
 
     class Meta:
-        db_table = 'nodes_heartbeat'
-        verbose_name = 'Node Heartbeat'
-        verbose_name_plural = 'Node Heartbeats'
+        db_table = 'nodes_proxy_heartbeat'
+        verbose_name = 'Proxy Heartbeat'
+        verbose_name_plural = 'Proxy Heartbeats'
         ordering = ['-timestamp']
         indexes = [
-            models.Index(fields=['node', '-timestamp']),
+            models.Index(fields=['proxy', '-timestamp']),
         ]
 
     def __str__(self):
-        return f'{self.node.name} @ {self.timestamp}'
+        return f'{self.proxy.name} @ {self.timestamp}'
+
+
+class ProxyTask(models.Model):
+    """
+    Task assigned to a proxy for execution.
+    """
+
+    class TaskType(models.TextChoices):
+        BACKUP = 'backup', 'Backup'
+        RESTORE = 'restore', 'Restore'
+        MOUNT = 'mount', 'Mount'
+        UNMOUNT = 'unmount', 'Unmount'
+        SNAPSHOT_LIST = 'snapshot_list', 'Snapshot List'
+        VERIFY = 'verify', 'Verify'
+
+    class TaskStatus(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        DISPATCHED = 'dispatched', 'Dispatched'
+        ACCEPTED = 'accepted', 'Accepted'
+        RUNNING = 'running', 'Running'
+        COMPLETED = 'completed', 'Completed'
+        FAILED = 'failed', 'Failed'
+        CANCELLED = 'cancelled', 'Cancelled'
+        TIMEOUT = 'timeout', 'Timeout'
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+    proxy = models.ForeignKey(
+        ProxyNode,
+        on_delete=models.CASCADE,
+        related_name='tasks',
+        help_text='Proxy assigned to execute the task'
+    )
+    task_type = models.CharField(
+        max_length=20,
+        choices=TaskType.choices,
+        help_text='Type of task'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=TaskStatus.choices,
+        default=TaskStatus.PENDING,
+        help_text='Task status'
+    )
+
+    # Task parameters
+    parameters = models.JSONField(
+        default=dict,
+        help_text='Task parameters'
+    )
+
+    # Timing
+    created_at = models.DateTimeField(auto_now_add=True)
+    dispatched_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When task was dispatched to proxy'
+    )
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When task execution started'
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When task completed'
+    )
+    timeout_seconds = models.IntegerField(
+        default=3600,
+        help_text='Task timeout in seconds'
+    )
+
+    # Progress and results
+    progress = models.IntegerField(
+        default=0,
+        help_text='Task progress percentage (0-100)'
+    )
+    progress_message = models.TextField(
+        blank=True,
+        help_text='Progress status message'
+    )
+    result = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Task execution result'
+    )
+    error_message = models.TextField(
+        blank=True,
+        help_text='Error message if task failed'
+    )
+
+    # Related objects
+    repository_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text='Related repository ID'
+    )
+    source_resource_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text='Related source resource ID'
+    )
+
+    class Meta:
+        db_table = 'nodes_proxy_task'
+        verbose_name = 'Proxy Task'
+        verbose_name_plural = 'Proxy Tasks'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['proxy', 'status']),
+            models.Index(fields=['task_type', 'status']),
+        ]
+
+    def __str__(self):
+        return f'{self.task_type} - {self.proxy.name} ({self.status})'
+
+    def dispatch(self) -> None:
+        """Mark task as dispatched."""
+        self.status = self.TaskStatus.DISPATCHED
+        self.dispatched_at = timezone.now()
+        self.save()
+
+    def accept(self) -> None:
+        """Mark task as accepted by proxy."""
+        self.status = self.TaskStatus.ACCEPTED
+        self.started_at = timezone.now()
+        self.save()
+
+    def start(self) -> None:
+        """Mark task as running."""
+        self.status = self.TaskStatus.RUNNING
+        self.started_at = timezone.now()
+        self.save()
+
+    def complete(self, result: dict = None) -> None:
+        """Mark task as completed."""
+        self.status = self.TaskStatus.COMPLETED
+        self.completed_at = timezone.now()
+        self.progress = 100
+        if result:
+            self.result = result
+        self.save()
+
+    def fail(self, error: str) -> None:
+        """Mark task as failed."""
+        self.status = self.TaskStatus.FAILED
+        self.completed_at = timezone.now()
+        self.error_message = error
+        self.save()
+
+    def cancel(self) -> None:
+        """Cancel the task."""
+        self.status = self.TaskStatus.CANCELLED
+        self.completed_at = timezone.now()
+        self.save()
+
+
+# Keep old Node model for backwards compatibility during migration
+class Node(ProxyNode):
+    """Alias for backwards compatibility."""
+
+    class Meta:
+        proxy = True
+        verbose_name = 'Node (Legacy)'
+        verbose_name_plural = 'Nodes (Legacy)'
+
+
+class NodeHeartbeat(ProxyHeartbeat):
+    """Alias for backwards compatibility."""
+
+    class Meta:
+        proxy = True
+        verbose_name = 'Node Heartbeat (Legacy)'
+        verbose_name_plural = 'Node Heartbeats (Legacy)'
 
 
 class NodeConnection(models.Model):
@@ -333,16 +577,15 @@ class NodeConnection(models.Model):
     """
 
     class ConnectionStatus(models.TextChoices):
-        """Connection status enumeration."""
         CONNECTED = 'connected', 'Connected'
         DISCONNECTED = 'disconnected', 'Disconnected'
         ERROR = 'error', 'Error'
 
-    node = models.ForeignKey(
-        Node,
+    proxy = models.ForeignKey(
+        ProxyNode,
         on_delete=models.CASCADE,
         related_name='connections',
-        help_text='Connected node'
+        help_text='Connected proxy'
     )
     connection_id = models.UUIDField(
         default=uuid.uuid4,
@@ -384,103 +627,19 @@ class NodeConnection(models.Model):
 
     class Meta:
         db_table = 'nodes_connection'
-        verbose_name = 'Node Connection'
-        verbose_name_plural = 'Node Connections'
+        verbose_name = 'Proxy Connection'
+        verbose_name_plural = 'Proxy Connections'
         ordering = ['-connected_at']
         indexes = [
-            models.Index(fields=['node', 'status']),
+            models.Index(fields=['proxy', 'status']),
             models.Index(fields=['connection_id']),
         ]
 
     def __str__(self):
-        return f'{self.node.name} - {self.connection_id}'
+        return f'{self.proxy.name} - {self.connection_id}'
 
     def disconnect(self) -> None:
-        """
-        Mark the connection as disconnected.
-        """
+        """Mark the connection as disconnected."""
         self.status = self.ConnectionStatus.DISCONNECTED
         self.disconnected_at = timezone.now()
         self.save()
-
-
-class NodeTaskAssignment(models.Model):
-    """
-    Model for tracking task assignments to nodes.
-
-    Records which node is assigned to execute a specific task.
-    """
-
-    class AssignmentStatus(models.TextChoices):
-        """Assignment status enumeration."""
-        PENDING = 'pending', 'Pending'
-        ASSIGNED = 'assigned', 'Assigned'
-        ACCEPTED = 'accepted', 'Accepted'
-        COMPLETED = 'completed', 'Completed'
-        FAILED = 'failed', 'Failed'
-        CANCELLED = 'cancelled', 'Cancelled'
-
-    task_id = models.UUIDField(
-        help_text='Unique identifier of the assigned task'
-    )
-    task_type = models.CharField(
-        max_length=50,
-        help_text='Type of task (backup, recovery, etc.)'
-    )
-    node = models.ForeignKey(
-        Node,
-        on_delete=models.CASCADE,
-        related_name='task_assignments',
-        help_text='Node assigned to execute the task'
-    )
-    status = models.CharField(
-        max_length=20,
-        choices=AssignmentStatus.choices,
-        default=AssignmentStatus.PENDING,
-        help_text='Assignment status'
-    )
-    assigned_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text='When the task was assigned'
-    )
-    accepted_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text='When the node accepted the task'
-    )
-    started_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text='When the task execution started'
-    )
-    completed_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text='When the task completed'
-    )
-    progress = models.IntegerField(
-        default=0,
-        help_text='Task progress percentage (0-100)'
-    )
-    result = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text='Task execution result'
-    )
-    error = models.TextField(
-        blank=True,
-        help_text='Error message if task failed'
-    )
-
-    class Meta:
-        db_table = 'nodes_task_assignment'
-        verbose_name = 'Node Task Assignment'
-        verbose_name_plural = 'Node Task Assignments'
-        ordering = ['-assigned_at']
-        indexes = [
-            models.Index(fields=['task_id']),
-            models.Index(fields=['node', 'status']),
-        ]
-
-    def __str__(self):
-        return f'{self.task_type} - {self.node.name} ({self.status})'

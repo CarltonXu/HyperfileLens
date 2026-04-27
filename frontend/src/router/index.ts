@@ -4,8 +4,8 @@ import { useAuthStore } from '@/stores/auth'
 // Lazy load views
 const Dashboard = () => import('@/views/Dashboard.vue')
 const Login = () => import('@/views/Login.vue')
-const Nodes = () => import('@/views/Nodes.vue')
-const NodeDetail = () => import('@/views/NodeDetail.vue')
+const Proxies = () => import('@/views/Proxies.vue')
+const ProxyDetail = () => import('@/views/ProxyDetail.vue')
 const BackupTasks = () => import('@/views/BackupTasks.vue')
 const RecoveryTasks = () => import('@/views/RecoveryTasks.vue')
 const Repository = () => import('@/views/Repository.vue')
@@ -52,16 +52,16 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Dashboard' }
       },
       {
-        path: 'nodes',
-        name: 'Nodes',
-        component: Nodes,
-        meta: { title: 'Node Management' }
+        path: 'proxies',
+        name: 'Proxies',
+        component: Proxies,
+        meta: { title: 'Proxy Management' }
       },
       {
-        path: 'nodes/:id',
-        name: 'NodeDetail',
-        component: NodeDetail,
-        meta: { title: 'Node Details' }
+        path: 'proxies/:id',
+        name: 'ProxyDetail',
+        component: ProxyDetail,
+        meta: { title: 'Proxy Details' }
       },
       {
         path: 'backup-tasks',
@@ -110,6 +110,16 @@ const routes: RouteRecordRaw[] = [
         name: 'Settings',
         component: Settings,
         meta: { title: 'Settings' }
+      },
+
+      // Redirect old nodes path to proxies
+      {
+        path: 'nodes',
+        redirect: '/proxies'
+      },
+      {
+        path: 'nodes/:id',
+        redirect: (to) => ({ path: `/proxies/${to.params.id}` })
       }
     ]
   },
