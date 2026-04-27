@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
+import ProfileModal from '@/components/ProfileModal.vue'
 import {
   HomeIcon,
   ServerIcon,
@@ -18,7 +19,8 @@ import {
   ArrowRightStartOnRectangleIcon,
   LanguageIcon,
   ComputerDesktopIcon,
-  Bars3Icon
+  Bars3Icon,
+  UserCircleIcon
 } from '@heroicons/vue/24/outline'
 import {
   HomeIcon as HomeIconSolid,
@@ -42,6 +44,7 @@ const isUserMenuOpen = ref(false)
 const isLangMenuOpen = ref(false)
 const hoverItem = ref<string | null>(null)
 const tooltipPosition = ref({ top: 0, show: false, text: '' })
+const isProfileModalOpen = ref(false)
 
 // Navigation items with icons
 const navigation = computed(() => [
@@ -135,6 +138,15 @@ function toggleLangMenu() {
 async function handleLogout() {
   await authStore.logout()
   router.push('/login')
+}
+
+function openProfile() {
+  isProfileModalOpen.value = true
+  isUserMenuOpen.value = false
+}
+
+function closeProfile() {
+  isProfileModalOpen.value = false
 }
 
 function setLocale(newLocale: string) {
@@ -278,6 +290,15 @@ onUnmounted(() => {
                 <p class="text-xs text-slate-400 truncate">{{ authStore.user?.email }}</p>
                 <p class="text-xs text-slate-400 truncate">{{ authStore.user?.role?.name || 'User' }}</p>
               </div>
+              <div class="py-1 border-b border-slate-100">
+                <button
+                  @click="openProfile"
+                  class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <UserCircleIcon class="w-4 h-4" />
+                  <span>{{ t('profile.title') }}</span>
+                </button>
+              </div>
               <button
                 @click="handleLogout"
                 class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
@@ -376,6 +397,12 @@ onUnmounted(() => {
         <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
       </div>
     </Transition>
+
+    <!-- Profile Modal -->
+    <ProfileModal
+      :is-open="isProfileModalOpen"
+      @close="closeProfile"
+    />
   </div>
 </template>
 
