@@ -370,6 +370,71 @@ logging:
         return Response(serializer.data)
 
     @extend_schema(
+        summary='Get proxy directories',
+        description='Get directory listing for a Sync Proxy. Used for browsing local filesystem.',
+        parameters=[
+            OpenApiParameter(
+                name='path',
+                description='Directory path to list',
+                type=str,
+                required=False,
+                default='/'
+            )
+        ],
+        responses={200: OpenApiResponse(description='Directory listing')}
+    )
+    @action(detail=True, methods=['get'])
+    def directories(self, request, pk=None):
+        """Get directory listing for a Sync Proxy."""
+        proxy = self.get_object()
+        
+        # Only Sync Proxies can browse directories
+        if proxy.role != ProxyNode.Role.SYNC:
+            return Response(
+                {'error': 'Only Sync Proxy can browse directories.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if proxy is online
+        if proxy.status != ProxyNode.NodeStatus.ONLINE:
+            return Response(
+                {'error': 'Proxy is not online.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        path = request.query_params.get('path', '/')
+        
+        # TODO: In production, this would send a WebSocket message to the proxy
+        # and wait for the response. For now, return mock data.
+        # The actual implementation would be:
+        # 1. Send a 'list_directory' command to the proxy via WebSocket
+        # 2. Wait for the proxy to respond with the directory listing
+        # 3. Return the result
+        
+        # Mock response for development
+        mock_directories = self._get_mock_directories(path)
+        return Response({
+            'path': path,
+            'directories': mock_directories
+        })
+    
+    def _get_mock_directories(self, path: str) -> list:
+        """Mock directory listing for development."""
+        # This is just mock data for UI development
+        # In production, this would be fetched from the actual Sync Proxy
+        mock_structure = {
+            '/': ['backup', 'data', 'home', 'mnt', 'opt', 'var'],
+            '/backup': ['hyperfilelens', 'archives', 'temp'],
+            '/data': ['databases', 'files', 'logs'],
+            '/home': ['admin', 'user'],
+            '/mnt': ['nas1', 'nas2', 'external'],
+            '/opt': ['hyperfilelens', 'kopia'],
+            '/var': ['lib', 'log', 'tmp'],
+            '/backup/hyperfilelens': ['repo1', 'repo2', 'snapshots'],
+        }
+        return mock_structure.get(path, [])
+
+    @extend_schema(
         summary='Get proxy tasks',
         description='Get task history for a specific proxy.',
         responses={200: ProxyTaskSerializer(many=True)}

@@ -1,6 +1,6 @@
 // Repository types
-export type RepositoryType = 'local' | 's3' | 'azure' | 'gcs' | 'nfs'
-export type RepositoryStatus = 'active' | 'inactive' | 'error' | 'maintenance'
+export type RepositoryType = 'local' | 's3' | 'nas' | 'nfs' | 'azure' | 'gcs'
+export type RepositoryStatus = 'active' | 'inactive' | 'error' | 'maintenance' | 'initializing'
 export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'unknown'
 
 export interface Repository {

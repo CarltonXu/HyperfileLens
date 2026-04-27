@@ -9,13 +9,17 @@ import {
   PlusIcon,
   CircleStackIcon,
   CloudIcon,
+  ServerIcon,
+  FolderIcon,
   MagnifyingGlassIcon,
   ArrowPathIcon,
   Cog6ToothIcon,
   TrashIcon,
   CheckCircleIcon,
   LinkIcon,
-  PlayIcon
+  PlayIcon,
+  ChevronRightIcon,
+  ExclamationCircleIcon
 } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
@@ -33,22 +37,103 @@ const selectedRepo = ref<Repository | null>(null)
 const currentPage = ref(1)
 const pageSize = ref(10)
 
+// Repository type selection
+const repoTypes = [
+  { value: 's3', label: 'S3 对象存储', icon: CloudIcon, color: 'orange' },
+  { value: 'nas', label: 'NAS/NFS/CIFS', icon: ServerIcon, color: 'purple' },
+  { value: 'local', label: '本地文件系统', icon: FolderIcon, color: 'blue' }
+]
+
+// New repository form
 const newRepo = ref({
   name: '',
-  repository_type: 's3' as 'local' | 's3' | 'azure' | 'gcs' | 'nfs',
+  repo_type: 's3' as 's3' | 'nas' | 'local',
   description: '',
   bound_node: '' as string | null,
-  config: {
+  // S3 config
+  s3_config: {
     endpoint: '',
     bucket: '',
     region: '',
-    path: ''
-  },
-  credentials: {
+    prefix: '',
     access_key: '',
     secret_key: ''
+  },
+  // NAS config
+  nas_config: {
+    server: '',
+    export_path: '',
+    mount_type: 'nfs' as 'nfs' | 'cifs',
+    mount_options: '',
+    username: '',
+    password: ''
+  },
+  // Local config
+  local_config: {
+    path: ''
   }
 })
+
+// Available Sync Proxies (online + sync role)
+const availableSyncProxies = computed(() => {
+  return nodes.value.filter(node => 
+    node.role === 'sync' && node.status === 'active'
+  )
+})
+
+// Selected proxy for local filesystem
+const selectedProxy = ref<ProxyNode | null>(null)
+const proxyDirectories = ref<string[]>([])
+const isLoadingDirectories = ref(false)
+const currentPath = ref('')
+
+// Fetch Sync Proxy directories
+async function fetchProxyDirectories(proxyId: string, path: string = '/') {
+  if (!proxyId) return
+  isLoadingDirectories.value = true
+  try {
+    const response = await nodesApi.getDirectories(proxyId, path)
+    proxyDirectories.value = response.data.directories || []
+    currentPath.value = path
+  } catch (error) {
+    console.error('Failed to fetch directories:', error)
+    proxyDirectories.value = []
+  } finally {
+    isLoadingDirectories.value = false
+  }
+}
+
+// Handle proxy selection for local type
+function handleProxySelect(proxyId: string) {
+  newRepo.value.bound_node = proxyId
+  selectedProxy.value = availableSyncProxies.value.find(p => p.id === proxyId) || null
+  if (proxyId) {
+    fetchProxyDirectories(proxyId, '/')
+  } else {
+    proxyDirectories.value = []
+    currentPath.value = ''
+  }
+}
+
+// Navigate to subdirectory
+function navigateToDirectory(dir: string) {
+  const newPath = currentPath.value === '/' ? `/${dir}` : `${currentPath.value}/${dir}`
+  fetchProxyDirectories(newRepo.value.bound_node!, newPath)
+}
+
+// Navigate up
+function navigateUp() {
+  if (currentPath.value === '/' || !currentPath.value) return
+  const parts = currentPath.value.split('/').filter(Boolean)
+  parts.pop()
+  const newPath = parts.length === 0 ? '/' : '/' + parts.join('/')
+  fetchProxyDirectories(newRepo.value.bound_node!, newPath)
+}
+
+// Select current directory as backup path
+function selectCurrentPath() {
+  newRepo.value.local_config.path = currentPath.value
+}
 
 const filteredRepos = computed(() => {
   let result = repositories.value
@@ -75,6 +160,17 @@ const paginatedRepos = computed(() => {
 // Reset page when filters change
 watch([searchQuery, typeFilter], () => {
   currentPage.value = 1
+})
+
+// Reset form when repo type changes
+watch(() => newRepo.value.repo_type, () => {
+  // Reset bound_node when switching away from local
+  if (newRepo.value.repo_type !== 'local') {
+    newRepo.value.bound_node = null
+    selectedProxy.value = null
+    proxyDirectories.value = []
+    currentPath.value = ''
+  }
 })
 
 const stats = computed(() => {
@@ -109,14 +205,44 @@ async function fetchNodes() {
 
 async function createRepository() {
   try {
-    const payload = {
+    let payload: any = {
       name: newRepo.value.name,
-      repository_type: newRepo.value.repository_type,
+      repo_type: newRepo.value.repo_type,
       description: newRepo.value.description,
-      bound_node: newRepo.value.bound_node || null,
-      config: newRepo.value.config,
-      credentials: newRepo.value.credentials
+      bound_node: newRepo.value.bound_node || null
     }
+
+    // Build config based on type
+    if (newRepo.value.repo_type === 's3') {
+      payload.config = {
+        endpoint: newRepo.value.s3_config.endpoint,
+        bucket: newRepo.value.s3_config.bucket,
+        region: newRepo.value.s3_config.region,
+        prefix: newRepo.value.s3_config.prefix
+      }
+      payload.credentials = {
+        access_key: newRepo.value.s3_config.access_key,
+        secret_key: newRepo.value.s3_config.secret_key
+      }
+    } else if (newRepo.value.repo_type === 'nas') {
+      payload.config = {
+        server: newRepo.value.nas_config.server,
+        export_path: newRepo.value.nas_config.export_path,
+        mount_type: newRepo.value.nas_config.mount_type,
+        mount_options: newRepo.value.nas_config.mount_options
+      }
+      if (newRepo.value.nas_config.mount_type === 'cifs') {
+        payload.credentials = {
+          username: newRepo.value.nas_config.username,
+          password: newRepo.value.nas_config.password
+        }
+      }
+    } else if (newRepo.value.repo_type === 'local') {
+      payload.config = {
+        path: newRepo.value.local_config.path
+      }
+    }
+
     await repositoriesApi.create(payload)
     showCreateModal.value = false
     resetForm()
@@ -160,12 +286,32 @@ async function initKopia(repo: Repository) {
 function resetForm() {
   newRepo.value = {
     name: '',
-    repository_type: 's3',
+    repo_type: 's3',
     description: '',
-    bound_node: '',
-    config: { endpoint: '', bucket: '', region: '', path: '' },
-    credentials: { access_key: '', secret_key: '' }
+    bound_node: null,
+    s3_config: {
+      endpoint: '',
+      bucket: '',
+      region: '',
+      prefix: '',
+      access_key: '',
+      secret_key: ''
+    },
+    nas_config: {
+      server: '',
+      export_path: '',
+      mount_type: 'nfs',
+      mount_options: '',
+      username: '',
+      password: ''
+    },
+    local_config: {
+      path: ''
+    }
   }
+  selectedProxy.value = null
+  proxyDirectories.value = []
+  currentPath.value = ''
 }
 
 function formatBytes(bytes: number): string {
@@ -179,8 +325,9 @@ function formatBytes(bytes: number): string {
 function getRepoTypeIcon(type: string) {
   const icons: Record<string, any> = {
     s3: CloudIcon,
-    local: CircleStackIcon,
-    nfs: CircleStackIcon,
+    local: FolderIcon,
+    nas: ServerIcon,
+    nfs: ServerIcon,
     azure: CloudIcon,
     gcs: CloudIcon
   }
@@ -191,11 +338,24 @@ function getRepoTypeColor(type: string): string {
   const colors: Record<string, string> = {
     s3: 'bg-orange-100 text-orange-600',
     local: 'bg-blue-100 text-blue-600',
+    nas: 'bg-purple-100 text-purple-600',
     nfs: 'bg-purple-100 text-purple-600',
     azure: 'bg-sky-100 text-sky-600',
     gcs: 'bg-red-100 text-red-600'
   }
   return colors[type] || 'bg-slate-100 text-slate-600'
+}
+
+function getRepoTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    s3: 'S3',
+    local: t('repository.types.local'),
+    nas: 'NAS',
+    nfs: 'NFS',
+    azure: 'Azure',
+    gcs: 'GCS'
+  }
+  return labels[type] || type.toUpperCase()
 }
 
 function getNodeName(nodeId: string | null | undefined): string {
@@ -265,10 +425,8 @@ onMounted(() => {
         >
           <option value="">{{ t('sourceResources.allTypes') }}</option>
           <option value="s3">S3</option>
-          <option value="local">Local</option>
-          <option value="nfs">NFS</option>
-          <option value="azure">Azure</option>
-          <option value="gcs">GCS</option>
+          <option value="local">{{ t('repository.types.local') }}</option>
+          <option value="nas">NAS/NFS</option>
         </select>
         <button
           @click="fetchRepositories"
@@ -318,7 +476,7 @@ onMounted(() => {
         </div>
         
         <h3 class="text-base font-semibold text-slate-800 mb-1">{{ repo.name }}</h3>
-        <p class="text-sm text-slate-500 mb-3">{{ repo.description || repo.repository_type?.toUpperCase() }}</p>
+        <p class="text-sm text-slate-500 mb-3">{{ repo.description || getRepoTypeLabel(repo.repository_type) }}</p>
         
         <!-- Bound Node -->
         <div class="flex items-center gap-2 text-sm text-slate-600 mb-3">
@@ -341,7 +499,7 @@ onMounted(() => {
         </div>
         
         <div class="flex items-center justify-between pt-3 border-t border-slate-100">
-          <span class="text-xs text-slate-400 uppercase">{{ repo.repository_type }}</span>
+          <span class="text-xs text-slate-400 uppercase">{{ getRepoTypeLabel(repo.repository_type) }}</span>
           <div class="flex items-center gap-1">
             <button
               v-if="!repo.kopia_initialized && repo.bound_node"
@@ -389,8 +547,8 @@ onMounted(() => {
     <Teleport to="body">
       <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="showCreateModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white">
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
             <h2 class="text-lg font-semibold text-slate-800">{{ t('repository.form.addRepository') }}</h2>
             <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -398,75 +556,272 @@ onMounted(() => {
               </svg>
             </button>
           </div>
-          <div class="p-6 space-y-4">
+          
+          <div class="p-6 space-y-6">
+            <!-- Repository Type Selection -->
             <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('common.name') }} *</label>
-              <input v-model="newRepo.name" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label class="block text-sm font-medium text-slate-700 mb-3">{{ t('repository.form.repositoryType') }}</label>
+              <div class="grid grid-cols-3 gap-3">
+                <button
+                  v-for="type in repoTypes"
+                  :key="type.value"
+                  @click="newRepo.repo_type = type.value as any"
+                  :class="[
+                    'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
+                    newRepo.repo_type === type.value 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-slate-200 hover:border-slate-300'
+                  ]"
+                >
+                  <div :class="[
+                    'w-10 h-10 rounded-lg flex items-center justify-center',
+                    type.color === 'orange' ? 'bg-orange-100 text-orange-600' :
+                    type.color === 'purple' ? 'bg-purple-100 text-purple-600' :
+                    'bg-blue-100 text-blue-600'
+                  ]">
+                    <component :is="type.icon" class="w-5 h-5" />
+                  </div>
+                  <span class="text-sm font-medium text-slate-700">{{ type.label }}</span>
+                </button>
+              </div>
             </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.form.repositoryType') }}</label>
-              <select v-model="newRepo.repository_type" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="s3">Amazon S3 / S3 Compatible</option>
-                <option value="local">Local Filesystem</option>
-                <option value="nfs">NFS</option>
-                <option value="azure">Azure Blob</option>
-                <option value="gcs">Google Cloud Storage</option>
-              </select>
+
+            <!-- Basic Info -->
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('common.name') }} *</label>
+                <input v-model="newRepo.name" type="text" :placeholder="t('repository.form.namePlaceholder')" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('common.description') }}</label>
+                <input v-model="newRepo.description" type="text" :placeholder="t('repository.form.descPlaceholder')" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
             </div>
-            
+
             <!-- S3 Configuration -->
-            <div v-if="newRepo.repository_type === 's3'" class="space-y-3 p-3 bg-slate-50 rounded-lg">
+            <div v-if="newRepo.repo_type === 's3'" class="space-y-4 p-4 bg-orange-50 rounded-xl border border-orange-100">
+              <div class="flex items-start gap-2 text-sm text-orange-700 bg-orange-100 rounded-lg p-3">
+                <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p class="font-medium">{{ t('repository.s3.hint') }}</p>
+                  <p class="mt-1 text-xs text-orange-600">{{ t('repository.s3.hintDetail') }}</p>
+                </div>
+              </div>
+              
               <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('sourceResources.form.endpoint') }}</label>
-                <input v-model="newRepo.config.endpoint" type="text" placeholder="https://s3.amazonaws.com" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.endpoint') }}</label>
+                <input v-model="newRepo.s3_config.endpoint" type="text" placeholder="https://s3.amazonaws.com" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <p class="text-xs text-slate-500 mt-1">{{ t('repository.s3.endpointHint') }}</p>
               </div>
-              <div class="grid grid-cols-2 gap-3">
+              
+              <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('sourceResources.form.bucket') }}</label>
-                  <input v-model="newRepo.config.bucket" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.bucket') }} *</label>
+                  <input v-model="newRepo.s3_config.bucket" type="text" placeholder="my-backup-bucket" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('sourceResources.form.region') }}</label>
-                  <input v-model="newRepo.config.region" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('sourceResources.form.accessKey') }}</label>
-                  <input v-model="newRepo.credentials.access_key" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('sourceResources.form.secretKey') }}</label>
-                  <input v-model="newRepo.credentials.secret_key" type="password" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.region') }}</label>
+                  <input v-model="newRepo.s3_config.region" type="text" placeholder="us-east-1" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
-            </div>
-            
-            <!-- Local/NFS Configuration -->
-            <div v-else-if="newRepo.repository_type === 'local' || newRepo.repository_type === 'nfs'" class="space-y-3 p-3 bg-slate-50 rounded-lg">
+
               <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('sourceResources.form.path') }}</label>
-                <input v-model="newRepo.config.path" type="text" placeholder="/backup/hyperfilelens" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.prefix') }}</label>
+                <input v-model="newRepo.s3_config.prefix" type="text" placeholder="backups/hyperfilelens" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <p class="text-xs text-slate-500 mt-1">{{ t('repository.s3.prefixHint') }}</p>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.accessKey') }} *</label>
+                  <input v-model="newRepo.s3_config.access_key" type="text" placeholder="AKIAIOSFODNN7EXAMPLE" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.secretKey') }} *</label>
+                  <input v-model="newRepo.s3_config.secret_key" type="password" placeholder="••••••••••••••••" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
               </div>
             </div>
-            
-            <!-- Bound Node -->
-            <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('sourceResources.form.boundNode') }}</label>
-              <select v-model="newRepo.bound_node" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">{{ t('sourceResources.selectNode') }}</option>
-                <option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
-              </select>
-              <p class="text-xs text-slate-500 mt-1">{{ t('repository.boundNodeHint') }}</p>
+
+            <!-- NAS Configuration -->
+            <div v-if="newRepo.repo_type === 'nas'" class="space-y-4 p-4 bg-purple-50 rounded-xl border border-purple-100">
+              <div class="flex items-start gap-2 text-sm text-purple-700 bg-purple-100 rounded-lg p-3">
+                <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p class="font-medium">{{ t('repository.nas.hint') }}</p>
+                  <p class="mt-1 text-xs text-purple-600">{{ t('repository.nas.hintDetail') }}</p>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.nas.mountType') }}</label>
+                <div class="grid grid-cols-2 gap-3">
+                  <button
+                    @click="newRepo.nas_config.mount_type = 'nfs'"
+                    :class="[
+                      'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
+                      newRepo.nas_config.mount_type === 'nfs' 
+                        ? 'border-purple-500 bg-purple-100 text-purple-700' 
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                    ]"
+                  >
+                    NFS
+                  </button>
+                  <button
+                    @click="newRepo.nas_config.mount_type = 'cifs'"
+                    :class="[
+                      'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
+                      newRepo.nas_config.mount_type === 'cifs' 
+                        ? 'border-purple-500 bg-purple-100 text-purple-700' 
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                    ]"
+                  >
+                    CIFS/SMB
+                  </button>
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.nas.server') }} *</label>
+                  <input v-model="newRepo.nas_config.server" type="text" placeholder="192.168.1.100 或 nas.example.com" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.nas.exportPath') }} *</label>
+                  <input v-model="newRepo.nas_config.export_path" type="text" :placeholder="newRepo.nas_config.mount_type === 'nfs' ? '/export/backup' : '/share/backup'" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.nas.mountOptions') }}</label>
+                <input v-model="newRepo.nas_config.mount_options" type="text" :placeholder="newRepo.nas_config.mount_type === 'nfs' ? 'rw,hard,intr' : 'vers=3.0,iocharset=utf8'" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <p class="text-xs text-slate-500 mt-1">{{ t('repository.nas.mountOptionsHint') }}</p>
+              </div>
+
+              <!-- CIFS credentials -->
+              <div v-if="newRepo.nas_config.mount_type === 'cifs'" class="grid grid-cols-2 gap-4 p-3 bg-white rounded-lg">
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.nas.username') }}</label>
+                  <input v-model="newRepo.nas_config.username" type="text" placeholder="username" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.nas.password') }}</label>
+                  <input v-model="newRepo.nas_config.password" type="password" placeholder="••••••••" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              <!-- Bound Sync Proxy for NAS -->
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.boundSyncProxy') }} *</label>
+                <select v-model="newRepo.bound_node" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">{{ t('repository.selectSyncProxy') }}</option>
+                  <option v-for="proxy in availableSyncProxies" :key="proxy.id" :value="proxy.id">
+                    {{ proxy.name }} ({{ proxy.hostname || proxy.id }})
+                  </option>
+                </select>
+                <p class="text-xs text-slate-500 mt-1">{{ t('repository.boundSyncProxyHint') }}</p>
+              </div>
             </div>
-            
-            <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('common.description') }}</label>
-              <textarea v-model="newRepo.description" rows="2" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+            <!-- Local Filesystem Configuration -->
+            <div v-if="newRepo.repo_type === 'local'" class="space-y-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+              <div class="flex items-start gap-2 text-sm text-blue-700 bg-blue-100 rounded-lg p-3">
+                <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p class="font-medium">{{ t('repository.local.hint') }}</p>
+                  <p class="mt-1 text-xs text-blue-600">{{ t('repository.local.hintDetail') }}</p>
+                </div>
+              </div>
+
+              <!-- Select Sync Proxy -->
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.boundSyncProxy') }} *</label>
+                <select 
+                  :value="newRepo.bound_node || ''" 
+                  @change="handleProxySelect(($event.target as HTMLSelectElement).value)"
+                  class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">{{ t('repository.selectSyncProxy') }}</option>
+                  <option v-for="proxy in availableSyncProxies" :key="proxy.id" :value="proxy.id">
+                    {{ proxy.name }} ({{ proxy.hostname || proxy.id }})
+                  </option>
+                </select>
+                <p class="text-xs text-slate-500 mt-1">{{ t('repository.boundSyncProxyHint') }}</p>
+              </div>
+
+              <!-- Directory Browser -->
+              <div v-if="newRepo.bound_node" class="bg-white rounded-lg border border-slate-200">
+                <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+                  <div class="flex items-center gap-2 text-sm">
+                    <FolderIcon class="w-4 h-4 text-slate-400" />
+                    <span class="text-slate-600">{{ t('repository.local.selectDirectory') }}</span>
+                  </div>
+                  <button
+                    v-if="currentPath !== '/'"
+                    @click="navigateUp"
+                    class="text-xs text-blue-600 hover:text-blue-700"
+                  >
+                    {{ t('repository.local.goUp') }}
+                  </button>
+                </div>
+                
+                <!-- Current Path -->
+                <div class="px-3 py-2 bg-slate-50 border-b border-slate-100">
+                  <code class="text-sm text-slate-700">{{ currentPath || '/' }}</code>
+                </div>
+
+                <!-- Loading -->
+                <div v-if="isLoadingDirectories" class="flex items-center justify-center py-8">
+                  <div class="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                </div>
+
+                <!-- Directory List -->
+                <div v-else class="max-h-48 overflow-y-auto">
+                  <div v-if="proxyDirectories.length === 0" class="py-6 text-center text-sm text-slate-500">
+                    {{ t('repository.local.noSubdirectories') }}
+                  </div>
+                  <button
+                    v-for="dir in proxyDirectories"
+                    :key="dir"
+                    @click="navigateToDirectory(dir)"
+                    class="w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-50 text-left text-sm"
+                  >
+                    <FolderIcon class="w-4 h-4 text-yellow-500" />
+                    <span class="text-slate-700">{{ dir }}</span>
+                    <ChevronRightIcon class="w-4 h-4 text-slate-400 ml-auto" />
+                  </button>
+                </div>
+
+                <!-- Select Current Path -->
+                <div class="px-3 py-2 border-t border-slate-100">
+                  <button
+                    @click="selectCurrentPath"
+                    class="w-full py-2 text-sm text-center text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    {{ t('repository.local.useCurrentPath') }}: <code class="bg-blue-100 px-1 rounded">{{ currentPath || '/' }}</code>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Selected Path Display -->
+              <div v-if="newRepo.local_config.path" class="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+                <CheckCircleIcon class="w-5 h-5 text-green-600" />
+                <span class="text-sm text-green-700">{{ t('repository.local.selectedPath') }}: <code class="bg-green-100 px-1 rounded">{{ newRepo.local_config.path }}</code></span>
+              </div>
+
+              <!-- No Sync Proxy Available Warning -->
+              <div v-if="availableSyncProxies.length === 0" class="flex items-start gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <ExclamationCircleIcon class="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <div>
+                  <p class="text-sm font-medium text-amber-700">{{ t('repository.local.noSyncProxy') }}</p>
+                  <p class="text-xs text-amber-600 mt-1">{{ t('repository.local.noSyncProxyHint') }}</p>
+                </div>
+              </div>
             </div>
           </div>
+          
           <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 sticky bottom-0 bg-white">
-            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+            <button @click="showCreateModal = false; resetForm()" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
               {{ t('common.cancel') }}
             </button>
             <button @click="createRepository" class="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">
@@ -496,8 +851,8 @@ onMounted(() => {
                 <component :is="getRepoTypeIcon(selectedRepo.repository_type)" class="w-6 h-6" />
               </div>
               <div>
-                <p class="font-medium text-slate-800">{{ selectedRepo.repository_type?.toUpperCase() }}</p>
-                <p class="text-sm text-slate-500">{{ selectedRepo.config?.path || selectedRepo.config?.bucket }}</p>
+                <p class="font-medium text-slate-800">{{ getRepoTypeLabel(selectedRepo.repository_type) }}</p>
+                <p class="text-sm text-slate-500">{{ selectedRepo.config?.path || selectedRepo.config?.bucket || selectedRepo.config?.server }}</p>
               </div>
             </div>
             

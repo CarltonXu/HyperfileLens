@@ -571,7 +571,8 @@ export default {
       usedSpace: '已用空间',
       availableSpace: '可用空间',
       snapshots: '快照数',
-      lastBackup: '最后备份'
+      lastBackup: '最后备份',
+      active: '活跃'
     },
 
     form: {
@@ -582,16 +583,63 @@ export default {
       connectionString: '连接字符串',
       capacity: '容量',
       retention: '保留策略',
-      path: '路径'
+      path: '路径',
+      namePlaceholder: '输入仓库名称',
+      descPlaceholder: '输入仓库描述（可选）'
     },
 
     types: {
-      local: '本地',
-      s3: 'S3 兼容',
+      local: '本地文件系统',
+      s3: 'S3 对象存储',
+      nas: 'NAS/NFS/CIFS',
       azure: 'Azure Blob',
       gcs: 'Google Cloud Storage',
       b2: 'Backblaze B2'
     },
+
+    s3: {
+      hint: 'S3 兼容对象存储配置',
+      hintDetail: '支持 Amazon S3、MinIO、阿里云 OSS、腾讯云 COS 等兼容 S3 协议的对象存储',
+      endpoint: 'Endpoint',
+      endpointHint: '对象存储服务地址，如 https://s3.amazonaws.com',
+      bucket: 'Bucket',
+      region: 'Region',
+      prefix: '前缀',
+      prefixHint: '可选，备份存储路径前缀',
+      accessKey: 'Access Key',
+      secretKey: 'Secret Key'
+    },
+
+    nas: {
+      hint: 'NAS 网络存储配置',
+      hintDetail: '通过 NFS 或 CIFS/SMB 协议挂载远程网络存储',
+      mountType: '挂载类型',
+      server: '服务器地址',
+      exportPath: '共享路径',
+      mountOptions: '挂载选项',
+      mountOptionsHint: '可选，如 rw,hard,intr (NFS) 或 vers=3.0,iocharset=utf8 (CIFS)',
+      username: '用户名',
+      password: '密码'
+    },
+
+    local: {
+      hint: '本地文件系统配置',
+      hintDetail: '使用 Sync Proxy 的本地目录作为备份存储，必须选择一个在线的 Sync Proxy',
+      selectDirectory: '选择目录',
+      goUp: '返回上级',
+      noSubdirectories: '没有子目录',
+      useCurrentPath: '使用当前路径',
+      selectedPath: '已选择路径',
+      noSyncProxy: '没有可用的 Sync Proxy',
+      noSyncProxyHint: '请先添加 Sync Proxy 并确保其状态为在线'
+    },
+
+    boundSyncProxy: '绑定 Sync Proxy',
+    selectSyncProxy: '选择 Sync Proxy',
+    boundSyncProxyHint: '只有 Sync Proxy 才能操作此仓库',
+    initKopia: '初始化 Kopia',
+    kopiaInitialized: 'Kopia 已初始化',
+    kopiaNotInitialized: 'Kopia 未初始化',
 
     empty: {
       title: '暂无仓库',

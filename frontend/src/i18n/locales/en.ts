@@ -571,7 +571,8 @@ export default {
       usedSpace: 'Used Space',
       availableSpace: 'Available Space',
       snapshots: 'Snapshots',
-      lastBackup: 'Last Backup'
+      lastBackup: 'Last Backup',
+      active: 'Active'
     },
 
     form: {
@@ -582,16 +583,63 @@ export default {
       connectionString: 'Connection String',
       capacity: 'Capacity',
       retention: 'Retention Policy',
-      path: 'Path'
+      path: 'Path',
+      namePlaceholder: 'Enter repository name',
+      descPlaceholder: 'Enter description (optional)'
     },
 
     types: {
-      local: 'Local',
-      s3: 'S3 Compatible',
+      local: 'Local Filesystem',
+      s3: 'S3 Object Storage',
+      nas: 'NAS/NFS/CIFS',
       azure: 'Azure Blob',
       gcs: 'Google Cloud Storage',
       b2: 'Backblaze B2'
     },
+
+    s3: {
+      hint: 'S3 Compatible Object Storage Configuration',
+      hintDetail: 'Supports Amazon S3, MinIO, Alibaba OSS, Tencent COS and other S3-compatible storage',
+      endpoint: 'Endpoint',
+      endpointHint: 'Object storage service URL, e.g. https://s3.amazonaws.com',
+      bucket: 'Bucket',
+      region: 'Region',
+      prefix: 'Prefix',
+      prefixHint: 'Optional, backup storage path prefix',
+      accessKey: 'Access Key',
+      secretKey: 'Secret Key'
+    },
+
+    nas: {
+      hint: 'NAS Network Storage Configuration',
+      hintDetail: 'Mount remote network storage via NFS or CIFS/SMB protocol',
+      mountType: 'Mount Type',
+      server: 'Server Address',
+      exportPath: 'Export Path',
+      mountOptions: 'Mount Options',
+      mountOptionsHint: 'Optional, e.g. rw,hard,intr (NFS) or vers=3.0,iocharset=utf8 (CIFS)',
+      username: 'Username',
+      password: 'Password'
+    },
+
+    local: {
+      hint: 'Local Filesystem Configuration',
+      hintDetail: 'Use a local directory on Sync Proxy as backup storage. Must select an online Sync Proxy.',
+      selectDirectory: 'Select Directory',
+      goUp: 'Go Up',
+      noSubdirectories: 'No subdirectories',
+      useCurrentPath: 'Use current path',
+      selectedPath: 'Selected path',
+      noSyncProxy: 'No Sync Proxy Available',
+      noSyncProxyHint: 'Please add a Sync Proxy first and ensure it is online'
+    },
+
+    boundSyncProxy: 'Bind Sync Proxy',
+    selectSyncProxy: 'Select Sync Proxy',
+    boundSyncProxyHint: 'Only Sync Proxy can operate this repository',
+    initKopia: 'Initialize Kopia',
+    kopiaInitialized: 'Kopia Initialized',
+    kopiaNotInitialized: 'Kopia Not Initialized',
 
     empty: {
       title: 'No repositories',

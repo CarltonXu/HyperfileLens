@@ -167,7 +167,11 @@ export const proxiesApi = {
     api.get(`/api/v1/proxies/${id}/list-paths/`),
   
   verifyPath: (id: number | string, path: string) =>
-    api.post(`/api/v1/proxies/${id}/verify-path/`, { path })
+    api.post(`/api/v1/proxies/${id}/verify-path/`, { path }),
+  
+  // Get proxy directories (for Sync Proxy local filesystem browser)
+  getDirectories: (id: number | string, path: string = '/') =>
+    api.get(`/api/v1/proxies/${id}/directories/`, { params: { path } })
 }
 
 // ============== Legacy Nodes API (alias for backward compatibility) ==============
