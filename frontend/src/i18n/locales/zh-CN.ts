@@ -299,6 +299,12 @@ export default {
       apiToken: 'API 令牌',
       ready: '安装准备就绪',
       readyDescription: '复制下面的命令在目标服务器上运行以安装代理。',
+      step1Title: '在目标服务器上执行安装命令',
+      step1Desc: '登录到目标服务器，将以下命令粘贴到终端中执行。安装脚本会自动下载并配置代理程序。',
+      credentialsTitle: '请妥善保管以下凭证',
+      credentialsDesc: '这些凭证用于代理与管理端的安全通信，安装完成后请保存备份。如需重新生成令牌，请在代理详情页操作。',
+      proxyIdDesc: '代理的唯一标识符，用于识别和管理此代理节点',
+      apiTokenDesc: 'API 认证令牌，用于代理与管理端的安全通信',
       done: '完成',
       os: {
         linux: 'Linux',

@@ -299,6 +299,12 @@ export default {
       apiToken: 'API Token',
       ready: 'Installation Ready',
       readyDescription: 'Copy and run the command below on your target server to install the proxy.',
+      step1Title: 'Run the install command on target server',
+      step1Desc: 'Login to your target server and paste the command below into the terminal. The script will automatically download and configure the proxy.',
+      credentialsTitle: 'Save these credentials securely',
+      credentialsDesc: 'These credentials are used for secure communication between the proxy and control plane. Please save them for future reference. You can regenerate the token in the proxy detail page.',
+      proxyIdDesc: 'Unique identifier for this proxy node',
+      apiTokenDesc: 'API token for secure authentication',
       done: 'Done',
       os: {
         linux: 'Linux',

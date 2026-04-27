@@ -26,7 +26,8 @@ import {
   InformationCircleIcon,
   ClipboardDocumentIcon,
   ArrowDownTrayIcon,
-  DocumentDuplicateIcon
+  DocumentDuplicateIcon,
+  KeyIcon
 } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
@@ -857,44 +858,76 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <label class="text-sm font-medium text-slate-700">{{ t('proxies.install.installCommand') }}</label>
-                <div class="flex gap-2">
-                  <button
-                    @click="downloadConfig"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
-                  >
-                    <ArrowDownTrayIcon class="w-3.5 h-3.5" />
-                    {{ t('proxies.install.downloadConfig') }}
-                  </button>
-                  <button
-                    @click="copyCommand(getCommandForOS())"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-100 rounded-lg hover:bg-indigo-200"
-                  >
-                    <ClipboardDocumentIcon class="w-3.5 h-3.5" />
-                    {{ commandCopied ? t('common.copied') : t('common.copy') }}
-                  </button>
+            <!-- Installation Instructions -->
+            <div class="space-y-4">
+              <!-- Step 1: Run Command -->
+              <div class="bg-slate-50 rounded-lg p-4">
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-xs font-bold flex items-center justify-center">1</span>
+                  <span class="text-sm font-medium text-slate-700">{{ t('proxies.install.step1Title') }}</span>
+                </div>
+                <p class="text-xs text-slate-500 mb-3">{{ t('proxies.install.step1Desc') }}</p>
+                <div class="relative">
+                  <pre class="bg-slate-900 text-slate-100 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap font-mono">{{ getCommandForOS() }}</pre>
+                  <div class="absolute top-2 right-2 flex gap-2">
+                    <button
+                      @click="downloadConfig"
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700 rounded-lg hover:bg-slate-600"
+                    >
+                      <ArrowDownTrayIcon class="w-3.5 h-3.5" />
+                      {{ t('proxies.install.downloadConfig') }}
+                    </button>
+                    <button
+                      @click="copyCommand(getCommandForOS())"
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-500"
+                    >
+                      <ClipboardDocumentIcon class="w-3.5 h-3.5" />
+                      {{ commandCopied ? t('common.copied') : t('common.copy') }}
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div class="relative">
-                <pre class="bg-slate-900 text-slate-100 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap font-mono">{{ getCommandForOS() }}</pre>
-              </div>
-            </div>
 
-            <!-- Proxy Info -->
-            <div class="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
-              <div>
-                <p class="text-xs text-slate-500">{{ t('proxies.install.proxyId') }}</p>
-                <p class="text-sm font-mono text-slate-800">{{ installResult.proxy_id }}</p>
+              <!-- Step 2: Keep Credentials -->
+              <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div class="flex items-start gap-3">
+                  <ExclamationTriangleIcon class="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div class="flex-1">
+                    <p class="text-sm font-medium text-amber-800">{{ t('proxies.install.credentialsTitle') }}</p>
+                    <p class="text-xs text-amber-600 mt-1">{{ t('proxies.install.credentialsDesc') }}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p class="text-xs text-slate-500">{{ t('proxies.install.apiToken') }}</p>
-                <div class="flex items-center gap-2">
-                  <p class="text-sm font-mono text-slate-800 truncate">{{ installResult.api_token.substring(0, 20) }}...</p>
-                  <button @click="copyCommand(installResult.api_token)" class="text-slate-400 hover:text-slate-600">
-                    <DocumentDuplicateIcon class="w-4 h-4" />
-                  </button>
+
+              <!-- Credentials -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white border border-slate-200 rounded-lg p-4">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center">ID</span>
+                    <span class="text-sm font-medium text-slate-700">{{ t('proxies.install.proxyId') }}</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mb-2">{{ t('proxies.install.proxyIdDesc') }}</p>
+                  <div class="flex items-center gap-2 bg-slate-50 rounded px-3 py-2">
+                    <p class="text-sm font-mono text-slate-800 flex-1 truncate">{{ installResult.proxy_id }}</p>
+                    <button @click="copyCommand(installResult.proxy_id)" class="text-slate-400 hover:text-slate-600">
+                      <DocumentDuplicateIcon class="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-lg p-4">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center">
+                      <KeyIcon class="w-3.5 h-3.5" />
+                    </span>
+                    <span class="text-sm font-medium text-slate-700">{{ t('proxies.install.apiToken') }}</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mb-2">{{ t('proxies.install.apiTokenDesc') }}</p>
+                  <div class="flex items-center gap-2 bg-slate-50 rounded px-3 py-2">
+                    <p class="text-sm font-mono text-slate-800 flex-1 truncate">{{ installResult.api_token.substring(0, 24) }}...</p>
+                    <button @click="copyCommand(installResult.api_token)" class="text-slate-400 hover:text-slate-600">
+                      <DocumentDuplicateIcon class="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
