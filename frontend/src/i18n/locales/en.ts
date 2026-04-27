@@ -63,7 +63,9 @@ export default {
     justNow: 'Just now',
     minutesAgo: 'm ago',
     hoursAgo: 'h ago',
-    daysAgo: 'd ago'
+    daysAgo: 'd ago',
+    createdAt: 'Created At',
+    updatedAt: 'Updated At'
   },
 
   // Auth
@@ -718,7 +720,9 @@ export default {
 
     createSuccess: 'Repository created successfully',
     createFailed: 'Failed to create repository',
-    confirmDelete: 'Are you sure you want to delete this repository?'
+    confirmDelete: 'Are you sure you want to delete this repository?',
+    configInfo: 'Configuration',
+    initialized: 'Initialized'
   },
 
   // Policies

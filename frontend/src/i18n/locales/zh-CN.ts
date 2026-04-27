@@ -63,7 +63,9 @@ export default {
     justNow: '刚刚',
     minutesAgo: '分钟前',
     hoursAgo: '小时前',
-    daysAgo: '天前'
+    daysAgo: '天前',
+    createdAt: '创建时间',
+    updatedAt: '更新时间'
   },
 
   // Auth
@@ -718,7 +720,9 @@ export default {
 
     createSuccess: '仓库创建成功',
     createFailed: '仓库创建失败',
-    confirmDelete: '确定要删除此仓库吗？'
+    confirmDelete: '确定要删除此仓库吗？',
+    configInfo: '配置信息',
+    initialized: '已初始化'
   },
 
   // Policies

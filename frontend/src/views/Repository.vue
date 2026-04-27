@@ -492,13 +492,23 @@ function getRepoTypeLabel(type: string | undefined | null): string {
     azure: 'Azure',
     gcs: 'GCS'
   }
-  return labels[type] || type.toUpperCase()
+  return labels[type] || type?.toUpperCase() || '-'
 }
 
 function getNodeName(nodeId: string | null | undefined): string {
   if (!nodeId) return t('sourceResources.noBoundNode')
   const node = nodes.value.find((n: ProxyNode) => String(n.id) === nodeId)
   return node?.name || nodeId
+}
+
+function getNode(nodeId: string | null | undefined): ProxyNode | undefined {
+  if (!nodeId) return undefined
+  return nodes.value.find((n: ProxyNode) => String(n.id) === nodeId)
+}
+
+function getNodeStatus(nodeId: string | null | undefined): string {
+  const node = getNode(nodeId)
+  return node?.status || 'unknown'
 }
 
 onMounted(() => {
@@ -594,7 +604,7 @@ onMounted(() => {
         :key="repo.id"
         class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow"
       >
-        <div class="flex items-start justify-between mb-4">
+        <div class="flex items-start justify-between mb-3">
           <div :class="['w-10 h-10 rounded-lg flex items-center justify-center', getRepoTypeColor(repo.repository_type)]">
             <component :is="getRepoTypeIcon(repo.repository_type)" class="w-5 h-5" />
           </div>
@@ -615,10 +625,49 @@ onMounted(() => {
         <h3 class="text-base font-semibold text-slate-800 mb-1">{{ repo.name }}</h3>
         <p class="text-sm text-slate-500 mb-3">{{ repo.description || getRepoTypeLabel(repo.repository_type) }}</p>
         
-        <!-- Bound Node -->
-        <div class="flex items-center gap-2 text-sm text-slate-600 mb-3">
-          <LinkIcon class="w-4 h-4" />
-          <span>{{ getNodeName(repo.bound_node) }}</span>
+        <!-- Connection Info -->
+        <div class="bg-slate-50 rounded-lg p-3 mb-3 space-y-2">
+          <!-- S3 Info -->
+          <template v-if="repo.repository_type === 's3'">
+            <div class="flex items-center gap-2 text-sm">
+              <GlobeAltIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <span class="text-slate-600 truncate" :title="repo.config?.endpoint">{{ repo.config?.endpoint || '-' }}</span>
+            </div>
+            <div class="flex items-center gap-2 text-sm">
+              <FolderIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <span class="text-slate-600">{{ repo.config?.bucket || '-' }}</span>
+              <span v-if="repo.config?.prefix" class="text-slate-400">/{{ repo.config?.prefix }}</span>
+            </div>
+          </template>
+          
+          <!-- NAS Info -->
+          <template v-else-if="repo.repository_type === 'nas'">
+            <div class="flex items-center gap-2 text-sm">
+              <ServerIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <span class="text-slate-600">{{ repo.config?.server || '-' }}</span>
+            </div>
+            <div class="flex items-center gap-2 text-sm">
+              <FolderIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <span class="text-slate-600">{{ repo.config?.export_path || '-' }}</span>
+            </div>
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-xs text-slate-400 uppercase px-1.5 py-0.5 bg-slate-200 rounded">{{ repo.config?.nas_type?.toUpperCase() || 'NFS' }}</span>
+            </div>
+          </template>
+          
+          <!-- Local Info -->
+          <template v-else-if="repo.repository_type === 'local'">
+            <div class="flex items-center gap-2 text-sm">
+              <FolderIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <span class="text-slate-600 truncate" :title="repo.config?.path">{{ repo.config?.path || '-' }}</span>
+            </div>
+          </template>
+          
+          <!-- Bound Node -->
+          <div class="flex items-center gap-2 text-sm pt-2 border-t border-slate-200">
+            <LinkIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
+            <span class="text-slate-600">{{ getNodeName(repo.bound_node) }}</span>
+          </div>
         </div>
         
         <!-- Storage Progress -->
@@ -1069,8 +1118,8 @@ onMounted(() => {
     <Teleport to="body">
       <div v-if="showDetailModal && selectedRepo" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="showDetailModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg">
-          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
             <h2 class="text-lg font-semibold text-slate-800">{{ selectedRepo.name }}</h2>
             <button @click="showDetailModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1079,48 +1128,138 @@ onMounted(() => {
             </button>
           </div>
           <div class="p-6 space-y-4">
+            <!-- Type & Status -->
             <div class="flex items-center gap-3">
               <div :class="['w-12 h-12 rounded-lg flex items-center justify-center', getRepoTypeColor(selectedRepo.repository_type)]">
                 <component :is="getRepoTypeIcon(selectedRepo.repository_type)" class="w-6 h-6" />
               </div>
-              <div>
+              <div class="flex-1">
                 <p class="font-medium text-slate-800">{{ getRepoTypeLabel(selectedRepo.repository_type) }}</p>
-                <p class="text-sm text-slate-500">{{ selectedRepo.config?.path || selectedRepo.config?.bucket || selectedRepo.config?.server }}</p>
+                <p class="text-sm text-slate-500">{{ selectedRepo.status === 'active' ? t('common.active') : t('common.inactive') }}</p>
               </div>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-4">
-              <div class="bg-slate-50 rounded-lg p-3">
-                <p class="text-xs text-slate-500">{{ t('repository.stats.totalCapacity') }}</p>
-                <p class="font-semibold text-slate-800">{{ formatBytes(selectedRepo.capacity || 0) }}</p>
-              </div>
-              <div class="bg-slate-50 rounded-lg p-3">
-                <p class="text-xs text-slate-500">{{ t('repository.stats.usedSpace') }}</p>
-                <p class="font-semibold text-slate-800">{{ formatBytes(selectedRepo.used_space || 0) }}</p>
-              </div>
-            </div>
-            
-            <div class="bg-slate-50 rounded-lg p-3">
-              <p class="text-xs text-slate-500 mb-1">{{ t('sourceResources.boundNode') }}</p>
-              <p class="text-sm text-slate-700">{{ getNodeName(selectedRepo.bound_node) }}</p>
-            </div>
-            
-            <div class="flex items-center gap-2">
-              <span :class="[
-                'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium',
-                selectedRepo.kopia_initialized ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
-              ]">
-                <CheckCircleIcon v-if="selectedRepo.kopia_initialized" class="w-3 h-3" />
-                {{ selectedRepo.kopia_initialized ? t('repository.kopiaInitialized') : t('repository.kopiaNotInitialized') }}
+              <span v-if="selectedRepo.kopia_initialized" class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
+                <CheckCircleIcon class="w-4 h-4" />
+                Kopia {{ t('repository.initialized') }}
               </span>
             </div>
             
-            <div v-if="selectedRepo.description" class="bg-slate-50 rounded-lg p-3">
+            <!-- Description -->
+            <div v-if="selectedRepo.description" class="bg-slate-50 rounded-lg p-4">
               <p class="text-xs text-slate-500 mb-1">{{ t('common.description') }}</p>
               <p class="text-sm text-slate-700">{{ selectedRepo.description }}</p>
             </div>
+            
+            <!-- Storage Stats -->
+            <div class="grid grid-cols-2 gap-4">
+              <div class="bg-slate-50 rounded-lg p-4">
+                <p class="text-xs text-slate-500">{{ t('repository.stats.totalCapacity') }}</p>
+                <p class="font-semibold text-slate-800 text-lg">{{ formatBytes(selectedRepo.capacity || 0) }}</p>
+              </div>
+              <div class="bg-slate-50 rounded-lg p-4">
+                <p class="text-xs text-slate-500">{{ t('repository.stats.usedSpace') }}</p>
+                <p class="font-semibold text-slate-800 text-lg">{{ formatBytes(selectedRepo.used_space || 0) }}</p>
+              </div>
+            </div>
+            
+            <!-- S3 Configuration -->
+            <div v-if="selectedRepo.repository_type === 's3'" class="bg-slate-50 rounded-lg p-4 space-y-3">
+              <h4 class="font-medium text-slate-700 flex items-center gap-2">
+                <GlobeAltIcon class="w-5 h-5" />
+                {{ t('repository.types.s3') }} {{ t('repository.configInfo') }}
+              </h4>
+              <div class="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.s3.endpoint') }}</p>
+                  <p class="text-slate-700 font-mono">{{ selectedRepo.config?.endpoint || '-' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.s3.bucket') }}</p>
+                  <p class="text-slate-700">{{ selectedRepo.config?.bucket || '-' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.s3.region') }}</p>
+                  <p class="text-slate-700">{{ selectedRepo.config?.region || '-' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.s3.prefix') }}</p>
+                  <p class="text-slate-700">{{ selectedRepo.config?.prefix || '-' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.s3.accessKey') }}</p>
+                  <p class="text-slate-700 font-mono">{{ selectedRepo.config?.access_key ? '••••••••' + selectedRepo.config.access_key.slice(-4) : '-' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.s3.useSSL') }}</p>
+                  <p class="text-slate-700">{{ selectedRepo.config?.use_ssl !== false ? t('common.yes') : t('common.no') }}</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- NAS Configuration -->
+            <div v-if="selectedRepo.repository_type === 'nas'" class="bg-slate-50 rounded-lg p-4 space-y-3">
+              <h4 class="font-medium text-slate-700 flex items-center gap-2">
+                <ServerIcon class="w-5 h-5" />
+                {{ t('repository.types.nas') }} {{ t('repository.configInfo') }}
+              </h4>
+              <div class="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.nas.server') }}</p>
+                  <p class="text-slate-700">{{ selectedRepo.config?.server || '-' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.nas.exportPath') }}</p>
+                  <p class="text-slate-700">{{ selectedRepo.config?.export_path || '-' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.nas.nasType') }}</p>
+                  <p class="text-slate-700">{{ selectedRepo.config?.nas_type?.toUpperCase() || 'NFS' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">{{ t('repository.nas.mountOptions') }}</p>
+                  <p class="text-slate-700 font-mono text-xs">{{ selectedRepo.config?.mount_options || '-' }}</p>
+                </div>
+                <div v-if="selectedRepo.config?.nas_type === 'cifs'">
+                  <p class="text-xs text-slate-500">{{ t('repository.nas.username') }}</p>
+                  <p class="text-slate-700">{{ selectedRepo.config?.username || '-' }}</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Local Configuration -->
+            <div v-if="selectedRepo.repository_type === 'local'" class="bg-slate-50 rounded-lg p-4 space-y-3">
+              <h4 class="font-medium text-slate-700 flex items-center gap-2">
+                <FolderIcon class="w-5 h-5" />
+                {{ t('repository.types.local') }} {{ t('repository.configInfo') }}
+              </h4>
+              <div class="text-sm">
+                <p class="text-xs text-slate-500">{{ t('repository.local.path') }}</p>
+                <p class="text-slate-700 font-mono">{{ selectedRepo.config?.path || '-' }}</p>
+              </div>
+            </div>
+            
+            <!-- Bound Node -->
+            <div class="bg-slate-50 rounded-lg p-4">
+              <p class="text-xs text-slate-500 mb-1">{{ t('sourceResources.boundNode') }}</p>
+              <div class="flex items-center gap-2">
+                <div :class="['w-2 h-2 rounded-full', getNodeStatus(selectedRepo.bound_node) === 'active' ? 'bg-emerald-500' : 'bg-slate-300']" />
+                <span class="text-sm text-slate-700">{{ getNodeName(selectedRepo.bound_node) }}</span>
+                <span v-if="getNode(selectedRepo.bound_node)?.role" class="text-xs text-slate-400">({{ getNode(selectedRepo.bound_node)?.role }})</span>
+              </div>
+            </div>
+            
+            <!-- Timestamps -->
+            <div class="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p class="text-xs text-slate-500">{{ t('common.createdAt') }}</p>
+                <p class="text-slate-700">{{ new Date(selectedRepo.created_at).toLocaleString() }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500">{{ t('common.updatedAt') }}</p>
+                <p class="text-slate-700">{{ new Date(selectedRepo.updated_at).toLocaleString() }}</p>
+              </div>
+            </div>
           </div>
-          <div class="px-6 py-4 border-t border-slate-100 flex justify-end">
+          <div class="px-6 py-4 border-t border-slate-100 flex justify-end sticky bottom-0 bg-white">
             <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
               {{ t('common.cancel') }}
             </button>
