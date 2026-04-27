@@ -31,7 +31,7 @@ HyperFileLens is an AI-powered file intelligence platform for backup and archive
 - Kopia mount + indexing
 - AI query integration
 
-### Proxy (Node-side Agent)
+### Proxy (Go-based Agent)
 - Go 1.21+
 - Kopia CLI integration
 - WebSocket client
@@ -76,7 +76,7 @@ hyperfilelens/
 ├── backend/
 │   ├── core/              # Django project configuration
 │   ├── accounts/          # User authentication & management
-│   ├── nodes/             # Proxy node management & WebSocket
+│   ├── nodes/             # Proxy management & WebSocket
 │   ├── backup_tasks/      # Backup operations
 │   ├── recovery_tasks/    # Recovery operations
 │   ├── repository/        # Storage repository management
@@ -103,10 +103,10 @@ hyperfilelens/
 │   │   ├── indexer.py    # File indexing
 │   │   └── ai.py         # AI query integration
 │   └── requirements.txt
-├── proxy/                  # Node-side proxy agent (Go)
+├── proxy/                  # Proxy agent (Go)
 │   ├── main.go            # Entry point
 │   ├── config/config.go   # Configuration management
-│   ├── agent/client.go    # Node registration & heartbeat
+│   ├── agent/client.go    # Proxy registration & heartbeat
 │   ├── ws/client.go       # WebSocket client
 │   ├── task/dispatcher.go # Task routing & execution
 │   ├── kopia/client.go    # Kopia CLI wrapper
@@ -198,9 +198,9 @@ cp env.sample .env.dev
 docker-compose -f docker-compose.dev.yml up -d
 ```
 
-## Proxy (Node Agent)
+## Proxy (Go Agent)
 
-The Proxy is a Go-based agent that runs on source and target nodes. It supports **two roles** in a single program:
+The Proxy is a Go-based agent that runs on source and target servers. It supports **two roles** in a single program:
 
 ### Core Principles
 
@@ -237,7 +237,7 @@ proxy/
 ├── config/
 │   └── config.go        # Configuration management
 ├── agent/
-│   └── client.go        # Node registration & heartbeat
+│   └── client.go        # Proxy registration & heartbeat
 ├── ws/
 │   └── client.go        # WebSocket client
 ├── task/
@@ -269,7 +269,7 @@ server:
   heartbeat_interval: 10s
 
 agent:
-  name: "node-01"
+  name: "proxy-01"
   hostname: "backup-server-01"
 
 kopia:
@@ -321,7 +321,7 @@ SERVER_URL=http://control:8000 API_TOKEN=xxx PROXY_ROLE=agent ./hyperfilelens-pr
 
 #### 1. Registration Flow
 ```
-安装 → 注册 → 获取 node_id → 心跳
+安装 → 注册 → 获取 proxy_id → 心跳
 ```
 
 #### 2. Backup Task Flow
@@ -469,16 +469,16 @@ def my_task(param):
 
 ## WebSocket (Django Channels)
 
-WebSocket consumers handle real-time communication with proxy nodes:
+WebSocket consumers handle real-time communication with proxies:
 
-- `nodes/consumers.py`: Node connection management
+- `nodes/consumers.py`: Proxy connection management
 - `nodes/routing.py`: WebSocket URL routing
 
 ### Message Types
 
 | Type | Direction | Description |
 |------|-----------|-------------|
-| `register` | Proxy → Control | Node registration |
+| `register` | Proxy → Control | Proxy registration |
 | `heartbeat` | Proxy → Control | Periodic health check |
 | `backup_task` | Control → Proxy | Backup task dispatch |
 | `restore_task` | Control → Proxy | Restore task dispatch |
@@ -522,7 +522,7 @@ docker-compose -f docker-compose.dev.yml up -d --build
 | SERVER_URL | Control plane URL | Yes |
 | API_TOKEN | Authentication token | Yes |
 | PROXY_ROLE | Proxy role: "agent" or "sync" | No (default: agent) |
-| NODE_ID | Unique node identifier | No (auto-generated) |
+| PROXY_ID | Unique proxy identifier | No (auto-generated) |
 | CONFIG_PATH | Path to config file | No |
 | KOPIA_PATH | Path to Kopia binary | No |
 

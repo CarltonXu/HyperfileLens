@@ -115,41 +115,64 @@ export const authApi = {
     api.post('/api/v1/accounts/change-password/', data)
 }
 
-// ============== Nodes API ==============
-export const nodesApi = {
-  list: (params?: { page?: number; page_size?: number; status?: string }) =>
-    api.get('/api/v1/nodes/', { params }),
+// ============== Proxies API ==============
+export const proxiesApi = {
+  list: (params?: { page?: number; page_size?: number; status?: string; role?: string }) =>
+    api.get('/api/v1/proxies/', { params }),
   
-  detail: (id: number) =>
-    api.get(`/api/v1/nodes/${id}/`),
+  detail: (id: number | string) =>
+    api.get(`/api/v1/proxies/${id}/`),
   
   create: (data: any) =>
-    api.post('/api/v1/nodes/', data),
+    api.post('/api/v1/proxies/', data),
   
-  update: (id: number, data: any) =>
-    api.patch(`/api/v1/nodes/${id}/`, data),
+  update: (id: number | string, data: any) =>
+    api.patch(`/api/v1/proxies/${id}/`, data),
   
-  delete: (id: number) =>
-    api.delete(`/api/v1/nodes/${id}/`),
+  delete: (id: number | string) =>
+    api.delete(`/api/v1/proxies/${id}/`),
   
   stats: () =>
-    api.get('/api/v1/nodes/stats/'),
+    api.get('/api/v1/proxies/stats/'),
   
-  register: (data: { node_key: string; name: string; node_type: string }) =>
-    api.post('/api/v1/nodes/register/', data),
+  // Generate installation command
+  generateInstall: (data: { name: string; role: 'agent' | 'sync'; os: string; labels?: Record<string, string> }) =>
+    api.post('/api/v1/proxies/generate_install/', data),
   
-  heartbeat: (id: number) =>
-    api.post(`/api/v1/nodes/${id}/heartbeat/`),
+  // Regenerate proxy token
+  regenerateToken: (id: number | string) =>
+    api.post(`/api/v1/proxies/${id}/regenerate_token/`),
   
-  syncConfig: (id: number) =>
-    api.post(`/api/v1/nodes/${id}/sync-config/`),
+  // Registration endpoint (for proxy client, no auth required)
+  register: (data: { token: string; name: string; role: string; hostname?: string; capabilities?: Record<string, unknown> }) =>
+    api.post('/api/v1/proxies/register/', data),
   
-  listPaths: (id: number) =>
-    api.get(`/api/v1/nodes/${id}/list-paths/`),
+  // Heartbeat endpoint (for proxy client)
+  heartbeat: (data: { token: string; status: string; metrics?: Record<string, unknown>; capabilities?: Record<string, unknown> }) =>
+    api.post('/api/v1/proxies/heartbeat/', data),
   
-  verifyPath: (id: number, path: string) =>
-    api.post(`/api/v1/nodes/${id}/verify-path/`, { path })
+  // Get proxy tasks
+  tasks: (id: number | string, params?: { page?: number; page_size?: number }) =>
+    api.get(`/api/v1/proxies/${id}/tasks/`, { params }),
+  
+  // Get proxy heartbeats
+  heartbeats: (id: number | string, params?: { page?: number; page_size?: number }) =>
+    api.get(`/api/v1/proxies/${id}/heartbeats/`, { params }),
+  
+  // Legacy compatibility (deprecated, use proxiesApi instead)
+  syncConfig: (id: number | string) =>
+    api.post(`/api/v1/proxies/${id}/sync-config/`),
+  
+  listPaths: (id: number | string) =>
+    api.get(`/api/v1/proxies/${id}/list-paths/`),
+  
+  verifyPath: (id: number | string, path: string) =>
+    api.post(`/api/v1/proxies/${id}/verify-path/`, { path })
 }
+
+// ============== Legacy Nodes API (alias for backward compatibility) ==============
+/** @deprecated Use proxiesApi instead */
+export const nodesApi = proxiesApi
 
 // ============== Backup Tasks API ==============
 export const backupTasksApi = {

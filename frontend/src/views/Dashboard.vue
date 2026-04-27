@@ -87,8 +87,8 @@ function getStatusIcon(status: string) {
 async function fetchDashboardData() {
   isLoading.value = true
   try {
-    const [nodesRes, tasksRes] = await Promise.all([
-      api.get('/api/v1/nodes/stats/'),
+    const [proxiesRes, tasksRes] = await Promise.all([
+      api.get('/api/v1/proxies/stats/'),
       api.get('/api/v1/backup-tasks/tasks/?ordering=-created_at&page_size=5')
     ])
 
@@ -98,8 +98,8 @@ async function fetchDashboardData() {
     const failedCount = tasksData.filter((t: any) => t.status === 'failed').length
 
     stats.value = {
-      total_nodes: nodesRes.data.total_nodes || 0,
-      online_nodes: nodesRes.data.active_nodes || nodesRes.data.online_nodes || 0,
+      total_nodes: proxiesRes.data.total_proxies || proxiesRes.data.total_nodes || 0,
+      online_nodes: proxiesRes.data.active_proxies || proxiesRes.data.active_nodes || proxiesRes.data.online_nodes || 0,
       active_tasks: tasksRes.data.count || 0,
       storage_used: 161061273600, // 150GB
       storage_total: 1099511627776, // 1TB
