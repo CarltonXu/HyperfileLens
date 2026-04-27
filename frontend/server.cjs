@@ -55,6 +55,13 @@ function serveFile(res, filePath) {
 }
 
 function proxyRequest(req, res) {
+  // Log authorization header for debugging
+  if (req.headers.authorization) {
+    console.log(`[Proxy] Authorization header present: ${req.headers.authorization.substring(0, 20)}...`);
+  } else {
+    console.log('[Proxy] Warning: No Authorization header');
+  }
+
   const options = {
     hostname: API_PROXY_HOST,
     port: API_PROXY_PORT,

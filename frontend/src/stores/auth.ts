@@ -25,6 +25,10 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
 
+    // Clear old token before login to avoid conflicts
+    localStorage.removeItem('token')
+    token.value = null
+
     try {
       const response = await api.post<{ token: string; [key: string]: any }>(
         '/api/v1/accounts/login/',
