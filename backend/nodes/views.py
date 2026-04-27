@@ -485,14 +485,28 @@ logging:
         # Regenerate both tokens
         proxy.api_token = secrets.token_urlsafe(32)
         proxy.install_token = secrets.token_urlsafe(32)
-        proxy.save(update_fields=['api_token', 'install_token'])
         
-        # Generate installation command
-        server_url = request.build_absolute_uri('/').rstrip('/')
-        scheme = 'https' if request.is_secure() else 'http'
-        base_url = server_url.split('/api/')[0] if '/api/' in server_url else server_url
+        # Get server URL from settings or request
+        server_url = getattr(settings, 'PROXY_SERVER_URL', None)
+        if not server_url:
+            server_url = request.build_absolute_uri('/').rstrip('/')
         
-        install_cmd = f"curl -sSL {base_url}/install.sh | bash -s -- --proxy-id {proxy.id} --token {proxy.install_token} --server {base_url}"
+        # Use saved target_os or default to linux
+        os_type = proxy.target_os or 'linux'
+        
+        # Generate installation command using the unified method
+        install_cmd = self._build_install_command(
+            server_url=server_url,
+            role=proxy.role,
+            proxy_id=proxy.id,
+            install_token=proxy.install_token,
+            os_type=os_type,
+            name=proxy.name
+        )
+        
+        # Update install_command in database
+        proxy.install_command = install_cmd
+        proxy.save(update_fields=['api_token', 'install_token', 'install_command'])
         
         return Response({
             'id': str(proxy.id),
