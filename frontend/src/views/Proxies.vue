@@ -655,7 +655,8 @@ onUnmounted(() => {
         <div class="p-5">
           <!-- Step 1: Select Role -->
           <div v-if="installStep === 1" class="space-y-6">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Agent Proxy -->
               <button
                 @click="installData.role = 'agent'; installStep = 2"
                 :class="[
@@ -670,10 +671,34 @@ onUnmounted(() => {
                 </div>
                 <h3 class="font-semibold text-slate-800">{{ t('proxies.roles.agent') }}</h3>
                 <p class="text-sm text-slate-500 mt-2">{{ t('proxies.install.agentDescription') }}</p>
+                
+                <!-- Agent Requirements -->
+                <div class="mt-4 pt-4 border-t border-slate-200 space-y-2">
+                  <p class="text-xs font-medium text-slate-600">{{ t('proxies.install.requirements') }}</p>
+                  <div class="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                    <div class="flex items-center gap-1.5">
+                      <ComputerDesktopIcon class="w-3.5 h-3.5" />
+                      <span>{{ t('proxies.install.agentOS') }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <CpuChipIcon class="w-3.5 h-3.5" />
+                      <span>{{ t('proxies.install.agentCPU') }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <CircleStackIcon class="w-3.5 h-3.5" />
+                      <span>{{ t('proxies.install.agentMemory') }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <ServerIcon class="w-3.5 h-3.5" />
+                      <span>{{ t('proxies.install.agentDisk') }}</span>
+                    </div>
+                  </div>
+                </div>
               </button>
 
+              <!-- Sync Proxy -->
               <button
-                @click="installData.role = 'sync'; installStep = 2"
+                @click="installData.role = 'sync'; installData.os = 'linux'; installStep = 2"
                 :class="[
                   'p-6 rounded-xl border-2 text-left transition-all',
                   installData.role === 'sync'
@@ -686,7 +711,39 @@ onUnmounted(() => {
                 </div>
                 <h3 class="font-semibold text-slate-800">{{ t('proxies.roles.sync') }}</h3>
                 <p class="text-sm text-slate-500 mt-2">{{ t('proxies.install.syncDescription') }}</p>
+                
+                <!-- Sync Requirements -->
+                <div class="mt-4 pt-4 border-t border-slate-200 space-y-2">
+                  <p class="text-xs font-medium text-slate-600">{{ t('proxies.install.requirements') }}</p>
+                  <div class="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                    <div class="flex items-center gap-1.5">
+                      <ComputerDesktopIcon class="w-3.5 h-3.5" />
+                      <span>{{ t('proxies.install.syncOS') }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <CpuChipIcon class="w-3.5 h-3.5" />
+                      <span>{{ t('proxies.install.syncCPU') }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <CircleStackIcon class="w-3.5 h-3.5" />
+                      <span>{{ t('proxies.install.syncMemory') }}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <ServerIcon class="w-3.5 h-3.5" />
+                      <span>{{ t('proxies.install.syncDisk') }}</span>
+                    </div>
+                  </div>
+                </div>
               </button>
+            </div>
+            
+            <!-- Info Banner -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+              <InformationCircleIcon class="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+              <div class="text-sm text-blue-700">
+                <p class="font-medium">{{ t('proxies.install.infoTitle') }}</p>
+                <p class="mt-1">{{ t('proxies.install.infoDescription') }}</p>
+              </div>
             </div>
           </div>
 
@@ -705,7 +762,8 @@ onUnmounted(() => {
               />
             </div>
 
-            <div>
+            <!-- OS Selection - Only for Agent Proxy -->
+            <div v-if="installData.role === 'agent'">
               <label class="block text-sm font-medium text-slate-700 mb-1">
                 {{ t('proxies.install.targetOS') }}
               </label>
@@ -723,6 +781,19 @@ onUnmounted(() => {
                 >
                   {{ t(`proxies.install.os.${os}`) }}
                 </button>
+              </div>
+            </div>
+
+            <!-- Sync Proxy - Fixed OS Info -->
+            <div v-else class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <ComputerDesktopIcon class="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-purple-800">{{ t('proxies.install.syncFixedOS') }}</p>
+                  <p class="text-xs text-purple-600">{{ t('proxies.install.syncFixedOSNote') }}</p>
+                </div>
               </div>
             </div>
 
