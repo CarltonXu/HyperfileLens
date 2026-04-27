@@ -264,7 +264,8 @@ export default {
       tabs: {
         overview: 'Overview',
         tasks: 'Tasks',
-        heartbeats: 'Heartbeats'
+        heartbeats: 'Heartbeats',
+        install: 'Install Info'
       }
     },
 
@@ -301,10 +302,19 @@ export default {
       readyDescription: 'Copy and run the command below on your target server to install the proxy.',
       step1Title: 'Run the install command on target server',
       step1Desc: 'Login to your target server and paste the command below into the terminal. The script will automatically download and configure the proxy.',
+      step1Text: 'Login to your target server and paste the command into terminal',
       credentialsTitle: 'Save these credentials securely',
       credentialsDesc: 'These credentials are used for secure communication between the proxy and control plane. Please save them for future reference. You can regenerate the token in the proxy detail page.',
+      proxyIdLabel: 'Proxy ID',
       proxyIdDesc: 'Unique identifier for this proxy node',
+      apiTokenLabel: 'API Token',
       apiTokenDesc: 'API token for secure authentication',
+      warningTitle: 'Proxy Not Yet Installed',
+      warningText: 'This proxy has been created but not yet installed. Please run the installation command on your target server. Click "Regenerate Token" to get new installation info.',
+      helpTitle: 'Installation Guide:',
+      help1: 'The proxy will automatically connect to control plane after installation',
+      help2: 'Install token is one-time use and will be invalidated after successful installation',
+      help3: 'API token is for long-term authentication, please keep it secure',
       done: 'Done',
       os: {
         linux: 'Linux',

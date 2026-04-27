@@ -16,7 +16,11 @@ import {
   ArrowPathIcon,
   PlayIcon,
   PauseIcon,
-  TrashIcon
+  TrashIcon,
+  ClipboardDocumentIcon,
+  KeyIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon
 } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
@@ -28,7 +32,14 @@ const proxy = ref<ProxyNode | null>(null)
 const tasks = ref<ProxyTask[]>([])
 const heartbeats = ref<ProxyHeartbeat[]>([])
 const isLoading = ref(true)
-const activeTab = ref<'overview' | 'tasks' | 'heartbeats'>('overview')
+const activeTab = ref<'overview' | 'tasks' | 'heartbeats' | 'install'>('overview')
+
+// Install info for pending proxies
+const installInfo = ref<{
+  install_command: string
+  api_token: string
+  install_token: string
+} | null>(null)
 
 // Polling
 let pollInterval: number | null = null
@@ -37,6 +48,10 @@ async function fetchProxy() {
   try {
     const res = await api.get(`/api/v1/proxies/${proxyId.value}/`)
     proxy.value = res.data
+    // If pending, show install tab by default
+    if (proxy.value?.status === 'pending') {
+      activeTab.value = 'install'
+    }
   } catch (error) {
     console.error('Failed to fetch proxy:', error)
   }
@@ -72,8 +87,16 @@ async function updateStatus(newStatus: string) {
 async function regenerateToken() {
   if (!confirm(t('proxies.actions.regenerateTokenConfirm'))) return
   try {
-    await api.post(`/api/v1/proxies/${proxyId.value}/regenerate_token/`)
+    const res = await api.post(`/api/v1/proxies/${proxyId.value}/regenerate_token/`)
+    // Update install info from response
+    installInfo.value = {
+      install_command: res.data.install_command,
+      api_token: res.data.api_token,
+      install_token: res.data.install_token
+    }
     await fetchProxy()
+    // Switch to install tab to show new info
+    activeTab.value = 'install'
   } catch (error) {
     console.error('Failed to regenerate token:', error)
   }
@@ -86,6 +109,15 @@ async function deleteProxy() {
     router.push('/proxies')
   } catch (error) {
     console.error('Failed to delete proxy:', error)
+  }
+}
+
+async function copyToClipboard(text: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    alert(`${label} copied!`)
+  } catch (error) {
+    console.error('Failed to copy:', error)
   }
 }
 
@@ -248,6 +280,19 @@ onUnmounted(() => {
       <!-- Tabs -->
       <div class="border-b border-slate-200">
         <nav class="flex gap-8">
+          <!-- Install tab - only show for pending status -->
+          <button
+            v-if="proxy.status === 'pending'"
+            @click="activeTab = 'install'"
+            :class="[
+              'py-3 px-1 text-sm font-medium border-b-2 transition-colors',
+              activeTab === 'install'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            ]"
+          >
+            {{ t('proxies.detail.tabs.install') }}
+          </button>
           <button
             v-for="tab in ['overview', 'tasks', 'heartbeats']"
             :key="tab"
@@ -262,6 +307,99 @@ onUnmounted(() => {
             {{ t(`proxies.detail.tabs.${tab}`) }}
           </button>
         </nav>
+      </div>
+
+      <!-- Install Tab - For pending proxies -->
+      <div v-if="activeTab === 'install' && proxy.status === 'pending'" class="space-y-6">
+        <!-- Warning -->
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div class="flex items-start gap-3">
+            <ExclamationTriangleIcon class="w-5 h-5 text-amber-500 mt-0.5" />
+            <div>
+              <h4 class="font-medium text-amber-800">{{ t('proxies.install.warningTitle') }}</h4>
+              <p class="text-sm text-amber-700 mt-1">{{ t('proxies.install.warningText') }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 1: Install Command -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-sm font-medium flex items-center justify-center">1</span>
+            <h3 class="font-medium text-slate-800">{{ t('proxies.install.step1Title') }}</h3>
+          </div>
+          <p class="text-sm text-slate-600 mb-4">{{ t('proxies.install.step1Text') }}</p>
+          
+          <div class="relative">
+            <pre class="bg-slate-900 text-slate-100 p-4 rounded-lg text-sm overflow-x-auto pr-24">{{ installInfo?.install_command || proxy.install_command || 'Click "Regenerate Token" to get install command' }}</pre>
+            <button
+              v-if="installInfo?.install_command || proxy.install_command"
+              @click="copyToClipboard(installInfo?.install_command || proxy.install_command || '', 'Install command')"
+              class="absolute top-3 right-3 p-2 bg-slate-700 hover:bg-slate-600 rounded text-white transition-colors"
+              :title="t('common.copy')"
+            >
+              <ClipboardDocumentIcon class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Credentials -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <KeyIcon class="w-5 h-5 text-indigo-500" />
+            <h3 class="font-medium text-slate-800">{{ t('proxies.install.credentialsTitle') }}</h3>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Proxy ID -->
+            <div class="p-4 bg-slate-50 rounded-lg">
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.install.proxyIdLabel') }}</p>
+              <div class="flex items-center justify-between gap-2">
+                <code class="text-sm text-slate-800 break-all">{{ proxy.id }}</code>
+                <button
+                  @click="copyToClipboard(String(proxy.id), 'Proxy ID')"
+                  class="p-1.5 hover:bg-slate-200 rounded transition-colors"
+                  :title="t('common.copy')"
+                >
+                  <ClipboardDocumentIcon class="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+              <p class="text-xs text-slate-400 mt-2">{{ t('proxies.install.proxyIdDesc') }}</p>
+            </div>
+
+            <!-- API Token -->
+            <div class="p-4 bg-slate-50 rounded-lg">
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.install.apiTokenLabel') }}</p>
+              <div class="flex items-center justify-between gap-2">
+                <code class="text-sm text-slate-800 break-all">{{ installInfo?.api_token || proxy.api_token || 'N/A' }}</code>
+                <button
+                  v-if="installInfo?.api_token || proxy.api_token"
+                  @click="copyToClipboard(installInfo?.api_token || proxy.api_token || '', 'API Token')"
+                  class="p-1.5 hover:bg-slate-200 rounded transition-colors"
+                  :title="t('common.copy')"
+                >
+                  <ClipboardDocumentIcon class="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+              <p class="text-xs text-slate-400 mt-2">{{ t('proxies.install.apiTokenDesc') }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Help -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div class="flex items-start gap-3">
+            <InformationCircleIcon class="w-5 h-5 text-blue-500 mt-0.5" />
+            <div class="text-sm text-blue-700">
+              <p><strong>{{ t('proxies.install.helpTitle') }}</strong></p>
+              <ul class="mt-2 space-y-1 list-disc list-inside">
+                <li>{{ t('proxies.install.help1') }}</li>
+                <li>{{ t('proxies.install.help2') }}</li>
+                <li>{{ t('proxies.install.help3') }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Overview Tab -->

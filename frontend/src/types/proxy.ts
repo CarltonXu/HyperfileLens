@@ -39,6 +39,10 @@ export interface ProxyNode {
   labels: string[]
   tags: Record<string, string>
   
+  // Installation info (only for pending status)
+  api_token: string | null
+  install_command: string | null
+  
   // Timestamps
   created_at: string
   updated_at: string

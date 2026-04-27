@@ -400,12 +400,36 @@ logging:
     )
     @action(detail=True, methods=['post'])
     def regenerate_token(self, request, pk=None):
-        """Regenerate API token."""
+        """
+        Regenerate API token and install token.
+        
+        Returns new tokens and installation command.
+        Useful when:
+        1. Token is lost or compromised
+        2. Need to reinstall the proxy
+        3. Installation failed and need to retry
+        """
+        import secrets
         proxy = self.get_object()
-        new_token = proxy.generate_api_token()
+        
+        # Regenerate both tokens
+        proxy.api_token = secrets.token_urlsafe(32)
+        proxy.install_token = secrets.token_urlsafe(32)
+        proxy.save(update_fields=['api_token', 'install_token'])
+        
+        # Generate installation command
+        server_url = request.build_absolute_uri('/').rstrip('/')
+        scheme = 'https' if request.is_secure() else 'http'
+        base_url = server_url.split('/api/')[0] if '/api/' in server_url else server_url
+        
+        install_cmd = f"curl -sSL {base_url}/install.sh | bash -s -- --proxy-id {proxy.id} --token {proxy.install_token} --server {base_url}"
+        
         return Response({
-            'api_token': new_token,
-            'message': 'API token regenerated successfully'
+            'proxy_id': str(proxy.id),
+            'api_token': proxy.api_token,
+            'install_token': proxy.install_token,
+            'install_command': install_cmd,
+            'message': 'Tokens regenerated successfully'
         })
 
 

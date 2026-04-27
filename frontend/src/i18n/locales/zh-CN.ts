@@ -264,7 +264,8 @@ export default {
       tabs: {
         overview: '概览',
         tasks: '任务',
-        heartbeats: '心跳'
+        heartbeats: '心跳',
+        install: '安装信息'
       }
     },
 
@@ -301,10 +302,19 @@ export default {
       readyDescription: '复制下面的命令在目标服务器上运行以安装代理。',
       step1Title: '在目标服务器上执行安装命令',
       step1Desc: '登录到目标服务器，将以下命令粘贴到终端中执行。安装脚本会自动下载并配置代理程序。',
+      step1Text: '登录到目标服务器，将命令粘贴到终端执行',
       credentialsTitle: '请妥善保管以下凭证',
       credentialsDesc: '这些凭证用于代理与管理端的安全通信，安装完成后请保存备份。如需重新生成令牌，请在代理详情页操作。',
+      proxyIdLabel: '代理 ID',
       proxyIdDesc: '代理的唯一标识符，用于识别和管理此代理节点',
+      apiTokenLabel: 'API 令牌',
       apiTokenDesc: 'API 认证令牌，用于代理与管理端的安全通信',
+      warningTitle: '代理尚未安装',
+      warningText: '此代理已创建但尚未安装。请在目标服务器上运行安装命令完成安装。如需重新获取安装信息，请点击"重新生成令牌"按钮。',
+      helpTitle: '安装说明：',
+      help1: '安装完成后代理会自动连接到管理端',
+      help2: '安装令牌为一次性使用，安装成功后将自动失效',
+      help3: 'API 令牌用于代理的长期认证，请妥善保管',
       done: '完成',
       os: {
         linux: 'Linux',

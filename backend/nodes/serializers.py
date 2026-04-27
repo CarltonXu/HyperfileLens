@@ -72,6 +72,7 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     capabilities_display = serializers.SerializerMethodField()
+    install_command = serializers.SerializerMethodField()
 
     class Meta:
         model = ProxyNode
@@ -84,10 +85,11 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
             'capabilities', 'capabilities_display', 'mount_types',
             'tags', 'labels', 'metadata',
             'created_at', 'updated_at', 'registered_at', 'installed_at',
-            'owner', 'is_online', 'uptime_seconds', 'heartbeat_count'
+            'owner', 'is_online', 'uptime_seconds', 'heartbeat_count',
+            'api_token', 'install_command'
         ]
         read_only_fields = [
-            'id', 'api_token', 'status', 'created_at', 'updated_at',
+            'id', 'api_token', 'install_command', 'status', 'created_at', 'updated_at',
             'registered_at', 'last_heartbeat', 'installed_at'
         ]
 
@@ -109,6 +111,18 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
     def get_capabilities_display(self, obj):
         """Get capabilities with defaults."""
         return obj.get_capabilities_display()
+
+    def get_install_command(self, obj):
+        """Generate install command for pending proxies."""
+        if obj.status != 'pending' or not obj.install_token:
+            return None
+        
+        request = self.context.get('request')
+        if request:
+            server_url = request.build_absolute_uri('/').rstrip('/')
+            base_url = server_url.split('/api/')[0] if '/api/' in server_url else server_url
+            return f"curl -sSL {base_url}/install.sh | bash -s -- --proxy-id {obj.id} --token {obj.install_token} --server {base_url}"
+        return None
 
 
 class ProxyNodeCreateSerializer(serializers.ModelSerializer):
