@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { auditLogApi } from '@/api'
+import Pagination from '@/components/Pagination.vue'
 import {
   ClipboardDocumentListIcon,
   ArrowDownTrayIcon,
@@ -34,9 +35,10 @@ const logs = ref<AuditLog[]>([])
 const searchQuery = ref('')
 const selectedAction = ref('all')
 const selectedResourceType = ref('all')
+
+// Pagination
 const currentPage = ref(1)
-const totalPages = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 
 const filteredLogs = computed(() => {
   let result = logs.value
@@ -57,6 +59,18 @@ const filteredLogs = computed(() => {
   return result
 })
 
+// Paginated logs for display
+const paginatedLogs = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredLogs.value.slice(start, end)
+})
+
+// Reset page when filters change
+watch([searchQuery, selectedAction, selectedResourceType], () => {
+  currentPage.value = 1
+})
+
 const stats = computed(() => ({
   total: logs.value.length,
   success: logs.value.filter(l => l.status === 'success' || !l.status).length,
@@ -67,12 +81,8 @@ const stats = computed(() => ({
 async function fetchLogs() {
   isLoading.value = true
   try {
-    const response = await auditLogApi.list({
-      page: currentPage.value,
-      page_size: pageSize.value
-    })
+    const response = await auditLogApi.list()
     logs.value = response.data.results || response.data
-    totalPages.value = Math.ceil((response.data.count || 0) / pageSize.value)
   } catch (error) {
     console.error('Failed to fetch audit logs:', error)
   } finally {
@@ -243,7 +253,7 @@ onMounted(() => {
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
-          <tr v-for="log in filteredLogs" :key="log.id" class="hover:bg-slate-50 transition-colors">
+          <tr v-for="log in paginatedLogs" :key="log.id" class="hover:bg-slate-50 transition-colors">
             <td class="px-6 py-4">
               <span class="text-sm text-slate-600 font-mono">
                 {{ log.timestamp ? new Date(log.timestamp).toLocaleString() : '-' }}
@@ -278,25 +288,11 @@ onMounted(() => {
       </table>
 
       <!-- Pagination -->
-      <div class="flex items-center justify-between px-6 py-3 border-t border-slate-100">
-        <p class="text-sm text-slate-500">{{ t('common.total') }}: {{ filteredLogs.length }}</p>
-        <div class="flex gap-2">
-          <button
-            @click="currentPage--; fetchLogs()"
-            :disabled="currentPage === 1"
-            class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {{ t('common.previous') }}
-          </button>
-          <button
-            @click="currentPage++; fetchLogs()"
-            :disabled="currentPage >= totalPages"
-            class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {{ t('common.next') }}
-          </button>
-        </div>
-      </div>
+      <Pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total-items="filteredLogs.length"
+      />
     </div>
   </div>
 </template>

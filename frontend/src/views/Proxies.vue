@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api'
 import type { ProxyNode, ProxyStats, ProxyTask } from '@/types/proxy'
+import Pagination from '@/components/Pagination.vue'
 import {
   ServerIcon,
   PlusIcon,
@@ -43,6 +44,10 @@ const selectedStatus = ref<string>('all')
 const searchQuery = ref('')
 const viewMode = ref<'card' | 'list'>('card') // View mode: card or list
 const showInstallInfoModal = ref(false)
+
+// Pagination
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 // Installation Wizard
 const showInstallWizard = ref(false)
@@ -113,6 +118,18 @@ const filteredProxies = computed(() => {
   }
 
   return result
+})
+
+// Paginated proxies for display
+const paginatedProxies = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredProxies.value.slice(start, end)
+})
+
+// Reset page when filters change
+watch([selectedRole, selectedStatus, searchQuery], () => {
+  currentPage.value = 1
 })
 
 async function fetchProxies() {
@@ -589,7 +606,7 @@ onUnmounted(() => {
 
     <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       <div
-        v-for="proxy in filteredProxies"
+        v-for="proxy in paginatedProxies"
         :key="proxy.id"
         class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-slate-300 transition-all group"
       >
@@ -784,7 +801,7 @@ onUnmounted(() => {
             </thead>
             <tbody class="bg-white divide-y divide-slate-200">
               <tr
-                v-for="proxy in filteredProxies"
+                v-for="proxy in paginatedProxies"
                 :key="proxy.id"
                 class="hover:bg-slate-50 transition-colors"
               >
@@ -941,6 +958,12 @@ onUnmounted(() => {
             </tbody>
           </table>
         </div>
+        <!-- Pagination -->
+        <Pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total-items="filteredProxies.length"
+        />
       </div>
     </template>
 

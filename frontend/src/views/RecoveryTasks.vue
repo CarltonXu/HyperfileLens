@@ -5,6 +5,7 @@ import { recoveryTasksApi, backupTasksApi, nodesApi, repositoriesApi } from '@/a
 import type { RecoveryTask, RecoveryTaskCreateData, RecoveryTaskStatsBackend, SnapshotInfo } from '@/types/recovery'
 import type { ProxyNode } from '@/types/proxy'
 import type { Repository } from '@/types/repository'
+import Pagination from '@/components/Pagination.vue'
 import {
   ArrowDownTrayIcon,
   PlusIcon,
@@ -35,9 +36,9 @@ const selectedTask = ref<RecoveryTask | null>(null)
 const selectedStatus = ref<string>('all')
 const searchQuery = ref('')
 
+// Pagination
 const currentPage = ref(1)
-const totalPages = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 
 const newRecovery = ref<RecoveryTaskCreateData>({
   name: '',
@@ -85,15 +86,23 @@ const filteredTasks = computed(() => {
   return result
 })
 
+// Paginated tasks for display
+const paginatedTasks = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredTasks.value.slice(start, end)
+})
+
+// Reset page when filters change
+watch([selectedStatus, searchQuery], () => {
+  currentPage.value = 1
+})
+
 async function fetchTasks() {
   isLoading.value = true
   try {
-    const response = await recoveryTasksApi.list({
-      page: currentPage.value,
-      page_size: pageSize.value
-    })
+    const response = await recoveryTasksApi.list()
     tasks.value = response.data.results || response.data
-    totalPages.value = Math.ceil((response.data.count || 0) / pageSize.value)
   } catch (error) {
     console.error('Failed to fetch tasks:', error)
   } finally {
@@ -317,7 +326,7 @@ onMounted(() => {
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
-          <tr v-for="task in filteredTasks" :key="task.id" class="hover:bg-slate-50 transition-colors">
+          <tr v-for="task in paginatedTasks" :key="task.id" class="hover:bg-slate-50 transition-colors">
             <td class="px-6 py-4">
               <div class="flex items-center gap-3">
                 <div :class="[
@@ -399,25 +408,11 @@ onMounted(() => {
       </table>
 
       <!-- Pagination -->
-      <div class="flex items-center justify-between px-6 py-3 border-t border-slate-100">
-        <p class="text-sm text-slate-500">{{ t('common.total') }}: {{ tasks.length }}</p>
-        <div class="flex gap-2">
-          <button
-            @click="currentPage--; fetchTasks()"
-            :disabled="currentPage === 1"
-            class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {{ t('common.previous') }}
-          </button>
-          <button
-            @click="currentPage++; fetchTasks()"
-            :disabled="currentPage >= totalPages"
-            class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {{ t('common.next') }}
-          </button>
-        </div>
-      </div>
+      <Pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total-items="filteredTasks.length"
+      />
     </div>
 
     <!-- Create Modal -->

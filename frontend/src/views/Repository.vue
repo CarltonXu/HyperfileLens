@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { repositoriesApi, nodesApi } from '@/api'
 import type { Repository } from '@/types/repository'
 import type { ProxyNode } from '@/types/proxy'
+import Pagination from '@/components/Pagination.vue'
 import {
   PlusIcon,
   CircleStackIcon,
@@ -27,6 +28,10 @@ const typeFilter = ref('')
 const showCreateModal = ref(false)
 const showDetailModal = ref(false)
 const selectedRepo = ref<Repository | null>(null)
+
+// Pagination
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 const newRepo = ref({
   name: '',
@@ -58,6 +63,18 @@ const filteredRepos = computed(() => {
     result = result.filter(r => r.repository_type === typeFilter.value)
   }
   return result
+})
+
+// Paginated repos for display
+const paginatedRepos = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredRepos.value.slice(start, end)
+})
+
+// Reset page when filters change
+watch([searchQuery, typeFilter], () => {
+  currentPage.value = 1
 })
 
 const stats = computed(() => {
@@ -278,7 +295,7 @@ onMounted(() => {
 
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <div
-        v-for="repo in filteredRepos"
+        v-for="repo in paginatedRepos"
         :key="repo.id"
         class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow"
       >
@@ -360,6 +377,13 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Pagination -->
+    <Pagination
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :total-items="filteredRepos.length"
+    />
 
     <!-- Create Modal -->
     <Teleport to="body">

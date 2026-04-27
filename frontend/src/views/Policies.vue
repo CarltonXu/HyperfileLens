@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { policiesApi, backupTasksApi } from '@/api'
+import Pagination from '@/components/Pagination.vue'
 import {
   DocumentTextIcon,
   PlusIcon,
@@ -45,6 +46,10 @@ const backupTasks = ref<any[]>([])
 const searchQuery = ref('')
 const showCreateModal = ref(false)
 
+// Pagination
+const currentPage = ref(1)
+const pageSize = ref(10)
+
 const newPolicy = ref<Partial<Policy>>({
   name: '',
   description: '',
@@ -64,6 +69,18 @@ const filteredPolicies = computed(() => {
   return policies.value.filter(p => 
     p.name.toLowerCase().includes(query)
   )
+})
+
+// Paginated policies for display
+const paginatedPolicies = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredPolicies.value.slice(start, end)
+})
+
+// Reset page when filters change
+watch(searchQuery, () => {
+  currentPage.value = 1
 })
 
 async function fetchPolicies() {
@@ -244,7 +261,7 @@ onMounted(() => {
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
-          <tr v-for="policy in filteredPolicies" :key="policy.id" class="hover:bg-slate-50 transition-colors">
+          <tr v-for="policy in paginatedPolicies" :key="policy.id" class="hover:bg-slate-50 transition-colors">
             <td class="px-6 py-4">
               <div class="flex items-center gap-3">
                 <div :class="['w-9 h-9 rounded-lg flex items-center justify-center', getScheduleTypeColor(policy.schedule_type)]">
@@ -297,6 +314,13 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
+
+      <!-- Pagination -->
+      <Pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total-items="filteredPolicies.length"
+      />
     </div>
 
     <!-- Create Modal -->

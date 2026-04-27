@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   ServerIcon,
@@ -20,6 +20,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { sourceResourcesApi, nodesApi } from '../api'
 import type { SourceResource, ResourceType, SourceResourceStats } from '../types/sourceResource'
+import Pagination from '@/components/Pagination.vue'
 
 const { t } = useI18n()
 
@@ -34,6 +35,10 @@ const error = ref<string | null>(null)
 const searchQuery = ref('')
 const typeFilter = ref('')
 const statusFilter = ref('')
+
+// Pagination
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 // Modals
 const showCreateModal = ref(false)
@@ -61,6 +66,18 @@ const filteredResources = computed(() => {
     const matchesStatus = !statusFilter.value || r.status === statusFilter.value
     return matchesSearch && matchesType && matchesStatus
   })
+})
+
+// Paginated resources for display
+const paginatedResources = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredResources.value.slice(start, end)
+})
+
+// Reset page when filters change
+watch([searchQuery, typeFilter, statusFilter], () => {
+  currentPage.value = 1
 })
 
 // Resource type options
@@ -286,7 +303,7 @@ onMounted(fetchData)
     <!-- Resource List -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <div
-        v-for="resource in filteredResources"
+        v-for="resource in paginatedResources"
         :key="resource.id"
         class="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow"
       >
@@ -373,6 +390,14 @@ onMounted(fetchData)
       <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">{{ t('sourceResources.noResources') }}</h3>
       <p class="mt-1 text-sm text-gray-500">{{ t('sourceResources.noResourcesDesc') }}</p>
     </div>
+
+    <!-- Pagination -->
+    <Pagination
+      v-if="filteredResources.length > 0"
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :total-items="filteredResources.length"
+    />
 
     <!-- Create Modal -->
     <div v-if="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto">

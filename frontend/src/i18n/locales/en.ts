@@ -878,5 +878,20 @@ export default {
     megabytes: 'MB',
     gigabytes: 'GB',
     terabytes: 'TB'
+  },
+
+  // Pagination
+  pagination: {
+    showing: 'Showing',
+    to: 'to',
+    of: 'of',
+    items: 'items',
+    pageSize: 'Per page',
+    page: 'Page',
+    firstPage: 'First page',
+    lastPage: 'Last page',
+    prevPage: 'Previous page',
+    nextPage: 'Next page',
+    goToPage: 'Go to page {page}'
   }
 }

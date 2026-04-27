@@ -878,5 +878,20 @@ export default {
     megabytes: 'MB',
     gigabytes: 'GB',
     terabytes: 'TB'
+  },
+
+  // Pagination
+  pagination: {
+    showing: '显示',
+    to: '至',
+    of: '共',
+    items: '条',
+    pageSize: '每页',
+    page: '页',
+    firstPage: '首页',
+    lastPage: '末页',
+    prevPage: '上一页',
+    nextPage: '下一页',
+    goToPage: '跳转到第 {page} 页'
   }
 }
