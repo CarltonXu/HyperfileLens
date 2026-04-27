@@ -232,7 +232,9 @@ export default {
       setMaintenance: 'Set Maintenance',
       activate: 'Activate',
       regenerateToken: 'Regenerate Token',
-      regenerateTokenConfirm: 'This will invalidate the current token. The proxy will need to be reconfigured. Continue?'
+      regenerateTokenConfirm: 'This will invalidate the current token. The proxy will need to be reconfigured. Continue?',
+      viewInstall: 'View Install Command',
+      viewInstallDesc: 'This proxy is not installed yet. Click to view installation command.'
     },
 
     form: {
@@ -261,12 +263,80 @@ export default {
       recentTasks: 'Recent Tasks',
       noTasks: 'No recent tasks',
       noHeartbeats: 'No heartbeat history',
+      proxyId: 'Proxy ID',
+      role: 'Role',
+      status: 'Status',
+      owner: 'Owner',
+      createdAt: 'Created At',
+      cpuCores: 'CPU Cores',
+      cpuUsage: 'CPU Usage',
+      memoryUsage: 'Memory Usage',
+      diskUsage: 'Disk Usage',
+      memoryTotal: 'Total Memory',
+      diskTotal: 'Total Disk',
+      memoryUsed: 'Memory Used',
+      diskUsed: 'Disk Used',
+      osVersion: 'OS Version',
+      websocketStatus: 'WebSocket Status',
+      connectionIp: 'Connection IP',
+      notInstalled: 'Not Installed',
+      installTokenUsed: 'Install Token Used',
+      installTokenNotUsed: 'Install Token Not Used',
+      total: 'Total',
+      pendingHint: 'Proxy not installed yet, please follow the installation instructions',
+      basicInfo: 'Basic Information',
       tabs: {
         overview: 'Overview',
-        tasks: 'Tasks',
+        tasks: 'Task History',
         heartbeats: 'Heartbeats',
-        install: 'Install Info'
+        install: 'Install Info',
+        monitoring: 'Monitoring'
+      },
+      sections: {
+        basicInfo: 'Basic Information',
+        systemInfo: 'System Information',
+        hardwareInfo: 'Hardware Resources',
+        networkInfo: 'Network Connection'
       }
+    },
+
+    monitoring: {
+      '24hHeartbeats': '24h Heartbeats',
+      avgCpu: 'Avg CPU',
+      avgMemory: 'Avg Memory',
+      avgDisk: 'Avg Disk',
+      realtimeStatus: 'Realtime Status',
+      connectionInfo: 'Connection Info',
+      websocketStatus: 'WebSocket Status',
+      connected: 'Connected',
+      disconnected: 'Disconnected',
+      heartbeatInterval: 'Heartbeat Interval'
+    },
+
+    tasks: {
+      total: 'Total Tasks',
+      completed: 'Completed',
+      failed: 'Failed',
+      running: 'Running',
+      taskId: 'Task ID',
+      type: 'Type',
+      status: 'Status',
+      progress: 'Progress',
+      startTime: 'Start Time',
+      duration: 'Duration'
+    },
+
+    heartbeats: {
+      '24hCount': '24h Count',
+      avgCpu: 'Avg CPU',
+      avgMemory: 'Avg Memory',
+      avgDisk: 'Avg Disk',
+      time: 'Time',
+      cpu: 'CPU',
+      memory: 'Memory',
+      disk: 'Disk',
+      uptime: 'Uptime',
+      activeTasks: 'Active Tasks'
     },
 
     install: {

@@ -9,11 +9,17 @@ export interface ProxyNode {
   role: 'agent' | 'sync'
   status: 'active' | 'pending' | 'offline' | 'error' | 'maintenance' | 'installing'
   
+  // Owner info
+  owner: string | null
+  owner_name: string | null
+  
   // Connection info
   hostname: string | null
   internal_ip: string | null
   
   // System info
+  os: string | null
+  os_version: string | null
   operating_system: string | null
   cpu_cores: number | null
   total_memory: number | null
@@ -42,6 +48,7 @@ export interface ProxyNode {
   // Installation info (only for pending status)
   api_token: string | null
   install_command: string | null
+  install_token_used: boolean
   
   // Timestamps
   created_at: string

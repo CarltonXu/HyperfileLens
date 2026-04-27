@@ -232,7 +232,9 @@ export default {
       setMaintenance: '设为维护',
       activate: '激活',
       regenerateToken: '重新生成令牌',
-      regenerateTokenConfirm: '这将使当前令牌失效，代理需要重新配置。是否继续？'
+      regenerateTokenConfirm: '这将使当前令牌失效，代理需要重新配置。是否继续？',
+      viewInstall: '查看安装命令',
+      viewInstallDesc: '此代理尚未安装，点击查看安装命令'
     },
 
     form: {
@@ -261,12 +263,80 @@ export default {
       recentTasks: '最近任务',
       noTasks: '暂无最近任务',
       noHeartbeats: '暂无心跳历史',
+      proxyId: '代理 ID',
+      role: '角色',
+      status: '状态',
+      owner: '所有者',
+      createdAt: '创建时间',
+      cpuCores: 'CPU 核心数',
+      cpuUsage: 'CPU 使用率',
+      memoryUsage: '内存使用率',
+      diskUsage: '磁盘使用率',
+      memoryTotal: '总内存',
+      diskTotal: '总磁盘',
+      memoryUsed: '已用内存',
+      diskUsed: '已用磁盘',
+      osVersion: '系统版本',
+      websocketStatus: 'WebSocket 状态',
+      connectionIp: '连接 IP',
+      notInstalled: '未安装',
+      installTokenUsed: '安装令牌已使用',
+      installTokenNotUsed: '安装令牌未使用',
+      total: '总计',
+      pendingHint: '代理尚未安装，请按照安装说明进行操作',
+      basicInfo: '基础信息',
       tabs: {
         overview: '概览',
-        tasks: '任务',
-        heartbeats: '心跳',
-        install: '安装信息'
+        tasks: '任务历史',
+        heartbeats: '心跳记录',
+        install: '安装信息',
+        monitoring: '监控信息'
+      },
+      sections: {
+        basicInfo: '基础信息',
+        systemInfo: '系统信息',
+        hardwareInfo: '硬件资源',
+        networkInfo: '网络连接'
       }
+    },
+
+    monitoring: {
+      '24hHeartbeats': '24h 心跳数',
+      avgCpu: '平均 CPU',
+      avgMemory: '平均内存',
+      avgDisk: '平均磁盘',
+      realtimeStatus: '实时状态',
+      connectionInfo: '连接信息',
+      websocketStatus: 'WebSocket 状态',
+      connected: '已连接',
+      disconnected: '已断开',
+      heartbeatInterval: '心跳间隔'
+    },
+
+    tasks: {
+      total: '总任务数',
+      completed: '已完成',
+      failed: '失败',
+      running: '运行中',
+      taskId: '任务 ID',
+      type: '类型',
+      status: '状态',
+      progress: '进度',
+      startTime: '开始时间',
+      duration: '耗时'
+    },
+
+    heartbeats: {
+      '24hCount': '24h 心跳数',
+      avgCpu: '平均 CPU',
+      avgMemory: '平均内存',
+      avgDisk: '平均磁盘',
+      time: '时间',
+      cpu: 'CPU',
+      memory: '内存',
+      disk: '磁盘',
+      uptime: '运行时间',
+      activeTasks: '活动任务'
     },
 
     install: {

@@ -39,6 +39,7 @@ const stats = ref<ProxyStats | null>(null)
 const selectedRole = ref<string>('all')
 const selectedStatus = ref<string>('all')
 const searchQuery = ref('')
+const showInstallInfoModal = ref(false)
 
 // Installation Wizard
 const showInstallWizard = ref(false)
@@ -195,6 +196,16 @@ async function copyCommand(command: string) {
   }
 }
 
+async function copyToClipboard(text: string, label: string = 'Text') {
+  try {
+    await navigator.clipboard.writeText(text)
+    // Could add toast notification here
+    console.log(`${label} copied to clipboard`)
+  } catch (error) {
+    console.error('Failed to copy:', error)
+  }
+}
+
 function downloadConfig() {
   if (!installResult.value) return
 
@@ -220,6 +231,18 @@ function viewProxyDetail(proxy: ProxyNode) {
   showDetailModal.value = true
   fetchProxyTasks(proxy.id)
   openMenuId.value = null
+}
+
+async function viewInstallInfo(proxy: ProxyNode) {
+  // Fetch fresh proxy data with install info
+  try {
+    const response = await api.get(`/api/v1/proxies/${proxy.id}/`)
+    selectedProxy.value = response.data
+    showInstallInfoModal.value = true
+    openMenuId.value = null
+  } catch (error) {
+    console.error('Failed to fetch proxy install info:', error)
+  }
 }
 
 function editProxy(proxy: ProxyNode) {
@@ -280,6 +303,18 @@ async function regenerateToken(proxy: ProxyNode) {
     await api.post(`/api/v1/proxies/${proxy.id}/regenerate_token/`)
     await fetchProxies()
     openMenuId.value = null
+  } catch (error) {
+    console.error('Failed to regenerate token:', error)
+  }
+}
+
+async function regenerateTokenFromModal() {
+  if (!selectedProxy.value) return
+  if (!confirm(t('proxies.actions.regenerateTokenConfirm'))) return
+  try {
+    const response = await api.post(`/api/v1/proxies/${selectedProxy.value.id}/regenerate_token/`)
+    selectedProxy.value = response.data
+    await fetchProxies()
   } catch (error) {
     console.error('Failed to regenerate token:', error)
   }
@@ -628,12 +663,22 @@ onUnmounted(() => {
               {{ t(`proxies.status.${proxy.status}`) }}
             </span>
           </div>
-          <button
-            @click="viewProxyDetail(proxy)"
-            class="text-sm font-medium text-indigo-600 hover:text-indigo-700"
-          >
-            {{ t('proxies.actions.viewDetails') }} →
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              v-if="proxy.status === 'pending'"
+              @click="viewInstallInfo(proxy)"
+              class="text-sm font-medium text-amber-600 hover:text-amber-700 flex items-center gap-1"
+            >
+              <ExclamationTriangleIcon class="w-4 h-4" />
+              {{ t('proxies.actions.viewInstall') }}
+            </button>
+            <button
+              @click="viewProxyDetail(proxy)"
+              class="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+            >
+              {{ t('proxies.actions.viewDetails') }} →
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -947,6 +992,145 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Install Info Modal -->
+    <div v-if="showInstallInfoModal && selectedProxy" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full my-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-5 border-b border-slate-100">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-800">{{ t('proxies.installInfo.title') }}</h2>
+            <p class="text-sm text-slate-500 mt-1">{{ selectedProxy.name }} - {{ t(`proxies.roles.${selectedProxy.role}`) }}</p>
+          </div>
+          <button @click="showInstallInfoModal = false" class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+            <XMarkIcon class="w-5 h-5" />
+          </button>
+        </div>
+
+        <!-- Warning Banner -->
+        <div class="mx-5 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+          <ExclamationTriangleIcon class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p class="text-sm font-medium text-amber-800">{{ t('proxies.installInfo.warning') }}</p>
+            <p class="text-xs text-amber-600 mt-1">{{ t('proxies.installInfo.warningDesc') }}</p>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="p-5 space-y-5">
+          <!-- Step 1: Install Command -->
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-sm font-medium">1</span>
+              <h3 class="font-medium text-slate-800">{{ t('proxies.installInfo.installCommand') }}</h3>
+            </div>
+            <div class="relative bg-slate-900 rounded-lg p-4">
+              <code class="text-sm text-slate-300 break-all whitespace-pre-wrap">{{ selectedProxy.install_command || t('proxies.installInfo.noCommand') }}</code>
+              <div class="absolute top-2 right-2 flex gap-2">
+                <button
+                  @click="selectedProxy.install_command && copyToClipboard(selectedProxy.install_command, 'Command')"
+                  class="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 hover:text-white transition-colors"
+                  :title="t('common.copy')"
+                  :disabled="!selectedProxy.install_command"
+                >
+                  <DocumentDuplicateIcon class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Credentials -->
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-sm font-medium">2</span>
+              <h3 class="font-medium text-slate-800">{{ t('proxies.installInfo.credentials') }}</h3>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Proxy ID -->
+              <div class="bg-slate-50 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-medium text-slate-500 uppercase">{{ t('proxies.installInfo.proxyId') }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <code class="text-sm text-slate-700 break-all">{{ selectedProxy.id }}</code>
+                  <button
+                    @click="copyToClipboard(selectedProxy.id, 'Proxy ID')"
+                    class="ml-2 p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600"
+                  >
+                    <DocumentDuplicateIcon class="w-4 h-4" />
+                  </button>
+                </div>
+                <p class="text-xs text-slate-400 mt-2">{{ t('proxies.installInfo.proxyIdDesc') }}</p>
+              </div>
+
+              <!-- API Token -->
+              <div class="bg-slate-50 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-medium text-slate-500 uppercase">{{ t('proxies.installInfo.apiToken') }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <code class="text-sm text-slate-700 break-all">{{ selectedProxy.api_token || 'N/A' }}</code>
+                  <button
+                    v-if="selectedProxy.api_token"
+                    @click="copyToClipboard(selectedProxy.api_token, 'API Token')"
+                    class="ml-2 p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600"
+                  >
+                    <DocumentDuplicateIcon class="w-4 h-4" />
+                  </button>
+                </div>
+                <p class="text-xs text-slate-400 mt-2">{{ t('proxies.installInfo.apiTokenDesc') }}</p>
+              </div>
+            </div>
+
+            <!-- Install Token Status -->
+            <div class="bg-slate-50 rounded-lg p-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <KeyIcon class="w-4 h-4 text-slate-400" />
+                  <span class="text-sm font-medium text-slate-700">{{ t('proxies.installInfo.installToken') }}</span>
+                </div>
+                <span :class="[
+                  'text-xs font-medium px-2 py-1 rounded',
+                  selectedProxy.install_token_used 
+                    ? 'bg-slate-200 text-slate-600' 
+                    : 'bg-emerald-100 text-emerald-700'
+                ]">
+                  {{ selectedProxy.install_token_used ? t('proxies.installInfo.tokenUsed') : t('proxies.installInfo.tokenAvailable') }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Help Section -->
+          <div class="bg-blue-50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-blue-800 mb-2">{{ t('proxies.installInfo.help') }}</h4>
+            <ul class="text-xs text-blue-600 space-y-1 list-disc list-inside">
+              <li>{{ t('proxies.installInfo.helpStep1') }}</li>
+              <li>{{ t('proxies.installInfo.helpStep2') }}</li>
+              <li>{{ t('proxies.installInfo.helpStep3') }}</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between p-5 border-t border-slate-100">
+          <button
+            @click="regenerateTokenFromModal"
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+          >
+            <ArrowPathIcon class="w-4 h-4" />
+            {{ t('proxies.actions.regenerateToken') }}
+          </button>
+          <button
+            @click="showInstallInfoModal = false"
+            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            {{ t('common.close') }}
+          </button>
         </div>
       </div>
     </div>

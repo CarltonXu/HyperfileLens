@@ -20,7 +20,13 @@ import {
   ClipboardDocumentIcon,
   KeyIcon,
   ExclamationTriangleIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  CpuChipIcon,
+  CircleStackIcon as DatabaseIcon,
+  GlobeAltIcon,
+  IdentificationIcon,
+  TagIcon,
+  DocumentTextIcon
 } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
@@ -32,7 +38,7 @@ const proxy = ref<ProxyNode | null>(null)
 const tasks = ref<ProxyTask[]>([])
 const heartbeats = ref<ProxyHeartbeat[]>([])
 const isLoading = ref(true)
-const activeTab = ref<'overview' | 'tasks' | 'heartbeats' | 'install'>('overview')
+const activeTab = ref<'overview' | 'install' | 'monitoring' | 'tasks' | 'heartbeats'>('overview')
 
 // Install info for pending proxies
 const installInfo = ref<{
@@ -40,6 +46,34 @@ const installInfo = ref<{
   api_token: string
   install_token: string
 } | null>(null)
+
+// Task statistics
+const taskStats = computed(() => {
+  const stats = { total: 0, completed: 0, failed: 0, running: 0 }
+  tasks.value.forEach(task => {
+    stats.total++
+    if (task.status === 'completed') stats.completed++
+    else if (task.status === 'failed') stats.failed++
+    else if (task.status === 'running') stats.running++
+  })
+  return stats
+})
+
+// Heartbeat statistics
+const heartbeatStats = computed(() => {
+  if (heartbeats.value.length === 0) return { avgCpu: 0, avgMemory: 0, avgDisk: 0 }
+  const total = heartbeats.value.length
+  const sum = heartbeats.value.reduce((acc, hb) => ({
+    cpu: acc.cpu + (hb.cpu_usage || 0),
+    memory: acc.memory + (hb.memory_usage || 0),
+    disk: acc.disk + (hb.disk_usage || 0)
+  }), { cpu: 0, memory: 0, disk: 0 })
+  return {
+    avgCpu: sum.cpu / total,
+    avgMemory: sum.memory / total,
+    avgDisk: sum.disk / total
+  }
+})
 
 // Polling
 let pollInterval: number | null = null
@@ -59,8 +93,8 @@ async function fetchProxy() {
 
 async function fetchTasks() {
   try {
-    const res = await api.get(`/api/v1/proxies/${proxyId.value}/tasks/?limit=20`)
-    tasks.value = res.data
+    const res = await api.get(`/api/v1/proxies/${proxyId.value}/tasks/?limit=50`)
+    tasks.value = res.data.results || res.data
   } catch (error) {
     console.error('Failed to fetch tasks:', error)
   }
@@ -69,7 +103,7 @@ async function fetchTasks() {
 async function fetchHeartbeats() {
   try {
     const res = await api.get(`/api/v1/proxies/${proxyId.value}/heartbeats/?hours=24`)
-    heartbeats.value = res.data
+    heartbeats.value = res.data.results || res.data
   } catch (error) {
     console.error('Failed to fetch heartbeats:', error)
   }
@@ -127,7 +161,8 @@ function getStatusIcon(status: string) {
     inactive: XCircleIcon,
     offline: XCircleIcon,
     error: XCircleIcon,
-    maintenance: WrenchScrewdriverIcon
+    maintenance: WrenchScrewdriverIcon,
+    pending: ClockIcon
   }
   return icons[status] || ServerIcon
 }
@@ -154,6 +189,11 @@ function formatUptime(seconds: number | null): string {
   if (days > 0) return `${days}d ${hours}h`
   if (hours > 0) return `${hours}h ${minutes}m`
   return `${minutes}m`
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleString()
 }
 
 async function fetchData() {
@@ -200,9 +240,20 @@ onUnmounted(() => {
             </div>
             <div>
               <h1 class="text-2xl font-bold text-slate-800">{{ proxy.name }}</h1>
-              <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
-                {{ t(`proxies.roles.${proxy.role}`) }}
-              </span>
+              <div class="flex items-center gap-2 mt-1">
+                <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
+                  {{ t(`proxies.roles.${proxy.role}`) }}
+                </span>
+                <span :class="[
+                  'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                  proxy.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                  proxy.status === 'error' ? 'bg-red-100 text-red-700' :
+                  proxy.status === 'pending' ? 'bg-blue-100 text-blue-700' :
+                  'bg-slate-100 text-slate-600'
+                ]">
+                  {{ t(`proxies.status.${proxy.status}`) }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -252,6 +303,7 @@ onUnmounted(() => {
         'rounded-xl border p-4 flex items-center gap-4',
         proxy.status === 'active' ? 'bg-emerald-50 border-emerald-200' :
         proxy.status === 'error' ? 'bg-red-50 border-red-200' :
+        proxy.status === 'pending' ? 'bg-blue-50 border-blue-200' :
         proxy.status === 'maintenance' ? 'bg-amber-50 border-amber-200' :
         'bg-slate-50 border-slate-200'
       ]">
@@ -260,14 +312,16 @@ onUnmounted(() => {
           :class="[
             'w-6 h-6',
             proxy.status === 'active' ? 'text-emerald-500' :
-            proxy.status === 'error' ? 'text-red-500' : 'text-amber-500'
+            proxy.status === 'error' ? 'text-red-500' :
+            proxy.status === 'pending' ? 'text-blue-500' : 'text-amber-500'
           ]"
         />
         <div class="flex-1">
-          <p class="font-medium" :class="proxy.status === 'active' ? 'text-emerald-800' : proxy.status === 'error' ? 'text-red-800' : 'text-amber-800'">
+          <p class="font-medium" :class="proxy.status === 'active' ? 'text-emerald-800' : proxy.status === 'error' ? 'text-red-800' : proxy.status === 'pending' ? 'text-blue-800' : 'text-amber-800'">
             {{ t(`proxies.status.${proxy.status}`) }}
+            <span v-if="proxy.status === 'pending'">- {{ t('proxies.detail.pendingHint') }}</span>
           </p>
-          <p class="text-sm" :class="proxy.status === 'active' ? 'text-emerald-600' : proxy.status === 'error' ? 'text-red-600' : 'text-amber-600'">
+          <p class="text-sm" :class="proxy.status === 'active' ? 'text-emerald-600' : proxy.status === 'error' ? 'text-red-600' : proxy.status === 'pending' ? 'text-blue-600' : 'text-amber-600'">
             {{ proxy.is_online ? t('proxies.detail.currentlyOnline') : t('proxies.detail.currentlyOffline') }}
           </p>
         </div>
@@ -294,7 +348,7 @@ onUnmounted(() => {
             {{ t('proxies.detail.tabs.install') }}
           </button>
           <button
-            v-for="tab in ['overview', 'tasks', 'heartbeats']"
+            v-for="tab in ['overview', 'monitoring', 'tasks', 'heartbeats']"
             :key="tab"
             @click="activeTab = tab as any"
             :class="[
@@ -309,7 +363,7 @@ onUnmounted(() => {
         </nav>
       </div>
 
-      <!-- Install Tab - For pending proxies -->
+      <!-- ==================== Install Tab ==================== -->
       <div v-if="activeTab === 'install' && proxy.status === 'pending'" class="space-y-6">
         <!-- Warning -->
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -402,99 +456,167 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Overview Tab -->
+      <!-- ==================== Overview Tab ==================== -->
       <div v-if="activeTab === 'overview'" class="space-y-6">
-        <!-- Resource Usage -->
+        <!-- Basic Info Card -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 class="text-sm font-medium text-slate-700 mb-4 flex items-center gap-2">
+            <IdentificationIcon class="w-4 h-4" />
+            {{ t('proxies.detail.basicInfo') }}
+          </h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <p class="text-xs text-slate-500 mb-1">Proxy ID</p>
+              <div class="flex items-center gap-2">
+                <code class="text-sm font-medium text-slate-800">{{ String(proxy.id).substring(0, 8) }}...</code>
+                <button @click="copyToClipboard(String(proxy.id), 'Proxy ID')" class="p-1 hover:bg-slate-100 rounded">
+                  <ClipboardDocumentIcon class="w-3.5 h-3.5 text-slate-400" />
+                </button>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.role') }}</p>
+              <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
+                {{ t(`proxies.roles.${proxy.role}`) }}
+              </span>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.status') }}</p>
+              <span :class="[
+                'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                proxy.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                proxy.status === 'error' ? 'bg-red-100 text-red-700' :
+                'bg-slate-100 text-slate-600'
+              ]">
+                {{ t(`proxies.status.${proxy.status}`) }}
+              </span>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.owner') }}</p>
+              <p class="text-sm font-medium text-slate-800">{{ proxy.owner_name || '-' }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.createdAt') }}</p>
+              <p class="text-sm text-slate-800">{{ formatDate(proxy.created_at) }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.registeredAt') }}</p>
+              <p class="text-sm text-slate-800">{{ formatDate(proxy.registered_at) }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.lastHeartbeat') }}</p>
+              <p class="text-sm text-slate-800">{{ formatDate(proxy.last_heartbeat) }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.heartbeatInterval') }}</p>
+              <p class="text-sm text-slate-800">{{ proxy.heartbeat_interval || 10 }}s</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Resource Usage Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="bg-white rounded-xl border border-slate-200 p-5">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-sm font-medium text-slate-600">CPU Usage</span>
-              <span class="text-2xl font-bold text-slate-800">{{ proxy.cpu_usage?.toFixed(1) || 0 }}%</span>
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <CpuChipIcon class="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <p class="text-xs text-slate-500">{{ t('proxies.detail.cpuUsage') }}</p>
+                <p class="text-2xl font-bold text-slate-800">{{ proxy.cpu_usage?.toFixed(1) || 0 }}%</p>
+              </div>
             </div>
-            <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
               <div
                 class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all"
-                :style="{ width: `${proxy.cpu_usage || 0}%` }"
+                :style="{ width: `${Math.min(proxy.cpu_usage || 0, 100)}%` }"
               />
             </div>
             <p class="text-xs text-slate-500 mt-2">{{ proxy.cpu_cores || 'N/A' }} cores</p>
           </div>
 
           <div class="bg-white rounded-xl border border-slate-200 p-5">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-sm font-medium text-slate-600">Memory Usage</span>
-              <span class="text-2xl font-bold text-slate-800">{{ proxy.memory_usage?.toFixed(1) || 0 }}%</span>
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <DatabaseIcon class="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <p class="text-xs text-slate-500">{{ t('proxies.detail.memoryUsage') }}</p>
+                <p class="text-2xl font-bold text-slate-800">{{ proxy.memory_usage?.toFixed(1) || 0 }}%</p>
+              </div>
             </div>
-            <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
               <div
                 class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all"
-                :style="{ width: `${proxy.memory_usage || 0}%` }"
+                :style="{ width: `${Math.min(proxy.memory_usage || 0, 100)}%` }"
               />
             </div>
-            <p class="text-xs text-slate-500 mt-2">{{ formatBytes(proxy.total_memory) }} total</p>
+            <p class="text-xs text-slate-500 mt-2">{{ formatBytes(proxy.total_memory) }} {{ t('proxies.detail.total') }}</p>
           </div>
 
           <div class="bg-white rounded-xl border border-slate-200 p-5">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-sm font-medium text-slate-600">Disk Usage</span>
-              <span class="text-2xl font-bold text-slate-800">{{ proxy.disk_usage?.toFixed(1) || 0 }}%</span>
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                <CircleStackIcon class="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <p class="text-xs text-slate-500">{{ t('proxies.detail.diskUsage') }}</p>
+                <p class="text-2xl font-bold text-slate-800">{{ proxy.disk_usage?.toFixed(1) || 0 }}%</p>
+              </div>
             </div>
-            <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
               <div
                 class="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all"
-                :style="{ width: `${proxy.disk_usage || 0}%` }"
+                :style="{ width: `${Math.min(proxy.disk_usage || 0, 100)}%` }"
               />
             </div>
-            <p class="text-xs text-slate-500 mt-2">{{ formatBytes(proxy.total_disk) }} total</p>
+            <p class="text-xs text-slate-500 mt-2">{{ formatBytes(proxy.total_disk) }} {{ t('proxies.detail.total') }}</p>
           </div>
         </div>
 
         <!-- System Info -->
-        <div class="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 class="text-sm font-medium text-slate-700 mb-4">{{ t('proxies.detail.systemInfo') }}</h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 class="text-sm font-medium text-slate-700 mb-4 flex items-center gap-2">
+            <ServerIcon class="w-4 h-4" />
+            {{ t('proxies.detail.systemInfo') }}
+          </h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
-              <p class="text-xs text-slate-500">{{ t('proxies.detail.hostname') }}</p>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.hostname') }}</p>
               <p class="text-sm font-medium text-slate-800">{{ proxy.hostname || '-' }}</p>
             </div>
             <div>
-              <p class="text-xs text-slate-500">{{ t('proxies.detail.internalIp') }}</p>
-              <p class="text-sm font-medium text-slate-800">{{ proxy.internal_ip || '-' }}</p>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.internalIp') }}</p>
+              <div class="flex items-center gap-2">
+                <GlobeAltIcon class="w-4 h-4 text-slate-400" />
+                <p class="text-sm font-medium text-slate-800">{{ proxy.internal_ip || '-' }}</p>
+              </div>
             </div>
             <div>
-              <p class="text-xs text-slate-500">{{ t('proxies.detail.operatingSystem') }}</p>
-              <p class="text-sm font-medium text-slate-800">{{ proxy.operating_system || '-' }}</p>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.operatingSystem') }}</p>
+              <p class="text-sm font-medium text-slate-800">{{ proxy.os || '-' }} {{ proxy.os_version || '' }}</p>
             </div>
             <div>
-              <p class="text-xs text-slate-500">{{ t('proxies.detail.version') }}</p>
-              <p class="text-sm font-medium text-slate-800">{{ proxy.version || '-' }}</p>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.version') }}</p>
+              <p class="text-sm font-medium text-slate-800">v{{ proxy.version || '-' }}</p>
             </div>
             <div>
-              <p class="text-xs text-slate-500">{{ t('proxies.detail.kopiaVersion') }}</p>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.kopiaVersion') }}</p>
               <p class="text-sm font-medium text-slate-800">{{ proxy.kopia_version || '-' }}</p>
             </div>
             <div>
-              <p class="text-xs text-slate-500">{{ t('proxies.detail.lastHeartbeat') }}</p>
-              <p class="text-sm font-medium text-slate-800">
-                {{ proxy.last_heartbeat ? new Date(proxy.last_heartbeat).toLocaleString() : '-' }}
-              </p>
-            </div>
-            <div>
-              <p class="text-xs text-slate-500">{{ t('proxies.detail.registeredAt') }}</p>
-              <p class="text-sm font-medium text-slate-800">
-                {{ proxy.registered_at ? new Date(proxy.registered_at).toLocaleString() : '-' }}
-              </p>
-            </div>
-            <div>
-              <p class="text-xs text-slate-500">{{ t('proxies.detail.heartbeatInterval') }}</p>
-              <p class="text-sm font-medium text-slate-800">{{ proxy.heartbeat_interval }}s</p>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.uptime') }}</p>
+              <p class="text-sm font-medium text-slate-800">{{ formatUptime(proxy.uptime_seconds) }}</p>
             </div>
           </div>
         </div>
 
         <!-- Capabilities -->
-        <div v-if="proxy.capabilities && Object.keys(proxy.capabilities).length > 0" class="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 class="text-sm font-medium text-slate-700 mb-4">{{ t('proxies.detail.capabilities') }}</h3>
+        <div v-if="proxy.capabilities && Object.keys(proxy.capabilities).length > 0" class="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 class="text-sm font-medium text-slate-700 mb-4 flex items-center gap-2">
+            <CheckCircleIcon class="w-4 h-4" />
+            {{ t('proxies.detail.capabilities') }}
+          </h3>
           <div class="flex flex-wrap gap-3">
             <span
               v-for="(value, key) in proxy.capabilities"
@@ -512,8 +634,11 @@ onUnmounted(() => {
         </div>
 
         <!-- Labels -->
-        <div v-if="proxy.labels && proxy.labels.length > 0" class="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 class="text-sm font-medium text-slate-700 mb-4">{{ t('proxies.detail.labels') }}</h3>
+        <div v-if="proxy.labels && proxy.labels.length > 0" class="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 class="text-sm font-medium text-slate-700 mb-4 flex items-center gap-2">
+            <TagIcon class="w-4 h-4" />
+            {{ t('proxies.detail.labels') }}
+          </h3>
           <div class="flex flex-wrap gap-2">
             <span
               v-for="label in proxy.labels"
@@ -526,71 +651,245 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Tasks Tab -->
-      <div v-if="activeTab === 'tasks'" class="space-y-4">
-        <div v-if="tasks.length === 0" class="bg-white rounded-xl border border-slate-200 p-8 text-center">
-          <ClockIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p class="text-slate-500">{{ t('proxies.detail.noTasks') }}</p>
+      <!-- ==================== Monitoring Tab ==================== -->
+      <div v-if="activeTab === 'monitoring'" class="space-y-6">
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.monitoring.24hHeartbeats') }}</p>
+            <p class="text-2xl font-bold text-slate-800">{{ heartbeats.length }}</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.monitoring.avgCpu') }}</p>
+            <p class="text-2xl font-bold text-indigo-600">{{ heartbeatStats.avgCpu.toFixed(1) }}%</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.monitoring.avgMemory') }}</p>
+            <p class="text-2xl font-bold text-emerald-600">{{ heartbeatStats.avgMemory.toFixed(1) }}%</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.monitoring.avgDisk') }}</p>
+            <p class="text-2xl font-bold text-amber-600">{{ heartbeatStats.avgDisk.toFixed(1) }}%</p>
+          </div>
         </div>
 
-        <div v-else class="space-y-3">
-          <div
-            v-for="task in tasks"
-            :key="task.id"
-            class="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4"
-          >
-            <div :class="[
-              'w-10 h-10 rounded-lg flex items-center justify-center',
-              task.status === 'completed' ? 'bg-emerald-100' :
-              task.status === 'failed' ? 'bg-red-100' :
-              task.status === 'running' ? 'bg-indigo-100' : 'bg-slate-100'
-            ]">
-              <component
-                :is="task.status === 'completed' ? CheckCircleIcon : task.status === 'failed' ? XCircleIcon : ClockIcon"
-                :class="[
-                  'w-5 h-5',
-                  task.status === 'completed' ? 'text-emerald-600' :
-                  task.status === 'failed' ? 'text-red-600' :
-                  task.status === 'running' ? 'text-indigo-600' : 'text-slate-400'
-                ]"
-              />
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <p class="font-medium text-slate-800">{{ task.task_type }}</p>
-                <span :class="[
-                  'px-2 py-0.5 rounded text-xs font-medium',
-                  task.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                  task.status === 'failed' ? 'bg-red-100 text-red-700' :
-                  task.status === 'running' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
-                ]">
-                  {{ task.status }}
-                </span>
+        <!-- Real-time Status -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 class="text-sm font-medium text-slate-700 mb-4">{{ t('proxies.monitoring.realtimeStatus') }}</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="text-center">
+              <div class="relative w-32 h-32 mx-auto">
+                <svg class="w-full h-full transform -rotate-90">
+                  <circle cx="64" cy="64" r="56" stroke="#e2e8f0" stroke-width="12" fill="none" />
+                  <circle 
+                    cx="64" cy="64" r="56" 
+                    stroke="url(#cpuGradient)" 
+                    stroke-width="12" 
+                    fill="none"
+                    :stroke-dasharray="352"
+                    :stroke-dashoffset="352 - (352 * (proxy.cpu_usage || 0) / 100)"
+                    stroke-linecap="round"
+                  />
+                  <defs>
+                    <linearGradient id="cpuGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#6366f1" />
+                      <stop offset="100%" stop-color="#a855f7" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="text-2xl font-bold text-slate-800">{{ proxy.cpu_usage?.toFixed(0) || 0 }}%</span>
+                </div>
               </div>
-              <p class="text-sm text-slate-500">
-                {{ new Date(task.created_at).toLocaleString() }}
-                <span v-if="task.duration_seconds"> · {{ task.duration_seconds.toFixed(0) }}s</span>
-              </p>
-              <p v-if="task.error_message" class="text-sm text-red-500 mt-1">{{ task.error_message }}</p>
+              <p class="text-sm text-slate-600 mt-2">{{ t('proxies.detail.cpuUsage') }}</p>
             </div>
-            <div class="text-right">
-              <p class="text-lg font-bold text-slate-800">{{ task.progress }}%</p>
-              <div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden mt-1">
-                <div
-                  :class="[
-                    'h-full rounded-full',
-                    task.status === 'failed' ? 'bg-red-500' : 'bg-indigo-500'
-                  ]"
-                  :style="{ width: `${task.progress}%` }"
-                />
+            <div class="text-center">
+              <div class="relative w-32 h-32 mx-auto">
+                <svg class="w-full h-full transform -rotate-90">
+                  <circle cx="64" cy="64" r="56" stroke="#e2e8f0" stroke-width="12" fill="none" />
+                  <circle 
+                    cx="64" cy="64" r="56" 
+                    stroke="url(#memGradient)" 
+                    stroke-width="12" 
+                    fill="none"
+                    :stroke-dasharray="352"
+                    :stroke-dashoffset="352 - (352 * (proxy.memory_usage || 0) / 100)"
+                    stroke-linecap="round"
+                  />
+                  <defs>
+                    <linearGradient id="memGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#10b981" />
+                      <stop offset="100%" stop-color="#14b8a6" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="text-2xl font-bold text-slate-800">{{ proxy.memory_usage?.toFixed(0) || 0 }}%</span>
+                </div>
               </div>
+              <p class="text-sm text-slate-600 mt-2">{{ t('proxies.detail.memoryUsage') }}</p>
+            </div>
+            <div class="text-center">
+              <div class="relative w-32 h-32 mx-auto">
+                <svg class="w-full h-full transform -rotate-90">
+                  <circle cx="64" cy="64" r="56" stroke="#e2e8f0" stroke-width="12" fill="none" />
+                  <circle 
+                    cx="64" cy="64" r="56" 
+                    stroke="url(#diskGradient)" 
+                    stroke-width="12" 
+                    fill="none"
+                    :stroke-dasharray="352"
+                    :stroke-dashoffset="352 - (352 * (proxy.disk_usage || 0) / 100)"
+                    stroke-linecap="round"
+                  />
+                  <defs>
+                    <linearGradient id="diskGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#f59e0b" />
+                      <stop offset="100%" stop-color="#f97316" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="text-2xl font-bold text-slate-800">{{ proxy.disk_usage?.toFixed(0) || 0 }}%</span>
+                </div>
+              </div>
+              <p class="text-sm text-slate-600 mt-2">{{ t('proxies.detail.diskUsage') }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Info -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 class="text-sm font-medium text-slate-700 mb-4">{{ t('proxies.monitoring.connectionInfo') }}</h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.monitoring.websocketStatus') }}</p>
+              <span :class="[
+                'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium',
+                proxy.is_online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+              ]">
+                <span :class="['w-2 h-2 rounded-full', proxy.is_online ? 'bg-emerald-500' : 'bg-slate-400']" />
+                {{ proxy.is_online ? t('proxies.monitoring.connected') : t('proxies.monitoring.disconnected') }}
+              </span>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.lastHeartbeat') }}</p>
+              <p class="text-sm text-slate-800">{{ formatDate(proxy.last_heartbeat) }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.uptime') }}</p>
+              <p class="text-sm text-slate-800">{{ formatUptime(proxy.uptime_seconds) }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-1">{{ t('proxies.monitoring.heartbeatInterval') }}</p>
+              <p class="text-sm text-slate-800">{{ proxy.heartbeat_interval || 10 }}s</p>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Heartbeats Tab -->
-      <div v-if="activeTab === 'heartbeats'" class="space-y-4">
+      <!-- ==================== Tasks Tab ==================== -->
+      <div v-if="activeTab === 'tasks'" class="space-y-6">
+        <!-- Task Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.tasks.total') }}</p>
+            <p class="text-2xl font-bold text-slate-800">{{ taskStats.total }}</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.tasks.completed') }}</p>
+            <p class="text-2xl font-bold text-emerald-600">{{ taskStats.completed }}</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.tasks.failed') }}</p>
+            <p class="text-2xl font-bold text-red-600">{{ taskStats.failed }}</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.tasks.running') }}</p>
+            <p class="text-2xl font-bold text-indigo-600">{{ taskStats.running }}</p>
+          </div>
+        </div>
+
+        <!-- Task List -->
+        <div v-if="tasks.length === 0" class="bg-white rounded-xl border border-slate-200 p-8 text-center">
+          <DocumentTextIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <p class="text-slate-500">{{ t('proxies.detail.noTasks') }}</p>
+        </div>
+
+        <div v-else class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.tasks.taskId') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.tasks.type') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.tasks.status') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.tasks.progress') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.tasks.startTime') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.tasks.duration') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              <tr v-for="task in tasks" :key="task.id" class="hover:bg-slate-50">
+                <td class="px-4 py-3 text-sm text-slate-800 font-mono">{{ String(task.id).substring(0, 8) }}</td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                    {{ task.task_type }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <span :class="[
+                    'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                    task.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                    task.status === 'failed' ? 'bg-red-100 text-red-700' :
+                    task.status === 'running' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                  ]">
+                    {{ task.status }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        :class="['h-full rounded-full', task.status === 'failed' ? 'bg-red-500' : 'bg-indigo-500']"
+                        :style="{ width: `${task.progress}%` }"
+                      />
+                    </div>
+                    <span class="text-sm text-slate-600">{{ task.progress }}%</span>
+                  </div>
+                </td>
+                <td class="px-4 py-3 text-sm text-slate-600">{{ formatDate(task.created_at) }}</td>
+                <td class="px-4 py-3 text-sm text-slate-600">
+                  {{ task.duration_seconds ? `${task.duration_seconds.toFixed(0)}s` : '-' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ==================== Heartbeats Tab ==================== -->
+      <div v-if="activeTab === 'heartbeats'" class="space-y-6">
+        <!-- Heartbeat Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.heartbeats.24hCount') }}</p>
+            <p class="text-2xl font-bold text-slate-800">{{ heartbeats.length }}</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.heartbeats.avgCpu') }}</p>
+            <p class="text-2xl font-bold text-indigo-600">{{ heartbeatStats.avgCpu.toFixed(1) }}%</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.heartbeats.avgMemory') }}</p>
+            <p class="text-2xl font-bold text-emerald-600">{{ heartbeatStats.avgMemory.toFixed(1) }}%</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">{{ t('proxies.heartbeats.avgDisk') }}</p>
+            <p class="text-2xl font-bold text-amber-600">{{ heartbeatStats.avgDisk.toFixed(1) }}%</p>
+          </div>
+        </div>
+
+        <!-- Heartbeats List -->
         <div v-if="heartbeats.length === 0" class="bg-white rounded-xl border border-slate-200 p-8 text-center">
           <ServerIcon class="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <p class="text-slate-500">{{ t('proxies.detail.noHeartbeats') }}</p>
@@ -600,34 +899,43 @@ onUnmounted(() => {
           <table class="min-w-full divide-y divide-slate-200">
             <thead class="bg-slate-50">
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Time</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">CPU</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Memory</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Disk</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Uptime</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Tasks</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.heartbeats.time') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.heartbeats.cpu') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.heartbeats.memory') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.heartbeats.disk') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.heartbeats.uptime') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">{{ t('proxies.heartbeats.activeTasks') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-200">
-              <tr v-for="hb in heartbeats" :key="hb.id">
-                <td class="px-4 py-3 text-sm text-slate-800">
-                  {{ new Date(hb.created_at).toLocaleString() }}
+              <tr v-for="hb in heartbeats" :key="hb.id" class="hover:bg-slate-50">
+                <td class="px-4 py-3 text-sm text-slate-800">{{ formatDate(hb.created_at) }}</td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div class="h-full bg-indigo-500 rounded-full" :style="{ width: `${hb.cpu_usage || 0}%` }" />
+                    </div>
+                    <span class="text-sm text-slate-600">{{ hb.cpu_usage?.toFixed(1) || '-' }}%</span>
+                  </div>
                 </td>
-                <td class="px-4 py-3 text-sm text-slate-600">
-                  {{ hb.cpu_usage?.toFixed(1) || '-' }}%
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div class="h-full bg-emerald-500 rounded-full" :style="{ width: `${hb.memory_usage || 0}%` }" />
+                    </div>
+                    <span class="text-sm text-slate-600">{{ hb.memory_usage?.toFixed(1) || '-' }}%</span>
+                  </div>
                 </td>
-                <td class="px-4 py-3 text-sm text-slate-600">
-                  {{ hb.memory_usage?.toFixed(1) || '-' }}%
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div class="h-full bg-amber-500 rounded-full" :style="{ width: `${hb.disk_usage || 0}%` }" />
+                    </div>
+                    <span class="text-sm text-slate-600">{{ hb.disk_usage?.toFixed(1) || '-' }}%</span>
+                  </div>
                 </td>
-                <td class="px-4 py-3 text-sm text-slate-600">
-                  {{ hb.disk_usage?.toFixed(1) || '-' }}%
-                </td>
-                <td class="px-4 py-3 text-sm text-slate-600">
-                  {{ formatUptime(hb.uptime_seconds) }}
-                </td>
-                <td class="px-4 py-3 text-sm text-slate-600">
-                  {{ hb.active_tasks }}
-                </td>
+                <td class="px-4 py-3 text-sm text-slate-600">{{ formatUptime(hb.uptime_seconds) }}</td>
+                <td class="px-4 py-3 text-sm text-slate-600">{{ hb.active_tasks || 0 }}</td>
               </tr>
             </tbody>
           </table>
