@@ -393,6 +393,28 @@ export default {
       }
     },
 
+    installInfo: {
+      title: '安装命令',
+      warning: '代理尚未安装',
+      warningDesc: '此代理已创建但尚未完成安装。请复制以下命令在目标服务器上执行。',
+      installCommand: '安装命令',
+      noCommand: '暂无安装命令，请重新生成令牌',
+      credentials: '安装凭证',
+      proxyId: '代理 ID',
+      proxyIdDesc: '代理的唯一标识符，用于识别和管理此代理节点',
+      apiToken: 'API 令牌',
+      apiTokenDesc: 'API 认证令牌，用于代理与管理端的安全通信',
+      installToken: '安装令牌',
+      tokenUsed: '已使用',
+      tokenAvailable: '未使用',
+      help: '安装说明',
+      helpStep1: '复制安装命令并在目标服务器上执行',
+      helpStep2: '安装完成后代理会自动连接到管理端',
+      helpStep3: '安装令牌为一次性使用，安装成功后将自动失效',
+      regenerate: '重新生成令牌',
+      regenerateDesc: '重新生成将使当前令牌失效'
+    },
+
     edit: {
       title: '编辑代理'
     },

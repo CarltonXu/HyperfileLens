@@ -393,6 +393,28 @@ export default {
       }
     },
 
+    installInfo: {
+      title: 'Install Command',
+      warning: 'Proxy Not Yet Installed',
+      warningDesc: 'This proxy has been created but not yet installed. Copy the command below and run it on the target server.',
+      installCommand: 'Install Command',
+      noCommand: 'No install command available. Please regenerate token.',
+      credentials: 'Installation Credentials',
+      proxyId: 'Proxy ID',
+      proxyIdDesc: 'Unique identifier for this proxy node',
+      apiToken: 'API Token',
+      apiTokenDesc: 'API token for secure authentication with control plane',
+      installToken: 'Install Token',
+      tokenUsed: 'Used',
+      tokenAvailable: 'Available',
+      help: 'Installation Guide',
+      helpStep1: 'Copy the install command and run it on the target server',
+      helpStep2: 'The proxy will automatically connect to control plane after installation',
+      helpStep3: 'Install token is one-time use and will be invalidated after successful installation',
+      regenerate: 'Regenerate Token',
+      regenerateDesc: 'Regenerating will invalidate the current token'
+    },
+
     edit: {
       title: 'Edit Proxy'
     },
