@@ -630,11 +630,11 @@ onMounted(() => {
       </div>
 
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div
-        v-for="repo in paginatedRepos"
-        :key="repo.id"
-        class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow"
-      >
+        <div
+          v-for="repo in paginatedRepos"
+          :key="repo.id"
+          class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+        >
         <div class="flex items-start justify-between mb-3">
           <div :class="['w-10 h-10 rounded-lg flex items-center justify-center', getRepoTypeColor(repo.repo_type)]">
             <component :is="getRepoTypeIcon(repo.repo_type)" class="w-5 h-5" />
@@ -750,6 +750,7 @@ onMounted(() => {
             </button>
           </div>
         </div>
+      </div>
       </div>
     </template>
 
