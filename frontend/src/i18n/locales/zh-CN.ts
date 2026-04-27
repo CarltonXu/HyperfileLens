@@ -245,17 +245,22 @@ export default {
       capabilities: '能力'
     },
 
-    listView: {
+    list: {
       name: '名称',
       role: '角色',
       status: '状态',
       hostname: '主机名',
       ip: 'IP 地址',
       cpuCores: 'CPU',
+      cores: '核',
       memory: '内存',
+      disk: '磁盘',
       lastHeartbeat: '最后心跳',
       actions: '操作'
     },
+
+    gridView: '网格视图',
+    listView: '列表视图',
 
     detail: {
       hostname: '主机名',

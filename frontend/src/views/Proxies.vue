@@ -745,170 +745,172 @@ onUnmounted(() => {
       </div>
 
       <div v-else class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <table class="min-w-full divide-y divide-slate-200">
-          <thead class="bg-slate-50">
-            <tr>
-              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.name') }}</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.role') }}</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.status') }}</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.hostname') }}</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.ip') }}</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.os') }}</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.cpu') }}</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.memory') }}</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.lastHeartbeat') }}</th>
-              <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">{{ t('proxies.list.actions') }}</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-slate-200">
-            <tr
-              v-for="proxy in filteredProxies"
-              :key="proxy.id"
-              class="hover:bg-slate-50 transition-colors"
-            >
-              <td class="px-4 py-3 whitespace-nowrap">
-                <div class="flex items-center gap-3">
-                  <div :class="[
-                    'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-                    proxy.role === 'agent'
-                      ? 'bg-gradient-to-br from-indigo-500 to-blue-600'
-                      : 'bg-gradient-to-br from-purple-500 to-violet-600'
-                  ]">
-                    <component :is="proxy.role === 'agent' ? AgentIcon : SyncIcon" class="w-4 h-4 text-white" />
+        <div class="overflow-x-auto">
+          <table class="min-w-[900px] w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="sticky left-0 bg-slate-50 px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider z-10">{{ t('proxies.list.name') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('proxies.list.role') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('proxies.list.status') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('proxies.list.hostname') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('proxies.list.ip') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('proxies.list.cpuCores') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('proxies.list.memory') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('proxies.list.disk') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('proxies.list.lastHeartbeat') }}</th>
+                <th class="sticky right-0 bg-slate-50 px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider z-10">{{ t('proxies.list.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-slate-200">
+              <tr
+                v-for="proxy in filteredProxies"
+                :key="proxy.id"
+                class="hover:bg-slate-50 transition-colors"
+              >
+                <td class="sticky left-0 bg-white px-4 py-3 whitespace-nowrap z-10 group-hover:bg-slate-50">
+                  <div class="flex items-center gap-3">
+                    <div :class="[
+                      'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
+                      proxy.role === 'agent'
+                        ? 'bg-gradient-to-br from-indigo-500 to-blue-600'
+                        : 'bg-gradient-to-br from-purple-500 to-violet-600'
+                    ]">
+                      <component :is="proxy.role === 'agent' ? AgentIcon : SyncIcon" class="w-4 h-4 text-white" />
+                    </div>
+                    <span class="font-medium text-slate-800">{{ proxy.name }}</span>
                   </div>
-                  <span class="font-medium text-slate-800">{{ proxy.name }}</span>
-                </div>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
-                  {{ t(`proxies.roles.${proxy.role}`) }}
-                </span>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <span :class="['inline-flex items-center px-2 py-1 rounded-full text-xs font-medium', getStatusColor(proxy.status)]">
-                  {{ t(`proxies.status.${proxy.status}`) }}
-                </span>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
-                {{ proxy.hostname || '-' }}
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
-                {{ proxy.internal_ip || '-' }}
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
-                {{ proxy.operating_system || '-' }}
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <div v-if="proxy.cpu_usage !== null" class="flex items-center gap-2">
-                  <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      class="h-full rounded-full transition-all"
-                      :class="proxy.cpu_usage > 80 ? 'bg-red-500' : proxy.cpu_usage > 60 ? 'bg-amber-500' : 'bg-emerald-500'"
-                      :style="{ width: `${Math.min(proxy.cpu_usage, 100)}%` }"
-                    />
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
+                    {{ t(`proxies.roles.${proxy.role}`) }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span :class="['inline-flex items-center px-2 py-1 rounded-full text-xs font-medium', getStatusColor(proxy.status)]">
+                    {{ t(`proxies.status.${proxy.status}`) }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
+                  {{ proxy.hostname || '-' }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
+                  {{ proxy.internal_ip || '-' }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
+                  {{ proxy.cpu_cores ? `${proxy.cpu_cores} ${t('proxies.list.cores')}` : '-' }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <div v-if="proxy.memory_usage !== null" class="flex items-center gap-2">
+                    <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        class="h-full rounded-full transition-all"
+                        :class="proxy.memory_usage > 80 ? 'bg-red-500' : proxy.memory_usage > 60 ? 'bg-amber-500' : 'bg-emerald-500'"
+                        :style="{ width: `${Math.min(proxy.memory_usage, 100)}%` }"
+                      />
+                    </div>
+                    <span class="text-xs text-slate-500 w-10">{{ proxy.memory_usage?.toFixed(0) }}%</span>
                   </div>
-                  <span class="text-xs text-slate-500 w-10">{{ proxy.cpu_usage?.toFixed(0) }}%</span>
-                </div>
-                <span v-else class="text-slate-400">-</span>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <div v-if="proxy.memory_usage !== null" class="flex items-center gap-2">
-                  <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      class="h-full rounded-full transition-all"
-                      :class="proxy.memory_usage > 80 ? 'bg-red-500' : proxy.memory_usage > 60 ? 'bg-amber-500' : 'bg-emerald-500'"
-                      :style="{ width: `${Math.min(proxy.memory_usage, 100)}%` }"
-                    />
+                  <span v-else class="text-slate-400">-</span>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <div v-if="proxy.disk_usage !== null" class="flex items-center gap-2">
+                    <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        class="h-full rounded-full transition-all"
+                        :class="proxy.disk_usage > 80 ? 'bg-red-500' : proxy.disk_usage > 60 ? 'bg-amber-500' : 'bg-emerald-500'"
+                        :style="{ width: `${Math.min(proxy.disk_usage, 100)}%` }"
+                      />
+                    </div>
+                    <span class="text-xs text-slate-500 w-10">{{ proxy.disk_usage?.toFixed(0) }}%</span>
                   </div>
-                  <span class="text-xs text-slate-500 w-10">{{ proxy.memory_usage?.toFixed(0) }}%</span>
-                </div>
-                <span v-else class="text-slate-400">-</span>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500">
-                {{ timeSince(proxy.last_heartbeat) }}
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap text-right">
-                <div class="flex items-center justify-end gap-2">
-                  <button
-                    v-if="proxy.status === 'pending'"
-                    @click="viewInstallInfo(proxy)"
-                    class="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                    :title="t('proxies.actions.viewInstall')"
-                  >
-                    <ExclamationTriangleIcon class="w-4 h-4" />
-                  </button>
-                  <button
-                    @click="viewProxyDetail(proxy)"
-                    class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                    :title="t('proxies.actions.viewDetails')"
-                  >
-                    <InformationCircleIcon class="w-4 h-4" />
-                  </button>
-                  <div class="relative" @click.stop>
+                  <span v-else class="text-slate-400">-</span>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500">
+                  {{ timeSince(proxy.last_heartbeat) }}
+                </td>
+                <td class="sticky right-0 bg-white px-4 py-3 whitespace-nowrap z-10 group-hover:bg-slate-50">
+                  <div class="flex items-center justify-end gap-2">
                     <button
-                      @click="toggleMenu(proxy.id)"
-                      class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                      v-if="proxy.status === 'pending'"
+                      @click="viewInstallInfo(proxy)"
+                      class="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                      :title="t('proxies.actions.viewInstall')"
                     >
-                      <EllipsisHorizontalIcon class="w-4 h-4" />
+                      <ExclamationTriangleIcon class="w-4 h-4" />
                     </button>
-                    <!-- Dropdown Menu -->
-                    <div
-                      v-if="openMenuId === proxy.id"
-                      class="absolute right-0 top-8 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50"
+                    <button
+                      @click="viewProxyDetail(proxy)"
+                      class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      :title="t('proxies.actions.viewDetails')"
                     >
+                      <InformationCircleIcon class="w-4 h-4" />
+                    </button>
+                    <div class="relative" @click.stop>
                       <button
-                        @click="viewProxyDetail(proxy)"
-                        class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                        @click="toggleMenu(proxy.id)"
+                        class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                       >
-                        <InformationCircleIcon class="w-4 h-4" />
-                        {{ t('proxies.actions.viewDetails') }}
+                        <EllipsisHorizontalIcon class="w-4 h-4" />
                       </button>
-                      <button
-                        @click="editProxy(proxy)"
-                        class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      <!-- Dropdown Menu -->
+                      <div
+                        v-if="openMenuId === proxy.id"
+                        class="absolute right-0 top-8 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50"
                       >
-                        <PencilIcon class="w-4 h-4" />
-                        {{ t('proxies.actions.edit') }}
-                      </button>
-                      <button
-                        @click="regenerateToken(proxy)"
-                        class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                      >
-                        <ArrowPathIcon class="w-4 h-4" />
-                        {{ t('proxies.actions.regenerateToken') }}
-                      </button>
-                      <hr class="my-1 border-slate-100" />
-                      <button
-                        v-if="proxy.status === 'active'"
-                        @click="updateProxyStatus(proxy, 'maintenance')"
-                        class="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
-                      >
-                        <PauseIcon class="w-4 h-4" />
-                        {{ t('proxies.actions.setMaintenance') }}
-                      </button>
-                      <button
-                        v-else-if="proxy.status === 'maintenance'"
-                        @click="updateProxyStatus(proxy, 'active')"
-                        class="w-full px-4 py-2 text-left text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2"
-                      >
-                        <PlayIcon class="w-4 h-4" />
-                        {{ t('proxies.actions.activate') }}
-                      </button>
-                      <hr class="my-1 border-slate-100" />
-                      <button
-                        @click="confirmDeleteProxy(proxy)"
-                        class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                      >
-                        <TrashIcon class="w-4 h-4" />
-                        {{ t('proxies.actions.delete') }}
-                      </button>
+                        <button
+                          @click="viewProxyDetail(proxy)"
+                          class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                        >
+                          <InformationCircleIcon class="w-4 h-4" />
+                          {{ t('proxies.actions.viewDetails') }}
+                        </button>
+                        <button
+                          @click="editProxy(proxy)"
+                          class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                        >
+                          <PencilIcon class="w-4 h-4" />
+                          {{ t('proxies.actions.edit') }}
+                        </button>
+                        <button
+                          @click="regenerateToken(proxy)"
+                          class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                        >
+                          <ArrowPathIcon class="w-4 h-4" />
+                          {{ t('proxies.actions.regenerateToken') }}
+                        </button>
+                        <hr class="my-1 border-slate-100" />
+                        <button
+                          v-if="proxy.status === 'active'"
+                          @click="updateProxyStatus(proxy, 'maintenance')"
+                          class="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
+                        >
+                          <PauseIcon class="w-4 h-4" />
+                          {{ t('proxies.actions.setMaintenance') }}
+                        </button>
+                        <button
+                          v-else-if="proxy.status === 'maintenance'"
+                          @click="updateProxyStatus(proxy, 'active')"
+                          class="w-full px-4 py-2 text-left text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2"
+                        >
+                          <PlayIcon class="w-4 h-4" />
+                          {{ t('proxies.actions.activate') }}
+                        </button>
+                        <hr class="my-1 border-slate-100" />
+                        <button
+                          @click="confirmDeleteProxy(proxy)"
+                          class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                        >
+                          <TrashIcon class="w-4 h-4" />
+                          {{ t('proxies.actions.delete') }}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </template>
 

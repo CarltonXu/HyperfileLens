@@ -245,17 +245,22 @@ export default {
       capabilities: 'Capabilities'
     },
 
-    listView: {
+    list: {
       name: 'Name',
       role: 'Role',
       status: 'Status',
       hostname: 'Hostname',
       ip: 'IP Address',
       cpuCores: 'CPU',
+      cores: 'cores',
       memory: 'Memory',
+      disk: 'Disk',
       lastHeartbeat: 'Last Heartbeat',
       actions: 'Actions'
     },
+
+    gridView: 'Grid View',
+    listView: 'List View',
 
     detail: {
       hostname: 'Hostname',
