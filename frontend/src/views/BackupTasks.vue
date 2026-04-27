@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { backupTasksApi, nodesApi, repositoriesApi } from '@/api'
 import type { BackupTask, BackupTaskCreateData, BackupTaskStats } from '@/types/backup'
-import type { Node } from '@/types/node'
+import type { ProxyNode } from '@/types/proxy'
 import type { Repository } from '@/types/repository'
 import {
   CloudArrowUpIcon,
@@ -26,7 +26,7 @@ const { t } = useI18n()
 const isLoading = ref(true)
 const tasks = ref<BackupTask[]>([])
 const stats = ref<BackupTaskStats | null>(null)
-const nodes = ref<Node[]>([])
+const nodes = ref<ProxyNode[]>([])
 const repositories = ref<Repository[]>([])
 const showCreateModal = ref(false)
 const showDetailModal = ref(false)

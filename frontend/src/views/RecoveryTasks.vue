@@ -3,7 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { recoveryTasksApi, backupTasksApi, nodesApi, repositoriesApi } from '@/api'
 import type { RecoveryTask, RecoveryTaskCreateData, RecoveryTaskStatsBackend, SnapshotInfo } from '@/types/recovery'
-import type { Node } from '@/types/node'
+import type { ProxyNode } from '@/types/proxy'
 import type { Repository } from '@/types/repository'
 import {
   ArrowDownTrayIcon,
@@ -26,7 +26,7 @@ const { t } = useI18n()
 const isLoading = ref(true)
 const tasks = ref<RecoveryTask[]>([])
 const stats = ref<RecoveryTaskStatsBackend | null>(null)
-const nodes = ref<Node[]>([])
+const nodes = ref<ProxyNode[]>([])
 const repositories = ref<Repository[]>([])
 const snapshots = ref<SnapshotInfo[]>([])
 const showCreateModal = ref(false)

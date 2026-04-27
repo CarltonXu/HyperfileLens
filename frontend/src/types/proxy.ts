@@ -1,5 +1,8 @@
 // Proxy Node Types
 
+// Alias for backward compatibility
+export type { ProxyNode as Proxy }
+
 export interface ProxyNode {
   id: string
   name: string

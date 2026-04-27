@@ -25,10 +25,7 @@ import {
   PauseIcon,
   InformationCircleIcon,
   ClipboardDocumentIcon,
-  CommandLineIcon,
   ArrowDownTrayIcon,
-  CloudArrowDownIcon,
-  CodeBracketIcon,
   DocumentDuplicateIcon
 } from '@heroicons/vue/24/outline'
 
@@ -322,18 +319,6 @@ function getRoleColor(role: string): string {
   return role === 'agent'
     ? 'bg-indigo-100 text-indigo-700'
     : 'bg-purple-100 text-purple-700'
-}
-
-function getRoleIcon(role: string) {
-  return role === 'agent' ? ComputerDesktopIcon : CircleStackIcon
-}
-
-function formatBytes(bytes: number | null): string {
-  if (!bytes) return 'N/A'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 function formatUptime(seconds: number | null): string {

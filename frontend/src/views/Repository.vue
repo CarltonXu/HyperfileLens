@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { repositoriesApi, nodesApi } from '@/api'
 import type { Repository } from '@/types/repository'
-import type { Node } from '@/types/node'
+import type { ProxyNode } from '@/types/proxy'
 import {
   PlusIcon,
   CircleStackIcon,
@@ -21,7 +21,7 @@ const { t } = useI18n()
 
 const isLoading = ref(true)
 const repositories = ref<Repository[]>([])
-const nodes = ref<Node[]>([])
+const nodes = ref<ProxyNode[]>([])
 const searchQuery = ref('')
 const typeFilter = ref('')
 const showCreateModal = ref(false)
@@ -183,7 +183,7 @@ function getRepoTypeColor(type: string): string {
 
 function getNodeName(nodeId: string | null | undefined): string {
   if (!nodeId) return t('sourceResources.noBoundNode')
-  const node = nodes.value.find(n => String(n.id) === nodeId)
+  const node = nodes.value.find((n: ProxyNode) => String(n.id) === nodeId)
   return node?.name || nodeId
 }
 
