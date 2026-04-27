@@ -482,7 +482,8 @@ function getRepoTypeColor(type: string): string {
   return colors[type] || 'bg-slate-100 text-slate-600'
 }
 
-function getRepoTypeLabel(type: string): string {
+function getRepoTypeLabel(type: string | undefined | null): string {
+  if (!type) return '-'
   const labels: Record<string, string> = {
     s3: 'S3',
     local: t('repository.types.local'),

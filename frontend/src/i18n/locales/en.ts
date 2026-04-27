@@ -716,7 +716,7 @@ export default {
       path: 'Path'
     },
 
-    createSuccess: 'Resource created successfully',
+    createSuccess: 'Repository created successfully',
     createFailed: 'Failed to create repository',
     confirmDelete: 'Are you sure you want to delete this repository?'
   },

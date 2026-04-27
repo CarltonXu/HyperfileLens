@@ -716,7 +716,7 @@ export default {
       path: '路径'
     },
 
-    createSuccess: '资源创建成功',
+    createSuccess: '仓库创建成功',
     createFailed: '仓库创建失败',
     confirmDelete: '确定要删除此仓库吗？'
   },
