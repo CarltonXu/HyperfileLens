@@ -7,13 +7,13 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Copy go mod files
-COPY go.mod ./
+COPY go.mod go.sum* ./
 
 # Download dependencies
-RUN go mod download
+RUN go mod download || go mod tidy
 
 # Copy source code
-COPY *.go ./
+COPY . .
 
 # Build binary
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o proxy .
@@ -23,8 +23,8 @@ FROM alpine:3.19
 
 WORKDIR /app
 
-# Install Kopia and ca-certificates
-RUN apk add --no-cache ca-certificates curl bash && \
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates curl bash nfs-utils cifs-utils && \
     curl -L https://github.com/kopia/kopia/releases/download/v0.15.0/kopia_0.15.0_linux_x64.tar.gz | tar xz -C /usr/local/bin kopia && \
     chmod +x /usr/local/bin/kopia
 
@@ -32,19 +32,16 @@ RUN apk add --no-cache ca-certificates curl bash && \
 COPY --from=builder /app/proxy /usr/local/bin/hyperfilelens-proxy
 
 # Create directories
-RUN mkdir -p /data /logs /var/lib/hyperfilelens/data /var/log/hyperfilelens
-
-# Create config directory
-RUN mkdir -p /opt/hyperfilelens
+RUN mkdir -p /data /var/lib/hyperfilelens /var/log/hyperfilelens
 
 # Copy default config
 COPY config.example.yaml /opt/hyperfilelens/config.yaml
 
+# Environment variables
 ENV SERVER_URL=http://control:8000
-ENV CONTROL_URL=ws://control:8000/ws/node/
-ENV NODE_ID=""
 ENV API_TOKEN=""
-ENV LOG_LEVEL=info
+ENV PROXY_ROLE=agent
 ENV CONFIG_PATH=/opt/hyperfilelens/config.yaml
 
 ENTRYPOINT ["/usr/local/bin/hyperfilelens-proxy"]
+CMD ["--config", "/opt/hyperfilelens/config.yaml"]

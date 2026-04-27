@@ -105,9 +105,14 @@ hyperfilelens/
 │   └── requirements.txt
 ├── proxy/                  # Node-side proxy agent (Go)
 │   ├── main.go            # Entry point
-│   ├── config.go          # Configuration management
-│   ├── node.go            # Node registration & API
-│   ├── kopia.go           # Kopia operations
+│   ├── config/config.go   # Configuration management
+│   ├── agent/client.go    # Node registration & heartbeat
+│   ├── ws/client.go       # WebSocket client
+│   ├── task/dispatcher.go # Task routing & execution
+│   ├── kopia/client.go    # Kopia CLI wrapper
+│   ├── mount/manager.go   # Mount operations (Sync only)
+│   ├── monitor/metrics.go # System metrics
+│   ├── utils/utils.go     # Utility functions
 │   ├── install.sh         # Installation script
 │   ├── build.sh           # Cross-platform build
 │   └── config.example.yaml
@@ -195,12 +200,57 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ## Proxy (Node Agent)
 
-The Proxy is a Go-based agent that runs on source and target nodes. It:
+The Proxy is a Go-based agent that runs on source and target nodes. It supports **two roles** in a single program:
 
-1. **Registers** with the control plane via REST API
-2. **Connects** via WebSocket for real-time communication
-3. **Executes** Kopia commands for backup/restore operations
-4. **Reports** status and task results back to control plane
+### Core Principles
+
+1. **Proxy 负责"执行"，不负责"决策"** - Control plane makes all decisions
+2. **Proxy 不持久化业务数据** - No local business data storage (except cache)
+3. **所有任务来自控制端** - Tasks are pushed via WebSocket
+4. **所有数据写入通过 Kopia 完成** - Data operations via Kopia CLI
+
+### Proxy Roles
+
+#### 🟢 Agent Proxy (源端代理)
+- **运行位置**: 业务服务器 (Windows / Linux / MacOS)
+- **职责**:
+  - 读取本地文件系统
+  - 执行备份 (Kopia snapshot)
+  - 上报状态
+- **不负责**:
+  - 挂载 NAS ❌
+  - 管理 Repository ❌
+
+#### 🔵 Sync Proxy (采集节点)
+- **运行位置**: 独立节点 / 跳板机
+- **职责**:
+  - 挂载 NAS (NFS/SMB)
+  - 接入对象存储 (S3 API, not mount)
+  - 提供统一数据接入点
+  - 执行备份任务
+
+### Proxy Directory Structure
+
+```
+proxy/
+├── main.go              # Entry point
+├── config/
+│   └── config.go        # Configuration management
+├── agent/
+│   └── client.go        # Node registration & heartbeat
+├── ws/
+│   └── client.go        # WebSocket client
+├── task/
+│   └── dispatcher.go    # Task routing & execution
+├── kopia/
+│   └── client.go        # Kopia CLI wrapper
+├── mount/
+│   └── manager.go       # Mount operations (Sync only)
+├── monitor/
+│   └── metrics.go       # System metrics
+└── utils/
+    └── utils.go         # Utility functions
+```
 
 ### Proxy Configuration
 
@@ -209,22 +259,49 @@ Configuration can be provided via YAML file or environment variables:
 ```yaml
 # config.yaml
 version: "1.0.0"
+role: "agent"  # "agent" or "sync"
 
 server:
   url: "http://control:8000"
   api_token: "your-token"
   ws_protocol: "ws"
   reconnect_delay: 5s
-  heartbeat_interval: 30s
+  heartbeat_interval: 10s
 
 agent:
-  type: "source"  # or "target"
   name: "node-01"
   hostname: "backup-server-01"
 
-backup:
-  kopia_path: "/usr/bin/kopia"
-  data_path: "/var/lib/hyperfilelens/data"
+kopia:
+  path: "/usr/bin/kopia"
+  cache_path: "/var/lib/hyperfilelens/cache"
+
+mount:  # Sync Proxy only
+  enabled: false
+  nfs:
+    server: "nas.example.com"
+    path: "/data"
+    target: "/mnt/nas"
+
+logging:
+  level: "info"
+  file: "/var/log/hyperfilelens/proxy.log"
+```
+
+### Proxy Installation
+
+```bash
+# Install as Agent Proxy
+curl -sSL https://get.hyperfilelens.com/install-proxy.sh | bash -s -- \
+  --role agent \
+  --server https://control.hyperfilelens.com \
+  --token your-api-token
+
+# Install as Sync Proxy
+curl -sSL https://get.hyperfilelens.com/install-proxy.sh | bash -s -- \
+  --role sync \
+  --server https://control.hyperfilelens.com \
+  --token your-api-token
 ```
 
 ### Proxy Commands
@@ -234,24 +311,50 @@ backup:
 ./hyperfilelens-proxy --config /opt/hyperfilelens/config.yaml
 
 # Start with environment variables
-SERVER_URL=http://control:8000 API_TOKEN=xxx ./hyperfilelens-proxy
+SERVER_URL=http://control:8000 API_TOKEN=xxx PROXY_ROLE=agent ./hyperfilelens-proxy
 
 # Show version
 ./hyperfilelens-proxy --version
 ```
 
-### Proxy Installation
+### Proxy Workflow
 
-```bash
-# Download and run installer
-curl -sSL https://get.hyperfilelens.com/install-proxy.sh | bash
-
-# With options
-curl -sSL https://get.hyperfilelens.com/install-proxy.sh | bash -s -- \
-  --type source \
-  --server https://control.hyperfilelens.com \
-  --token your-api-token
+#### 1. Registration Flow
 ```
+安装 → 注册 → 获取 node_id → 心跳
+```
+
+#### 2. Backup Task Flow
+```
+控制端创建任务
+ ↓
+通过 WS 下发
+ ↓
+Proxy 接收
+ ↓
+Connect Repo
+ ↓
+kopia snapshot
+ ↓
+上报结果
+```
+
+#### 3. NAS Scenario (Sync Proxy)
+```
+挂载 NAS
+ ↓
+kopia snapshot /mnt/nas
+```
+
+### Key Technical Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| ✅ 一个程序，多角色 | Simplified deployment, single codebase |
+| ✅ Agent 不挂载 NAS | Security, simplified source-side |
+| ✅ NAS 由 Sync Proxy 挂载 | Centralized management |
+| ✅ S3 不走 mount | Performance, use Kopia native S3 support |
+| ✅ 默认 Direct 模式 | Agent → Repository directly |
 
 ## Coding Standards
 
@@ -418,6 +521,7 @@ docker-compose -f docker-compose.dev.yml up -d --build
 |----------|-------------|----------|
 | SERVER_URL | Control plane URL | Yes |
 | API_TOKEN | Authentication token | Yes |
+| PROXY_ROLE | Proxy role: "agent" or "sync" | No (default: agent) |
 | NODE_ID | Unique node identifier | No (auto-generated) |
 | CONFIG_PATH | Path to config file | No |
 | KOPIA_PATH | Path to Kopia binary | No |
