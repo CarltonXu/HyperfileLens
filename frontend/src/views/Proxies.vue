@@ -335,8 +335,26 @@ async function regenerateTokenFromModal() {
   }
 }
 
-function toggleMenu(proxyId: string) {
-  openMenuId.value = openMenuId.value === proxyId ? null : proxyId
+// 菜单位置样式
+const menuStyle = ref<Record<string, string>>({})
+
+function toggleMenu(proxyId: string, event?: Event) {
+  if (openMenuId.value === proxyId) {
+    openMenuId.value = null
+    return
+  }
+  openMenuId.value = proxyId
+  
+  // 计算菜单位置
+  if (event?.target) {
+    const target = event.target as HTMLElement
+    const rect = target.getBoundingClientRect()
+    menuStyle.value = {
+      top: `${rect.bottom + 8}px`,
+      right: `${window.innerWidth - rect.right}px`,
+      width: '192px'
+    }
+  }
 }
 
 // Status helpers
@@ -594,63 +612,66 @@ onUnmounted(() => {
           </div>
           <div class="relative" @click.stop>
             <button
-              @click="toggleMenu(proxy.id)"
+              @click="toggleMenu(proxy.id, $event)"
               class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
             >
               <EllipsisHorizontalIcon class="w-5 h-5" />
             </button>
-            <!-- Dropdown Menu -->
-            <div
-              v-if="openMenuId === proxy.id"
-              class="absolute right-0 top-8 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50"
-            >
-              <button
-                @click="viewProxyDetail(proxy)"
-                class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+            <!-- Dropdown Menu - 使用 Teleport 确保菜单显示在最上层 -->
+            <Teleport to="body">
+              <div
+                v-if="openMenuId === proxy.id"
+                class="fixed bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-[9999]"
+                :style="menuStyle"
               >
-                <InformationCircleIcon class="w-4 h-4" />
-                {{ t('proxies.actions.viewDetails') }}
-              </button>
-              <button
-                @click="editProxy(proxy)"
-                class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-              >
-                <PencilIcon class="w-4 h-4" />
-                {{ t('proxies.actions.edit') }}
-              </button>
-              <button
-                @click="regenerateToken(proxy)"
-                class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-              >
-                <ArrowPathIcon class="w-4 h-4" />
-                {{ t('proxies.actions.regenerateToken') }}
-              </button>
-              <hr class="my-1 border-slate-100" />
-              <button
-                v-if="proxy.status === 'active'"
-                @click="updateProxyStatus(proxy, 'maintenance')"
-                class="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
-              >
-                <PauseIcon class="w-4 h-4" />
-                {{ t('proxies.actions.setMaintenance') }}
-              </button>
-              <button
-                v-else-if="proxy.status === 'maintenance'"
-                @click="updateProxyStatus(proxy, 'active')"
-                class="w-full px-4 py-2 text-left text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2"
-              >
-                <PlayIcon class="w-4 h-4" />
-                {{ t('proxies.actions.activate') }}
-              </button>
-              <hr class="my-1 border-slate-100" />
-              <button
-                @click="confirmDeleteProxy(proxy)"
-                class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-              >
-                <TrashIcon class="w-4 h-4" />
-                {{ t('proxies.actions.delete') }}
-              </button>
-            </div>
+                <button
+                  @click="viewProxyDetail(proxy); openMenuId = null"
+                  class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <InformationCircleIcon class="w-4 h-4" />
+                  {{ t('proxies.actions.viewDetails') }}
+                </button>
+                <button
+                  @click="editProxy(proxy); openMenuId = null"
+                  class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <PencilIcon class="w-4 h-4" />
+                  {{ t('proxies.actions.edit') }}
+                </button>
+                <button
+                  @click="regenerateToken(proxy); openMenuId = null"
+                  class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <ArrowPathIcon class="w-4 h-4" />
+                  {{ t('proxies.actions.regenerateToken') }}
+                </button>
+                <hr class="my-1 border-slate-100" />
+                <button
+                  v-if="proxy.status === 'active'"
+                  @click="updateProxyStatus(proxy, 'maintenance'); openMenuId = null"
+                  class="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
+                >
+                  <PauseIcon class="w-4 h-4" />
+                  {{ t('proxies.actions.setMaintenance') }}
+                </button>
+                <button
+                  v-else-if="proxy.status === 'maintenance'"
+                  @click="updateProxyStatus(proxy, 'active'); openMenuId = null"
+                  class="w-full px-4 py-2 text-left text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2"
+                >
+                  <PlayIcon class="w-4 h-4" />
+                  {{ t('proxies.actions.activate') }}
+                </button>
+                <hr class="my-1 border-slate-100" />
+                <button
+                  @click="confirmDeleteProxy(proxy); openMenuId = null"
+                  class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                >
+                  <TrashIcon class="w-4 h-4" />
+                  {{ t('proxies.actions.delete') }}
+                </button>
+              </div>
+            </Teleport>
           </div>
         </div>
 
@@ -847,63 +868,67 @@ onUnmounted(() => {
                     </button>
                     <div class="relative" @click.stop>
                       <button
-                        @click="toggleMenu(proxy.id)"
+                        @click="toggleMenu(proxy.id, $event)"
                         class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                       >
                         <EllipsisHorizontalIcon class="w-4 h-4" />
                       </button>
-                      <!-- Dropdown Menu -->
-                      <div
-                        v-if="openMenuId === proxy.id"
-                        class="absolute right-0 top-8 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50"
-                      >
-                        <button
-                          @click="viewProxyDetail(proxy)"
-                          class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      <!-- Dropdown Menu - 使用 fixed 定位避免被 sticky 列遮挡 -->
+                      <Teleport to="body">
+                        <div
+                          v-if="openMenuId === proxy.id"
+                          ref="menuRef"
+                          class="fixed bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-[9999]"
+                          :style="menuStyle"
                         >
-                          <InformationCircleIcon class="w-4 h-4" />
-                          {{ t('proxies.actions.viewDetails') }}
-                        </button>
-                        <button
-                          @click="editProxy(proxy)"
-                          class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                        >
-                          <PencilIcon class="w-4 h-4" />
-                          {{ t('proxies.actions.edit') }}
-                        </button>
-                        <button
-                          @click="regenerateToken(proxy)"
-                          class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                        >
-                          <ArrowPathIcon class="w-4 h-4" />
-                          {{ t('proxies.actions.regenerateToken') }}
-                        </button>
-                        <hr class="my-1 border-slate-100" />
-                        <button
-                          v-if="proxy.status === 'active'"
-                          @click="updateProxyStatus(proxy, 'maintenance')"
-                          class="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
-                        >
-                          <PauseIcon class="w-4 h-4" />
-                          {{ t('proxies.actions.setMaintenance') }}
-                        </button>
-                        <button
-                          v-else-if="proxy.status === 'maintenance'"
-                          @click="updateProxyStatus(proxy, 'active')"
-                          class="w-full px-4 py-2 text-left text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2"
-                        >
-                          <PlayIcon class="w-4 h-4" />
-                          {{ t('proxies.actions.activate') }}
-                        </button>
-                        <hr class="my-1 border-slate-100" />
-                        <button
-                          @click="confirmDeleteProxy(proxy)"
-                          class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                        >
-                          <TrashIcon class="w-4 h-4" />
-                          {{ t('proxies.actions.delete') }}
-                        </button>
-                      </div>
+                          <button
+                            @click="viewProxyDetail(proxy); openMenuId = null"
+                            class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <InformationCircleIcon class="w-4 h-4" />
+                            {{ t('proxies.actions.viewDetails') }}
+                          </button>
+                          <button
+                            @click="editProxy(proxy); openMenuId = null"
+                            class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <PencilIcon class="w-4 h-4" />
+                            {{ t('proxies.actions.edit') }}
+                          </button>
+                          <button
+                            @click="regenerateToken(proxy); openMenuId = null"
+                            class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <ArrowPathIcon class="w-4 h-4" />
+                            {{ t('proxies.actions.regenerateToken') }}
+                          </button>
+                          <hr class="my-1 border-slate-100" />
+                          <button
+                            v-if="proxy.status === 'active'"
+                            @click="updateProxyStatus(proxy, 'maintenance'); openMenuId = null"
+                            class="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
+                          >
+                            <PauseIcon class="w-4 h-4" />
+                            {{ t('proxies.actions.setMaintenance') }}
+                          </button>
+                          <button
+                            v-else-if="proxy.status === 'maintenance'"
+                            @click="updateProxyStatus(proxy, 'active'); openMenuId = null"
+                            class="w-full px-4 py-2 text-left text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2"
+                          >
+                            <PlayIcon class="w-4 h-4" />
+                            {{ t('proxies.actions.activate') }}
+                          </button>
+                          <hr class="my-1 border-slate-100" />
+                          <button
+                            @click="confirmDeleteProxy(proxy); openMenuId = null"
+                            class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          >
+                            <TrashIcon class="w-4 h-4" />
+                            {{ t('proxies.actions.delete') }}
+                          </button>
+                        </div>
+                      </Teleport>
                     </div>
                   </div>
                 </td>
