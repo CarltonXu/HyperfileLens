@@ -20,8 +20,12 @@ import {
   LinkIcon,
   PlayIcon,
   ChevronRightIcon,
-  ExclamationCircleIcon
+  ExclamationCircleIcon,
+  Squares2X2Icon,
+  Bars3Icon,
+  InformationCircleIcon
 } from '@heroicons/vue/24/outline'
+import { GlobeAltIcon } from '@heroicons/vue/24/solid'
 
 const { t } = useI18n()
 
@@ -33,6 +37,9 @@ const typeFilter = ref('')
 const showCreateModal = ref(false)
 const showDetailModal = ref(false)
 const selectedRepo = ref<Repository | null>(null)
+
+// View mode
+const viewMode = ref<'card' | 'list'>('card')
 
 // Pagination
 const currentPage = ref(1)
@@ -582,23 +589,47 @@ onMounted(() => {
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
         </button>
+        <!-- View Toggle -->
+        <div class="flex items-center border border-slate-200 rounded-md">
+          <button
+            @click="viewMode = 'card'"
+            :class="[
+              'p-2 rounded-md transition-colors',
+              viewMode === 'card' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+            ]"
+            :title="t('repository.viewModes.card')"
+          >
+            <Squares2X2Icon class="w-4 h-4" />
+          </button>
+          <button
+            @click="viewMode = 'list'"
+            :class="[
+              'p-2 rounded-md transition-colors',
+              viewMode === 'list' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+            ]"
+            :title="t('repository.viewModes.list')"
+          >
+            <Bars3Icon class="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Repositories Grid -->
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-    </div>
-
-    <div v-else-if="filteredRepos.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
-      <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <CircleStackIcon class="w-8 h-8 text-slate-400" />
+    <!-- Card View -->
+    <template v-if="viewMode === 'card'">
+      <div v-if="isLoading" class="flex items-center justify-center py-12">
+        <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
       </div>
-      <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('repository.empty.title') }}</h3>
-      <p class="text-slate-500">{{ t('repository.empty.description') }}</p>
-    </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-else-if="filteredRepos.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CircleStackIcon class="w-8 h-8 text-slate-400" />
+        </div>
+        <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('repository.empty.title') }}</h3>
+        <p class="text-slate-500">{{ t('repository.empty.description') }}</p>
+      </div>
+
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <div
         v-for="repo in paginatedRepos"
         :key="repo.id"
@@ -720,14 +751,152 @@ onMounted(() => {
           </div>
         </div>
       </div>
-    </div>
+    </template>
 
-    <!-- Pagination -->
-    <Pagination
-      v-model:current-page="currentPage"
-      v-model:page-size="pageSize"
-      :total-items="filteredRepos.length"
-    />
+    <!-- List View -->
+    <template v-else>
+      <div v-if="isLoading" class="flex items-center justify-center py-12">
+        <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+      </div>
+
+      <div v-else-if="filteredRepos.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CircleStackIcon class="w-8 h-8 text-slate-400" />
+        </div>
+        <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('repository.empty.title') }}</h3>
+        <p class="text-slate-500">{{ t('repository.empty.description') }}</p>
+      </div>
+
+      <div v-else class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-[1000px] w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="sticky left-0 bg-slate-50 px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider z-10">{{ t('repository.list.name') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.type') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.status') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.connection') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.boundNode') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.capacity') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.kopia') }}</th>
+                <th class="sticky right-0 bg-slate-50 px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider z-10">{{ t('repository.list.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-slate-200">
+              <tr
+                v-for="repo in paginatedRepos"
+                :key="repo.id"
+                class="hover:bg-slate-50 transition-colors"
+              >
+                <!-- Name -->
+                <td class="sticky left-0 bg-white px-4 py-3 whitespace-nowrap z-10">
+                  <div class="flex items-center gap-3">
+                    <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', getRepoTypeColor(repo.repository_type)]">
+                      <component :is="getRepoTypeIcon(repo.repository_type)" class="w-4 h-4 text-white" />
+                    </div>
+                    <button
+                      @click="selectedRepo = repo; showDetailModal = true"
+                      class="font-medium text-slate-800 hover:text-indigo-600 cursor-pointer transition-colors text-left"
+                    >
+                      {{ repo.name }}
+                    </button>
+                  </div>
+                </td>
+                <!-- Type -->
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                    repo.repository_type === 's3' ? 'bg-orange-100 text-orange-700' :
+                    repo.repository_type === 'nas' ? 'bg-purple-100 text-purple-700' :
+                    'bg-blue-100 text-blue-700'
+                  ]">
+                    {{ getRepoTypeLabel(repo.repository_type) }}
+                  </span>
+                </td>
+                <!-- Status -->
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span :class="[
+                    'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
+                    repo.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                  ]">
+                    {{ repo.status === 'active' ? t('common.active') : t('common.inactive') }}
+                  </span>
+                </td>
+                <!-- Connection Info -->
+                <td class="px-4 py-3 text-sm text-slate-600 max-w-[200px]">
+                  <template v-if="repo.repository_type === 's3'">
+                    <div class="truncate" :title="repo.config?.endpoint">{{ repo.config?.bucket || '-' }}</div>
+                  </template>
+                  <template v-else-if="repo.repository_type === 'nas'">
+                    <div class="truncate" :title="repo.config?.server">{{ repo.config?.server || '-' }}</div>
+                  </template>
+                  <template v-else>
+                    <div class="truncate" :title="repo.config?.path">{{ repo.config?.path || '-' }}</div>
+                  </template>
+                </td>
+                <!-- Bound Node -->
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
+                  {{ getNodeName(repo.bound_node) }}
+                </td>
+                <!-- Capacity -->
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <div v-if="repo.capacity" class="flex items-center gap-2">
+                    <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        class="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all"
+                        :style="{ width: `${Math.min(((repo.used_space || 0) / repo.capacity) * 100, 100)}%` }"
+                      />
+                    </div>
+                    <span class="text-xs text-slate-500">{{ formatBytes(repo.used_space || 0) }}/{{ formatBytes(repo.capacity) }}</span>
+                  </div>
+                  <span v-else class="text-slate-400 text-sm">-</span>
+                </td>
+                <!-- Kopia -->
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span v-if="repo.kopia_initialized" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                    <CheckCircleIcon class="w-3 h-3" />
+                    {{ t('repository.initialized') }}
+                  </span>
+                  <span v-else class="text-slate-400 text-xs">-</span>
+                </td>
+                <!-- Actions -->
+                <td class="sticky right-0 bg-white px-4 py-3 whitespace-nowrap text-right z-10">
+                  <div class="flex items-center justify-end gap-1">
+                    <button
+                      v-if="!repo.kopia_initialized && repo.bound_node"
+                      @click="initKopia(repo)"
+                      class="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                      :title="t('repository.initKopia')"
+                    >
+                      <PlayIcon class="w-4 h-4" />
+                    </button>
+                    <button
+                      @click="selectedRepo = repo; showDetailModal = true"
+                      class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                      :title="t('common.details')"
+                    >
+                      <InformationCircleIcon class="w-4 h-4" />
+                    </button>
+                    <button
+                      @click="deleteRepository(repo)"
+                      class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      :title="t('common.delete')"
+                    >
+                      <TrashIcon class="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Pagination -->
+        <Pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total-items="filteredRepos.length"
+        />
+      </div>
+    </template>
 
     <!-- Create Modal -->
     <Teleport to="body">

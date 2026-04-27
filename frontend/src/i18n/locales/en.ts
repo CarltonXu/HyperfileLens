@@ -718,6 +718,22 @@ export default {
       path: 'Path'
     },
 
+    list: {
+      name: 'Name',
+      type: 'Type',
+      status: 'Status',
+      connection: 'Connection',
+      boundNode: 'Bound Node',
+      capacity: 'Capacity',
+      kopia: 'Kopia',
+      actions: 'Actions'
+    },
+
+    viewModes: {
+      card: 'Card View',
+      list: 'List View'
+    },
+
     createSuccess: 'Repository created successfully',
     createFailed: 'Failed to create repository',
     confirmDelete: 'Are you sure you want to delete this repository?',

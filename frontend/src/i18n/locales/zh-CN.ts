@@ -718,6 +718,22 @@ export default {
       path: '路径'
     },
 
+    list: {
+      name: '名称',
+      type: '类型',
+      status: '状态',
+      connection: '连接信息',
+      boundNode: '绑定节点',
+      capacity: '容量',
+      kopia: 'Kopia',
+      actions: '操作'
+    },
+
+    viewModes: {
+      card: '卡片视图',
+      list: '列表视图'
+    },
+
     createSuccess: '仓库创建成功',
     createFailed: '仓库创建失败',
     confirmDelete: '确定要删除此仓库吗？',
