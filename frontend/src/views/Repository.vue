@@ -547,8 +547,9 @@ onMounted(() => {
     <Teleport to="body">
       <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="showCreateModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+          <!-- Fixed Header -->
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
             <h2 class="text-lg font-semibold text-slate-800">{{ t('repository.form.addRepository') }}</h2>
             <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -557,34 +558,36 @@ onMounted(() => {
             </button>
           </div>
           
-          <div class="p-6 space-y-6">
-            <!-- Repository Type Selection -->
-            <div>
-              <label class="block text-sm font-medium text-slate-700 mb-3">{{ t('repository.form.repositoryType') }}</label>
-              <div class="grid grid-cols-3 gap-3">
-                <button
-                  v-for="type in repoTypes"
-                  :key="type.value"
-                  @click="newRepo.repo_type = type.value as any"
-                  :class="[
-                    'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
-                    newRepo.repo_type === type.value 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-slate-200 hover:border-slate-300'
-                  ]"
-                >
-                  <div :class="[
-                    'w-10 h-10 rounded-lg flex items-center justify-center',
-                    type.color === 'orange' ? 'bg-orange-100 text-orange-600' :
-                    type.color === 'purple' ? 'bg-purple-100 text-purple-600' :
-                    'bg-blue-100 text-blue-600'
-                  ]">
-                    <component :is="type.icon" class="w-5 h-5" />
-                  </div>
-                  <span class="text-sm font-medium text-slate-700">{{ type.label }}</span>
-                </button>
-              </div>
+          <!-- Fixed Repository Type Selection -->
+          <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex-shrink-0">
+            <label class="block text-sm font-medium text-slate-700 mb-3">{{ t('repository.form.repositoryType') }}</label>
+            <div class="grid grid-cols-3 gap-3">
+              <button
+                v-for="type in repoTypes"
+                :key="type.value"
+                @click="newRepo.repo_type = type.value as any"
+                :class="[
+                  'flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all',
+                  newRepo.repo_type === type.value 
+                    ? 'border-blue-500 bg-white shadow-sm' 
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                ]"
+              >
+                <div :class="[
+                  'w-9 h-9 rounded-lg flex items-center justify-center',
+                  type.color === 'orange' ? 'bg-orange-100 text-orange-600' :
+                  type.color === 'purple' ? 'bg-purple-100 text-purple-600' :
+                  'bg-blue-100 text-blue-600'
+                ]">
+                  <component :is="type.icon" class="w-5 h-5" />
+                </div>
+                <span class="text-xs font-medium text-slate-700">{{ type.label }}</span>
+              </button>
             </div>
+          </div>
+
+          <!-- Scrollable Content Area -->
+          <div class="flex-1 overflow-y-auto p-6 space-y-4">
 
             <!-- Basic Info -->
             <div class="grid grid-cols-2 gap-4">
@@ -820,7 +823,8 @@ onMounted(() => {
             </div>
           </div>
           
-          <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 sticky bottom-0 bg-white">
+          <!-- Fixed Footer -->
+          <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 flex-shrink-0 bg-white">
             <button @click="showCreateModal = false; resetForm()" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
               {{ t('common.cancel') }}
             </button>
