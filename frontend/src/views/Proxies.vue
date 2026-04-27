@@ -673,23 +673,23 @@ onUnmounted(() => {
                 <p class="text-sm text-slate-500 mt-2">{{ t('proxies.install.agentDescription') }}</p>
                 
                 <!-- Agent Requirements -->
-                <div class="mt-4 pt-4 border-t border-slate-200 space-y-2">
-                  <p class="text-xs font-medium text-slate-600">{{ t('proxies.install.requirements') }}</p>
-                  <div class="grid grid-cols-2 gap-2 text-xs text-slate-500">
-                    <div class="flex items-center gap-1.5">
-                      <ComputerDesktopIcon class="w-3.5 h-3.5" />
+                <div class="mt-4 pt-4 border-t border-slate-200">
+                  <p class="text-xs font-medium text-slate-600 mb-2">{{ t('proxies.install.requirements') }}</p>
+                  <div class="space-y-1.5 text-xs text-slate-500">
+                    <div class="flex items-center gap-2">
+                      <ComputerDesktopIcon class="w-3.5 h-3.5 text-slate-400" />
                       <span>{{ t('proxies.install.agentOS') }}</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                      <CpuChipIcon class="w-3.5 h-3.5" />
+                    <div class="flex items-center gap-2">
+                      <CpuChipIcon class="w-3.5 h-3.5 text-slate-400" />
                       <span>{{ t('proxies.install.agentCPU') }}</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                      <CircleStackIcon class="w-3.5 h-3.5" />
+                    <div class="flex items-center gap-2">
+                      <CircleStackIcon class="w-3.5 h-3.5 text-slate-400" />
                       <span>{{ t('proxies.install.agentMemory') }}</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                      <ServerIcon class="w-3.5 h-3.5" />
+                    <div class="flex items-center gap-2">
+                      <ServerIcon class="w-3.5 h-3.5 text-slate-400" />
                       <span>{{ t('proxies.install.agentDisk') }}</span>
                     </div>
                   </div>
@@ -713,23 +713,23 @@ onUnmounted(() => {
                 <p class="text-sm text-slate-500 mt-2">{{ t('proxies.install.syncDescription') }}</p>
                 
                 <!-- Sync Requirements -->
-                <div class="mt-4 pt-4 border-t border-slate-200 space-y-2">
-                  <p class="text-xs font-medium text-slate-600">{{ t('proxies.install.requirements') }}</p>
-                  <div class="grid grid-cols-2 gap-2 text-xs text-slate-500">
-                    <div class="flex items-center gap-1.5">
-                      <ComputerDesktopIcon class="w-3.5 h-3.5" />
+                <div class="mt-4 pt-4 border-t border-slate-200">
+                  <p class="text-xs font-medium text-slate-600 mb-2">{{ t('proxies.install.requirements') }}</p>
+                  <div class="space-y-1.5 text-xs text-slate-500">
+                    <div class="flex items-center gap-2">
+                      <ComputerDesktopIcon class="w-3.5 h-3.5 text-slate-400" />
                       <span>{{ t('proxies.install.syncOS') }}</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                      <CpuChipIcon class="w-3.5 h-3.5" />
+                    <div class="flex items-center gap-2">
+                      <CpuChipIcon class="w-3.5 h-3.5 text-slate-400" />
                       <span>{{ t('proxies.install.syncCPU') }}</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                      <CircleStackIcon class="w-3.5 h-3.5" />
+                    <div class="flex items-center gap-2">
+                      <CircleStackIcon class="w-3.5 h-3.5 text-slate-400" />
                       <span>{{ t('proxies.install.syncMemory') }}</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                      <ServerIcon class="w-3.5 h-3.5" />
+                    <div class="flex items-center gap-2">
+                      <ServerIcon class="w-3.5 h-3.5 text-slate-400" />
                       <span>{{ t('proxies.install.syncDisk') }}</span>
                     </div>
                   </div>
