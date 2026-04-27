@@ -646,6 +646,22 @@ export default {
       description: 'Add a backup repository to store your backup data'
     },
 
+    validation: {
+      nameRequired: 'Repository name is required',
+      endpointRequired: 'Endpoint URL is required',
+      bucketRequired: 'Bucket name is required',
+      accessKeyRequired: 'Access Key is required',
+      secretKeyRequired: 'Secret Key is required',
+      serverRequired: 'Server address is required',
+      exportPathRequired: 'Export path is required',
+      usernameRequired: 'Username is required',
+      passwordRequired: 'Password is required',
+      proxyRequired: 'Sync Proxy is required',
+      pathRequired: 'Target path is required',
+      formInvalid: 'Form validation failed',
+      checkFields: 'Please check required fields'
+    },
+
     confirmDelete: 'Are you sure you want to delete this repository?'
   },
 
@@ -700,25 +716,7 @@ export default {
       path: 'Path'
     },
 
-    validation: {
-      nameRequired: 'Repository name is required',
-      endpointRequired: 'Endpoint URL is required',
-      bucketRequired: 'Bucket name is required',
-      accessKeyRequired: 'Access Key is required',
-      secretKeyRequired: 'Secret Key is required',
-      serverRequired: 'Server address is required',
-      exportPathRequired: 'Export path is required',
-      usernameRequired: 'Username is required',
-      passwordRequired: 'Password is required',
-      proxyRequired: 'Sync Proxy is required',
-      pathRequired: 'Target path is required',
-      formInvalid: 'Form validation failed',
-      checkFields: 'Please check required fields',
-      configError: 'Configuration error',
-      credentialsError: 'Credentials error'
-    },
-
-    createSuccess: 'Repository created successfully',
+    createSuccess: 'Resource created successfully',
     createFailed: 'Failed to create repository',
     confirmDelete: 'Are you sure you want to delete this repository?'
   },

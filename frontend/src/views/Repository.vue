@@ -131,6 +131,47 @@ function validateForm(): boolean {
   return Object.keys(formErrors.value).length === 0
 }
 
+// Check if form is valid and complete
+const isFormValid = computed(() => {
+  // Name is always required
+  if (!newRepo.value.name.trim()) return false
+  
+  const type = newRepo.value.repo_type
+  
+  if (type === 's3') {
+    return !!(
+      newRepo.value.s3_config.endpoint.trim() &&
+      newRepo.value.s3_config.bucket.trim() &&
+      newRepo.value.s3_config.access_key.trim() &&
+      newRepo.value.s3_config.secret_key.trim()
+    )
+  }
+  
+  if (type === 'nas') {
+    const hasBasic = !!(
+      newRepo.value.nas_config.server.trim() &&
+      newRepo.value.nas_config.export_path.trim() &&
+      newRepo.value.bound_node
+    )
+    if (newRepo.value.nas_config.mount_type === 'cifs') {
+      return hasBasic && !!(
+        newRepo.value.nas_config.username.trim() &&
+        newRepo.value.nas_config.password.trim()
+      )
+    }
+    return hasBasic
+  }
+  
+  if (type === 'local') {
+    return !!(
+      newRepo.value.bound_node &&
+      newRepo.value.local_config.path.trim()
+    )
+  }
+  
+  return false
+})
+
 // Clear error for a field
 function clearError(field: string) {
   delete formErrors.value[field]
@@ -1006,7 +1047,16 @@ onMounted(() => {
             <button @click="showCreateModal = false; resetForm()" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
               {{ t('common.cancel') }}
             </button>
-            <button @click="createRepository" class="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+            <button 
+              @click="createRepository" 
+              :disabled="!isFormValid"
+              :class="[
+                'px-4 py-2 text-sm rounded-lg transition-colors',
+                isFormValid 
+                  ? 'text-white bg-blue-600 hover:bg-blue-700' 
+                  : 'text-white bg-slate-300 cursor-not-allowed'
+              ]"
+            >
               {{ t('common.create') }}
             </button>
           </div>
