@@ -156,8 +156,14 @@ cd frontend
 # Install dependencies
 pnpm install
 
-# Run dev server
-pnpm run dev
+# Build for production
+pnpm run build
+
+# Start server (production mode)
+pnpm start
+
+# Or run dev server with hot reload (development only)
+# pnpm run dev
 ```
 
 ### Gateway Setup

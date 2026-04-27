@@ -44,8 +44,11 @@ else
 fi
 
 # 启动前端服务 (Vue)
-echo -e "${GREEN}Starting Frontend (Vue)...${NC}"
+echo -e "${GREEN}Building Frontend (Vue)...${NC}"
 cd $PROJECT_ROOT/frontend
+pnpm run build > $LOG_DIR/frontend-build.log 2>&1
+
+echo -e "${GREEN}Starting Frontend (Vue)...${NC}"
 node server.cjs > $LOG_DIR/frontend.log 2>&1 &
 sleep 2
 
