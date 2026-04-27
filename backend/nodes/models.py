@@ -197,6 +197,12 @@ class ProxyNode(models.Model):
         default=False,
         help_text='Whether the install token has been used'
     )
+    target_os = models.CharField(
+        max_length=20,
+        choices=OperatingSystem.choices,
+        default=OperatingSystem.LINUX,
+        help_text='Target operating system for installation'
+    )
     install_command = models.TextField(
         blank=True,
         help_text='Generated installation command'

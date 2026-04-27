@@ -86,7 +86,7 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
             'tags', 'labels', 'metadata',
             'created_at', 'updated_at', 'registered_at', 'installed_at',
             'owner', 'is_online', 'uptime_seconds', 'heartbeat_count',
-            'api_token', 'install_token', 'install_token_used', 'install_command'
+            'api_token', 'install_token', 'install_token_used', 'target_os', 'install_command'
         ]
         read_only_fields = [
             'id', 'api_token', 'install_token', 'install_token_used', 'install_command',
@@ -114,7 +114,7 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
         return obj.get_capabilities_display()
 
     def get_install_command(self, obj):
-        """Generate install command for pending proxies."""
+        """Generate install command for pending proxies based on target_os."""
         if obj.status != 'pending' or not obj.install_token:
             return None
         
@@ -122,7 +122,19 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
         if request:
             server_url = request.build_absolute_uri('/').rstrip('/')
             base_url = server_url.split('/api/')[0] if '/api/' in server_url else server_url
-            return f"curl -sSL {base_url}/install.sh | bash -s -- --proxy-id {obj.id} --token {obj.install_token} --server {base_url}"
+            
+            if obj.target_os == 'windows':
+                return f'''# PowerShell (Run as Administrator)
+Invoke-WebRequest -Uri "{base_url}/install.ps1" -OutFile "install.ps1"
+./install.ps1 -ProxyId "{obj.id}" -Role {obj.role} -Server "{base_url}" -Token "{obj.install_token}" -Name "{obj.name}"'''
+            else:
+                return f'''# Linux/macOS
+curl -sSL {base_url}/install.sh | bash -s -- \\
+  --proxy-id {obj.id} \\
+  --role {obj.role} \\
+  --server {base_url} \\
+  --token {obj.install_token} \\
+  --name "{obj.name}"'''
         return None
 
 

@@ -98,7 +98,12 @@ class ProxyViewSet(viewsets.ModelViewSet):
         if not server_url:
             server_url = request.build_absolute_uri('/').rstrip('/')
 
-        os_type = 'linux'  # Default to Linux
+        # Get target OS from request or use saved value
+        os_type = request.data.get('target_os', proxy.target_os or 'linux')
+        
+        # Update proxy's target_os if provided
+        if os_type != proxy.target_os:
+            proxy.target_os = os_type
 
         install_command = self._build_install_command(
             server_url=server_url,
@@ -111,7 +116,7 @@ class ProxyViewSet(viewsets.ModelViewSet):
 
         proxy.install_command = install_command
         proxy.installed_by = request.user
-        proxy.save(update_fields=['install_command', 'installed_by'])
+        proxy.save(update_fields=['install_command', 'installed_by', 'target_os'])
 
     def _build_install_command(self, server_url, role, proxy_id, install_token, os_type, name):
         """Build the installation command string."""
@@ -157,6 +162,7 @@ curl -sSL {server_url}/install.sh | bash -s -- \\
         proxy = ProxyNode.objects.create(
             name=data['name'],
             role=data['role'],
+            target_os=data.get('os', 'linux'),
             owner=request.user,
             status=ProxyNode.NodeStatus.PENDING,
             api_token=secrets.token_urlsafe(32),
