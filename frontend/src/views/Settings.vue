@@ -129,208 +129,206 @@ async function changePassword() {
       <p class="text-gray-500 mt-1">{{ t('settings.subtitle') }}</p>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      <!-- Sidebar -->
-      <div class="lg:col-span-1">
-        <nav class="space-y-1">
-          <button
-            v-for="tab in tabs"
-            :key="tab.id"
-            :class="[
-              'w-full flex items-center gap-3 text-left px-4 py-3 rounded-lg transition-colors',
-              activeTab === tab.id
-                ? 'bg-primary-50 text-primary-700 font-medium'
-                : 'text-gray-600 hover:bg-gray-100'
-            ]"
-            @click="activeTab = tab.id"
-          >
-            <component :is="tab.icon" class="w-5 h-5" />
-            {{ tab.label }}
-          </button>
-        </nav>
+    <!-- Top Tabs -->
+    <div class="border-b border-gray-200">
+      <nav class="flex space-x-1">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[
+            'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+            activeTab === tab.id
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          ]"
+          @click="activeTab = tab.id"
+        >
+          <component :is="tab.icon" class="w-5 h-5" />
+          {{ tab.label }}
+        </button>
+      </nav>
+    </div>
+
+    <!-- Content -->
+    <div>
+      <!-- Profile -->
+      <div v-if="activeTab === 'profile'" class="card">
+        <div class="card-header">
+          <h3 class="text-lg font-semibold">{{ t('settings.profile.title') }}</h3>
+        </div>
+        <div class="card-body space-y-6">
+          <!-- Avatar Section -->
+          <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-full bg-primary-600 flex items-center justify-center text-white text-2xl font-bold">
+              {{ userInitials }}
+            </div>
+            <div>
+              <p class="font-medium text-gray-900">{{ authStore.user?.username }}</p>
+              <p class="text-sm text-gray-500">{{ roleDisplayName }}</p>
+            </div>
+          </div>
+
+          <!-- Form -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="label">{{ t('settings.profile.firstName') }}</label>
+              <input v-model="profile.first_name" type="text" class="input" />
+            </div>
+            <div>
+              <label class="label">{{ t('settings.profile.lastName') }}</label>
+              <input v-model="profile.last_name" type="text" class="input" />
+            </div>
+            <div>
+              <label class="label">{{ t('settings.profile.email') }}</label>
+              <input v-model="profile.email" type="email" class="input bg-gray-50" disabled />
+            </div>
+            <div>
+              <label class="label">{{ t('settings.profile.phone') }}</label>
+              <input v-model="profile.phone" type="tel" class="input" />
+            </div>
+          </div>
+
+          <!-- Account Info -->
+          <div class="pt-4 border-t border-gray-200">
+            <h4 class="text-sm font-medium text-gray-700 mb-3">{{ t('settings.profile.accountInfo') }}</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span class="text-gray-500">{{ t('settings.profile.username') }}:</span>
+                <span class="ml-2 text-gray-900">{{ authStore.user?.username }}</span>
+              </div>
+              <div>
+                <span class="text-gray-500">{{ t('settings.profile.role') }}:</span>
+                <span class="ml-2 text-gray-900">{{ roleDisplayName }}</span>
+              </div>
+              <div>
+                <span class="text-gray-500">{{ t('settings.profile.createdAt') }}:</span>
+                <span class="ml-2 text-gray-900">{{ formattedCreatedAt }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button class="btn-primary" :disabled="isSaving" @click="saveProfile">
+              {{ isSaving ? t('common.saving') : t('common.save') }}
+            </button>
+          </div>
+        </div>
       </div>
 
-      <!-- Content -->
-      <div class="lg:col-span-3">
-        <!-- Profile -->
-        <div v-if="activeTab === 'profile'" class="card">
-          <div class="card-header">
-            <h3 class="text-lg font-semibold">{{ t('settings.profile.title') }}</h3>
+      <!-- Security -->
+      <div v-if="activeTab === 'security'" class="card">
+        <div class="card-header">
+          <h3 class="text-lg font-semibold">{{ t('settings.security.title') }}</h3>
+        </div>
+        <div class="card-body space-y-4">
+          <!-- Error/Success Messages -->
+          <div v-if="passwordError" class="p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+            {{ passwordError }}
           </div>
-          <div class="card-body space-y-6">
-            <!-- Avatar Section -->
-            <div class="flex items-center gap-4">
-              <div class="w-16 h-16 rounded-full bg-primary-600 flex items-center justify-center text-white text-2xl font-bold">
-                {{ userInitials }}
-              </div>
-              <div>
-                <p class="font-medium text-gray-900">{{ authStore.user?.username }}</p>
-                <p class="text-sm text-gray-500">{{ roleDisplayName }}</p>
-              </div>
-            </div>
+          <div v-if="passwordSuccess" class="p-3 rounded-lg bg-green-50 text-green-700 text-sm">
+            {{ passwordSuccess }}
+          </div>
 
-            <!-- Form -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="label">{{ t('settings.profile.firstName') }}</label>
-                <input v-model="profile.first_name" type="text" class="input" />
-              </div>
-              <div>
-                <label class="label">{{ t('settings.profile.lastName') }}</label>
-                <input v-model="profile.last_name" type="text" class="input" />
-              </div>
-              <div>
-                <label class="label">{{ t('settings.profile.email') }}</label>
-                <input v-model="profile.email" type="email" class="input bg-gray-50" disabled />
-              </div>
-              <div>
-                <label class="label">{{ t('settings.profile.phone') }}</label>
-                <input v-model="profile.phone" type="tel" class="input" />
-              </div>
-            </div>
-
-            <!-- Account Info -->
-            <div class="pt-4 border-t border-gray-200">
-              <h4 class="text-sm font-medium text-gray-700 mb-3">{{ t('settings.profile.accountInfo') }}</h4>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span class="text-gray-500">{{ t('settings.profile.username') }}:</span>
-                  <span class="ml-2 text-gray-900">{{ authStore.user?.username }}</span>
-                </div>
-                <div>
-                  <span class="text-gray-500">{{ t('settings.profile.role') }}:</span>
-                  <span class="ml-2 text-gray-900">{{ roleDisplayName }}</span>
-                </div>
-                <div>
-                  <span class="text-gray-500">{{ t('settings.profile.createdAt') }}:</span>
-                  <span class="ml-2 text-gray-900">{{ formattedCreatedAt }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex justify-end">
-              <button class="btn-primary" :disabled="isSaving" @click="saveProfile">
-                {{ isSaving ? t('common.saving') : t('common.save') }}
-              </button>
-            </div>
+          <div>
+            <label class="label">{{ t('settings.security.currentPassword') }}</label>
+            <input v-model="passwordForm.currentPassword" type="password" class="input" />
+          </div>
+          <div>
+            <label class="label">{{ t('settings.security.newPassword') }}</label>
+            <input v-model="passwordForm.newPassword" type="password" class="input" />
+            <p class="text-xs text-gray-500 mt-1">{{ t('settings.security.passwordHint') }}</p>
+          </div>
+          <div>
+            <label class="label">{{ t('settings.security.confirmPassword') }}</label>
+            <input v-model="passwordForm.confirmPassword" type="password" class="input" />
+          </div>
+          <div class="flex justify-end">
+            <button class="btn-primary" :disabled="isChangingPassword" @click="changePassword">
+              {{ isChangingPassword ? t('common.saving') : t('settings.security.changePassword') }}
+            </button>
           </div>
         </div>
+      </div>
 
-        <!-- Security -->
-        <div v-if="activeTab === 'security'" class="card">
-          <div class="card-header">
-            <h3 class="text-lg font-semibold">{{ t('settings.security.title') }}</h3>
-          </div>
-          <div class="card-body space-y-4">
-            <!-- Error/Success Messages -->
-            <div v-if="passwordError" class="p-3 rounded-lg bg-red-50 text-red-700 text-sm">
-              {{ passwordError }}
-            </div>
-            <div v-if="passwordSuccess" class="p-3 rounded-lg bg-green-50 text-green-700 text-sm">
-              {{ passwordSuccess }}
-            </div>
-
-            <div>
-              <label class="label">{{ t('settings.security.currentPassword') }}</label>
-              <input v-model="passwordForm.currentPassword" type="password" class="input" />
-            </div>
-            <div>
-              <label class="label">{{ t('settings.security.newPassword') }}</label>
-              <input v-model="passwordForm.newPassword" type="password" class="input" />
-              <p class="text-xs text-gray-500 mt-1">{{ t('settings.security.passwordHint') }}</p>
-            </div>
-            <div>
-              <label class="label">{{ t('settings.security.confirmPassword') }}</label>
-              <input v-model="passwordForm.confirmPassword" type="password" class="input" />
-            </div>
-            <div class="flex justify-end">
-              <button class="btn-primary" :disabled="isChangingPassword" @click="changePassword">
-                {{ isChangingPassword ? t('common.saving') : t('settings.security.changePassword') }}
-              </button>
-            </div>
-          </div>
+      <!-- Appearance -->
+      <div v-if="activeTab === 'appearance'" class="card">
+        <div class="card-header">
+          <h3 class="text-lg font-semibold">{{ t('settings.appearance.title') }}</h3>
         </div>
-
-        <!-- Appearance -->
-        <div v-if="activeTab === 'appearance'" class="card">
-          <div class="card-header">
-            <h3 class="text-lg font-semibold">{{ t('settings.appearance.title') }}</h3>
-          </div>
-          <div class="card-body">
-            <div class="space-y-4">
-              <div>
-                <label class="label">{{ t('settings.appearance.theme') }}</label>
-                <div class="grid grid-cols-2 gap-4">
-                  <button
-                    :class="[
-                      'flex flex-col items-center p-6 rounded-lg border-2 transition-colors',
-                      appStore.theme === 'light' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
-                    ]"
-                    @click="setTheme('light')"
-                  >
-                    <div class="w-12 h-12 bg-white border border-gray-200 rounded-lg mb-3 shadow-sm"></div>
-                    <span class="font-medium">{{ t('settings.appearance.light') }}</span>
-                  </button>
-                  <button
-                    :class="[
-                      'flex flex-col items-center p-6 rounded-lg border-2 transition-colors',
-                      appStore.theme === 'dark' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
-                    ]"
-                    @click="setTheme('dark')"
-                  >
-                    <div class="w-12 h-12 bg-gray-800 rounded-lg mb-3"></div>
-                    <span class="font-medium">{{ t('settings.appearance.dark') }}</span>
-                  </button>
-                </div>
+        <div class="card-body">
+          <div class="space-y-4">
+            <div>
+              <label class="label">{{ t('settings.appearance.theme') }}</label>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button
+                  :class="[
+                    'flex flex-col items-center p-6 rounded-lg border-2 transition-colors',
+                    appStore.theme === 'light' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+                  ]"
+                  @click="setTheme('light')"
+                >
+                  <div class="w-12 h-12 bg-white border border-gray-200 rounded-lg mb-3 shadow-sm"></div>
+                  <span class="font-medium">{{ t('settings.appearance.light') }}</span>
+                </button>
+                <button
+                  :class="[
+                    'flex flex-col items-center p-6 rounded-lg border-2 transition-colors',
+                    appStore.theme === 'dark' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+                  ]"
+                  @click="setTheme('dark')"
+                >
+                  <div class="w-12 h-12 bg-gray-800 rounded-lg mb-3"></div>
+                  <span class="font-medium">{{ t('settings.appearance.dark') }}</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Language -->
-        <div v-if="activeTab === 'language'" class="card">
-          <div class="card-header">
-            <h3 class="text-lg font-semibold">{{ t('settings.language.title') }}</h3>
-          </div>
-          <div class="card-body">
-            <div class="space-y-3">
-              <button
-                :class="[
-                  'w-full flex items-center justify-between p-4 rounded-lg border-2 transition-colors',
-                  locale === 'en' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
-                ]"
-                @click="setLocale('en')"
-              >
-                <div class="flex items-center gap-3">
-                  <span class="text-2xl">🇺🇸</span>
-                  <div class="text-left">
-                    <p class="font-medium">{{ t('settings.language.english') }}</p>
-                    <p class="text-sm text-gray-500">English</p>
-                  </div>
+      <!-- Language -->
+      <div v-if="activeTab === 'language'" class="card">
+        <div class="card-header">
+          <h3 class="text-lg font-semibold">{{ t('settings.language.title') }}</h3>
+        </div>
+        <div class="card-body">
+          <div class="space-y-3">
+            <button
+              :class="[
+                'w-full flex items-center justify-between p-4 rounded-lg border-2 transition-colors',
+                locale === 'en' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+              ]"
+              @click="setLocale('en')"
+            >
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">🇺🇸</span>
+                <div class="text-left">
+                  <p class="font-medium">{{ t('settings.language.english') }}</p>
+                  <p class="text-sm text-gray-500">English</p>
                 </div>
-                <svg v-if="locale === 'en'" class="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                </svg>
-              </button>
-              <button
-                :class="[
-                  'w-full flex items-center justify-between p-4 rounded-lg border-2 transition-colors',
-                  locale === 'zh-CN' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
-                ]"
-                @click="setLocale('zh-CN')"
-              >
-                <div class="flex items-center gap-3">
-                  <span class="text-2xl">🇨🇳</span>
-                  <div class="text-left">
-                    <p class="font-medium">{{ t('settings.language.chinese') }}</p>
-                    <p class="text-sm text-gray-500">简体中文</p>
-                  </div>
+              </div>
+              <svg v-if="locale === 'en'" class="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+              </svg>
+            </button>
+            <button
+              :class="[
+                'w-full flex items-center justify-between p-4 rounded-lg border-2 transition-colors',
+                locale === 'zh-CN' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+              ]"
+              @click="setLocale('zh-CN')"
+            >
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">🇨🇳</span>
+                <div class="text-left">
+                  <p class="font-medium">{{ t('settings.language.chinese') }}</p>
+                  <p class="text-sm text-gray-500">简体中文</p>
                 </div>
-                <svg v-if="locale === 'zh-CN'" class="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                </svg>
-              </button>
-            </div>
+              </div>
+              <svg v-if="locale === 'zh-CN'" class="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
