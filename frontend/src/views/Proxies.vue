@@ -798,7 +798,12 @@ onUnmounted(() => {
                     ]">
                       <component :is="proxy.role === 'agent' ? AgentIcon : SyncIcon" class="w-4 h-4 text-white" />
                     </div>
-                    <span class="font-medium text-slate-800">{{ proxy.name }}</span>
+                    <button
+                      @click="viewProxyDetail(proxy)"
+                      class="font-medium text-slate-800 hover:text-indigo-600 cursor-pointer transition-colors text-left"
+                    >
+                      {{ proxy.name }}
+                    </button>
                   </div>
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap">
