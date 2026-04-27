@@ -1,176 +1,144 @@
-version: '3.8'
-
-# =====================================================
-# HyperFileLens Docker Compose
-# Production environment configuration
-# =====================================================
+version: "3.9"
 
 services:
-  # =====================================================
   # PostgreSQL Database
-  # =====================================================
-  db:
-    image: postgres:15-alpine
-    container_name: hyperfilelens-db
-    restart: unless-stopped
+  postgres:
+    image: postgres:15
+    container_name: hyperfilelens-postgres
     environment:
       POSTGRES_DB: hyperfilelens
-      POSTGRES_USER: ${POSTGRES_USER:-hyperfilelens}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_USER: hfl
+      POSTGRES_PASSWORD: hfl_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - hyperfilelens-network
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hyperfilelens}"]
+      test: ["CMD-SHELL", "pg_isready -U hfl -d hyperfilelens"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # =====================================================
-  # Redis Cache
-  # =====================================================
+  # Redis for Celery and Caching
   redis:
     image: redis:7-alpine
     container_name: hyperfilelens-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
-    networks:
-      - hyperfilelens-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # =====================================================
-  # Web Application (Gunicorn + Django)
-  # =====================================================
-  web:
+  # Django Control Plane
+  control:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      target: production
-    container_name: hyperfilelens-web
-    restart: unless-stopped
+    container_name: hyperfilelens-control
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-hyperfilelens}:${POSTGRES_PASSWORD:-changeme}@db:5432/hyperfilelens
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - DATABASE_URL=postgresql://hfl:hfl_password@postgres:5432/hyperfilelens
+      - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
-      - DEBUG=false
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
-      - DJANGO_SETTINGS_MODULE=core.settings
+      - DEBUG=${DEBUG:-True}
+      - ALLOWED_HOSTS=localhost,127.0.0.1,control
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5000
     volumes:
-      - ./media:/app/media:rw
-      - ./logs:/app/logs:rw
+      - ./backend:/app
+      - backend_static:/app/staticfiles
+      - backend_media:/app/media
     ports:
-      - "${APP_HTTP_PORT:-8000}:8000"
+      - "8000:8000"
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - hyperfilelens-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 4"
 
-  # =====================================================
-  # Celery Worker
-  # =====================================================
-  celery:
+  # Celery Worker for Background Tasks
+  celery-worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      target: production
-    container_name: hyperfilelens-celery
-    restart: unless-stopped
-    command: celery -A core worker --loglevel=info --concurrency=4
+    container_name: hyperfilelens-celery-worker
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-hyperfilelens}:${POSTGRES_PASSWORD:-changeme}@db:5432/hyperfilelens
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - DATABASE_URL=postgresql://hfl:hfl_password@postgres:5432/hyperfilelens
+      - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
-      - DEBUG=false
-      - DJANGO_SETTINGS_MODULE=core.settings
     volumes:
-      - ./media:/app/media:rw
-      - ./logs:/app/logs:rw
+      - ./backend:/app
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - hyperfilelens-network
+      - control
+      - redis
+    command: celery -A core worker -l info
 
-  # =====================================================
-  # Celery Beat (Scheduler)
-  # =====================================================
+  # Celery Beat for Scheduled Tasks
   celery-beat:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      target: production
     container_name: hyperfilelens-celery-beat
-    restart: unless-stopped
-    command: celery -A core beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-hyperfilelens}:${POSTGRES_PASSWORD:-changeme}@db:5432/hyperfilelens
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - DATABASE_URL=postgresql://hfl:hfl_password@postgres:5432/hyperfilelens
+      - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
-      - DEBUG=false
-      - DJANGO_SETTINGS_MODULE=core.settings
     volumes:
-      - ./logs:/app/logs:rw
+      - ./backend:/app
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - hyperfilelens-network
-
-  # =====================================================
-  # Celery Flower (Monitoring)
-  # =====================================================
-  flower:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: hyperfilelens-flower
-    restart: unless-stopped
-    command: celery -A core flower --port=5555 --url_prefix=flower
-    environment:
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
-    ports:
-      - "${FLOWER_PORT:-5555}:5555"
-    depends_on:
-      - celery
+      - control
       - redis
-    networks:
-      - hyperfilelens-network
+    command: celery -A core beat -l info
 
-# =====================================================
-# Networks
-# =====================================================
-networks:
-  hyperfilelens-network:
-    driver: bridge
+  # Gateway Service (FastAPI + Kopia)
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: hyperfilelens-gateway
+    environment:
+      - KOPIA_MOUNT_PATH=/mnt/kopia
+      - REPO_PATH=/data/repo
+      - CONTROL_URL=http://control:8000
+      - GATEWAY_ID=gateway-1
+    volumes:
+      - kopia_repo:/data/repo
+      - kopia_mount:/mnt/kopia
+    ports:
+      - "8001:8001"
+    depends_on:
+      - control
+    privileged: true  # Required for FUSE mount
 
-# =====================================================
-# Volumes
-# =====================================================
+  # Vue Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hyperfilelens-frontend
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_GATEWAY_URL=http://localhost:8001
+    ports:
+      - "5000:5000"
+    depends_on:
+      - control
+      - gateway
+
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
+  backend_static:
+  backend_media:
+  kopia_repo:
+  kopia_mount:
+
+networks:
+  default:
+    name: hyperfilelens-network

@@ -307,10 +307,46 @@ export const policiesApi = {
     api.post(`/api/v1/policies/policies/${id}/disable/`)
 }
 
-// ============== AI Query API ==============
+// ============== Gateway API (AI Query, File Index) ==============
+// Gateway runs on a separate port (8001) with FastAPI
+const gatewayApi = axios.create({
+  baseURL: import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8001',
+  timeout: 60000, // Longer timeout for AI queries
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+export const gateway = {
+  // AI Query
+  aiQuery: (data: { query: string; repository_id?: string; filters?: Record<string, unknown> }) =>
+    gatewayApi.post('/ai/query', data),
+  
+  // File browsing
+  listFiles: (params?: { path?: string; repository_id?: string }) =>
+    gatewayApi.get('/files', { params }),
+  
+  // Repository mount status
+  mountStatus: () =>
+    gatewayApi.get('/mount/status'),
+  
+  // Index status
+  indexStatus: () =>
+    gatewayApi.get('/index/status'),
+  
+  // Rebuild index
+  rebuildIndex: (repositoryId: string) =>
+    gatewayApi.post('/index/rebuild', { repository_id: repositoryId })
+}
+
+// ============== AI Query API (Django Backend) ==============
 export const aiQueryApi = {
   query: (data: { query: string; node?: number; repository?: number; snapshot_id?: string }) =>
     api.post('/api/v1/ai-query/queries/', data),
+  
+  // Gateway AI Query (direct)
+  gatewayQuery: (data: { query: string; repository_id?: string; filters?: Record<string, unknown> }) =>
+    gateway.aiQuery(data),
   
   history: (params?: { page?: number; page_size?: number }) =>
     api.get('/api/v1/ai-query/queries/', { params }),

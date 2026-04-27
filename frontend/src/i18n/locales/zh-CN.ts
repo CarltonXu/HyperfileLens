@@ -110,6 +110,7 @@ export default {
     addNode: '添加节点',
     online: '在线',
     offline: '离线',
+    checking: '检查中...',
     neverConnected: '从未连接',
 
     types: {

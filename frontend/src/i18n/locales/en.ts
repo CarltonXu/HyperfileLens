@@ -110,6 +110,7 @@ export default {
     addNode: 'Add Node',
     online: 'Online',
     offline: 'Offline',
+    checking: 'Checking...',
     neverConnected: 'Never connected',
 
     types: {

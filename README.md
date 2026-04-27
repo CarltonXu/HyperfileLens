@@ -3,395 +3,214 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-green.svg)](https://www.python.org/)
 [![Vue](https://img.shields.io/badge/Vue-3.4+-green.svg)](https://vuejs.org/)
+[![Go](https://img.shields.io/badge/Go-1.21+-green.svg)](https://golang.org/)
 
 **English** | [中文](README.zh-CN.md)
 
 HyperFileLens is an AI-powered file intelligence platform for backup and archive data. It transforms your backup data into accessible, analyzable, and actionable knowledge assets.
 
-## Overview
-
-HyperFileLens goes beyond traditional backup solutions by providing:
-
-- **Reliable Backup & Recovery**: Stable file-level backup capabilities for local filesystems, NAS, and NFS
-- **AI-Powered Insights**: Query, analyze, and understand your backup data using natural language
-- **Centralized Management**: Web-based control plane for policies, schedules, and monitoring
-- **Scalable Architecture**: Proxy-based architecture supporting cloud and hybrid deployments
-
-## Features
-
-### Phase 1: Backup & Recovery Foundation
-
-- **Multiple Data Sources**
-  - Windows/Linux local directories
-  - NFS shared directories
-  - NAS file volumes
-  
-- **Backup Targets**
-  - Local filesystem
-  - NFS shares
-  - Object storage (S3-compatible)
-  - Azure Blob Storage
-  - Google Cloud Storage
-
-- **Recovery Options**
-  - Original location recovery
-  - New location recovery
-  - Point-in-time recovery
-
-### Phase 2: AI File Intelligence
-
-- **Natural Language Queries**: Ask questions about your backup data
-- **Content Analysis**: Extract and analyze document content
-- **Sensitive Data Detection**: Identify PII, credentials, and sensitive information
-- **Change Detection**: Track file changes over time
-- **Smart Summarization**: Generate summaries of backup contents
-
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    HyperFileLens Control                     │
-│─────────────────────────────────────────────────────────────│
-│ - Unified Management & Task Orchestration                  │
-│ - Policy Configuration                                       │
-│ - Node Management                                           │
-│ - Task Dispatching                                          │
-│ - Status Monitoring & Audit                                 │
-│ - AI Query Orchestration                                    │
-└─────────────────────────────────────────────────────────────┘
-                              ▲
-                              │
-              WebSocket (Control Flow Only)
-                              │
-┌─────────────────────────────┼─────────────────────────────┐
-│                             │                             │
-│  ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
-│  │  Source Proxy    │   │  NAS/File Proxy  │   │  Other Proxies   │
-│  │  ────────────────│   │  ────────────────│   │  ────────────────│
-│  │  Local Filesystem│   │  NAS/NFS Access  │   │  Other Sources   │
-│  │  File Scanning   │   │  File Scanning   │   │  File Scanning   │
-│  │  Backup Tasks    │   │  Backup Tasks    │   │  Backup Tasks    │
-│  │  Recovery Tasks  │   │  Recovery Tasks  │   │  Recovery Tasks  │
-│  └──────────────────┘   └──────────────────┘   └──────────────────┘
-│                             │
-└─────────────────────────────┼─────────────────────────────┘
-                              │
-                   Direct Data Flow
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Target Gateway                            │
-│─────────────────────────────────────────────────────────────│
-│ - Receive Source Data Streams                               │
-│ - Connect to Backup Repository                              │
-│ - Manage Backup Data Writing                                 │
-│ - Manage Recovery Data Output                               │
-│ - AI Data Access Entry                                      │
-└─────────────────────────────────────────────────────────────┘
-                              │
-         ┌────────────────────┴────────────────────┐
-         ▼                                         ▼
-┌──────────────────┐                   ┌──────────────────┐
-│  Backup Archive  │                   │  Recovery Target │
-│  ────────────────│                   │  ────────────────│
-│  Object Storage  │                   │  Original Path   │
-│  Local Filesystem│                   │  New NAS/NFS     │
-│  Block Storage   │                   │  New Server      │
-└──────────────────┘                   └──────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Cloud AI Capabilities                     │
-│─────────────────────────────────────────────────────────────│
-│ - External Model API / Token Integration                     │
-│ - File Parsing & Content Extraction                          │
-│ - OCR / Textualization                                       │
-│ - AI Query & Analysis                                        │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           HyperFileLens MVP                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │   Frontend  │  │   Control   │  │   Gateway   │  │    Proxy    │         │
+│  │   (Vue3)    │  │  (Django)   │  │  (FastAPI)  │  │    (Go)     │         │
+│  │             │  │             │  │             │  │             │         │
+│  │ • Dashboard │  │ • 用户管理   │  │ • Kopia     │  │ • Kopia CLI │         │
+│  │ • 节点管理   │  │ • 节点管理   │  │   Mount     │  │ • 跨平台    │         │
+│  │ • 备份任务   │  │ • 任务调度   │  │ • 文件索引   │  │ • 执行备份   │         │
+│  │ • 恢复任务   │  │ • WebSocket │  │ • AI 查询   │  │ • 执行恢复   │         │
+│  │ • AI 查询   │  │ • REST API  │  │             │  │             │         │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
+│         │                │                │                │                │
+│         └────────────────┴────────────────┴────────────────┘                │
+│                                   │                                          │
+│         ┌─────────────────────────┴─────────────────────────┐               │
+│         │                                                     │               │
+│  ┌──────┴──────┐                                    ┌────────┴────────┐      │
+│  │ PostgreSQL  │                                    │      Redis      │      │
+│  │   Database  │                                    │     Broker      │      │
+│  └─────────────┘                                    └─────────────────┘      │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+## Components
+
+### Control Plane (Django)
+- **Port**: 8000
+- **Functions**: 用户管理、节点管理、任务调度、WebSocket 通信、REST API
+- **Tech**: Django 5.x + Django REST Framework + Django Channels + Celery
+
+### Gateway (FastAPI)
+- **Port**: 8001
+- **Functions**: Kopia 仓库挂载、文件索引、AI 查询
+- **Tech**: FastAPI + uvicorn
+
+### Proxy (Go)
+- **Functions**: 接收控制端指令、执行 Kopia CLI 备份/恢复操作
+- **Tech**: Go 1.21+ + gorilla/websocket
+- **Platforms**: Windows, Linux, macOS
+
+### Frontend (Vue3)
+- **Port**: 5000
+- **Functions**: Dashboard、节点管理、备份任务、恢复任务、AI 查询
+- **Tech**: Vue 3 + Vite + Pinia + Tailwind CSS + Headless UI
 
 ## Tech Stack
 
-### Backend
-
-- **Framework**: Django 5.x with Django REST Framework
-- **Task Queue**: Celery with Redis broker
-- **Database**: PostgreSQL 15+
-- **Cache**: Redis 7+
-- **WebSocket**: Django Channels
-
-### Frontend
-
-- **Framework**: Vue 3 (Composition API)
-- **Build Tool**: Vite
-- **State Management**: Pinia
-- **Styling**: Tailwind CSS
-- **Components**: Headless UI
-- **Internationalization**: vue-i18n
+| Component | Technology |
+|-----------|------------|
+| Control | Django 5.x, Django REST Framework, Celery, Django Channels |
+| Gateway | FastAPI, uvicorn |
+| Proxy | Go 1.21+, gorilla/websocket |
+| Frontend | Vue 3, Vite, Pinia, Tailwind CSS, Headless UI |
+| Database | PostgreSQL 15+ |
+| Cache/Broker | Redis 7+ |
+| Backup Engine | Kopia |
 
 ## Quick Start
 
 ### Prerequisites
 
 - Docker & Docker Compose
-- Git
+- Go 1.21+ (for Proxy development)
+- Node.js 20+ & pnpm (for Frontend development)
+- Python 3.11+ (for Control & Gateway development)
 
-### Clone the Repository
+### Docker Compose (Recommended)
 
 ```bash
+# Clone the repository
 git clone https://github.com/hyperbdr/hyperfilelens.git
 cd hyperfilelens
+
+# Start all services
+docker-compose up -d
+
+# Access the application
+# Frontend: http://localhost:5000
+# Control API: http://localhost:8000/api/v1/
+# Gateway API: http://localhost:8001/
 ```
 
-### Development Environment
-
-1. Copy the environment configuration:
+### Development Mode
 
 ```bash
-cp env.sample .env.dev
+# Start development environment
+./scripts/start-dev.sh
+
+# Stop all services
+./scripts/stop.sh
 ```
 
-2. Configure environment variables in `.env.dev`:
-
-```env
-POSTGRES_DB=hyperfilelens_dev
-POSTGRES_USER=hyperfilelens_dev
-POSTGRES_PASSWORD=hyperfilelens_dev
-REDIS_PASSWORD=hyperfilelens_dev
-SECRET_KEY=your-dev-secret-key
-DEBUG=true
-```
-
-3. Start services:
+### Manual Start
 
 ```bash
-docker-compose -f docker-compose.dev.yml up -d
+# 1. Start Backend (Control)
+cd backend
+pip install -r requirements.txt
+USE_POSTGRES=false python manage.py migrate
+USE_POSTGRES=false python manage.py runserver 0.0.0.0:8000
+
+# 2. Start Frontend
+cd frontend
+pnpm install
+pnpm build
+node server.cjs
+
+# 3. Start Gateway
+cd gateway
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8001
+
+# 4. Start Proxy
+cd proxy
+go run main.go
 ```
 
-4. Access services:
+## Default Credentials
 
-| Service | URL |
-|---------|-----|
-| Web UI | http://localhost:8000 |
-| API Docs | http://localhost:8000/swagger/ |
-| Admin Panel | http://localhost:8000/admin/ |
-| Celery Monitor | http://localhost:5555 |
-| Frontend Dev | http://localhost:5173 |
+- **Email**: admin@hyperfilelens.com
+- **Password**: admin123
 
-### Production Deployment
+## Features
 
-1. Copy the environment configuration:
+### Phase 1: Backup & Recovery Foundation
 
-```bash
-cp env.sample .env
-```
+- **Source Resources**: NAS, NFS, CIFS, S3, Local Filesystem
+- **Backup Targets**: S3, Azure, GCS, NFS, Local Filesystem
+- **Recovery Options**: Original location, New location, Point-in-time
 
-2. Configure for production:
+### Phase 2: AI File Intelligence
 
-```env
-POSTGRES_DB=hyperfilelens
-POSTGRES_USER=hyperfilelens
-POSTGRES_PASSWORD=strong-password-here
-REDIS_PASSWORD=strong-password-here
-SECRET_KEY=very-long-random-secret-key
-DEBUG=false
-ALLOWED_HOSTS=your-domain.com
-```
-
-3. Build and start:
-
-```bash
-docker-compose up -d --build
-```
+- **Natural Language Queries**: Ask questions about your backup data
+- **Content Analysis**: Extract and analyze document content
+- **Smart Search**: Search files across all backups
 
 ## Project Structure
 
 ```
 hyperfilelens/
-├── backend/                  # Django backend
-│   ├── core/                # Project configuration
-│   │   ├── settings.py     # Django settings
-│   │   ├── urls.py         # URL routing
-│   │   ├── celery.py       # Celery configuration
-│   │   └── wsgi.py         # WSGI application
-│   ├── accounts/            # User management
-│   ├── nodes/               # Proxy node management
-│   ├── backup_tasks/        # Backup operations
-│   ├── recovery_tasks/      # Recovery operations
-│   ├── repository/          # Repository management
-│   ├── policies/            # Backup policies
-│   ├── ai_query/            # AI query processing
-│   ├── audit_log/           # Audit logging
-│   └── manage.py
-├── frontend/                 # Vue.js frontend
-│   ├── src/
-│   │   ├── api/            # API client
-│   │   ├── components/     # Reusable components
-│   │   ├── views/          # Page components
-│   │   ├── stores/         # Pinia stores
-│   │   ├── router/        # Vue Router config
-│   │   ├── i18n/          # Internationalization
-│   │   └── types/         # TypeScript types
-│   └── package.json
-├── docker/                  # Docker configuration
-│   ├── nginx/              # Nginx configuration
-│   └── entrypoint.sh       # Container entrypoint
-├── scripts/                 # Utility scripts
-├── Dockerfile              # Production Dockerfile
-├── Dockerfile.dev         # Development Dockerfile
-├── docker-compose.yml     # Production compose
-├── docker-compose.dev.yml # Development compose
-└── README.md
+├── backend/              # Django Control Plane
+│   ├── accounts/         # User management
+│   ├── nodes/            # Node management & WebSocket
+│   ├── backup_tasks/     # Backup operations
+│   ├── recovery_tasks/   # Recovery operations
+│   ├── source_resources/ # Source resources management
+│   ├── repository/       # Backup repository management
+│   ├── policies/         # Backup policy scheduling
+│   ├── ai_query/         # AI-powered queries
+│   └── audit_log/        # Audit logging
+├── gateway/              # FastAPI Gateway
+│   └── app/
+│       ├── main.py       # FastAPI application
+│       ├── mount.py      # Kopia mount operations
+│       ├── indexer.py    # File indexing
+│       └── ai.py         # AI query handler
+├── proxy/                # Go Proxy
+│   ├── main.go           # Proxy entry point
+│   └── build.sh          # Build script
+├── frontend/             # Vue3 Frontend
+│   └── src/
+│       ├── views/        # Page components
+│       ├── stores/       # Pinia stores
+│       ├── api/          # API client
+│       └── i18n/         # Internationalization
+├── docker-compose.yml    # Docker Compose config
+└── scripts/              # Utility scripts
 ```
 
-## API Documentation
+## API Endpoints
 
-Once the server is running, access the API documentation at:
-
-- Swagger UI: http://localhost:8000/swagger/
-- ReDoc: http://localhost:8000/redoc/
-
-### Key API Endpoints
+### Control Plane (Port 8000)
 
 | Endpoint | Description |
 |----------|-------------|
-| `/api/v1/nodes/` | Manage proxy nodes |
-| `/api/v1/backup/tasks/` | Backup operations |
-| `/api/v1/recovery/tasks/` | Recovery operations |
-| `/api/v1/repository/` | Repository management |
-| `/api/v1/policies/` | Policy management |
-| `/api/v1/ai/queries/` | AI-powered queries |
-| `/api/v1/audit/` | Audit logs |
+| `/api/v1/accounts/` | User management |
+| `/api/v1/nodes/` | Node management |
+| `/api/v1/source-resources/` | Source resources |
+| `/api/v1/repository/repositories/` | Backup repositories |
+| `/api/v1/backup-tasks/` | Backup tasks |
+| `/api/v1/recovery-tasks/` | Recovery tasks |
+| `/ws/node/{node_id}/` | WebSocket for Proxy |
 
-## Configuration
+### Gateway (Port 8001)
 
-### Backup Policies
-
-Configure backup schedules and retention:
-
-```python
-{
-    "name": "Daily Backup",
-    "frequency": "daily",
-    "schedule_time": "02:00:00",
-    "backup_type": "incremental",
-    "retention_days": 30,
-    "retention_snapshots": 10,
-    "compression_enabled": true
-}
-```
-
-### Repository Configuration
-
-#### Local Filesystem
-
-```python
-{
-    "repo_type": "local",
-    "path": "/data/backup"
-}
-```
-
-#### S3-Compatible Storage
-
-```python
-{
-    "repo_type": "s3",
-    "path": "my-bucket",
-    "config": {
-        "endpoint": "https://s3.amazonaws.com",
-        "region": "us-east-1",
-        "credentials": {
-            "access_key_id": "...",
-            "secret_access_key": "..."
-        }
-    }
-}
-```
-
-## Development
-
-### Backend
-
-```bash
-cd backend
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run migrations
-python manage.py migrate
-
-# Create superuser
-python manage.py createsuperuser
-
-# Run development server
-python manage.py runserver
-```
-
-### Frontend
-
-```bash
-cd frontend
-
-# Install dependencies
-pnpm install
-
-# Run development server
-pnpm run dev
-
-# Build for production
-pnpm run build
-```
-
-### Running Tests
-
-```bash
-# Backend tests
-cd backend
-pytest
-
-# Frontend tests
-cd frontend
-pnpm run test
-```
-
-## Contributing
-
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
+| Endpoint | Description |
+|----------|-------------|
+| `/files` | List mounted files |
+| `/snapshots` | List snapshots |
+| `/ai/query` | AI-powered query |
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Apache 2.0 License - see [LICENSE](LICENSE) for details.
 
-## Support
+## Contributing
 
-- **Documentation**: [docs.hyperfilelens.io](https://docs.hyperfilelens.io)
-- **Issues**: [GitHub Issues](https://github.com/hyperbdr/hyperfilelens/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/hyperbdr/hyperfilelens/discussions)
-
-## Roadmap
-
-### Phase 1 (Current)
-- [x] Project structure setup
-- [x] Backend core modules
-- [x] Frontend core UI
-- [ ] Node proxy implementation
-- [ ] Backup task execution
-- [ ] Recovery operations
-
-### Phase 2
-- [ ] AI query integration
-- [ ] Document parsing (PDF, Office)
-- [ ] OCR capabilities
-- [ ] Natural language search
-
-### Phase 3
-- [ ] Multi-tenant support
-- [ ] Advanced analytics
-- [ ] Anomaly detection
-- [ ] Compliance reporting
-
----
-
-Built with ❤️ by the HyperBDR Team
+Contributions are welcome! Please read our contributing guidelines before submitting PRs.

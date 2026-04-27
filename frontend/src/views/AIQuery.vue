@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { aiQueryApi } from '@/api'
+import { aiQueryApi, gateway } from '@/api'
 import {
   SparklesIcon,
   PaperAirplaneIcon,
@@ -10,7 +10,8 @@ import {
   ClockIcon,
   ShieldCheckIcon,
   FolderIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ServerIcon
 } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
@@ -31,6 +32,8 @@ const isSearching = ref(false)
 const results = ref<QueryResult[]>([])
 const hasSearched = ref(false)
 const conversationHistory = ref<Array<{ role: 'user' | 'assistant'; content: string }>>([])
+const gatewayStatus = ref<'online' | 'offline' | 'checking'>('checking')
+const selectedRepository = ref<string>('')
 
 const suggestions = computed(() => [
   { icon: DocumentTextIcon, text: t('aiQuery.examples.contracts'), color: 'text-blue-500' },
@@ -38,6 +41,16 @@ const suggestions = computed(() => [
   { icon: ClockIcon, text: t('aiQuery.examples.changes'), color: 'text-purple-500' },
   { icon: FolderIcon, text: t('aiQuery.examples.summary'), color: 'text-emerald-500' }
 ])
+
+// Check Gateway status on mount
+onMounted(async () => {
+  try {
+    await gateway.mountStatus()
+    gatewayStatus.value = 'online'
+  } catch {
+    gatewayStatus.value = 'offline'
+  }
+})
 
 async function handleSearch() {
   if (!query.value.trim()) return
@@ -49,14 +62,39 @@ async function handleSearch() {
   conversationHistory.value.push({ role: 'user', content: query.value })
 
   try {
-    const response = await aiQueryApi.query({ query: query.value })
-    results.value = response.data.results || []
-    
-    // Add assistant response
-    conversationHistory.value.push({ 
-      role: 'assistant', 
-      content: response.data.summary || `Found ${results.value.length} results` 
-    })
+    // Try Gateway AI Query first
+    if (gatewayStatus.value === 'online') {
+      const response = await gateway.aiQuery({
+        query: query.value,
+        repository_id: selectedRepository.value || undefined
+      })
+      
+      if (response.data.results) {
+        results.value = response.data.results.map((r: { path: string; size?: number; modified?: string }, i: number) => ({
+          id: String(i),
+          type: 'file' as const,
+          title: r.path.split('/').pop() || r.path,
+          description: `File from backup repository`,
+          path: r.path,
+          size: r.size,
+          modified: r.modified
+        }))
+      }
+      
+      conversationHistory.value.push({ 
+        role: 'assistant', 
+        content: response.data.summary || response.data.answer || `Found ${results.value.length} results` 
+      })
+    } else {
+      // Fallback to Django backend
+      const response = await aiQueryApi.query({ query: query.value })
+      results.value = response.data.results || []
+      
+      conversationHistory.value.push({ 
+        role: 'assistant', 
+        content: response.data.summary || `Found ${results.value.length} results` 
+      })
+    }
   } catch (error) {
     console.error('Search failed:', error)
     // Simulate response for demo
@@ -120,13 +158,37 @@ function clearConversation() {
         <h1 class="text-2xl font-bold text-slate-800">{{ t('aiQuery.title') }}</h1>
         <p class="text-slate-500 mt-1">{{ t('aiQuery.subtitle') }}</p>
       </div>
-      <button
-        v-if="hasSearched"
-        @click="clearConversation"
-        class="px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
-      >
-        {{ t('aiQuery.clearConversation') }}
-      </button>
+      <div class="flex items-center gap-4">
+        <!-- Gateway Status -->
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
+          <ServerIcon class="w-4 h-4 text-slate-400" />
+          <span class="text-sm text-slate-600">Gateway:</span>
+          <span 
+            :class="[
+              'text-sm font-medium',
+              gatewayStatus === 'online' ? 'text-emerald-600' : 
+              gatewayStatus === 'offline' ? 'text-red-600' : 'text-slate-400'
+            ]"
+          >
+            {{ gatewayStatus === 'online' ? t('common.online') : 
+               gatewayStatus === 'offline' ? t('common.offline') : t('common.checking') }}
+          </span>
+          <div 
+            :class="[
+              'w-2 h-2 rounded-full',
+              gatewayStatus === 'online' ? 'bg-emerald-500' : 
+              gatewayStatus === 'offline' ? 'bg-red-500' : 'bg-slate-300 animate-pulse'
+            ]"
+          />
+        </div>
+        <button
+          v-if="hasSearched"
+          @click="clearConversation"
+          class="px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+        >
+          {{ t('aiQuery.clearConversation') }}
+        </button>
+      </div>
     </div>
 
     <!-- Chat Interface -->
