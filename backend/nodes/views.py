@@ -221,6 +221,76 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
 
         return Response(response_data)
 
+    @extend_schema(
+        summary='Regenerate install token',
+        description='Regenerate the install token for a pending proxy. The old token will be invalidated immediately.',
+        responses={200: OpenApiResponse(
+            description='New install information',
+            response={
+                'type': 'object',
+                'properties': {
+                    'proxy_id': {'type': 'string'},
+                    'install_token': {'type': 'string'},
+                    'install_command': {'type': 'string'},
+                    'windows_command': {'type': 'string'},
+                }
+            }
+        )}
+    )
+    @action(detail=True, methods=['post'])
+    def regenerate_token(self, request, pk=None):
+        """Regenerate install token for a pending proxy."""
+        proxy = self.get_object()
+
+        # Only allow for pending proxies
+        if proxy.status != ProxyNode.NodeStatus.PENDING:
+            return Response(
+                {'error': 'Can only regenerate token for pending proxies'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Generate new tokens
+        proxy.install_token = secrets.token_urlsafe(32)
+        proxy.api_token = secrets.token_urlsafe(32)
+        proxy.install_token_used = False
+        proxy.save()
+
+        # Get server URL
+        server_url = getattr(
+            settings, 'PROXY_SERVER_URL',
+            request.build_absolute_uri('/').rstrip('/')
+        )
+
+        # Build new commands
+        install_command = self._build_install_command(
+            server_url=server_url,
+            role=proxy.role,
+            proxy_id=proxy.id,
+            install_token=proxy.install_token,
+            os_type=proxy.target_os or 'linux',
+            name=proxy.name
+        )
+
+        windows_command = self._build_install_command(
+            server_url=server_url,
+            role=proxy.role,
+            proxy_id=proxy.id,
+            install_token=proxy.install_token,
+            os_type='windows',
+            name=proxy.name
+        )
+
+        proxy.install_command = install_command
+        proxy.save()
+
+        return Response({
+            'proxy_id': proxy.id,
+            'install_token': proxy.install_token,
+            'api_token': proxy.api_token,
+            'install_command': install_command,
+            'windows_command': windows_command,
+        })
+
     def _generate_config_yaml(self, server_url, role, install_token, name, labels):
         """Generate configuration YAML for manual installation."""
         labels_str = '\n'.join([f'    - "{label}"' for label in labels]) if labels else '  []'

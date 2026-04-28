@@ -180,22 +180,41 @@ install_kopia() {
     
     log_info "Installing Kopia..."
     
+    # Detect architecture
+    KOPIA_ARCH=$(uname -m)
+    case $KOPIA_ARCH in
+        x86_64) KOPIA_ARCH="amd64" ;;
+        aarch64) KOPIA_ARCH="arm64" ;;
+        *) log_warn "Unsupported architecture for Kopia: $KOPIA_ARCH"; return ;;
+    esac
+    
+    # Use GitHub releases for direct download
+    KOPIA_VERSION="0.18.0"
+    KOPIA_DEB="kopia_${KOPIA_VERSION}_linux_${KOPIA_ARCH}.deb"
+    KOPIA_URL="https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/${KOPIA_DEB}"
+    
     case $OS in
         ubuntu|debian)
-            curl -sSL https://kopia.io/signing-key | gpg --dearmor -o /usr/share/keyrings/kopia-keyring.gpg
-            echo "deb [signed-by=/usr/share/keyrings/kopia-keyring.gpg] https://kopia.io/apt stable main" > /etc/apt/sources.list.d/kopia.list
-            apt-get update && apt-get install -y kopia
+            log_info "Downloading Kopia from GitHub releases..."
+            if curl -sSL --fail "$KOPIA_URL" -o /tmp/$KOPIA_DEB; then
+                dpkg -i /tmp/$KOPIA_DEB || apt-get install -f -y
+                rm -f /tmp/$KOPIA_DEB
+            else
+                log_warn "Failed to download Kopia from GitHub, trying apt..."
+                # Fallback to apt if available
+                apt-get update && apt-get install -y kopia 2>/dev/null || log_warn "Please install Kopia manually"
+            fi
             ;;
         centos|rhel|rocky|almalinux)
-            rpm --import https://kopia.io/signing-key
-            cat > /etc/yum.repos.d/kopia.repo << 'EOF'
-[kopia]
-name=Kopia
-baseurl=https://kopia.io/yum
-enabled=1
-gpgcheck=1
-EOF
-            yum install -y kopia
+            log_info "Downloading Kopia RPM from GitHub releases..."
+            KOPIA_RPM="kopia-${KOPIA_VERSION}-x86_64.rpm"
+            KOPIA_RPM_URL="https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/${KOPIA_RPM}"
+            if curl -sSL --fail "$KOPIA_RPM_URL" -o /tmp/$KOPIA_RPM; then
+                yum localinstall -y /tmp/$KOPIA_RPM || rpm -i /tmp/$KOPIA_RPM
+                rm -f /tmp/$KOPIA_RPM
+            else
+                log_warn "Failed to download Kopia, please install manually"
+            fi
             ;;
         *)
             log_warn "Please install Kopia manually from: https://kopia.io/docs/installation/"
@@ -204,6 +223,8 @@ EOF
     
     if command -v kopia &> /dev/null; then
         log_success "Kopia installed: $(kopia --version)"
+    else
+        log_warn "Kopia installation failed. Proxy will still work but backup features may be limited."
     fi
 }
 
@@ -218,13 +239,23 @@ download_proxy() {
         *) log_error "Unsupported architecture: $ARCH"; exit 1 ;;
     esac
     
-    # Download binary (in real scenario, this would download from releases)
-    # For now, we assume the binary is already available or built locally
-    if [[ ! -f "/usr/local/bin/hyperfilelens-proxy" ]]; then
-        log_warn "Proxy binary not found. Please ensure it's installed."
-        # In production:
-        # curl -sSL "${SERVER_URL}/downloads/proxy-linux-${ARCH}" -o /usr/local/bin/hyperfilelens-proxy
-        # chmod +x /usr/local/bin/hyperfilelens-proxy
+    # Detect OS
+    OS_TYPE=$(uname -s | tr '[:upper:]' '[:lower:]')
+    
+    # Build download URL
+    BINARY_NAME="hyperfilelens-proxy-${OS_TYPE}-${ARCH}"
+    DOWNLOAD_URL="${SERVER_URL}/static/downloads/${BINARY_NAME}"
+    
+    log_info "Downloading from: $DOWNLOAD_URL"
+    
+    # Download binary
+    if curl -sSL --fail "$DOWNLOAD_URL" -o /usr/local/bin/hyperfilelens-proxy; then
+        chmod +x /usr/local/bin/hyperfilelens-proxy
+        log_success "Proxy binary downloaded: $(/usr/local/bin/hyperfilelens-proxy --version 2>/dev/null || echo 'installed')"
+    else
+        log_error "Failed to download proxy binary from $DOWNLOAD_URL"
+        log_error "Please check if the server URL is correct and the binary exists"
+        exit 1
     fi
 }
 
