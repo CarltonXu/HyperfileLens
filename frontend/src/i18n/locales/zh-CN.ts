@@ -342,7 +342,21 @@ export default {
         running: '运行中',
         completed: '已完成',
         failed: '失败'
-      }
+      },
+      timeRange: '时间范围',
+      custom: '自定义',
+      startTime: '开始时间',
+      endTime: '结束时间',
+      apply: '应用',
+      cpuChart: 'CPU 使用率趋势',
+      memoryChart: '内存使用率趋势',
+      diskChart: '磁盘使用率趋势',
+      networkInterfaces: '网络接口',
+      interface: '接口名称',
+      ipAddress: 'IP 地址',
+      macAddress: 'MAC 地址',
+      bytesIn: '入站流量',
+      bytesOut: '出站流量'
     },
 
     monitoring: {

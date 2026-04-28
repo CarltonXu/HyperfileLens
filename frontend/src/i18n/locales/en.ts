@@ -342,7 +342,21 @@ export default {
         running: 'Running',
         completed: 'Completed',
         failed: 'Failed'
-      }
+      },
+      timeRange: 'Time Range',
+      custom: 'Custom',
+      startTime: 'Start Time',
+      endTime: 'End Time',
+      apply: 'Apply',
+      cpuChart: 'CPU Usage Trend',
+      memoryChart: 'Memory Usage Trend',
+      diskChart: 'Disk Usage Trend',
+      networkInterfaces: 'Network Interfaces',
+      interface: 'Interface',
+      ipAddress: 'IP Address',
+      macAddress: 'MAC Address',
+      bytesIn: 'Bytes In',
+      bytesOut: 'Bytes Out'
     },
 
     monitoring: {
