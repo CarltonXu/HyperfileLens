@@ -12,7 +12,7 @@ export interface RepositoryConfig {
   bucket?: string
   region?: string
   prefix?: string
-  use_ssl?: boolean
+  use_tls?: boolean
   url_style?: 'virtual' | 'path'  // S3 URL style: virtual hosted or path style
   
   // S3 credentials (stored in config for simplicity)

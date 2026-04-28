@@ -75,7 +75,7 @@ const newRepo = ref({
     prefix: '',
     access_key: '',
     secret_key: '',
-    use_ssl: true,
+    use_tls: true,
     url_style: 'virtual' as 'virtual' | 'path',  // URL 访问风格：virtual (Virtual Hosted) 或 path (Path Style)
     bucket_mode: 'existing' as 'existing' | 'new'  // 选择已有或新建
   },
@@ -157,7 +157,7 @@ function validateBucketName(name: string): { valid: boolean; message: string } {
 
 // Fetch S3 bucket list
 async function fetchBucketList() {
-  const { endpoint, access_key, secret_key, use_ssl } = newRepo.value.s3_config
+  const { endpoint, access_key, secret_key, use_tls } = newRepo.value.s3_config
   
   // Check required fields first
   if (!endpoint || !access_key || !secret_key) {
@@ -187,7 +187,7 @@ async function fetchBucketList() {
       region: newRepo.value.s3_config.region || undefined,
       access_key,
       secret_key,
-      use_ssl
+      use_tls
     })
     
     if (response.data.buckets) {
@@ -240,7 +240,7 @@ async function fetchBucketList() {
 
 // Check bucket name availability
 async function checkBucketNameAvailability() {
-  const { endpoint, access_key, secret_key, bucket, use_ssl } = newRepo.value.s3_config
+  const { endpoint, access_key, secret_key, bucket, use_tls } = newRepo.value.s3_config
   
   // Validate bucket name format first
   const validation = validateBucketName(bucket)
@@ -266,7 +266,7 @@ async function checkBucketNameAvailability() {
       access_key,
       secret_key,
       bucket_name: bucket,
-      use_ssl
+      use_tls
     })
     
     bucketNameAvailable.value = response.data.available
@@ -459,7 +459,7 @@ function resetForm() {
       prefix: '',
       access_key: '',
       secret_key: '',
-      use_ssl: true,
+      use_tls: true,
       url_style: 'virtual',
       bucket_mode: 'existing'
     },
@@ -636,7 +636,7 @@ async function createRepository() {
         bucket: newRepo.value.s3_config.bucket,
         region: newRepo.value.s3_config.region,
         prefix: newRepo.value.s3_config.prefix,
-        use_ssl: newRepo.value.s3_config.use_ssl,
+        use_tls: newRepo.value.s3_config.use_tls,
         url_style: newRepo.value.s3_config.url_style
       }
       payload.credentials = {
@@ -798,7 +798,7 @@ function openEditModal(repo: Repository) {
       prefix: repo.config.prefix || '',
       access_key: repo.credentials_masked?.access_key || '',
       secret_key: '', // 密钥不回显，需要用户重新输入
-      use_ssl: repo.config.use_ssl !== false,
+      use_tls: repo.config.use_tls !== false,
       url_style: repo.config.url_style || 'virtual',
       bucket_mode: 'existing' as 'existing' | 'new'
     }
@@ -1425,18 +1425,18 @@ onMounted(() => {
                     </div>
                     <button 
                       type="button"
-                      @click="newRepo.s3_config.use_ssl = !newRepo.s3_config.use_ssl"
+                      @click="newRepo.s3_config.use_tls = !newRepo.s3_config.use_tls"
                       :class="[
                         'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
-                        newRepo.s3_config.use_ssl ? 'bg-blue-600' : 'bg-slate-200'
+                        newRepo.s3_config.use_tls ? 'bg-blue-600' : 'bg-slate-200'
                       ]"
                       role="switch"
-                      :aria-checked="newRepo.s3_config.use_ssl"
+                      :aria-checked="newRepo.s3_config.use_tls"
                     >
                       <span 
                         :class="[
                           'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                          newRepo.s3_config.use_ssl ? 'translate-x-5' : 'translate-x-0'
+                          newRepo.s3_config.use_tls ? 'translate-x-5' : 'translate-x-0'
                         ]"
                       ></span>
                     </button>
@@ -1955,8 +1955,8 @@ onMounted(() => {
                   <p class="text-slate-700 font-mono">{{ selectedRepo.credentials_masked?.access_key || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.s3.useSSL') }}</p>
-                  <p class="text-slate-700">{{ selectedRepo.config?.use_ssl !== false ? t('common.yes') : t('common.no') }}</p>
+                  <p class="text-xs text-slate-500">{{ t('repository.s3.useTLS') }}</p>
+                  <p class="text-slate-700">{{ selectedRepo.config?.use_tls !== false ? t('common.yes') : t('common.no') }}</p>
                 </div>
               </div>
             </div>

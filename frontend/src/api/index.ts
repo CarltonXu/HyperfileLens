@@ -315,7 +315,7 @@ export const repositoriesApi = {
     region?: string;
     access_key: string;
     secret_key: string;
-    use_ssl?: boolean;
+    use_tls?: boolean;
   }) =>
     api.post('/api/v1/repositories/list_s3_buckets/', data, { timeout: 60000 }),
   
@@ -325,7 +325,7 @@ export const repositoriesApi = {
     access_key: string;
     secret_key: string;
     bucket_name: string;
-    use_ssl?: boolean;
+    use_tls?: boolean;
   }) =>
     api.post('/api/v1/repositories/validate_s3_bucket_name/', data, { timeout: 30000 })
 }

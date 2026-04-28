@@ -197,7 +197,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         # URL Style: 'virtual' (Virtual Hosted Style) or 'path' (Path Style)
         # 默认使用 Virtual Hosted Style，兼容华为云 OBS、AWS S3 等
         url_style = config.get('url_style', 'virtual')
-        use_ssl = config.get('use_ssl', True)
+        use_tls = config.get('use_tls', True)
         access_key = credentials.get('access_key', '')
         secret_key = credentials.get('secret_key', '')
         
@@ -206,7 +206,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         logger.info(
             f"[S3 Connection Test] Starting test for repository '{repo.name}' (ID: {repo.id}): "
             f"endpoint={endpoint}, bucket={bucket}, region={region}, "
-            f"url_style={url_style}, use_ssl={use_ssl}, access_key={masked_key}"
+            f"url_style={url_style}, use_tls={use_tls}, access_key={masked_key}"
         )
         
         if not all([endpoint, bucket, access_key, secret_key]):
@@ -247,7 +247,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
                 config=s3_config,
-                use_ssl=use_ssl,
+                use_tls=use_tls,
                 verify=False  # 对于自签名证书
             )
             
@@ -273,7 +273,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 if should_check_region:
                     # 尝试获取 bucket 的真实区域
                     actual_region = self._get_bucket_actual_region(
-                        endpoint, access_key, secret_key, bucket, use_ssl, region, url_style
+                        endpoint, access_key, secret_key, bucket, use_tls, region, url_style
                     )
                     
                     if actual_region and actual_region != region:
@@ -298,7 +298,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                                 retries={'max_attempts': 2},
                                 s3={'addressing_style': url_style}
                             ),
-                            use_ssl=use_ssl,
+                            use_tls=use_tls,
                             verify=False
                         )
                         
@@ -462,7 +462,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 'error_code': 'UNKNOWN_ERROR'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    def _get_bucket_actual_region(self, endpoint, access_key, secret_key, bucket, use_ssl, fallback_region, url_style='virtual'):
+    def _get_bucket_actual_region(self, endpoint, access_key, secret_key, bucket, use_tls, fallback_region, url_style='virtual'):
         """
         尝试获取 bucket 的真实区域。
         华为云 OBS 和其他 S3 兼容存储可能返回 bucket 所在区域。
@@ -486,7 +486,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
                 config=s3_config,
-                use_ssl=use_ssl,
+                use_tls=use_tls,
                 verify=False
             )
             
@@ -824,15 +824,15 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         - access_key: Access key ID
         - secret_key: Secret access key
         - region: Region (optional, default: us-east-1)
-        - use_ssl: Use SSL (optional, default: true)
+        - use_tls: Use SSL (optional, default: true)
         """
         endpoint = request.data.get('endpoint')
         access_key = request.data.get('access_key')
         secret_key = request.data.get('secret_key')
         region = request.data.get('region', 'us-east-1')
-        use_ssl = request.data.get('use_ssl', True)
+        use_tls = request.data.get('use_tls', True)
         
-        logger.info(f"[S3] List buckets request - endpoint: {endpoint}, region: {region}, use_ssl: {use_ssl}")
+        logger.info(f"[S3] List buckets request - endpoint: {endpoint}, region: {region}, use_tls: {use_tls}")
         logger.debug(f"[S3] Access key: {access_key[:4]}****{access_key[-4:] if access_key and len(access_key) > 8 else '****'}")
         
         # Validation
@@ -872,7 +872,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                     retries={'max_attempts': 2},  # Retry twice on failure
                     signature_version='s3v4'
                 ),
-                use_ssl=use_ssl,
+                use_tls=use_tls,
                 verify=False  # For self-signed certificates
             )
             
@@ -1050,7 +1050,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         access_key = request.data.get('access_key')
         secret_key = request.data.get('secret_key')
         region = request.data.get('region', 'us-east-1')
-        use_ssl = request.data.get('use_ssl', True)
+        use_tls = request.data.get('use_tls', True)
         
         availability_checked = False
         available = None
@@ -1069,7 +1069,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                         read_timeout=10,
                         signature_version='s3v4'
                     ),
-                    use_ssl=use_ssl,
+                    use_tls=use_tls,
                     verify=False
                 )
                 
@@ -1127,14 +1127,14 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         - access_key: Access key ID
         - secret_key: Secret access key
         - region: Region (optional)
-        - use_ssl: Use SSL (optional, default: true)
+        - use_tls: Use SSL (optional, default: true)
         """
         bucket_name = request.data.get('bucket_name')
         endpoint = request.data.get('endpoint')
         access_key = request.data.get('access_key')
         secret_key = request.data.get('secret_key')
         region = request.data.get('region', 'us-east-1')
-        use_ssl = request.data.get('use_ssl', True)
+        use_tls = request.data.get('use_tls', True)
         
         # Validation
         if not all([bucket_name, endpoint, access_key, secret_key]):
@@ -1163,7 +1163,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                     read_timeout=30,
                     signature_version='s3v4'
                 ),
-                use_ssl=use_ssl,
+                use_tls=use_tls,
                 verify=False
             )
             
@@ -1255,7 +1255,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             endpoint = config.get('endpoint')
             bucket = config.get('bucket')
             region = config.get('region', 'us-east-1')
-            use_ssl = config.get('use_ssl', True)
+            use_tls = config.get('use_tls', True)
             access_key = credentials.get('access_key')
             secret_key = credentials.get('secret_key')
             
@@ -1273,7 +1273,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 import socket
                 try:
                     start_time = time.time()
-                    sock = socket.create_connection((hostname, parsed.port or (443 if use_ssl else 80)), timeout=5)
+                    sock = socket.create_connection((hostname, parsed.port or (443 if use_tls else 80)), timeout=5)
                     sock.close()
                     latency = (time.time() - start_time) * 1000
                     results['connectivity']['endpoint'] = {
@@ -1307,7 +1307,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                         read_timeout=10,
                         signature_version='s3v4'
                     ),
-                    use_ssl=use_ssl,
+                    use_tls=use_tls,
                     verify=False
                 )
                 
