@@ -945,68 +945,85 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             
             for bucket in response.get('Buckets', []):
                 bucket_name = bucket['Name']
-                # Get bucket location
                 bucket_region = 'unknown'
+                actually_accessible = False  # Track if bucket is actually accessible via configured endpoint
+                
+                # Strategy for region detection (in order of reliability):
+                # 1. Try head_bucket with configured endpoint - this proves bucket is in this region
+                # 2. If fails, extract region from error response headers
+                # 3. Fallback to get_bucket_location API (may return incorrect values for OBS)
+                
                 try:
-                    # Note: get_bucket_location may fail for cross-region buckets
-                    # In that case, we'll try to infer the region from the error response
-                    location = s3_client.get_bucket_location(Bucket=bucket_name)
-                    raw_location = location.get('LocationConstraint')
-                    logger.info(f"[S3] Bucket '{bucket_name}': get_bucket_location raw response = {repr(raw_location)}")
+                    # First, try head_bucket to verify bucket is accessible via configured endpoint
+                    # This is the most reliable way to determine if bucket belongs to configured region
+                    head_response = s3_client.head_bucket(Bucket=bucket_name)
+                    headers = head_response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
                     
-                    # Handle different response formats:
-                    # - AWS S3: returns actual region or None for us-east-1
-                    # - Huawei OBS: often returns empty string, None, or 'us-east-1' (default)
-                    # - MinIO: may return empty string
+                    # If we get here, bucket is accessible via configured endpoint
+                    actually_accessible = True
                     
-                    # Check if this is a Huawei OBS endpoint
-                    is_huawei_obs = 'myhuaweicloud.com' in endpoint or 'huawei.com' in endpoint if endpoint else False
-                    
-                    if raw_location is None or raw_location == '' or (is_huawei_obs and raw_location == 'us-east-1'):
-                        # For empty/None/default responses on Huawei OBS, use endpoint region
-                        if is_huawei_obs and endpoint_region:
-                            bucket_region = endpoint_region
-                            logger.info(f"[S3] Bucket '{bucket_name}': Huawei OBS detected, using endpoint region = '{bucket_region}'")
-                        else:
-                            # Try head_bucket to get actual region
-                            try:
-                                head_response = s3_client.head_bucket(Bucket=bucket_name)
-                                # Check headers for region info
-                                headers = head_response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
-                                bucket_region = headers.get('x-amz-bucket-region', endpoint_region or 'unknown')
-                                logger.info(f"[S3] Bucket '{bucket_name}': head_bucket region from headers = '{bucket_region}'")
-                            except Exception as head_err:
-                                # If head_bucket fails, use endpoint region as fallback
-                                bucket_region = endpoint_region or 'unknown'
-                                logger.info(f"[S3] Bucket '{bucket_name}': head_bucket failed ({head_err}), using endpoint region = '{bucket_region}'")
+                    # Try to get region from response headers
+                    bucket_region = headers.get('x-amz-bucket-region') or headers.get('x-obs-bucket-location')
+                    if bucket_region:
+                        logger.info(f"[S3] Bucket '{bucket_name}': head_bucket SUCCESS, region from headers = '{bucket_region}'")
                     else:
-                        bucket_region = raw_location
+                        # Bucket is accessible, so it must be in the configured region
+                        bucket_region = region or 'unknown'
+                        logger.info(f"[S3] Bucket '{bucket_name}': head_bucket SUCCESS (accessible via configured endpoint), assuming region = '{bucket_region}'")
+                        
+                except ClientError as head_err:
+                    error_code = head_err.response.get('Error', {}).get('Code', 'Unknown')
+                    error_headers = head_err.response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
                     
-                    logger.info(f"[S3] Bucket '{bucket_name}': final detected region = '{bucket_region}', configured region = '{region}', match = {bucket_region == region}")
+                    # Try to get region from error headers
+                    bucket_region = error_headers.get('x-amz-bucket-region') or error_headers.get('x-obs-bucket-location')
                     
-                except ClientError as e:
-                    # Try to extract region from error response headers
-                    # Some S3-compatible services return region in headers
-                    error_headers = e.response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
-                    bucket_region = error_headers.get('x-amz-bucket-region', endpoint_region or 'unknown')
-                    error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-                    logger.warning(f"[S3] Bucket '{bucket_name}': get_bucket_location failed with error '{error_code}', inferred region from headers = '{bucket_region}'")
-                    logger.debug(f"[S3] Bucket '{bucket_name}': full error response = {e.response}")
+                    if bucket_region:
+                        logger.info(f"[S3] Bucket '{bucket_name}': head_bucket FAILED (error={error_code}), region from error headers = '{bucket_region}'")
+                    else:
+                        # Try get_bucket_location as fallback
+                        try:
+                            location = s3_client.get_bucket_location(Bucket=bucket_name)
+                            raw_location = location.get('LocationConstraint')
+                            logger.info(f"[S3] Bucket '{bucket_name}': get_bucket_location raw response = {repr(raw_location)}")
+                            
+                            # Handle different response formats
+                            if raw_location and raw_location not in ['', 'us-east-1']:
+                                bucket_region = raw_location
+                            else:
+                                # Use endpoint region as last resort
+                                bucket_region = endpoint_region or region or 'unknown'
+                                logger.info(f"[S3] Bucket '{bucket_name}': get_bucket_location returned empty/default, using endpoint region = '{bucket_region}'")
+                        except Exception as loc_err:
+                            bucket_region = endpoint_region or region or 'unknown'
+                            logger.warning(f"[S3] Bucket '{bucket_name}': Both head_bucket and get_bucket_location failed, using endpoint region = '{bucket_region}'")
+                
                 except Exception as e:
-                    bucket_region = endpoint_region or 'unknown'
-                    logger.warning(f"[S3] Bucket '{bucket_name}': get_bucket_location exception: {type(e).__name__}: {e}, using endpoint region = '{bucket_region}'")
+                    bucket_region = endpoint_region or region or 'unknown'
+                    logger.warning(f"[S3] Bucket '{bucket_name}': head_bucket exception: {type(e).__name__}: {e}, using endpoint region = '{bucket_region}'")
+                
+                # Determine if bucket matches configured region
+                # A bucket matches if:
+                # 1. It's actually accessible via configured endpoint (most reliable)
+                # 2. OR its detected region matches configured region
+                region_match = bucket_region == region
+                accessible_match = actually_accessible
+                
+                logger.info(f"[S3] Bucket '{bucket_name}': final region = '{bucket_region}', accessible = {actually_accessible}, matches_region = {region_match}")
                 
                 bucket_info = {
                     'name': bucket_name,
                     'creation_date': bucket['CreationDate'].isoformat() if bucket.get('CreationDate') else None,
                     'region': bucket_region,
-                    'matches_configured_region': bucket_region == region or (bucket_region == 'unknown')
+                    'accessible': actually_accessible,
+                    'matches_configured_region': actually_accessible or (bucket_region == region)
                 }
                 
                 buckets.append(bucket_info)
                 
-                # Categorize by region match
-                if bucket_region == region:
+                # Categorize by accessibility and region match
+                # A bucket is considered "matched" if it's accessible via configured endpoint
+                if actually_accessible or bucket_region == region:
                     matched_buckets.append(bucket_info)
                 else:
                     other_buckets.append(bucket_info)
