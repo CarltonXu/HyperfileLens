@@ -195,7 +195,7 @@ func (c *Config) GetWebSocketURL() string {
 		nodeID = "unknown"
 	}
 	
-	return fmt.Sprintf("%s://%s/ws/node/%s/", protocol, base, nodeID)
+	return fmt.Sprintf("%s://%s/ws/proxy/%s/", protocol, base, nodeID)
 }
 
 // GetAPIURL returns the API base URL

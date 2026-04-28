@@ -105,7 +105,7 @@ func (c *Client) Register() (string, error) {
 		return "", fmt.Errorf("failed to marshal registration: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.apiURL+"/nodes/register/", bytes.NewReader(body))
+	req, err := http.NewRequest("POST", c.apiURL+"/proxies/register/", bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}

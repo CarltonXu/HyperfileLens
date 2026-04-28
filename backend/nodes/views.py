@@ -562,11 +562,16 @@ logging:
                 'disk_usage': h.disk_usage,
             })
 
+        # Calculate uptime from registered_at
+        uptime_seconds = None
+        if proxy.registered_at:
+            uptime_seconds = int((timezone.now() - proxy.registered_at).total_seconds())
+
         data = {
             'proxy_id': str(proxy.id),
             'status': proxy.status,
             'is_online': proxy.is_online,
-            'uptime_seconds': proxy.uptime_seconds,
+            'uptime_seconds': uptime_seconds,
             'last_heartbeat': proxy.last_heartbeat.isoformat() if proxy.last_heartbeat else None,
 
             # Current resource usage
