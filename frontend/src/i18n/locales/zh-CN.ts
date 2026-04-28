@@ -664,6 +664,17 @@ export default {
       checkFields: '请检查必填字段'
     },
 
+    list: {
+      name: '名称',
+      type: '类型',
+      status: '状态',
+      connection: '连接信息',
+      boundNode: '绑定节点',
+      capacity: '容量',
+      kopia: 'Kopia 状态',
+      actions: '操作'
+    },
+
     confirmDelete: '确定要删除此仓库吗？'
   },
 

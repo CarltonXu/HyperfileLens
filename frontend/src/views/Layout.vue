@@ -290,7 +290,7 @@ onUnmounted(() => {
                   class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                 >
                   <UserCircleIcon class="w-4 h-4" />
-                  <span>{{ t('profile.title') }}</span>
+                  <span>{{ t('settings.profile.title') }}</span>
                 </button>
               </div>
               <button
