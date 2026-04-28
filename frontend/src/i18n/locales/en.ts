@@ -633,7 +633,11 @@ export default {
       bucketNameUnavailable: 'Bucket name is unavailable',
       bucketNameInvalid: 'Invalid bucket name format',
       bucketListError: 'Failed to fetch bucket list',
-      noBucketsFound: 'No buckets available in this account'
+      noBucketsFound: 'No buckets available in this account',
+      fetchBucketsFailed: 'Failed to fetch bucket list. Please check your credentials.',
+      fillCredentialsFirst: 'Please fill in Endpoint and credentials first',
+      validateFailed: 'Bucket name validation failed',
+      checkSuccess: 'Bucket name is available'
     },
 
     nas: {

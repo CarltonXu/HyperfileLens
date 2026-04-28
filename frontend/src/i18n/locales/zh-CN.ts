@@ -633,7 +633,11 @@ export default {
       bucketNameUnavailable: 'Bucket 名称不可用',
       bucketNameInvalid: 'Bucket 名称格式不正确',
       bucketListError: '获取 Bucket 列表失败',
-      noBucketsFound: '当前账户下没有可用的 Bucket'
+      noBucketsFound: '当前账户下没有可用的 Bucket',
+      fetchBucketsFailed: '获取 Bucket 列表失败，请检查访问凭据是否正确',
+      fillCredentialsFirst: '请先填写 Endpoint 和访问凭据',
+      validateFailed: 'Bucket 名称验证失败',
+      checkSuccess: 'Bucket 名称可用'
     },
 
     nas: {

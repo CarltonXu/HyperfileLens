@@ -317,7 +317,7 @@ export const repositoriesApi = {
     secret_key: string;
     use_ssl?: boolean;
   }) =>
-    api.post('/api/v1/repository/repositories/list-buckets/', data),
+    api.post('/api/v1/repository/repositories/list_s3_buckets/', data),
   
   checkBucketName: (data: {
     endpoint: string;
@@ -327,7 +327,7 @@ export const repositoriesApi = {
     bucket_name: string;
     use_ssl?: boolean;
   }) =>
-    api.post('/api/v1/repository/repositories/check-bucket-name/', data)
+    api.post('/api/v1/repository/repositories/validate_s3_bucket_name/', data)
 }
 
 // ============== Policies API ==============
