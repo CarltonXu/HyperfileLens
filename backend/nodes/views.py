@@ -782,8 +782,17 @@ logging:
             'network_io': network_io_data,
             'disk_io': disk_io_data,
 
-            # Network interfaces
-            'network_interfaces': proxy.network_interfaces or [],
+            # Network interfaces - transform format for frontend
+            'network_interfaces': [
+                {
+                    'name': ni.get('name'),
+                    'ip_address': ni.get('ip_addresses', [])[0] if ni.get('ip_addresses') else None,
+                    'mac_address': ni.get('mac'),
+                    'bytes_in': ni.get('bytes_in', 0),
+                    'bytes_out': ni.get('bytes_out', 0),
+                }
+                for ni in (proxy.network_interfaces or [])
+            ],
             'network_stats': {
                 'bytes_sent': proxy.network_bytes_sent,
                 'bytes_recv': proxy.network_bytes_recv,
@@ -835,7 +844,7 @@ logging:
 
         data = request.data
 
-        # Update proxy heartbeat
+        # Update proxy heartbeat with network interfaces data
         proxy.update_heartbeat({
             'version': data.get('version'),
             'kopia_version': data.get('kopia_version'),
@@ -851,6 +860,9 @@ logging:
             'disk_usage': data.get('disk_usage'),
             'active_tasks': data.get('active_tasks', 0),
             'capabilities': data.get('capabilities', {}),
+            'network_interfaces': data.get('network_interfaces', []),
+            'network_bytes_sent': data.get('network_bytes_sent'),
+            'network_bytes_recv': data.get('network_bytes_recv'),
         })
 
         # Create heartbeat record with network and disk IO data in metadata
@@ -1044,8 +1056,8 @@ class ProxyHeartbeatView(APIView):
         proxy = serializer.validated_data['proxy']
         data = serializer.validated_data
 
-        # Update proxy heartbeat
-        proxy.update_heartbeat({
+        # Update proxy heartbeat with network interfaces data
+        update_data = {
             'version': data.get('version'),
             'kopia_version': data.get('kopia_version'),
             'hostname': data.get('hostname'),
@@ -1060,7 +1072,11 @@ class ProxyHeartbeatView(APIView):
             'disk_usage': data.get('disk_usage'),
             'active_tasks': data.get('active_tasks', 0),
             'capabilities': data.get('capabilities', {}),
-        })
+            'network_interfaces': data.get('network_interfaces', []),
+            'network_bytes_sent': data.get('network_bytes_sent'),
+            'network_bytes_recv': data.get('network_bytes_recv'),
+        }
+        proxy.update_heartbeat(update_data)
 
         # Create heartbeat record with network and disk IO data in metadata
         heartbeat_metadata = data.get('metadata', {})

@@ -2561,9 +2561,10 @@ onUnmounted(() => {
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <!-- Network I/O Chart Section -->
-                  <div v-if="tabData.monitor.data.network_io && tabData.monitor.data.network_io.length > 0" class="bg-white border border-slate-200 rounded-xl p-4">
+                <!-- Network I/O Chart Section -->
+                <div v-if="tabData.monitor.data.network_io && tabData.monitor.data.network_io.length > 0" class="bg-white border border-slate-200 rounded-xl p-4">
                     <div class="flex items-center justify-between mb-4">
                       <h4 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
                         <ChartBarIcon class="w-4 h-4 text-blue-500" />
