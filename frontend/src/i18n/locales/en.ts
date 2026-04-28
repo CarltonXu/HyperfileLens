@@ -643,7 +643,13 @@ export default {
       checkBucketFailed: 'Failed to check bucket name',
       connectionTimeout: 'Connection timeout. Please check if the endpoint URL is correct and the service is accessible',
       networkError: 'Network connection failed. Please check your network or endpoint URL',
-      invalidEndpoint: 'Invalid endpoint format. Please enter a valid URL'
+      invalidEndpoint: 'Invalid endpoint format. Please enter a valid URL',
+      urlStyle: 'URL Style',
+      urlStyleVirtual: 'Virtual Hosted Style',
+      urlStylePath: 'Path Style',
+      urlStyleHint: 'Virtual Hosted Style uses bucket name as subdomain (bucket.endpoint). Path Style uses bucket as path (endpoint/bucket).',
+      useTLS: 'Use TLS',
+      useTLSHint: 'Enable HTTPS for secure connection. Disable for HTTP or self-signed certificates.'
     },
 
     nas: {

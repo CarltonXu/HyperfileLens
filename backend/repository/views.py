@@ -194,6 +194,9 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         endpoint = config.get('endpoint', '')
         bucket = config.get('bucket', '')
         region = config.get('region', 'us-east-1')
+        # URL Style: 'virtual' (Virtual Hosted Style) or 'path' (Path Style)
+        # 默认使用 Virtual Hosted Style，兼容华为云 OBS、AWS S3 等
+        url_style = config.get('url_style', 'virtual')
         use_ssl = config.get('use_ssl', True)
         access_key = credentials.get('access_key', '')
         secret_key = credentials.get('secret_key', '')
@@ -203,7 +206,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         logger.info(
             f"[S3 Connection Test] Starting test for repository '{repo.name}' (ID: {repo.id}): "
             f"endpoint={endpoint}, bucket={bucket}, region={region}, "
-            f"use_ssl={use_ssl}, access_key={masked_key}"
+            f"url_style={url_style}, use_ssl={use_ssl}, access_key={masked_key}"
         )
         
         if not all([endpoint, bucket, access_key, secret_key]):
@@ -232,8 +235,9 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 connect_timeout=5,
                 read_timeout=10,
                 retries={'max_attempts': 2},
-                # 华为云 OBS 需要使用 Virtual Host 风格访问
-                s3={'addressing_style': 'virtual'}
+                # URL Style: 'virtual' (Virtual Hosted Style) or 'path' (Path Style)
+                # 用户可在前端配置，默认为 virtual
+                s3={'addressing_style': url_style}
             )
             
             s3_client = boto3.client(
@@ -269,7 +273,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 if should_check_region:
                     # 尝试获取 bucket 的真实区域
                     actual_region = self._get_bucket_actual_region(
-                        endpoint, access_key, secret_key, bucket, use_ssl, region
+                        endpoint, access_key, secret_key, bucket, use_ssl, region, url_style
                     )
                     
                     if actual_region and actual_region != region:
@@ -292,7 +296,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                                 connect_timeout=5,
                                 read_timeout=10,
                                 retries={'max_attempts': 2},
-                                s3={'addressing_style': 'virtual'}
+                                s3={'addressing_style': url_style}
                             ),
                             use_ssl=use_ssl,
                             verify=False
@@ -458,7 +462,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 'error_code': 'UNKNOWN_ERROR'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    def _get_bucket_actual_region(self, endpoint, access_key, secret_key, bucket, use_ssl, fallback_region):
+    def _get_bucket_actual_region(self, endpoint, access_key, secret_key, bucket, use_ssl, fallback_region, url_style='virtual'):
         """
         尝试获取 bucket 的真实区域。
         华为云 OBS 和其他 S3 兼容存储可能返回 bucket 所在区域。
@@ -472,8 +476,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 connect_timeout=5,
                 read_timeout=10,
                 retries={'max_attempts': 1},
-                # 华为云 OBS 需要使用 Virtual Host 风格访问
-                s3={'addressing_style': 'virtual'}
+                s3={'addressing_style': url_style}
             )
             
             s3_client = boto3.client(

@@ -643,7 +643,13 @@ export default {
       checkBucketFailed: '检查 Bucket 名称失败',
       connectionTimeout: '连接超时，请检查 Endpoint 地址是否正确，或服务是否可访问',
       networkError: '网络连接失败，请检查网络连接或 Endpoint 地址',
-      invalidEndpoint: 'Endpoint 格式无效，请输入有效的 URL 地址'
+      invalidEndpoint: 'Endpoint 格式无效，请输入有效的 URL 地址',
+      urlStyle: 'URL 风格',
+      urlStyleVirtual: '虚拟主机风格',
+      urlStylePath: '路径风格',
+      urlStyleHint: '虚拟主机风格将 Bucket 名称作为子域名（bucket.endpoint），路径风格将 Bucket 作为路径（endpoint/bucket）。',
+      useTLS: '使用 TLS',
+      useTLSHint: '启用 HTTPS 安全连接。如使用 HTTP 或自签名证书可关闭。'
     },
 
     nas: {

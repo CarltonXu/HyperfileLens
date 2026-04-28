@@ -76,6 +76,7 @@ const newRepo = ref({
     access_key: '',
     secret_key: '',
     use_ssl: true,
+    url_style: 'virtual' as 'virtual' | 'path',  // URL 访问风格：virtual (Virtual Hosted) 或 path (Path Style)
     bucket_mode: 'existing' as 'existing' | 'new'  // 选择已有或新建
   },
   // NAS config
@@ -459,6 +460,7 @@ function resetForm() {
       access_key: '',
       secret_key: '',
       use_ssl: true,
+      url_style: 'virtual',
       bucket_mode: 'existing'
     },
     nas_config: {
@@ -633,7 +635,9 @@ async function createRepository() {
         endpoint: newRepo.value.s3_config.endpoint,
         bucket: newRepo.value.s3_config.bucket,
         region: newRepo.value.s3_config.region,
-        prefix: newRepo.value.s3_config.prefix
+        prefix: newRepo.value.s3_config.prefix,
+        use_ssl: newRepo.value.s3_config.use_ssl,
+        url_style: newRepo.value.s3_config.url_style
       }
       payload.credentials = {
         access_key: newRepo.value.s3_config.access_key,
@@ -795,6 +799,7 @@ function openEditModal(repo: Repository) {
       access_key: repo.credentials_masked?.access_key || '',
       secret_key: '', // 密钥不回显，需要用户重新输入
       use_ssl: repo.config.use_ssl !== false,
+      url_style: repo.config.url_style || 'virtual',
       bucket_mode: 'existing' as 'existing' | 'new'
     }
   } else if ((repo.repo_type === 'nas' || repo.repo_type === 'nfs') && repo.config) {
@@ -1398,6 +1403,45 @@ onMounted(() => {
                     <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.region') }}</label>
                     <input v-model="newRepo.s3_config.region" type="text" placeholder="us-east-1" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
+                  
+                  <!-- URL Style Selection -->
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.urlStyle') }}</label>
+                    <select 
+                      v-model="newRepo.s3_config.url_style"
+                      class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="virtual">{{ t('repository.s3.urlStyleVirtual') }}</option>
+                      <option value="path">{{ t('repository.s3.urlStylePath') }}</option>
+                    </select>
+                    <p class="text-xs text-slate-500 mt-1">{{ t('repository.s3.urlStyleHint') }}</p>
+                  </div>
+                  
+                  <!-- Use TLS Toggle -->
+                  <div class="flex items-center justify-between py-2">
+                    <div>
+                      <label class="block text-sm font-medium text-slate-700">{{ t('repository.s3.useTLS') }}</label>
+                      <p class="text-xs text-slate-500">{{ t('repository.s3.useTLSHint') }}</p>
+                    </div>
+                    <button 
+                      type="button"
+                      @click="newRepo.s3_config.use_ssl = !newRepo.s3_config.use_ssl"
+                      :class="[
+                        'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+                        newRepo.s3_config.use_ssl ? 'bg-blue-600' : 'bg-slate-200'
+                      ]"
+                      role="switch"
+                      :aria-checked="newRepo.s3_config.use_ssl"
+                    >
+                      <span 
+                        :class="[
+                          'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                          newRepo.s3_config.use_ssl ? 'translate-x-5' : 'translate-x-0'
+                        ]"
+                      ></span>
+                    </button>
+                  </div>
+                  
                   <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.accessKey') }} *</label>
                     <input 
