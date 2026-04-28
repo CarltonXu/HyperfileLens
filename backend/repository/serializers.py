@@ -252,6 +252,40 @@ class RepositoryUpdateSerializer(serializers.ModelSerializer):
         if Repository.objects.filter(name=value).exclude(id=instance.id).exists():
             raise serializers.ValidationError("A repository with this name already exists.")
         return value
+    
+    def update(self, instance, validated_data):
+        """
+        Update repository, handling partial credential updates.
+        
+        If credentials are provided but some fields are empty (e.g., secret_key),
+        preserve the original values from the instance.
+        """
+        credentials = validated_data.pop('credentials', None)
+        
+        # Update other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        # Handle credentials - merge with existing if partial
+        if credentials is not None:
+            existing_credentials = instance.credentials or {}
+            
+            # For S3: preserve secret_key if not provided (empty string means no change)
+            if instance.repo_type == Repository.TYPE_S3:
+                if 'secret_key' in credentials and not credentials['secret_key']:
+                    # Keep existing secret_key
+                    credentials['secret_key'] = existing_credentials.get('secret_key', '')
+            
+            # For NAS/CIFS: preserve password if not provided
+            elif instance.repo_type in [Repository.TYPE_NAS, Repository.TYPE_NFS]:
+                if 'password' in credentials and not credentials['password']:
+                    # Keep existing password
+                    credentials['password'] = existing_credentials.get('password', '')
+            
+            instance.credentials = credentials
+        
+        instance.save()
+        return instance
 
 
 class RepositoryInitSerializer(serializers.Serializer):

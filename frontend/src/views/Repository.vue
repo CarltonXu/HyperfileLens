@@ -24,7 +24,9 @@ import {
   Squares2X2Icon,
   Bars3Icon,
   InformationCircleIcon,
-  XCircleIcon
+  XCircleIcon,
+  PencilIcon,
+  SignalIcon
 } from '@heroicons/vue/24/outline'
 import { GlobeAltIcon, PlusCircleIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/solid'
 
@@ -432,6 +434,52 @@ function clearError(field: string) {
   delete formErrors.value[field]
 }
 
+// Reset form to initial state
+function resetForm() {
+  isEditMode.value = false
+  editingRepoId.value = null
+  formErrors.value = {}
+  connectionTestResult.value = {}
+  s3BucketList.value = []
+  bucketListError.value = ''
+  bucketNameAvailable.value = null
+  bucketNameMessage.value = ''
+  
+  // Reset form data
+  newRepo.value = {
+    name: '',
+    repo_type: 's3',
+    description: '',
+    bound_node: null,
+    s3_config: {
+      endpoint: '',
+      bucket: '',
+      region: '',
+      prefix: '',
+      access_key: '',
+      secret_key: '',
+      use_ssl: true,
+      bucket_mode: 'existing'
+    },
+    nas_config: {
+      server: '',
+      export_path: '',
+      mount_type: 'nfs',
+      mount_options: '',
+      username: '',
+      password: ''
+    },
+    local_config: {
+      path: ''
+    }
+  }
+  
+  // Reset local directory browsing
+  selectedProxy.value = null
+  proxyDirectories.value = []
+  currentPath.value = ''
+}
+
 // Available Sync Proxies (online + sync role)
 const availableSyncProxies = computed(() => {
   return nodes.value.filter(node => 
@@ -724,42 +772,6 @@ async function initKopia(repo: Repository) {
     const errorMsg = error.response?.data?.detail || error.message
     appStore.error(`${t('repository.kopiaInitFailed')}: ${errorMsg}`)
   }
-}
-
-function resetForm() {
-  newRepo.value = {
-    name: '',
-    repo_type: 's3',
-    description: '',
-    bound_node: null,
-    s3_config: {
-      endpoint: '',
-      bucket: '',
-      region: '',
-      prefix: '',
-      access_key: '',
-      secret_key: '',
-      use_ssl: true,
-      bucket_mode: 'existing' as 'existing' | 'new'
-    },
-    nas_config: {
-      server: '',
-      export_path: '',
-      mount_type: 'nfs',
-      mount_options: '',
-      username: '',
-      password: ''
-    },
-    local_config: {
-      path: ''
-    }
-  }
-  formErrors.value = {}
-  selectedProxy.value = null
-  proxyDirectories.value = []
-  currentPath.value = ''
-  isEditMode.value = false
-  editingRepoId.value = null
 }
 
 // 编辑仓库
@@ -1292,8 +1304,10 @@ onMounted(() => {
         <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
           <!-- Fixed Header -->
           <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-            <h2 class="text-lg font-semibold text-slate-800">{{ t('repository.form.addRepository') }}</h2>
-            <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
+            <h2 class="text-lg font-semibold text-slate-800">
+              {{ isEditMode ? t('repository.form.editRepository') : t('repository.form.addRepository') }}
+            </h2>
+            <button @click="showCreateModal = false; resetForm()" class="p-1 hover:bg-slate-100 rounded-lg">
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -1307,9 +1321,11 @@ onMounted(() => {
               <button
                 v-for="type in repoTypes"
                 :key="type.value"
-                @click="newRepo.repo_type = type.value as any"
+                @click="!isEditMode && (newRepo.repo_type = type.value as any)"
+                :disabled="isEditMode"
                 :class="[
                   'flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all',
+                  isEditMode ? 'cursor-not-allowed opacity-60' : '',
                   newRepo.repo_type === type.value 
                     ? 'border-blue-500 bg-white shadow-sm' 
                     : 'border-slate-200 bg-white hover:border-slate-300'
@@ -1395,15 +1411,21 @@ onMounted(() => {
                     <p v-if="formErrors.access_key" class="mt-1 text-xs text-red-500">{{ formErrors.access_key }}</p>
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.secretKey') }} *</label>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">
+                      {{ t('repository.s3.secretKey') }}
+                      <span v-if="!isEditMode">*</span>
+                    </label>
                     <input 
                       v-model="newRepo.s3_config.secret_key" 
                       type="password" 
-                      placeholder="••••••••••••••••" 
+                      :placeholder="isEditMode ? '••••••••••••••••' : '••••••••••••••••'" 
                       :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
                         formErrors.secret_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
                       @input="clearError('secret_key')"
                     />
+                    <p v-if="isEditMode && !formErrors.secret_key" class="mt-1 text-xs text-slate-500">
+                      {{ t('repository.s3.secretKeyEditHint') }}
+                    </p>
                     <p v-if="formErrors.secret_key" class="mt-1 text-xs text-red-500">{{ formErrors.secret_key }}</p>
                   </div>
                 </div>
@@ -1652,7 +1674,10 @@ onMounted(() => {
                   <p v-if="formErrors.username" class="mt-1 text-xs text-red-500">{{ formErrors.username }}</p>
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.nas.password') }} *</label>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">
+                    {{ t('repository.nas.password') }}
+                    <span v-if="!isEditMode">*</span>
+                  </label>
                   <input 
                     v-model="newRepo.nas_config.password" 
                     type="password" 
@@ -1661,6 +1686,9 @@ onMounted(() => {
                       formErrors.password ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
                     @input="clearError('password')"
                   />
+                  <p v-if="isEditMode && !formErrors.password" class="mt-1 text-xs text-slate-500">
+                    {{ t('repository.s3.secretKeyEditHint') }}
+                  </p>
                   <p v-if="formErrors.password" class="mt-1 text-xs text-red-500">{{ formErrors.password }}</p>
                 </div>
               </div>
@@ -1801,7 +1829,7 @@ onMounted(() => {
                   : 'text-white bg-slate-300 cursor-not-allowed'
               ]"
             >
-              {{ t('common.create') }}
+              {{ isEditMode ? t('common.save') : t('common.create') }}
             </button>
           </div>
         </div>

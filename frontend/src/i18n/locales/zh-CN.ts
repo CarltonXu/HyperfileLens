@@ -610,6 +610,8 @@ export default {
       prefixHint: '可选，备份存储路径前缀',
       accessKey: 'Access Key',
       secretKey: 'Secret Key',
+      secretKeyPlaceholder: '请输入 Secret Key',
+      secretKeyEditHint: '留空则保留原有密钥',
       credentials: '访问凭据',
       bucketSelection: 'Bucket 选择',
       existingBucket: '选择已有 Bucket',

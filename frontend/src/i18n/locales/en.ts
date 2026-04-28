@@ -610,6 +610,8 @@ export default {
       prefixHint: 'Optional, backup storage path prefix',
       accessKey: 'Access Key',
       secretKey: 'Secret Key',
+      secretKeyPlaceholder: 'Enter secret key',
+      secretKeyEditHint: 'Leave empty to keep existing key',
       credentials: 'Access Credentials',
       bucketSelection: 'Bucket Selection',
       existingBucket: 'Select Existing Bucket',
