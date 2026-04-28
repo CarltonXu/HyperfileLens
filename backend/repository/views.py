@@ -247,7 +247,6 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
                 config=s3_config,
-                use_tls=use_tls,
                 verify=False  # 对于自签名证书
             )
             
@@ -298,7 +297,6 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                                 retries={'max_attempts': 2},
                                 s3={'addressing_style': url_style}
                             ),
-                            use_tls=use_tls,
                             verify=False
                         )
                         
@@ -486,7 +484,6 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
                 config=s3_config,
-                use_tls=use_tls,
                 verify=False
             )
             
@@ -872,7 +869,6 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                     retries={'max_attempts': 2},  # Retry twice on failure
                     signature_version='s3v4'
                 ),
-                use_tls=use_tls,
                 verify=False  # For self-signed certificates
             )
             
@@ -1069,7 +1065,6 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                         read_timeout=10,
                         signature_version='s3v4'
                     ),
-                    use_tls=use_tls,
                     verify=False
                 )
                 
@@ -1163,7 +1158,6 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                     read_timeout=30,
                     signature_version='s3v4'
                 ),
-                use_tls=use_tls,
                 verify=False
             )
             
@@ -1307,7 +1301,6 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                         read_timeout=10,
                         signature_version='s3v4'
                     ),
-                    use_tls=use_tls,
                     verify=False
                 )
                 
