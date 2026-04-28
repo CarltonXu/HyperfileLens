@@ -190,11 +190,34 @@ func GetNetworkIO() (*NetworkIO, error) {
 
 // NetworkInterfaceInfo represents network interface information
 type NetworkInterfaceInfo struct {
-	Name        string   `json:"name"`
-	IPAddresses []string `json:"ip_addresses,omitempty"`
-	MAC         string   `json:"mac,omitempty"`
-	BytesIn     int64    `json:"bytes_in,omitempty"`
-	BytesOut    int64    `json:"bytes_out,omitempty"`
+	Name         string   `json:"name"`
+	IPAddresses  []string `json:"ip_addresses,omitempty"`
+	MAC          string   `json:"mac,omitempty"`
+	BytesIn      int64    `json:"bytes_in,omitempty"`
+	BytesOut     int64    `json:"bytes_out,omitempty"`
+	PacketsIn    int64    `json:"packets_in,omitempty"`
+	PacketsOut   int64    `json:"packets_out,omitempty"`
+	DropIn       int64    `json:"drop_in,omitempty"`
+	DropOut      int64    `json:"drop_out,omitempty"`
+	ErrsIn       int64    `json:"errs_in,omitempty"`
+	ErrsOut      int64    `json:"errs_out,omitempty"`
+	Speed        int64    `json:"speed,omitempty"`         // Mbps, -1 if unknown
+	BandwidthIn  float64  `json:"bandwidth_in,omitempty"`  // bytes/s
+	BandwidthOut float64  `json:"bandwidth_out,omitempty"` // bytes/s
+}
+
+// DiskIOStats represents disk I/O statistics
+type DiskIOStats struct {
+	Name        string  `json:"name"`
+	ReadBytes   uint64  `json:"read_bytes"`
+	WriteBytes  uint64  `json:"write_bytes"`
+	ReadCount   uint64  `json:"read_count"`
+	WriteCount  uint64  `json:"write_count"`
+	ReadTime    uint64  `json:"read_time_ms"`
+	WriteTime   uint64  `json:"write_time_ms"`
+	IoTime      uint64  `json:"io_time_ms"`
+	Utilization float64 `json:"utilization"` // %util
+	Await       float64 `json:"await"`       // avg wait time in ms
 }
 
 // GetNetworkInterfaces returns network interface information
@@ -225,12 +248,60 @@ func GetNetworkInterfaces() []NetworkInterfaceInfo {
 				if c.Name == iface.Name {
 					info.BytesIn = int64(c.BytesRecv)
 					info.BytesOut = int64(c.BytesSent)
+					info.PacketsIn = int64(c.PacketsRecv)
+					info.PacketsOut = int64(c.PacketsSent)
+					info.DropIn = int64(c.Dropout)
+					info.DropOut = int64(c.Dropout) // gopsutil uses combined drop
+					info.ErrsIn = int64(c.Errin)
+					info.ErrsOut = int64(c.Errout)
 					break
 				}
 			}
 		}
 
 		result = append(result, info)
+	}
+
+	return result
+}
+
+// GetDiskIOStats returns disk I/O statistics for all disks
+func GetDiskIOStats() []DiskIOStats {
+	ioStats, err := disk.IOCounters()
+	if err != nil {
+		return nil
+	}
+
+	result := make([]DiskIOStats, 0, len(ioStats))
+	for name, stat := range ioStats {
+		diskStat := DiskIOStats{
+			Name:      name,
+			ReadBytes: stat.ReadBytes,
+			WriteBytes: stat.WriteBytes,
+			ReadCount: stat.ReadCount,
+			WriteCount: stat.WriteCount,
+			ReadTime:  stat.ReadTime,
+			WriteTime: stat.WriteTime,
+			IoTime:    stat.IoTime,
+		}
+
+		// Calculate utilization (%util) - IoTime is in milliseconds
+		// This is a rough approximation
+		if stat.IoTime > 0 {
+			diskStat.Utilization = float64(stat.IoTime) / 1000.0 * 100 // rough estimate
+			if diskStat.Utilization > 100 {
+				diskStat.Utilization = 100
+			}
+		}
+
+		// Calculate await (average I/O wait time)
+		totalIOs := stat.ReadCount + stat.WriteCount
+		if totalIOs > 0 {
+			totalTime := stat.ReadTime + stat.WriteTime
+			diskStat.Await = float64(totalTime) / float64(totalIOs)
+		}
+
+		result = append(result, diskStat)
 	}
 
 	return result

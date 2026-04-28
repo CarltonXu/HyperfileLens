@@ -47,6 +47,7 @@ import {
   ClipboardDocumentListIcon,
   SignalIcon,
   CalendarIcon,
+  ChartBarIcon,
 } from '@heroicons/vue/24/outline'
 
 // Register Chart.js components
@@ -130,6 +131,7 @@ const tabData = ref({
   },
   tasks: {
     data: [] as ProxyTask[],
+    stats: null as { total: number; completed: number; failed: number; running: number } | null,
     loading: false,
     loaded: false,
   },
@@ -149,6 +151,31 @@ const autoRefresh = ref({
 
 // Selected network interface for detailed view
 const selectedNetworkInterface = ref<string>('all')
+const selectedNetIOInterface = ref<string>('')
+const selectedDiskIO = ref<string>('')
+
+// Network IO stats computed
+const networkIOStats = computed(() => {
+  const data = tabData.value.monitor.data?.network_io || []
+  return {
+    rxPackets: data.reduce((sum: number, item: { rx_packets?: number }) => sum + (item.rx_packets || 0), 0),
+    txPackets: data.reduce((sum: number, item: { tx_packets?: number }) => sum + (item.tx_packets || 0), 0),
+    rxDrop: data.reduce((sum: number, item: { rx_drop?: number }) => sum + (item.rx_drop || 0), 0),
+    txErrs: data.reduce((sum: number, item: { tx_errs?: number }) => sum + (item.tx_errs || 0), 0)
+  }
+})
+
+// Disk IO stats computed
+const diskIOStats = computed(() => {
+  const data = tabData.value.monitor.data?.disk_io || []
+  const len = data.length || 1
+  return {
+    avgRs: Math.round(data.reduce((sum: number, item: { r_s?: number }) => sum + (item.r_s || 0), 0) / len),
+    avgWs: Math.round(data.reduce((sum: number, item: { w_s?: number }) => sum + (item.w_s || 0), 0) / len),
+    avgRkBs: Math.round(data.reduce((sum: number, item: { rkB_s?: number }) => sum + (item.rkB_s || 0), 0) / len),
+    avgWkBs: Math.round(data.reduce((sum: number, item: { wkB_s?: number }) => sum + (item.wkB_s || 0), 0) / len)
+  }
+})
 
 const showEditModal = ref(false)
 const editFormData = ref({
@@ -238,8 +265,11 @@ async function fetchProxyTasks(proxyId: string, page = 1, silent = false) {
   if (!silent) tabData.value.tasks.loading = true
   try {
     const res = await api.get(`/api/v1/proxies/${proxyId}/tasks/?limit=50&page=${page}`)
-    // Handle paginated response
-    if (res.data.results) {
+    // Handle new response format with stats
+    if (res.data.tasks) {
+      tabData.value.tasks.data = res.data.tasks
+      tabData.value.tasks.stats = res.data.stats || { total: 0, completed: 0, failed: 0, running: 0 }
+    } else if (res.data.results) {
       tabData.value.tasks.data = res.data.results
     } else {
       tabData.value.tasks.data = res.data
@@ -684,6 +714,15 @@ function formatUptime(seconds: number | null): string {
   return `${minutes}m`
 }
 
+function formatTime(timestamp: string): string {
+  try {
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return timestamp
+  }
+}
+
 function timeSince(date: string | null): string {
   if (!date) return t('common.never')
   const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000)
@@ -798,6 +837,165 @@ function getChartOptions(type: 'cpu' | 'memory' | 'disk') {
       mode: 'nearest' as const,
       axis: 'x' as const,
       intersect: false
+    }
+  }
+}
+
+// Get unique network interfaces from network_io data
+function getUniqueNetworkInterfaces(): string[] {
+  const monitorData = tabData.value.monitor.data
+  if (!monitorData?.network_io) return []
+  const interfaces = new Set<string>()
+  monitorData.network_io.forEach((item: { interface?: string }) => {
+    if (item.interface) interfaces.add(item.interface)
+  })
+  return Array.from(interfaces)
+}
+
+// Get unique disks from disk_io data
+function getUniqueDisks(): string[] {
+  const monitorData = tabData.value.monitor.data
+  if (!monitorData?.disk_io) return []
+  const disks = new Set<string>()
+  monitorData.disk_io.forEach((item: { disk?: string }) => {
+    if (item.disk) disks.add(item.disk)
+  })
+  return Array.from(disks)
+}
+
+// Get network I/O chart data
+function getNetworkIOChartData(type: 'rx_bytes' | 'tx_bytes' | 'rx_packets' | 'tx_packets' | 'rx_drop' | 'tx_drop' | 'rx_errs' | 'tx_errs') {
+  const monitorData = tabData.value.monitor.data
+  if (!monitorData?.network_io) return { labels: [], datasets: [] }
+  
+  let filtered = monitorData.network_io
+  if (selectedNetIOInterface.value) {
+    filtered = filtered.filter((item: { interface?: string }) => item.interface === selectedNetIOInterface.value)
+  }
+  
+  // Group by timestamp
+  const grouped = new Map<string, number>()
+  filtered.forEach((item: { timestamp: string; [key: string]: unknown }) => {
+    const value = item[type] as number | undefined
+    if (value !== undefined) {
+      const existing = grouped.get(item.timestamp) || 0
+      grouped.set(item.timestamp, existing + value)
+    }
+  })
+  
+  const sorted = Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  
+  return {
+    labels: sorted.map(([ts]) => formatTime(ts)),
+    datasets: [{
+      label: type,
+      data: sorted.map(([, v]) => type.includes('bytes') ? v / (1024 * 1024) : v), // Convert to MB for bytes
+      borderColor: type.includes('rx') ? '#3b82f6' : '#10b981',
+      backgroundColor: type.includes('rx') ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+      fill: true,
+      tension: 0.4
+    }]
+  }
+}
+
+// Get disk I/O chart data
+function getDiskIOChartData(type: 'util' | 'await' | 'r_s' | 'w_s' | 'rkB_s' | 'wkB_s') {
+  const monitorData = tabData.value.monitor.data
+  if (!monitorData?.disk_io) return { labels: [], datasets: [] }
+  
+  let filtered = monitorData.disk_io
+  if (selectedDiskIO.value) {
+    filtered = filtered.filter((item: { disk?: string }) => item.disk === selectedDiskIO.value)
+  }
+  
+  // Group by timestamp
+  const grouped = new Map<string, number>()
+  filtered.forEach((item: { timestamp: string; [key: string]: unknown }) => {
+    const value = item[type] as number | undefined
+    if (value !== undefined) {
+      const existing = grouped.get(item.timestamp) || 0
+      grouped.set(item.timestamp, existing + value)
+    }
+  })
+  
+  const sorted = Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  
+  const colors: Record<string, string> = {
+    util: '#ef4444',
+    await: '#f59e0b',
+    r_s: '#3b82f6',
+    w_s: '#10b981',
+    rkB_s: '#8b5cf6',
+    wkB_s: '#ec4899'
+  }
+  
+  return {
+    labels: sorted.map(([ts]) => formatTime(ts)),
+    datasets: [{
+      label: type,
+      data: sorted.map(([, v]) => v),
+      borderColor: colors[type] || '#6b7280',
+      backgroundColor: (colors[type] || '#6b7280') + '20',
+      fill: true,
+      tension: 0.4
+    }]
+  }
+}
+
+// Network I/O chart options
+function getNetworkIOChartOptions(type: 'rx_bytes' | 'tx_bytes' | 'rx_packets' | 'tx_packets' | 'rx_drop' | 'tx_drop' | 'rx_errs' | 'tx_errs') {
+  const isBytes = type.includes('bytes')
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        mode: 'index' as const,
+        intersect: false
+      }
+    },
+    scales: {
+      x: { display: true, grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+      y: { 
+        display: true, 
+        beginAtZero: true,
+        grid: { color: '#e5e7eb' }, 
+        ticks: { 
+          callback: (value: number | string) => isBytes ? `${Number(value).toFixed(1)} MB` : value,
+          font: { size: 10 } 
+        } 
+      }
+    }
+  }
+}
+
+// Disk I/O chart options
+function getDiskIOChartOptions(type: 'util' | 'await' | 'r_s' | 'w_s' | 'rkB_s' | 'wkB_s') {
+  const units: Record<string, string> = { util: '%', await: 'ms', r_s: '/s', w_s: '/s', rkB_s: 'kB/s', wkB_s: 'kB/s' }
+  const maxes: Record<string, number | undefined> = { util: 100, await: undefined, r_s: undefined, w_s: undefined, rkB_s: undefined, wkB_s: undefined }
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        mode: 'index' as const,
+        intersect: false
+      }
+    },
+    scales: {
+      x: { display: true, grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+      y: { 
+        display: true, 
+        min: 0,
+        max: maxes[type],
+        grid: { color: '#e5e7eb' }, 
+        ticks: { 
+          callback: (value: number | string) => `${value}${units[type] || ''}`,
+          font: { size: 10 } 
+        } 
+      }
     }
   }
 }
@@ -2363,32 +2561,122 @@ onUnmounted(() => {
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <!-- Task Stats -->
-                <div class="grid grid-cols-4 gap-4">
-                  <div class="bg-slate-50 rounded-xl p-4">
-                    <p class="text-xs text-slate-500">{{ t('proxies.tasks.total') }}</p>
-                    <p class="text-2xl font-bold text-slate-800 mt-1">{{ tabData.monitor.data.task_stats?.total || 0 }}</p>
+                  <!-- Network I/O Chart Section -->
+                  <div v-if="tabData.monitor.data.network_io && tabData.monitor.data.network_io.length > 0" class="bg-white border border-slate-200 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-4">
+                      <h4 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                        <ChartBarIcon class="w-4 h-4 text-blue-500" />
+                        {{ t('proxies.monitoring.networkIOChart') }}
+                      </h4>
+                      <select
+                        v-model="selectedNetIOInterface"
+                        class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">{{ t('proxies.monitoring.allNetInterfaces') }}</option>
+                        <option v-for="iface in getUniqueNetworkInterfaces()" :key="iface" :value="iface">{{ iface }}</option>
+                      </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                      <div class="h-48">
+                        <p class="text-xs text-slate-500 mb-2">{{ t('proxies.monitoring.rxBytes') }} (MB)</p>
+                        <Line :data="getNetworkIOChartData('rx_bytes')" :options="getNetworkIOChartOptions('rx_bytes')" />
+                      </div>
+                      <div class="h-48">
+                        <p class="text-xs text-slate-500 mb-2">{{ t('proxies.monitoring.txBytes') }} (MB)</p>
+                        <Line :data="getNetworkIOChartData('tx_bytes')" :options="getNetworkIOChartOptions('tx_bytes')" />
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-4 mt-4">
+                      <div class="bg-blue-50 rounded-lg p-2">
+                        <p class="text-xs text-slate-500">{{ t('proxies.monitoring.rxPackets') }}</p>
+                        <p class="text-sm font-medium text-blue-700">{{ formatBytes(networkIOStats.rxPackets) }}</p>
+                      </div>
+                      <div class="bg-green-50 rounded-lg p-2">
+                        <p class="text-xs text-slate-500">{{ t('proxies.monitoring.txPackets') }}</p>
+                        <p class="text-sm font-medium text-green-700">{{ formatBytes(networkIOStats.txPackets) }}</p>
+                      </div>
+                      <div class="bg-red-50 rounded-lg p-2">
+                        <p class="text-xs text-slate-500">{{ t('proxies.monitoring.rxDrop') }}</p>
+                        <p class="text-sm font-medium text-red-700">{{ networkIOStats.rxDrop }}</p>
+                      </div>
+                      <div class="bg-orange-50 rounded-lg p-2">
+                        <p class="text-xs text-slate-500">{{ t('proxies.monitoring.txErrs') }}</p>
+                        <p class="text-sm font-medium text-orange-700">{{ networkIOStats.txErrs }}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div class="bg-emerald-50 rounded-xl p-4">
-                    <p class="text-xs text-slate-500">{{ t('proxies.tasks.completed') }}</p>
-                    <p class="text-2xl font-bold text-emerald-700 mt-1">{{ tabData.monitor.data.task_stats?.completed || 0 }}</p>
+
+                  <!-- Disk I/O Chart Section -->
+                  <div v-if="tabData.monitor.data.disk_io && tabData.monitor.data.disk_io.length > 0" class="bg-white border border-slate-200 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-4">
+                      <h4 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                        <ServerIcon class="w-4 h-4 text-orange-500" />
+                        {{ t('proxies.monitoring.diskIOChart') }}
+                      </h4>
+                      <select
+                        v-model="selectedDiskIO"
+                        class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">{{ t('proxies.monitoring.allDisks') }}</option>
+                        <option v-for="disk in getUniqueDisks()" :key="disk" :value="disk">{{ disk }}</option>
+                      </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                      <div class="h-48">
+                        <p class="text-xs text-slate-500 mb-2">{{ t('proxies.monitoring.diskUtil') }} (%)</p>
+                        <Line :data="getDiskIOChartData('util')" :options="getDiskIOChartOptions('util')" />
+                      </div>
+                      <div class="h-48">
+                        <p class="text-xs text-slate-500 mb-2">{{ t('proxies.monitoring.diskAwait') }} (ms)</p>
+                        <Line :data="getDiskIOChartData('await')" :options="getDiskIOChartOptions('await')" />
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-4 mt-4">
+                      <div class="bg-blue-50 rounded-lg p-2">
+                        <p class="text-xs text-slate-500">{{ t('proxies.monitoring.diskRs') }}</p>
+                        <p class="text-sm font-medium text-blue-700">{{ diskIOStats.avgRs }}/s</p>
+                      </div>
+                      <div class="bg-green-50 rounded-lg p-2">
+                        <p class="text-xs text-slate-500">{{ t('proxies.monitoring.diskWs') }}</p>
+                        <p class="text-sm font-medium text-green-700">{{ diskIOStats.avgWs }}/s</p>
+                      </div>
+                      <div class="bg-purple-50 rounded-lg p-2">
+                        <p class="text-xs text-slate-500">{{ t('proxies.monitoring.diskRkBs') }}</p>
+                        <p class="text-sm font-medium text-purple-700">{{ diskIOStats.avgRkBs }} kB/s</p>
+                      </div>
+                      <div class="bg-pink-50 rounded-lg p-2">
+                        <p class="text-xs text-slate-500">{{ t('proxies.monitoring.diskWkBs') }}</p>
+                        <p class="text-sm font-medium text-pink-700">{{ diskIOStats.avgWkBs }} kB/s</p>
+                      </div>
+                    </div>
                   </div>
-                  <div class="bg-red-50 rounded-xl p-4">
-                    <p class="text-xs text-slate-500">{{ t('proxies.tasks.failed') }}</p>
-                    <p class="text-2xl font-bold text-red-700 mt-1">{{ tabData.monitor.data.task_stats?.failed || 0 }}</p>
-                  </div>
-                  <div class="bg-blue-50 rounded-xl p-4">
-                    <p class="text-xs text-slate-500">{{ t('proxies.tasks.running') }}</p>
-                    <p class="text-2xl font-bold text-blue-700 mt-1">{{ tabData.monitor.data.task_stats?.running || 0 }}</p>
-                  </div>
-                </div>
+
               </template>
             </div>
 
             <!-- Tasks Tab -->
             <div v-else-if="detailTab === 'tasks'" class="space-y-4">
+              <!-- Task Stats -->
+              <div class="grid grid-cols-4 gap-4">
+                <div class="bg-slate-50 rounded-xl p-4">
+                  <p class="text-xs text-slate-500">{{ t('proxies.tasks.total') }}</p>
+                  <p class="text-2xl font-bold text-slate-800 mt-1">{{ tabData.tasks.stats?.total || 0 }}</p>
+                </div>
+                <div class="bg-emerald-50 rounded-xl p-4">
+                  <p class="text-xs text-slate-500">{{ t('proxies.tasks.completed') }}</p>
+                  <p class="text-2xl font-bold text-emerald-700 mt-1">{{ tabData.tasks.stats?.completed || 0 }}</p>
+                </div>
+                <div class="bg-red-50 rounded-xl p-4">
+                  <p class="text-xs text-slate-500">{{ t('proxies.tasks.failed') }}</p>
+                  <p class="text-2xl font-bold text-red-700 mt-1">{{ tabData.tasks.stats?.failed || 0 }}</p>
+                </div>
+                <div class="bg-blue-50 rounded-xl p-4">
+                  <p class="text-xs text-slate-500">{{ t('proxies.tasks.running') }}</p>
+                  <p class="text-2xl font-bold text-blue-700 mt-1">{{ tabData.tasks.stats?.running || 0 }}</p>
+                </div>
+              </div>
+
               <div v-if="tabData.tasks.data.length === 0" class="bg-slate-50 rounded-xl p-8 text-center">
                 <ClipboardDocumentListIcon class="w-16 h-16 mx-auto mb-4 text-slate-300" />
                 <p class="text-slate-500 font-medium">{{ t('proxies.detail.noTasks') }}</p>

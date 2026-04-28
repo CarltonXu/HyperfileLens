@@ -71,6 +71,7 @@ type HeartbeatPayload struct {
 	NetworkBytesSent int64 `json:"network_bytes_sent,omitempty"`
 	NetworkBytesRecv int64 `json:"network_bytes_recv,omitempty"`
 	NetworkInterfaces []monitor.NetworkInterfaceInfo `json:"network_interfaces,omitempty"`
+	DiskIOStats       []monitor.DiskIOStats          `json:"disk_io_stats,omitempty"`
 
 	// Task stats
 	ActiveTasks     int `json:"active_tasks,omitempty"`
@@ -233,6 +234,9 @@ func (c *Client) Heartbeat() error {
 
 		// Add network interfaces
 		payload.NetworkInterfaces = monitor.GetNetworkInterfaces()
+
+		// Add disk I/O stats
+		payload.DiskIOStats = monitor.GetDiskIOStats()
 
 		body, _ := json.Marshal(payload)
 

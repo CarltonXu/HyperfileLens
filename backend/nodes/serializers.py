@@ -263,6 +263,11 @@ class ProxyHeartbeatCreateSerializer(serializers.Serializer):
         required=False,
         default=list
     )
+    disk_io_stats = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        default=list
+    )
     active_tasks = serializers.IntegerField(required=False, default=0)
     completed_tasks = serializers.IntegerField(required=False, default=0)
     failed_tasks = serializers.IntegerField(required=False, default=0)

@@ -529,8 +529,23 @@ logging:
         proxy = self.get_object()
         limit = int(request.query_params.get('limit', 50))
         tasks = proxy.tasks.all()[:limit]
+        
+        # Task statistics
+        total_tasks = proxy.tasks.count()
+        completed_tasks = proxy.tasks.filter(status='completed').count()
+        failed_tasks = proxy.tasks.filter(status='failed').count()
+        running_tasks = proxy.tasks.filter(status__in=['pending', 'dispatched', 'accepted', 'running']).count()
+        
         serializer = ProxyTaskSerializer(tasks, many=True)
-        return Response(serializer.data)
+        return Response({
+            'tasks': serializer.data,
+            'stats': {
+                'total': total_tasks,
+                'completed': completed_tasks,
+                'failed': failed_tasks,
+                'running': running_tasks,
+            }
+        })
 
     @extend_schema(
         summary='Get proxy overview',
@@ -670,12 +685,27 @@ logging:
         cpu_usage_data = []
         memory_usage_data = []
         disk_usage_data = []
+        network_io_data = []  # {timestamp, interfaces: [{name, bytes_in, bytes_out, packets_in, packets_out, drop_in, errs_in}]}
+        disk_io_data = []  # {timestamp, disks: [{name, read_bytes, write_bytes, read_count, write_count, utilization, await}]}
         
         for h in reversed(chart_heartbeats):
             timestamp = h.timestamp.isoformat()
             cpu_usage_data.append({'timestamp': timestamp, 'value': h.cpu_usage or 0})
             memory_usage_data.append({'timestamp': timestamp, 'value': h.memory_usage or 0})
             disk_usage_data.append({'timestamp': timestamp, 'value': h.disk_usage or 0})
+            
+            # Extract network and disk IO data from metadata
+            metadata = h.metadata or {}
+            if 'network_interfaces' in metadata:
+                network_io_data.append({
+                    'timestamp': timestamp,
+                    'interfaces': metadata['network_interfaces']
+                })
+            if 'disk_io_stats' in metadata:
+                disk_io_data.append({
+                    'timestamp': timestamp,
+                    'disks': metadata['disk_io_stats']
+                })
 
         # Calculate uptime from registered_at
         uptime_seconds = None
@@ -725,6 +755,8 @@ logging:
             'cpu_usage': cpu_usage_data,
             'memory_usage': memory_usage_data,
             'disk_usage': disk_usage_data,
+            'network_io': network_io_data,
+            'disk_io': disk_io_data,
 
             # Network interfaces
             'network_interfaces': proxy.network_interfaces or [],
@@ -789,7 +821,13 @@ logging:
             'capabilities': data.get('capabilities', {}),
         })
 
-        # Create heartbeat record
+        # Create heartbeat record with network and disk IO data in metadata
+        heartbeat_metadata = data.get('metadata', {})
+        if data.get('network_interfaces'):
+            heartbeat_metadata['network_interfaces'] = data.get('network_interfaces')
+        if data.get('disk_io_stats'):
+            heartbeat_metadata['disk_io_stats'] = data.get('disk_io_stats')
+
         ProxyHeartbeat.objects.create(
             proxy=proxy,
             cpu_usage=data.get('cpu_usage'),
@@ -800,7 +838,7 @@ logging:
             active_tasks=data.get('active_tasks', 0),
             completed_tasks=data.get('completed_tasks', 0),
             failed_tasks=data.get('failed_tasks', 0),
-            metadata=data.get('metadata', {})
+            metadata=heartbeat_metadata
         )
 
         return Response({
