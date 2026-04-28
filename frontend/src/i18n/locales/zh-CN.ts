@@ -341,9 +341,13 @@ export default {
       avgMemory: '平均内存',
       taskStatus: {
         pending: '等待中',
+        dispatched: '已派发',
+        accepted: '已接受',
         running: '运行中',
         completed: '已完成',
-        failed: '失败'
+        failed: '失败',
+        cancelled: '已取消',
+        timeout: '超时'
       },
       timeRange: '时间范围',
       custom: '自定义',

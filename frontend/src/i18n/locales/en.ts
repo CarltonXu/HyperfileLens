@@ -341,9 +341,13 @@ export default {
       avgMemory: 'Avg Memory',
       taskStatus: {
         pending: 'Pending',
+        dispatched: 'Dispatched',
+        accepted: 'Accepted',
         running: 'Running',
         completed: 'Completed',
-        failed: 'Failed'
+        failed: 'Failed',
+        cancelled: 'Cancelled',
+        timeout: 'Timeout'
       },
       timeRange: 'Time Range',
       custom: 'Custom',
