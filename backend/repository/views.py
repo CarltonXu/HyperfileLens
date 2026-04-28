@@ -3,8 +3,9 @@ HyperFileLens Backend - Repository Views
 """
 
 import re
+import logging
 import boto3
-from botocore.exceptions import ClientError, BotoCoreError
+from botocore.exceptions import ClientError, BotoCoreError, EndpointConnectionError, ConnectTimeoutError
 from botocore.config import Config
 
 from rest_framework import viewsets, status
@@ -12,6 +13,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 from .models import Repository
 from .serializers import (
@@ -401,14 +404,20 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         region = request.data.get('region', 'us-east-1')
         use_ssl = request.data.get('use_ssl', True)
         
+        logger.info(f"[S3] List buckets request - endpoint: {endpoint}, region: {region}, use_ssl: {use_ssl}")
+        logger.debug(f"[S3] Access key: {access_key[:4]}****{access_key[-4:] if access_key and len(access_key) > 8 else '****'}")
+        
         # Validation
         if not all([endpoint, access_key, secret_key]):
+            logger.warning(f"[S3] Missing required parameters - endpoint: {bool(endpoint)}, access_key: {bool(access_key)}, secret_key: {bool(secret_key)}")
             return Response({
                 'success': False,
                 'message': 'endpoint, access_key, and secret_key are required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            logger.info(f"[S3] Creating S3 client for endpoint: {endpoint}")
+            
             # Create S3 client
             s3_client = boto3.client(
                 's3',
@@ -425,8 +434,12 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 verify=False  # For self-signed certificates
             )
             
+            logger.info(f"[S3] Attempting to list buckets...")
+            
             # List buckets
             response = s3_client.list_buckets()
+            
+            logger.info(f"[S3] Successfully listed buckets, found {len(response.get('Buckets', []))} buckets")
             
             buckets = []
             for bucket in response.get('Buckets', []):
@@ -434,7 +447,8 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 try:
                     location = s3_client.get_bucket_location(Bucket=bucket['Name'])
                     bucket_region = location.get('LocationConstraint', 'us-east-1')
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"[S3] Could not get location for bucket {bucket['Name']}: {e}")
                     bucket_region = 'unknown'
                 
                 buckets.append({
@@ -452,22 +466,65 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', 'Unknown')
             error_msg = e.response.get('Error', {}).get('Message', str(e))
+            http_status = e.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 'N/A')
+            
+            logger.error(f"[S3] ClientError - Code: {error_code}, HTTP Status: {http_status}, Message: {error_msg}")
+            logger.error(f"[S3] Full error response: {e.response}")
+            
+            # Provide more specific error messages
+            error_messages = {
+                'InvalidAccessKeyId': 'Invalid Access Key ID - Please check your access key',
+                'SignatureDoesNotMatch': 'Signature mismatch - Please check your secret key',
+                'AccessDenied': 'Access denied - Please check your permissions',
+                'InvalidToken': 'Invalid security token',
+                'RequestTimeTooSkewed': 'Request time too skewed - Check server time',
+                'NoSuchBucket': 'Bucket does not exist',
+                'TemporaryRedirect': 'Wrong endpoint - Please use the correct regional endpoint',
+                'PermanentRedirect': 'Wrong endpoint - The bucket exists in a different region',
+            }
+            
+            friendly_message = error_messages.get(error_code, f'S3 Error ({error_code}): {error_msg}')
             
             return Response({
                 'success': False,
-                'message': f'S3 Error ({error_code}): {error_msg}'
+                'error_code': error_code,
+                'http_status': http_status,
+                'message': friendly_message,
+                'details': error_msg
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except EndpointConnectionError as e:
+            logger.error(f"[S3] EndpointConnectionError - Could not connect to {endpoint}: {str(e)}")
+            return Response({
+                'success': False,
+                'message': f'Could not connect to endpoint: {endpoint}',
+                'details': str(e),
+                'hint': 'Please check if the endpoint URL is correct and accessible'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except ConnectTimeoutError as e:
+            logger.error(f"[S3] ConnectTimeoutError - Connection timeout for {endpoint}: {str(e)}")
+            return Response({
+                'success': False,
+                'message': f'Connection timeout for endpoint: {endpoint}',
+                'details': str(e),
+                'hint': 'The endpoint is not responding. Please check network connectivity'
             }, status=status.HTTP_400_BAD_REQUEST)
             
         except BotoCoreError as e:
+            logger.error(f"[S3] BotoCoreError - Connection error: {str(e)}")
             return Response({
                 'success': False,
-                'message': f'Connection Error: {str(e)}'
+                'message': f'Connection error: {str(e)}',
+                'hint': 'Please check network connectivity and endpoint URL'
             }, status=status.HTTP_400_BAD_REQUEST)
             
         except Exception as e:
+            logger.exception(f"[S3] Unexpected error listing buckets: {str(e)}")
             return Response({
                 'success': False,
-                'message': f'Failed to list buckets: {str(e)}'
+                'message': f'Failed to list buckets: {str(e)}',
+                'error_type': type(e).__name__
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['post'])

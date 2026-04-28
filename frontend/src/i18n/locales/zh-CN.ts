@@ -637,7 +637,8 @@ export default {
       fetchBucketsFailed: '获取 Bucket 列表失败，请检查访问凭据是否正确',
       fillCredentialsFirst: '请先填写 Endpoint 和访问凭据',
       validateFailed: 'Bucket 名称验证失败',
-      checkSuccess: 'Bucket 名称可用'
+      checkSuccess: 'Bucket 名称可用',
+      checkBucketFailed: '检查 Bucket 名称失败'
     },
 
     nas: {

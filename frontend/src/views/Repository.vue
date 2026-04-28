@@ -173,7 +173,33 @@ async function fetchBucketList() {
       s3BucketList.value = response.data.buckets
     }
   } catch (error: any) {
-    bucketListError.value = error.response?.data?.error || t('repository.s3.fetchBucketsFailed')
+    console.error('[S3] Failed to fetch bucket list:', error)
+    
+    // Extract detailed error message from backend
+    const errorData = error.response?.data || {}
+    let errorMessage = t('repository.s3.fetchBucketsFailed')
+    
+    if (errorData.message) {
+      errorMessage = errorData.message
+    }
+    
+    // Add hint if available
+    if (errorData.hint) {
+      errorMessage += ` ${errorData.hint}`
+    }
+    
+    // Add error code for debugging
+    if (errorData.error_code) {
+      console.error(`[S3] Error code: ${errorData.error_code}, HTTP: ${errorData.http_status}`)
+      errorMessage += ` (${errorData.error_code})`
+    }
+    
+    // Add details
+    if (errorData.details) {
+      console.error(`[S3] Details: ${errorData.details}`)
+    }
+    
+    bucketListError.value = errorMessage
   } finally {
     isLoadingBuckets.value = false
   }
@@ -213,8 +239,25 @@ async function checkBucketNameAvailability() {
     bucketNameAvailable.value = response.data.available
     bucketNameMessage.value = response.data.message
   } catch (error: any) {
+    console.error('[S3] Failed to check bucket name:', error)
+    
+    const errorData = error.response?.data || {}
+    let errorMessage = t('repository.s3.checkBucketFailed')
+    
+    if (errorData.message) {
+      errorMessage = errorData.message
+    }
+    
+    if (errorData.hint) {
+      errorMessage += ` ${errorData.hint}`
+    }
+    
+    if (errorData.error_code) {
+      console.error(`[S3] Error code: ${errorData.error_code}`)
+    }
+    
     bucketNameAvailable.value = false
-    bucketNameMessage.value = error.response?.data?.error || t('repository.s3.checkBucketFailed')
+    bucketNameMessage.value = errorMessage
   } finally {
     checkingBucketName.value = false
   }

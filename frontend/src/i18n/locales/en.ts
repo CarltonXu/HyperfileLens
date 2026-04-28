@@ -637,7 +637,8 @@ export default {
       fetchBucketsFailed: 'Failed to fetch bucket list. Please check your credentials.',
       fillCredentialsFirst: 'Please fill in Endpoint and credentials first',
       validateFailed: 'Bucket name validation failed',
-      checkSuccess: 'Bucket name is available'
+      checkSuccess: 'Bucket name is available',
+      checkBucketFailed: 'Failed to check bucket name'
     },
 
     nas: {
