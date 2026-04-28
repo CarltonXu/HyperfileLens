@@ -475,7 +475,17 @@ export default {
       diskUsage: '磁盘使用率',
       total: '总计',
       networkIn: '入站流量',
-      networkOut: '出站流量'
+      networkOut: '出站流量',
+      // 新增分组标题
+      systemResources: '系统资源',
+      storageSection: '存储',
+      networkSection: '网络',
+      // 磁盘监控
+      diskUtilAwait: '使用率与等待时间',
+      diskIOPS: 'IOPS (读写/秒)',
+      diskBandwidth: '带宽 (读写 kB/s)',
+      // 网络监控
+      networkBytes: '网络流量 (MB)'
     },
 
     tasks: {

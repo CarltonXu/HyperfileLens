@@ -475,7 +475,17 @@ export default {
       diskUsage: 'Disk Usage',
       total: 'Total',
       networkIn: 'Inbound',
-      networkOut: 'Outbound'
+      networkOut: 'Outbound',
+      // New section titles
+      systemResources: 'System Resources',
+      storageSection: 'Storage',
+      networkSection: 'Network',
+      // Disk monitoring
+      diskUtilAwait: 'Utilization & Await',
+      diskIOPS: 'IOPS (Read/Write per second)',
+      diskBandwidth: 'Bandwidth (Read/Write kB/s)',
+      // Network monitoring
+      networkBytes: 'Network Traffic (MB)'
     },
 
     tasks: {
