@@ -472,7 +472,10 @@ export default {
       diskTotal: '总磁盘',
       cpuUsage: 'CPU 使用率',
       memoryUsage: '内存使用率',
-      diskUsage: '磁盘使用率'
+      diskUsage: '磁盘使用率',
+      total: '总计',
+      networkIn: '入站流量',
+      networkOut: '出站流量'
     },
 
     tasks: {

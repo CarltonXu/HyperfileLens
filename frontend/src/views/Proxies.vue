@@ -2416,7 +2416,7 @@ onUnmounted(() => {
                 </div>
 
                 <!-- System Overview Cards -->
-                <div class="grid grid-cols-6 gap-3">
+                <div class="grid grid-cols-4 gap-3">
                   <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-3">
                     <p class="text-xs opacity-80">{{ t('proxies.monitoring.cpuUsage') }}</p>
                     <p class="text-xl font-bold text-indigo-700 mt-1">{{ (tabData.monitor.data.current?.cpu_usage || 0).toFixed(1) }}%</p>

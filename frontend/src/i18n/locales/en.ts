@@ -472,7 +472,10 @@ export default {
       diskTotal: 'Total Disk',
       cpuUsage: 'CPU Usage',
       memoryUsage: 'Memory Usage',
-      diskUsage: 'Disk Usage'
+      diskUsage: 'Disk Usage',
+      total: 'Total',
+      networkIn: 'Inbound',
+      networkOut: 'Outbound'
     },
 
     tasks: {
