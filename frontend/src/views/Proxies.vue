@@ -147,6 +147,9 @@ const autoRefresh = ref({
   heartbeats: { enabled: false, interval: 30, timer: null as number | null },
 })
 
+// Selected network interface for detailed view
+const selectedNetworkInterface = ref<string>('all')
+
 const showEditModal = ref(false)
 const editFormData = ref({
   name: '',
@@ -702,6 +705,15 @@ function formatBytes(bytes: number | null | undefined): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
+function formatBandwidth(bytesIn: number, bytesOut: number, uptimeSeconds: number | null): string {
+  if (!uptimeSeconds || uptimeSeconds <= 0) return '-'
+  const totalBytes = (bytesIn || 0) + (bytesOut || 0)
+  const bytesPerSecond = totalBytes / uptimeSeconds
+  if (bytesPerSecond < 1024) return `${bytesPerSecond.toFixed(0)} B/s`
+  if (bytesPerSecond < 1024 * 1024) return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`
+  return `${(bytesPerSecond / (1024 * 1024)).toFixed(2)} MB/s`
+}
+
 // Chart data and options generators
 // Chart helper functions
 const chartColors = {
@@ -794,16 +806,36 @@ function getChartOptions(type: 'cpu' | 'memory' | 'disk') {
 // Compute heartbeat statistics
 const heartbeatStats = computed(() => {
   const heartbeats = tabData.value.heartbeats.data
-  if (!heartbeats || heartbeats.length === 0) {
-    return { total: 0, avgCpu: 0, avgMemory: 0, avgDisk: 0 }
+  const proxy = selectedProxy.value
+  if (!heartbeats || heartbeats.length === 0 || !proxy) {
+    return { totalHeartbeats: 0, expectedHeartbeats: 0, missedHeartbeats: 0, heartbeatRate: 0 }
   }
   
-  const total = heartbeats.length
-  const avgCpu = heartbeats.reduce((sum, h) => sum + (h.cpu_usage || 0), 0) / total
-  const avgMemory = heartbeats.reduce((sum, h) => sum + (h.memory_usage || 0), 0) / total
-  const avgDisk = heartbeats.reduce((sum, h) => sum + (h.disk_usage || 0), 0) / total
+  const totalHeartbeats = heartbeats.length
   
-  return { total, avgCpu, avgMemory, avgDisk }
+  // Calculate expected heartbeats based on time range and heartbeat interval
+  // Default heartbeat interval is 10 seconds
+  const intervalSeconds = proxy.heartbeat_interval || 10
+  
+  // Get time range from the first and last heartbeat
+  if (heartbeats.length < 2) {
+    return { totalHeartbeats, expectedHeartbeats: 1, missedHeartbeats: 0, heartbeatRate: 100 }
+  }
+  
+  const sortedHeartbeats = [...heartbeats].sort((a, b) => 
+    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  )
+  
+  const lastTime = new Date(sortedHeartbeats[0].timestamp).getTime()
+  const firstTime = new Date(sortedHeartbeats[sortedHeartbeats.length - 1].timestamp).getTime()
+  const durationSeconds = (lastTime - firstTime) / 1000
+  
+  // Expected = duration / interval + 1 (for the first heartbeat)
+  const expectedHeartbeats = Math.floor(durationSeconds / intervalSeconds) + 1
+  const missedHeartbeats = Math.max(0, expectedHeartbeats - totalHeartbeats)
+  const heartbeatRate = expectedHeartbeats > 0 ? Math.round((totalHeartbeats / expectedHeartbeats) * 100) : 100
+  
+  return { totalHeartbeats, expectedHeartbeats, missedHeartbeats, heartbeatRate }
 })
 
 // Close menu when clicking outside
@@ -2155,7 +2187,7 @@ onUnmounted(() => {
                     <option :value="60">{{ t('proxies.monitoring.refresh1m') }}</option>
                     <option :value="300">{{ t('proxies.monitoring.refresh5m') }}</option>
                   </select>
-                  <button @click="refreshCurrentTab" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg">
+                  <button @click="refreshCurrentTab" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg" :title="t('proxies.monitoring.refreshNow')">
                     <ArrowPathIcon class="w-4 h-4" />
                   </button>
                 </div>
@@ -2166,7 +2198,7 @@ onUnmounted(() => {
                 <div class="flex items-center justify-between bg-slate-50 rounded-xl p-4">
                   <div class="flex items-center gap-2">
                     <CalendarIcon class="w-5 h-5 text-slate-500" />
-                    <span class="text-sm font-medium text-slate-700">{{ t('proxies.detail.timeRange') }}</span>
+                    <span class="text-sm font-medium text-slate-700">{{ t('proxies.monitoring.timeRange') }}</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <button
@@ -2191,7 +2223,7 @@ onUnmounted(() => {
                           : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                       ]"
                     >
-                      {{ t('proxies.detail.custom') }}
+                      {{ t('proxies.monitoring.custom') }}
                     </button>
                   </div>
                 </div>
@@ -2224,87 +2256,162 @@ onUnmounted(() => {
                   </button>
                 </div>
 
-                <!-- Current Stats Cards -->
-                <div class="grid grid-cols-4 gap-4">
-                  <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4">
-                    <p class="text-xs opacity-80">{{ t('proxies.detail.cpuUsage') }}</p>
-                    <p class="text-2xl font-bold text-indigo-700 mt-1">{{ (tabData.monitor.data.current?.cpu_usage || 0).toFixed(1) }}%</p>
-                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.detail.avg') }}: {{ tabData.monitor.data.averages?.cpu_usage?.toFixed(1) }}%</p>
+                <!-- System Overview Cards -->
+                <div class="grid grid-cols-6 gap-3">
+                  <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-3">
+                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.cpuUsage') }}</p>
+                    <p class="text-xl font-bold text-indigo-700 mt-1">{{ (tabData.monitor.data.current?.cpu_usage || 0).toFixed(1) }}%</p>
+                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.monitoring.cpuCores') }}: {{ tabData.monitor.data.current?.cpu_cores || '-' }}</p>
                   </div>
-                  <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4">
-                    <p class="text-xs opacity-80">{{ t('proxies.detail.memoryUsage') }}</p>
-                    <p class="text-2xl font-bold text-emerald-700 mt-1">{{ (tabData.monitor.data.current?.memory_usage || 0).toFixed(1) }}%</p>
-                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.detail.total') }}: {{ tabData.monitor.data.current?.memory_total_gb }} GB</p>
+                  <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-3">
+                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.memoryUsage') }}</p>
+                    <p class="text-xl font-bold text-emerald-700 mt-1">{{ (tabData.monitor.data.current?.memory_usage || 0).toFixed(1) }}%</p>
+                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.monitoring.memoryTotal') }}: {{ tabData.monitor.data.current?.memory_total_gb || '-' }} GB</p>
                   </div>
-                  <div class="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4">
-                    <p class="text-xs opacity-80">{{ t('proxies.detail.diskUsage') }}</p>
-                    <p class="text-2xl font-bold text-amber-700 mt-1">{{ (tabData.monitor.data.current?.disk_usage || 0).toFixed(1) }}%</p>
-                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.detail.total') }}: {{ tabData.monitor.data.current?.disk_total_gb }} GB</p>
+                  <div class="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-3">
+                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.diskUsage') }}</p>
+                    <p class="text-xl font-bold text-amber-700 mt-1">{{ (tabData.monitor.data.current?.disk_usage || 0).toFixed(1) }}%</p>
+                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.monitoring.diskTotal') }}: {{ tabData.monitor.data.current?.disk_total_gb || '-' }} GB</p>
                   </div>
-                  <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                  <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3">
                     <p class="text-xs opacity-80">{{ t('proxies.detail.uptime') }}</p>
-                    <p class="text-2xl font-bold text-blue-700 mt-1">{{ formatUptime(tabData.monitor.data.uptime_seconds) }}</p>
+                    <p class="text-xl font-bold text-blue-700 mt-1">{{ formatUptime(tabData.monitor.data.uptime_seconds) }}</p>
+                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.detail.lastHeartbeat') }}: {{ tabData.monitor.data.last_heartbeat ? new Date(tabData.monitor.data.last_heartbeat).toLocaleTimeString() : '-' }}</p>
+                  </div>
+                  <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3">
+                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.networkIn') }}</p>
+                    <p class="text-xl font-bold text-purple-700 mt-1">{{ formatBytes(tabData.monitor.data.network_stats?.bytes_recv) }}</p>
+                    <p class="text-xs opacity-70 mt-1">{{ tabData.monitor.data.network_stats?.bytes_recv_gb?.toFixed(2) || 0 }} GB</p>
+                  </div>
+                  <div class="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl p-3">
+                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.networkOut') }}</p>
+                    <p class="text-xl font-bold text-cyan-700 mt-1">{{ formatBytes(tabData.monitor.data.network_stats?.bytes_sent) }}</p>
+                    <p class="text-xs opacity-70 mt-1">{{ tabData.monitor.data.network_stats?.bytes_sent_gb?.toFixed(2) || 0 }} GB</p>
                   </div>
                 </div>
 
-                <!-- Charts -->
+                <!-- Charts Row 1: CPU, Memory, Disk -->
                 <div class="grid grid-cols-3 gap-4">
                   <div class="bg-white border border-slate-200 rounded-xl p-4">
                     <h4 class="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
                       <CpuChipIcon class="w-4 h-4 text-indigo-500" />
-                      {{ t('proxies.detail.cpuChart') }}
+                      {{ t('proxies.monitoring.cpuChart') }}
                     </h4>
-                    <div class="h-48">
+                    <div class="h-40">
                       <Line :data="getChartData('cpu')" :options="getChartOptions('cpu')" />
                     </div>
                   </div>
                   <div class="bg-white border border-slate-200 rounded-xl p-4">
                     <h4 class="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
                       <ServerIcon class="w-4 h-4 text-emerald-500" />
-                      {{ t('proxies.detail.memoryChart') }}
+                      {{ t('proxies.monitoring.memoryChart') }}
                     </h4>
-                    <div class="h-48">
+                    <div class="h-40">
                       <Line :data="getChartData('memory')" :options="getChartOptions('memory')" />
                     </div>
                   </div>
                   <div class="bg-white border border-slate-200 rounded-xl p-4">
                     <h4 class="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
                       <CircleStackIcon class="w-4 h-4 text-amber-500" />
-                      {{ t('proxies.detail.diskChart') }}
+                      {{ t('proxies.monitoring.diskChart') }}
                     </h4>
-                    <div class="h-48">
+                    <div class="h-40">
                       <Line :data="getChartData('disk')" :options="getChartOptions('disk')" />
                     </div>
                   </div>
                 </div>
 
-                <!-- Network Interfaces -->
-                <div v-if="tabData.monitor.data.network_interfaces && tabData.monitor.data.network_interfaces.length > 0" class="bg-slate-50 rounded-xl p-4">
-                  <h4 class="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                    <WifiIcon class="w-4 h-4 text-blue-500" />
-                    {{ t('proxies.detail.networkInterfaces') }}
-                  </h4>
-                  <div class="overflow-x-auto">
+                <!-- Network Interfaces Section -->
+                <div v-if="tabData.monitor.data.network_interfaces && tabData.monitor.data.network_interfaces.length > 0" class="bg-white border border-slate-200 rounded-xl p-4">
+                  <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                      <WifiIcon class="w-4 h-4 text-blue-500" />
+                      {{ t('proxies.monitoring.networkInterfaces') }}
+                    </h4>
+                    <select
+                      v-model="selectedNetworkInterface"
+                      class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="all">{{ t('proxies.monitoring.allInterfaces') }}</option>
+                      <option v-for="(iface, index) in tabData.monitor.data.network_interfaces" :key="index" :value="iface.name">
+                        {{ iface.name }} ({{ iface.ip_address || 'No IP' }})
+                      </option>
+                    </select>
+                  </div>
+
+                  <!-- Network Interface Details -->
+                  <div v-if="selectedNetworkInterface === 'all'" class="overflow-x-auto">
                     <table class="w-full text-sm">
                       <thead>
                         <tr class="border-b border-slate-200">
                           <th class="text-left py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.interface') }}</th>
-                          <th class="text-left py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.ipAddress') }}</th>
-                          <th class="text-left py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.macAddress') }}</th>
-                          <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.bytesIn') }}</th>
-                          <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.bytesOut') }}</th>
+                          <th class="text-left py-2 px-3 text-slate-600 font-medium">{{ t('proxies.monitoring.ipAddress') }}</th>
+                          <th class="text-left py-2 px-3 text-slate-600 font-medium">{{ t('proxies.monitoring.macAddress') }}</th>
+                          <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.monitoring.bytesIn') }}</th>
+                          <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.monitoring.bytesOut') }}</th>
+                          <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.monitoring.bandwidth') }}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="(iface, index) in tabData.monitor.data.network_interfaces" :key="index" class="border-b border-slate-100">
-                          <td class="py-2 px-3 font-medium text-slate-800">{{ iface.name }}</td>
+                        <tr v-for="(iface, index) in tabData.monitor.data.network_interfaces" :key="index" class="border-b border-slate-100 hover:bg-slate-50">
+                          <td class="py-2 px-3 font-medium text-slate-800">
+                            <div class="flex items-center gap-2">
+                              <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                              {{ iface.name }}
+                            </div>
+                          </td>
                           <td class="py-2 px-3 text-slate-600 font-mono text-xs">{{ iface.ip_address || '-' }}</td>
                           <td class="py-2 px-3 text-slate-600 font-mono text-xs">{{ iface.mac_address || '-' }}</td>
                           <td class="py-2 px-3 text-right text-slate-600">{{ formatBytes(iface.bytes_in) }}</td>
                           <td class="py-2 px-3 text-right text-slate-600">{{ formatBytes(iface.bytes_out) }}</td>
+                          <td class="py-2 px-3 text-right text-slate-600">{{ formatBandwidth(iface.bytes_in, iface.bytes_out, tabData.monitor.data.uptime_seconds) }}</td>
                         </tr>
                       </tbody>
                     </table>
+                  </div>
+
+                  <!-- Single Interface Detail -->
+                  <div v-else class="space-y-4">
+                    <div v-for="(iface, index) in tabData.monitor.data.network_interfaces" :key="index">
+                      <div v-if="iface.name === selectedNetworkInterface" class="grid grid-cols-4 gap-4">
+                        <div class="bg-slate-50 rounded-lg p-3">
+                          <p class="text-xs text-slate-500">{{ t('proxies.monitoring.ipAddress') }}</p>
+                          <p class="text-sm font-medium text-slate-800 mt-1 font-mono">{{ iface.ip_address || '-' }}</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                          <p class="text-xs text-slate-500">{{ t('proxies.monitoring.macAddress') }}</p>
+                          <p class="text-sm font-medium text-slate-800 mt-1 font-mono">{{ iface.mac_address || '-' }}</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                          <p class="text-xs text-slate-500">{{ t('proxies.monitoring.networkIn') }}</p>
+                          <p class="text-sm font-medium text-purple-700 mt-1">{{ formatBytes(iface.bytes_in) }}</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                          <p class="text-xs text-slate-500">{{ t('proxies.monitoring.networkOut') }}</p>
+                          <p class="text-sm font-medium text-cyan-700 mt-1">{{ formatBytes(iface.bytes_out) }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Task Stats -->
+                <div class="grid grid-cols-4 gap-4">
+                  <div class="bg-slate-50 rounded-xl p-4">
+                    <p class="text-xs text-slate-500">{{ t('proxies.tasks.total') }}</p>
+                    <p class="text-2xl font-bold text-slate-800 mt-1">{{ tabData.monitor.data.task_stats?.total || 0 }}</p>
+                  </div>
+                  <div class="bg-emerald-50 rounded-xl p-4">
+                    <p class="text-xs text-slate-500">{{ t('proxies.tasks.completed') }}</p>
+                    <p class="text-2xl font-bold text-emerald-700 mt-1">{{ tabData.monitor.data.task_stats?.completed || 0 }}</p>
+                  </div>
+                  <div class="bg-red-50 rounded-xl p-4">
+                    <p class="text-xs text-slate-500">{{ t('proxies.tasks.failed') }}</p>
+                    <p class="text-2xl font-bold text-red-700 mt-1">{{ tabData.monitor.data.task_stats?.failed || 0 }}</p>
+                  </div>
+                  <div class="bg-blue-50 rounded-xl p-4">
+                    <p class="text-xs text-slate-500">{{ t('proxies.tasks.running') }}</p>
+                    <p class="text-2xl font-bold text-blue-700 mt-1">{{ tabData.monitor.data.task_stats?.running || 0 }}</p>
                   </div>
                 </div>
               </template>
@@ -2377,20 +2484,20 @@ onUnmounted(() => {
               <!-- Stats -->
               <div class="grid grid-cols-4 gap-4">
                 <div class="bg-slate-50 rounded-xl p-4">
-                  <p class="text-xs text-slate-500">{{ t('proxies.detail.totalHeartbeats') }}</p>
-                  <p class="text-2xl font-bold text-slate-800 mt-1">{{ heartbeatStats.total }}</p>
+                  <p class="text-xs text-slate-500">{{ t('proxies.heartbeats.totalHeartbeats') }}</p>
+                  <p class="text-2xl font-bold text-slate-800 mt-1">{{ heartbeatStats.totalHeartbeats }}</p>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
-                  <p class="text-xs text-slate-500">{{ t('proxies.detail.avgCpu') }}</p>
-                  <p class="text-2xl font-bold text-indigo-600 mt-1">{{ heartbeatStats.avgCpu.toFixed(1) }}%</p>
+                  <p class="text-xs text-slate-500">{{ t('proxies.heartbeats.expectedHeartbeats') }}</p>
+                  <p class="text-2xl font-bold text-indigo-600 mt-1">{{ heartbeatStats.expectedHeartbeats }}</p>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
-                  <p class="text-xs text-slate-500">{{ t('proxies.detail.avgMemory') }}</p>
-                  <p class="text-2xl font-bold text-emerald-600 mt-1">{{ heartbeatStats.avgMemory.toFixed(1) }}%</p>
+                  <p class="text-xs text-slate-500">{{ t('proxies.heartbeats.missedHeartbeats') }}</p>
+                  <p class="text-2xl font-bold text-red-600 mt-1">{{ heartbeatStats.missedHeartbeats }}</p>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
-                  <p class="text-xs text-slate-500">{{ t('proxies.detail.avgDisk') }}</p>
-                  <p class="text-2xl font-bold text-amber-600 mt-1">{{ heartbeatStats.avgDisk.toFixed(1) }}%</p>
+                  <p class="text-xs text-slate-500">{{ t('proxies.heartbeats.heartbeatRate') }}</p>
+                  <p class="text-2xl font-bold text-emerald-600 mt-1">{{ heartbeatStats.heartbeatRate }}%</p>
                 </div>
               </div>
 
