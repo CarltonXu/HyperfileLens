@@ -1573,3 +1573,131 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         
         status_code = status.HTTP_200_OK if results['success'] else status.HTTP_400_BAD_REQUEST
         return Response(results, status=status_code)
+    
+    @action(detail=True, methods=['post'])
+    def sync_usage(self, request, pk=None):
+        """
+        Sync repository usage (used_space) from S3 bucket.
+        
+        This API calculates the total size of all objects in the bucket
+        and updates the repository's used_space field.
+        
+        Note: For large buckets, this operation may take time.
+        """
+        repo = self.get_object()
+        
+        if repo.repo_type != 's3':
+            return Response({
+                'success': False,
+                'message': 'Usage sync is only supported for S3 repositories'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        config = repo.config or {}
+        credentials = repo.get_decrypted_credentials()
+        
+        endpoint = config.get('endpoint', '')
+        bucket = config.get('bucket', '')
+        region = config.get('region', 'us-east-1')
+        url_style = config.get('url_style', 'virtual')
+        
+        access_key = credentials.get('access_key', '')
+        secret_key = credentials.get('secret_key', '')
+        
+        if not all([endpoint, bucket, access_key, secret_key]):
+            return Response({
+                'success': False,
+                'message': 'Missing S3 configuration or credentials'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"[S3 Usage] Starting usage sync for repository '{repo.name}' (bucket: {bucket})")
+        
+        try:
+            s3_config = Config(
+                connect_timeout=10,
+                read_timeout=30,
+                retries={'max_attempts': 2},
+                s3={'addressing_style': url_style}
+            )
+            
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=endpoint,
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                config=s3_config,
+                verify=False
+            )
+            
+            # Calculate total size by listing all objects
+            total_size = 0
+            object_count = 0
+            continuation_token = None
+            max_objects = 1000000  # Safety limit: 1 million objects
+            max_iterations = 1000  # Max pages to iterate
+            
+            iteration = 0
+            while iteration < max_iterations:
+                iteration += 1
+                
+                list_kwargs = {'Bucket': bucket, 'MaxKeys': 1000}
+                if continuation_token:
+                    list_kwargs['ContinuationToken'] = continuation_token
+                
+                response = s3_client.list_objects_v2(**list_kwargs)
+                
+                contents = response.get('Contents', [])
+                for obj in contents:
+                    total_size += obj.get('Size', 0)
+                    object_count += 1
+                    
+                    if object_count >= max_objects:
+                        logger.warning(f"[S3 Usage] Reached max object limit ({max_objects}) for bucket '{bucket}'")
+                        break
+                
+                # Check if there are more objects
+                if not response.get('IsTruncated', False):
+                    break
+                    
+                continuation_token = response.get('NextContinuationToken')
+                
+                if object_count >= max_objects:
+                    break
+            
+            # Update repository used_space
+            repo.used_space = total_size
+            repo.save(update_fields=['used_space', 'updated_at'])
+            
+            logger.info(
+                f"[S3 Usage] Synced usage for repository '{repo.name}': "
+                f"{object_count} objects, {total_size} bytes "
+                f"({total_size / (1024**3):.2f} GB)"
+            )
+            
+            return Response({
+                'success': True,
+                'message': 'Usage synced successfully',
+                'usage': {
+                    'object_count': object_count,
+                    'total_size': total_size,
+                    'total_size_gb': round(total_size / (1024**3), 2),
+                    'iterations': iteration
+                }
+            })
+            
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_msg = e.response.get('Error', {}).get('Message', str(e))
+            logger.error(f"[S3 Usage] ClientError for '{repo.name}': {error_code} - {error_msg}")
+            return Response({
+                'success': False,
+                'message': f'Failed to sync usage: {error_msg}',
+                'error_code': error_code
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.exception(f"[S3 Usage] Unexpected error for '{repo.name}': {str(e)}")
+            return Response({
+                'success': False,
+                'message': f'Unexpected error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

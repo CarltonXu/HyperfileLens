@@ -67,6 +67,7 @@ const newRepo = ref({
   name: '',
   repo_type: 's3' as 's3' | 'nas' | 'local',
   description: '',
+  capacity: 0 as number,  // 存储配额，单位 GB，0 表示无限制
   bound_node: '' as string | null,
   // S3 config
   s3_config: {
@@ -458,6 +459,7 @@ function resetForm() {
     name: '',
     repo_type: 's3',
     description: '',
+    capacity: 0,
     bound_node: null,
     s3_config: {
       endpoint: '',
@@ -669,6 +671,7 @@ async function createRepository() {
       name: newRepo.value.name,
       repo_type: newRepo.value.repo_type,
       description: newRepo.value.description,
+      capacity: newRepo.value.capacity ? newRepo.value.capacity * 1024 * 1024 * 1024 : 0,  // Convert GB to bytes
       bound_node: newRepo.value.bound_node || null
     }
 
@@ -769,6 +772,10 @@ async function testConnection(repo: Repository) {
     
     if (result.success) {
       appStore.success(t('repository.connectionTestSuccess'))
+      // Auto-sync usage for S3 repositories (async, don't wait)
+      if (repo.repo_type === 's3') {
+        syncUsage(repo)
+      }
     } else {
       appStore.error(`${t('repository.connectionTestFailed')}: ${result.message}`)
     }
@@ -821,6 +828,22 @@ async function initKopia(repo: Repository) {
   }
 }
 
+// Sync repository usage
+async function syncUsage(repo: Repository) {
+  try {
+    const response = await repositoriesApi.syncUsage(repo.id)
+    if (response.data.success) {
+      const usage = response.data.usage
+      console.log(`[Usage Sync] ${repo.name}: ${usage.object_count} objects, ${usage.total_size_gb} GB`)
+      // Refresh repository data to show updated usage
+      await fetchRepositories()
+    }
+  } catch (error: any) {
+    console.error('Failed to sync usage:', error)
+    // Don't show error to user - this is a background operation
+  }
+}
+
 // 编辑仓库
 function openEditModal(repo: Repository) {
   isEditMode.value = true
@@ -831,6 +854,8 @@ function openEditModal(repo: Repository) {
   newRepo.value.description = repo.description || ''
   newRepo.value.repo_type = (repo.repo_type === 'nfs' ? 'nas' : repo.repo_type) as 's3' | 'nas' | 'local'
   newRepo.value.bound_node = repo.bound_node ?? null
+  // 回填容量配额，将字节转换为 GB
+  newRepo.value.capacity = repo.capacity ? Math.round(repo.capacity / (1024 * 1024 * 1024)) : 0
   
   // 根据类型填充配置
   if (repo.repo_type === 's3' && repo.config) {
@@ -1412,6 +1437,20 @@ onMounted(() => {
               <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('common.description') }}</label>
                 <input v-model="newRepo.description" type="text" :placeholder="t('repository.form.descPlaceholder')" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">
+                  {{ t('repository.form.capacity') }}
+                  <span class="text-xs text-slate-400 font-normal ml-1">({{ t('repository.form.capacityUnit') }})</span>
+                </label>
+                <input 
+                  v-model.number="newRepo.capacity" 
+                  type="number" 
+                  min="0" 
+                  :placeholder="t('repository.form.capacityPlaceholder')"
+                  class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                />
+                <p class="mt-1 text-xs text-slate-400">{{ t('repository.form.capacityHint') }}</p>
               </div>
             </div>
 

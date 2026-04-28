@@ -338,7 +338,11 @@ export const repositoriesApi = {
     bucket_name: string;
     use_tls?: boolean;
   }) =>
-    api.post('/api/v1/repositories/create_s3_bucket/', data, { timeout: 60000 })
+    api.post('/api/v1/repositories/create_s3_bucket/', data, { timeout: 60000 }),
+  
+  // Sync repository usage from S3 bucket
+  syncUsage: (id: number | string) =>
+    api.post(`/api/v1/repositories/${id}/sync_usage/`, {}, { timeout: 120000 })  // 2 minutes timeout
 }
 
 // ============== Policies API ==============
