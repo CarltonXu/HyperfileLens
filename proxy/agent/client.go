@@ -35,15 +35,44 @@ type RegistrationResponse struct {
 }
 
 // HeartbeatPayload represents heartbeat data
+// HeartbeatPayload matches backend ProxyHeartbeatCreateSerializer fields
 type HeartbeatPayload struct {
-	NodeID      string                   `json:"node_id"`
-	APIToken    string                   `json:"api_token,omitempty"`
-	Status      string                   `json:"status"`
-	Metrics     *monitor.Metrics         `json:"metrics"`
-	HostInfo    map[string]interface{}   `json:"host_info"`
-	DiskInfo    []monitor.DiskPartition  `json:"disk_info,omitempty"`
-	NetworkInfo []map[string]interface{} `json:"network_info,omitempty"`
-	Timestamp   int64                    `json:"timestamp"`
+	// Required fields
+	NodeID   string `json:"node_id"`
+	APIToken string `json:"api_token"`
+
+	// Optional fields - version info
+	Version      string `json:"version,omitempty"`
+	KopiaVersion string `json:"kopia_version,omitempty"`
+
+	// Host info
+	Hostname    string `json:"hostname,omitempty"`
+	InternalIP  string `json:"internal_ip,omitempty"`
+	OS          string `json:"os,omitempty"`
+	OSVersion   string `json:"os_version,omitempty"`
+
+	// Hardware info
+	CPUCores   int   `json:"cpu_cores,omitempty"`
+	MemoryTotal int64 `json:"memory_total,omitempty"`
+	DiskTotal  int64 `json:"disk_total,omitempty"`
+
+	// Current usage
+	CPUUsage    float64 `json:"cpu_usage,omitempty"`
+	MemoryUsage float64 `json:"memory_usage,omitempty"`
+	DiskUsage   float64 `json:"disk_usage,omitempty"`
+
+	// Network
+	NetworkIn  int64 `json:"network_in,omitempty"`
+	NetworkOut int64 `json:"network_out,omitempty"`
+
+	// Task stats
+	ActiveTasks     int `json:"active_tasks,omitempty"`
+	CompletedTasks  int `json:"completed_tasks,omitempty"`
+	FailedTasks     int `json:"failed_tasks,omitempty"`
+
+	// Additional info
+	Capabilities map[string]interface{} `json:"capabilities,omitempty"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // Client handles agent operations
@@ -151,15 +180,41 @@ func (c *Client) Heartbeat() error {
 		return fmt.Errorf("node not registered")
 	}
 
+	// Collect metrics
+	metrics := c.collector.GetCurrent()
+	hostInfo := monitor.GetHostInfo()
+
+	// Build flat payload matching backend serializer
 	payload := HeartbeatPayload{
-		NodeID:    c.nodeID,
-		APIToken:  c.config.Server.APIToken,
-		Status:    "healthy",
-		Metrics:   c.collector.GetCurrent(),
-		HostInfo:  monitor.GetHostInfo(),
-		DiskInfo:  monitor.GetDiskPartitions(),
-		NetworkInfo: monitor.GetNetworkInterfaces(),
-		Timestamp: time.Now().Unix(),
+		NodeID:   c.nodeID,
+		APIToken: c.config.Server.APIToken,
+		Version:  c.config.Version,
+	}
+
+	// Add host info if available
+	if hostInfo != nil {
+		if hn, ok := hostInfo["hostname"].(string); ok {
+			payload.Hostname = hn
+		}
+		if ip, ok := hostInfo["internal_ip"].(string); ok {
+			payload.InternalIP = ip
+		}
+		if os, ok := hostInfo["os"].(string); ok {
+			payload.OS = os
+		}
+		if osVer, ok := hostInfo["os_version"].(string); ok {
+			payload.OSVersion = osVer
+		}
+	}
+
+	// Add metrics if available
+	if metrics != nil {
+		payload.CPUUsage = metrics.CPUUsage
+		payload.MemoryUsage = metrics.MemoryUsage
+		payload.DiskUsage = metrics.DiskUsage
+		payload.CPUCores = metrics.CPUCores
+		payload.MemoryTotal = int64(metrics.MemoryTotal)
+		payload.DiskTotal = int64(metrics.DiskTotal)
 	}
 
 	body, _ := json.Marshal(payload)
@@ -169,9 +224,6 @@ func (c *Client) Heartbeat() error {
 		bytes.NewReader(body))
 
 	req.Header.Set("Content-Type", "application/json")
-	if c.config.Server.APIToken != "" {
-		req.Header.Set("Authorization", "Token "+c.config.Server.APIToken)
-	}
 
 	resp, err := c.client.Do(req)
 	if err != nil {
