@@ -858,6 +858,14 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             parsed = urlparse(endpoint)
             logger.info(f"[S3] Endpoint host: {parsed.netloc}, scheme: {parsed.scheme}")
             
+            # Create S3 config for connection
+            s3_config = Config(
+                connect_timeout=5,  # 5 seconds to establish connection
+                read_timeout=20,    # 20 seconds to read data
+                retries={'max_attempts': 2},  # Retry twice on failure
+                signature_version='s3v4'
+            )
+            
             # Create S3 client with optimized timeouts
             s3_client = boto3.client(
                 's3',
@@ -865,12 +873,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
                 region_name=region,
-                config=Config(
-                    connect_timeout=5,  # 5 seconds to establish connection
-                    read_timeout=20,    # 20 seconds to read data
-                    retries={'max_attempts': 2},  # Retry twice on failure
-                    signature_version='s3v4'
-                ),
+                config=s3_config,
                 verify=False  # For self-signed certificates
             )
             
@@ -966,16 +969,19 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 bucket_name = bucket_info['Name']
                 bucket_region = 'unknown'
                 actually_accessible = False
+                error_headers = {}
                 
                 try:
                     s3_client = get_thread_s3_client()
                     
                     # First, try head_bucket to verify bucket is accessible via configured endpoint
+                    logger.info(f"[S3] Bucket '{bucket_name}': attempting head_bucket...")
                     head_response = s3_client.head_bucket(Bucket=bucket_name)
                     headers = head_response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
                     
                     # If we get here, bucket is accessible via configured endpoint
                     actually_accessible = True
+                    logger.info(f"[S3] Bucket '{bucket_name}': head_bucket SUCCESS")
                     
                     # Try to get region from response headers
                     bucket_region = headers.get('x-amz-bucket-region') or headers.get('x-obs-bucket-location')
@@ -987,12 +993,15 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                         
                 except ClientError as head_err:
                     error_code = head_err.response.get('Error', {}).get('Code', 'Unknown')
+                    error_msg = head_err.response.get('Error', {}).get('Message', str(head_err))
                     error_headers = head_err.response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
+                    logger.info(f"[S3] Bucket '{bucket_name}': head_bucket FAILED (ClientError) - {error_code}: {error_msg}")
                     
+                    # Try to get region from error headers
                     bucket_region = error_headers.get('x-amz-bucket-region') or error_headers.get('x-obs-bucket-location')
                     
                     if bucket_region:
-                        logger.debug(f"[S3] Bucket '{bucket_name}': head_bucket FAILED ({error_code}), region from error headers = '{bucket_region}'")
+                        logger.info(f"[S3] Bucket '{bucket_name}': region from error headers = '{bucket_region}'")
                     else:
                         # Try get_bucket_location as fallback
                         try:
@@ -1002,7 +1011,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                             
                             if raw_location and raw_location not in ['', 'us-east-1']:
                                 bucket_region = raw_location
-                                logger.debug(f"[S3] Bucket '{bucket_name}': get_bucket_location = '{bucket_region}'")
+                                logger.info(f"[S3] Bucket '{bucket_name}': get_bucket_location = '{bucket_region}'")
                             else:
                                 # Both head_bucket and get_bucket_location failed to return valid region
                                 bucket_region = endpoint_region or region or 'unknown'
@@ -1010,10 +1019,10 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                         except Exception as loc_err:
                             bucket_region = endpoint_region or region or 'unknown'
                             logger.warning(f"[S3] Bucket '{bucket_name}': head_bucket FAILED ({error_code}), get_bucket_location also failed ({type(loc_err).__name__}), using endpoint region = '{bucket_region}'")
-                
-                except Exception as e:
+                            
+                except Exception as head_err:
+                    logger.info(f"[S3] Bucket '{bucket_name}': head_bucket FAILED (Exception) - {type(head_err).__name__}: {str(head_err)}")
                     bucket_region = endpoint_region or region or 'unknown'
-                    logger.debug(f"[S3] Bucket '{bucket_name}': error: {type(e).__name__}")
                 
                 # Determine if bucket matches configured region
                 region_match = bucket_region == region
