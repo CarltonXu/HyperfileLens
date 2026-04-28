@@ -163,7 +163,7 @@ func (c *Client) Heartbeat() error {
 	body, _ := json.Marshal(payload)
 
 	req, _ := http.NewRequest("POST",
-		fmt.Sprintf("%s/nodes/%s/heartbeat/", c.apiURL, c.nodeID),
+		fmt.Sprintf("%s/proxies/%s/heartbeat/", c.apiURL, c.nodeID),
 		bytes.NewReader(body))
 
 	req.Header.Set("Content-Type", "application/json")

@@ -570,7 +570,7 @@ logging:
         data = {
             'proxy_id': str(proxy.id),
             'status': proxy.status,
-            'is_online': proxy.is_online,
+            'is_online': proxy.is_online(),
             'uptime_seconds': uptime_seconds,
             'last_heartbeat': proxy.last_heartbeat.isoformat() if proxy.last_heartbeat else None,
 
