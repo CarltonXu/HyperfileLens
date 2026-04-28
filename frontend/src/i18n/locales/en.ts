@@ -384,8 +384,6 @@ export default {
       memoryChart: 'Memory Usage Trend',
       diskChart: 'Disk Usage Trend',
       networkChart: 'Network Traffic Trend',
-      networkIn: 'Inbound Traffic',
-      networkOut: 'Outbound Traffic',
       networkInterfaces: 'Network Interfaces',
       interfaceName: 'Interface Name',
       ipAddress: 'IP Address',

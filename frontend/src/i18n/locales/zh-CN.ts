@@ -384,8 +384,6 @@ export default {
       memoryChart: '内存使用率趋势',
       diskChart: '磁盘使用率趋势',
       networkChart: '网络流量趋势',
-      networkIn: '入站流量',
-      networkOut: '出站流量',
       networkInterfaces: '网络接口',
       interfaceName: '接口名称',
       ipAddress: 'IP 地址',

@@ -2437,16 +2437,6 @@ onUnmounted(() => {
                     <p class="text-xl font-bold text-blue-700 mt-1">{{ formatUptime(tabData.monitor.data.uptime_seconds) }}</p>
                     <p class="text-xs opacity-70 mt-1">{{ t('proxies.detail.lastHeartbeat') }}: {{ tabData.monitor.data.last_heartbeat ? new Date(tabData.monitor.data.last_heartbeat).toLocaleTimeString() : '-' }}</p>
                   </div>
-                  <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3">
-                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.networkIn') }}</p>
-                    <p class="text-xl font-bold text-purple-700 mt-1">{{ formatBytes(tabData.monitor.data.network_stats?.bytes_recv) }}</p>
-                    <p class="text-xs opacity-70 mt-1">{{ tabData.monitor.data.network_stats?.bytes_recv_gb?.toFixed(2) || 0 }} GB</p>
-                  </div>
-                  <div class="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl p-3">
-                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.networkOut') }}</p>
-                    <p class="text-xl font-bold text-cyan-700 mt-1">{{ formatBytes(tabData.monitor.data.network_stats?.bytes_sent) }}</p>
-                    <p class="text-xs opacity-70 mt-1">{{ tabData.monitor.data.network_stats?.bytes_sent_gb?.toFixed(2) || 0 }} GB</p>
-                  </div>
                 </div>
 
                 <!-- Charts Row 1: CPU, Memory, Disk -->
