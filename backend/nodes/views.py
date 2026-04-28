@@ -122,11 +122,11 @@ class ProxyViewSet(viewsets.ModelViewSet):
         """Build the installation command string."""
         if os_type == 'windows':
             return f'''# PowerShell (Run as Administrator)
-Invoke-WebRequest -Uri "{server_url}/install.ps1" -OutFile "install.ps1"
+Invoke-WebRequest -Uri "{server_url}/static/downloads/install.ps1" -OutFile "install.ps1"
 ./install.ps1 -ProxyId "{proxy_id}" -Role {role} -Server "{server_url}" -Token "{install_token}" -Name "{name}"'''
         else:
             return f'''# Linux/macOS
-curl -sSL {server_url}/install.sh | bash -s -- \\
+curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
   --proxy-id {proxy_id} \\
   --role {role} \\
   --server {server_url} \\

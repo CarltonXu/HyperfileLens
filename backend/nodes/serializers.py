@@ -125,11 +125,11 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
             
             if obj.target_os == 'windows':
                 return f'''# PowerShell (Run as Administrator)
-Invoke-WebRequest -Uri "{base_url}/install.ps1" -OutFile "install.ps1"
+Invoke-WebRequest -Uri "{base_url}/static/downloads/install.ps1" -OutFile "install.ps1"
 ./install.ps1 -ProxyId "{obj.id}" -Role {obj.role} -Server "{base_url}" -Token "{obj.install_token}" -Name "{obj.name}"'''
             else:
                 return f'''# Linux/macOS
-curl -sSL {base_url}/install.sh | bash -s -- \\
+curl -sSL {base_url}/static/downloads/install.sh | bash -s -- \\
   --proxy-id {obj.id} \\
   --role {obj.role} \\
   --server {base_url} \\
