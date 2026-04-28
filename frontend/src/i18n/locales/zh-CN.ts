@@ -638,7 +638,10 @@ export default {
       fillCredentialsFirst: '请先填写 Endpoint 和访问凭据',
       validateFailed: 'Bucket 名称验证失败',
       checkSuccess: 'Bucket 名称可用',
-      checkBucketFailed: '检查 Bucket 名称失败'
+      checkBucketFailed: '检查 Bucket 名称失败',
+      connectionTimeout: '连接超时，请检查 Endpoint 地址是否正确，或服务是否可访问',
+      networkError: '网络连接失败，请检查网络连接或 Endpoint 地址',
+      invalidEndpoint: 'Endpoint 格式无效，请输入有效的 URL 地址'
     },
 
     nas: {

@@ -309,7 +309,7 @@ export const repositoriesApi = {
   unbindNode: (id: number | string) =>
     api.post(`/api/v1/repository/repositories/${id}/unbind-node/`),
   
-  // S3 Bucket operations
+  // S3 Bucket operations (with extended timeout for network operations)
   listBuckets: (data: {
     endpoint: string;
     region?: string;
@@ -317,7 +317,7 @@ export const repositoriesApi = {
     secret_key: string;
     use_ssl?: boolean;
   }) =>
-    api.post('/api/v1/repository/repositories/list_s3_buckets/', data),
+    api.post('/api/v1/repository/repositories/list_s3_buckets/', data, { timeout: 60000 }),
   
   checkBucketName: (data: {
     endpoint: string;
@@ -327,7 +327,7 @@ export const repositoriesApi = {
     bucket_name: string;
     use_ssl?: boolean;
   }) =>
-    api.post('/api/v1/repository/repositories/validate_s3_bucket_name/', data)
+    api.post('/api/v1/repository/repositories/validate_s3_bucket_name/', data, { timeout: 30000 })
 }
 
 // ============== Policies API ==============

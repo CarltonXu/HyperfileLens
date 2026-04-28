@@ -418,7 +418,20 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         try:
             logger.info(f"[S3] Creating S3 client for endpoint: {endpoint}")
             
-            # Create S3 client
+            # Validate endpoint format
+            if not endpoint.startswith(('http://', 'https://')):
+                return Response({
+                    'success': False,
+                    'error_type': 'invalid_endpoint',
+                    'message': 'Endpoint must start with http:// or https://'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Parse endpoint for logging
+            from urllib.parse import urlparse
+            parsed = urlparse(endpoint)
+            logger.info(f"[S3] Endpoint host: {parsed.netloc}, scheme: {parsed.scheme}")
+            
+            # Create S3 client with optimized timeouts
             s3_client = boto3.client(
                 's3',
                 endpoint_url=endpoint,
@@ -426,13 +439,59 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 aws_secret_access_key=secret_key,
                 region_name=region,
                 config=Config(
-                    connect_timeout=10,
-                    read_timeout=30,
+                    connect_timeout=5,  # 5 seconds to establish connection
+                    read_timeout=20,    # 20 seconds to read data
+                    retries={'max_attempts': 2},  # Retry twice on failure
                     signature_version='s3v4'
                 ),
                 use_ssl=use_ssl,
                 verify=False  # For self-signed certificates
             )
+            
+            logger.info(f"[S3] Testing connection to {parsed.netloc}...")
+            
+            # Quick connection test first
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            try:
+                host = parsed.netloc.split(':')[0]
+                port = 443 if parsed.scheme == 'https' else 80
+                if ':' in parsed.netloc:
+                    host, port_str = parsed.netloc.split(':')
+                    port = int(port_str)
+                
+                result = sock.connect_ex((host, port))
+                sock.close()
+                
+                if result != 0:
+                    logger.warning(f"[S3] Connection test failed: {host}:{port} is not reachable")
+                    return Response({
+                        'success': False,
+                        'error_type': 'connection_refused',
+                        'message': f'Cannot connect to {host}:{port}. Please check the endpoint and network connectivity.',
+                        'details': {
+                            'host': host,
+                            'port': port,
+                            'suggestion': 'Ensure the endpoint URL is correct and the service is running.'
+                        }
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                logger.info(f"[S3] Connection test passed: {host}:{port} is reachable")
+            except socket.gaierror as e:
+                logger.warning(f"[S3] DNS resolution failed for {host}: {e}")
+                return Response({
+                    'success': False,
+                    'error_type': 'dns_error',
+                    'message': f'Cannot resolve hostname: {host}',
+                    'details': {
+                        'host': host,
+                        'suggestion': 'Check if the hostname is correct and DNS is working.'
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                logger.warning(f"[S3] Connection test error: {e}")
+                # Continue anyway, let boto3 handle it
             
             logger.info(f"[S3] Attempting to list buckets...")
             

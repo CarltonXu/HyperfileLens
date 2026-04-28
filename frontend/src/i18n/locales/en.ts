@@ -638,7 +638,10 @@ export default {
       fillCredentialsFirst: 'Please fill in Endpoint and credentials first',
       validateFailed: 'Bucket name validation failed',
       checkSuccess: 'Bucket name is available',
-      checkBucketFailed: 'Failed to check bucket name'
+      checkBucketFailed: 'Failed to check bucket name',
+      connectionTimeout: 'Connection timeout. Please check if the endpoint URL is correct and the service is accessible',
+      networkError: 'Network connection failed. Please check your network or endpoint URL',
+      invalidEndpoint: 'Invalid endpoint format. Please enter a valid URL'
     },
 
     nas: {

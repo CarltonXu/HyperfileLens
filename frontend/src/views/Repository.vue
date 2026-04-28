@@ -156,6 +156,18 @@ async function fetchBucketList() {
     return
   }
   
+  // Validate endpoint format
+  try {
+    const url = new URL(endpoint)
+    if (!url.hostname) {
+      bucketListError.value = t('repository.s3.invalidEndpoint')
+      return
+    }
+  } catch {
+    bucketListError.value = t('repository.s3.invalidEndpoint')
+    return
+  }
+  
   isLoadingBuckets.value = true
   bucketListError.value = ''
   s3BucketList.value = []
@@ -174,6 +186,18 @@ async function fetchBucketList() {
     }
   } catch (error: any) {
     console.error('[S3] Failed to fetch bucket list:', error)
+    
+    // Handle timeout specifically
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      bucketListError.value = t('repository.s3.connectionTimeout')
+      return
+    }
+    
+    // Handle network errors
+    if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+      bucketListError.value = t('repository.s3.networkError')
+      return
+    }
     
     // Extract detailed error message from backend
     const errorData = error.response?.data || {}
