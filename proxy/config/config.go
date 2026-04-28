@@ -42,6 +42,7 @@ type Server struct {
 
 // Agent holds agent-specific configuration
 type Agent struct {
+	ID       string `yaml:"id"`       // Proxy ID from control plane
 	Name     string `yaml:"name"`
 	Hostname string `yaml:"hostname"`
 }
@@ -149,7 +150,12 @@ func Load(path string) (*Config, error) {
 	
 	// Override with environment variables
 	cfg.applyEnvironment()
-	
+
+	// Use Agent.ID as NodeID if set in config
+	if cfg.Agent.ID != "" {
+		cfg.NodeID = cfg.Agent.ID
+	}
+
 	return cfg, nil
 }
 

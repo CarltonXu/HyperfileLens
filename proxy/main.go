@@ -92,14 +92,21 @@ func main() {
 	}
 	utils.LogInfo("Kopia version: %s", kopiaClient.GetVersion())
 
-	// Register with control plane
-	utils.LogInfo("Registering with control plane...")
-	if _, err := agentClient.Register(); err != nil {
-		utils.LogError("Registration failed: %v", err)
-		utils.LogInfo("Continuing without registration...")
+	// Register with control plane or use existing credentials
+	if cfg.Server.APIToken != "" && cfg.Agent.ID != "" {
+		// Already registered, use existing credentials
+		utils.LogInfo("Using existing API token for node: %s", cfg.NodeID)
+		agentClient.SetNodeID(cfg.NodeID)
 	} else {
-		cfg.NodeID = agentClient.GetNodeID()
-		utils.LogInfo("Registered with node ID: %s", cfg.NodeID)
+		// Need to register
+		utils.LogInfo("Registering with control plane...")
+		if _, err := agentClient.Register(); err != nil {
+			utils.LogError("Registration failed: %v", err)
+			utils.LogInfo("Continuing without registration...")
+		} else {
+			cfg.NodeID = agentClient.GetNodeID()
+			utils.LogInfo("Registered with node ID: %s", cfg.NodeID)
+		}
 	}
 
 	// Start heartbeat
