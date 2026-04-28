@@ -947,8 +947,9 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         secret_key = request.data.get('secret_key')
         region = request.data.get('region', 'us-east-1')
         use_tls = request.data.get('use_tls', True)
+        url_style = request.data.get('url_style', 'virtual')  # 'virtual' or 'path'
         
-        logger.info(f"[S3] List buckets request - endpoint: {endpoint}, region: {region}, use_tls: {use_tls}")
+        logger.info(f"[S3] List buckets request - endpoint: {endpoint}, region: {region}, use_tls: {use_tls}, url_style: {url_style}")
         logger.debug(f"[S3] Access key: {access_key[:4]}****{access_key[-4:] if access_key and len(access_key) > 8 else '****'}")
         
         # Validation
@@ -986,7 +987,8 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                     connect_timeout=5,  # 5 seconds to establish connection
                     read_timeout=20,    # 20 seconds to read data
                     retries={'max_attempts': 2},  # Retry twice on failure
-                    signature_version='s3v4'
+                    signature_version='s3v4',
+                    s3={'addressing_style': 'virtual' if url_style == 'virtual' else 'path'}
                 ),
                 verify=False  # For self-signed certificates
             )
@@ -1366,111 +1368,6 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 'pattern_description': 'Lowercase letters, numbers, dots (.), and hyphens (-). Must start and end with a letter or number.'
             }
         })
-    
-    @action(detail=False, methods=['post'])
-    def create_s3_bucket(self, request):
-        """
-        Create a new S3 bucket.
-        
-        Request body:
-        - bucket_name: Bucket name to create
-        - endpoint: S3 endpoint URL
-        - access_key: Access key ID
-        - secret_key: Secret access key
-        - region: Region (optional)
-        - use_tls: Use SSL (optional, default: true)
-        """
-        bucket_name = request.data.get('bucket_name')
-        endpoint = request.data.get('endpoint')
-        access_key = request.data.get('access_key')
-        secret_key = request.data.get('secret_key')
-        region = request.data.get('region', 'us-east-1')
-        use_tls = request.data.get('use_tls', True)
-        
-        # Validation
-        if not all([bucket_name, endpoint, access_key, secret_key]):
-            return Response({
-                'success': False,
-                'message': 'bucket_name, endpoint, access_key, and secret_key are required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate bucket name format
-        is_valid, error_message = validate_bucket_name(bucket_name)
-        if not is_valid:
-            return Response({
-                'success': False,
-                'message': error_message
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            s3_client = boto3.client(
-                's3',
-                endpoint_url=endpoint,
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
-                region_name=region,
-                config=Config(
-                    connect_timeout=10,
-                    read_timeout=30,
-                    signature_version='s3v4'
-                ),
-                verify=False
-            )
-            
-            # Create bucket
-            # Note: For us-east-1, LocationConstraint is not needed
-            if region == 'us-east-1':
-                s3_client.create_bucket(Bucket=bucket_name)
-            else:
-                s3_client.create_bucket(
-                    Bucket=bucket_name,
-                    CreateBucketConfiguration={'LocationConstraint': region}
-                )
-            
-            return Response({
-                'success': True,
-                'message': f'Bucket "{bucket_name}" created successfully',
-                'bucket_name': bucket_name,
-                'region': region
-            })
-            
-        except ClientError as e:
-            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-            error_msg = e.response.get('Error', {}).get('Message', str(e))
-            
-            # Handle specific error codes
-            if error_code == 'BucketAlreadyExists':
-                return Response({
-                    'success': False,
-                    'message': 'Bucket name already exists. Please choose a different name.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            elif error_code == 'BucketAlreadyOwnedByYou':
-                return Response({
-                    'success': False,
-                    'message': 'You already own a bucket with this name.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            elif error_code == 'InvalidBucketName':
-                return Response({
-                    'success': False,
-                    'message': 'Invalid bucket name. Please check the naming rules.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            return Response({
-                'success': False,
-                'message': f'S3 Error ({error_code}): {error_msg}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-            
-        except BotoCoreError as e:
-            return Response({
-                'success': False,
-                'message': f'Connection Error: {str(e)}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-            
-        except Exception as e:
-            return Response({
-                'success': False,
-                'message': f'Failed to create bucket: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
     def test_connectivity(self, request, pk=None):
