@@ -2487,7 +2487,14 @@ onUnmounted(() => {
                       <WifiIcon class="w-4 h-4 text-blue-500" />
                       {{ t('proxies.monitoring.networkInterfaces') }}
                     </h4>
-                    <select
+                    <div class="flex items-center gap-4">
+                      <!-- Total Stats -->
+                      <div class="flex items-center gap-3 text-sm">
+                        <span class="text-slate-500">{{ t('proxies.monitoring.total') }}:</span>
+                        <span class="text-purple-700 font-medium">↓ {{ formatBytes(tabData.monitor.data.network_interfaces.total_bytes_in) }}</span>
+                        <span class="text-cyan-700 font-medium">↑ {{ formatBytes(tabData.monitor.data.network_interfaces.total_bytes_out) }}</span>
+                      </div>
+                      <select
                         v-model="selectedNetworkInterface"
                         class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       >
@@ -2496,6 +2503,7 @@ onUnmounted(() => {
                           {{ iface.name }} ({{ iface.ip_address || 'No IP' }})
                         </option>
                       </select>
+                    </div>
                   </div>
 
                   <!-- Network Interface Details -->
@@ -2530,7 +2538,7 @@ onUnmounted(() => {
                   <!-- Single Interface Detail -->
                   <div v-else class="space-y-4">
                     <div v-for="(iface, index) in tabData.monitor.data.network_interfaces.interfaces" :key="index">
-                      <div v-if="iface.name === selectedNetworkInterface" class="grid grid-cols-2 gap-4">
+                      <div v-if="iface.name === selectedNetworkInterface" class="grid grid-cols-4 gap-4">
                         <div class="bg-slate-50 rounded-lg p-3">
                           <p class="text-xs text-slate-500">{{ t('proxies.monitoring.ipAddress') }}</p>
                           <p class="text-sm font-medium text-slate-800 mt-1 font-mono">{{ iface.ip_address || '-' }}</p>
@@ -2538,6 +2546,14 @@ onUnmounted(() => {
                         <div class="bg-slate-50 rounded-lg p-3">
                           <p class="text-xs text-slate-500">{{ t('proxies.monitoring.macAddress') }}</p>
                           <p class="text-sm font-medium text-slate-800 mt-1 font-mono">{{ iface.mac_address || '-' }}</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                          <p class="text-xs text-slate-500">{{ t('proxies.monitoring.networkIn') }}</p>
+                          <p class="text-sm font-medium text-purple-700 mt-1">{{ formatBytes(iface.bytes_in) }}</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                          <p class="text-xs text-slate-500">{{ t('proxies.monitoring.networkOut') }}</p>
+                          <p class="text-sm font-medium text-cyan-700 mt-1">{{ formatBytes(iface.bytes_out) }}</p>
                         </div>
                       </div>
                     </div>
