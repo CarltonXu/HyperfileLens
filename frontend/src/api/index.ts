@@ -298,7 +298,7 @@ export const repositoriesApi = {
     api.get('/api/v1/repository/repositories/statistics/'),
   
   testConnection: (id: number | string) =>
-    api.post(`/api/v1/repository/repositories/${id}/test-connection/`),
+    api.post(`/api/v1/repository/repositories/${id}/test_connection/`),
   
   initKopia: (id: number | string) =>
     api.post(`/api/v1/repository/repositories/${id}/init-kopia/`),
