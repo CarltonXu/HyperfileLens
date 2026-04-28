@@ -2538,7 +2538,7 @@ onUnmounted(() => {
                   <!-- Single Interface Detail -->
                   <div v-else class="space-y-4">
                     <div v-for="(iface, index) in tabData.monitor.data.network_interfaces.interfaces" :key="index">
-                      <div v-if="iface.name === selectedNetworkInterface" class="grid grid-cols-4 gap-4">
+                      <div v-if="iface.name === selectedNetworkInterface" class="grid grid-cols-2 gap-4">
                         <div class="bg-slate-50 rounded-lg p-3">
                           <p class="text-xs text-slate-500">{{ t('proxies.monitoring.ipAddress') }}</p>
                           <p class="text-sm font-medium text-slate-800 mt-1 font-mono">{{ iface.ip_address || '-' }}</p>
@@ -2546,14 +2546,6 @@ onUnmounted(() => {
                         <div class="bg-slate-50 rounded-lg p-3">
                           <p class="text-xs text-slate-500">{{ t('proxies.monitoring.macAddress') }}</p>
                           <p class="text-sm font-medium text-slate-800 mt-1 font-mono">{{ iface.mac_address || '-' }}</p>
-                        </div>
-                        <div class="bg-slate-50 rounded-lg p-3">
-                          <p class="text-xs text-slate-500">{{ t('proxies.monitoring.networkIn') }}</p>
-                          <p class="text-sm font-medium text-purple-700 mt-1">{{ formatBytes(iface.bytes_in) }}</p>
-                        </div>
-                        <div class="bg-slate-50 rounded-lg p-3">
-                          <p class="text-xs text-slate-500">{{ t('proxies.monitoring.networkOut') }}</p>
-                          <p class="text-sm font-medium text-cyan-700 mt-1">{{ formatBytes(iface.bytes_out) }}</p>
                         </div>
                       </div>
                     </div>
