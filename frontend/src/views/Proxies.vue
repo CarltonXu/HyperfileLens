@@ -743,15 +743,6 @@ function formatBytes(bytes: number | null | undefined): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-function formatBandwidth(bytesIn: number, bytesOut: number, uptimeSeconds: number | null): string {
-  if (!uptimeSeconds || uptimeSeconds <= 0) return '-'
-  const totalBytes = (bytesIn || 0) + (bytesOut || 0)
-  const bytesPerSecond = totalBytes / uptimeSeconds
-  if (bytesPerSecond < 1024) return `${bytesPerSecond.toFixed(0)} B/s`
-  if (bytesPerSecond < 1024 * 1024) return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`
-  return `${(bytesPerSecond / (1024 * 1024)).toFixed(2)} MB/s`
-}
-
 // Chart data and options generators
 // Chart helper functions
 const chartColors = {
@@ -2490,21 +2481,29 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Network Interfaces Section -->
-                <div v-if="tabData.monitor.data.network_interfaces && tabData.monitor.data.network_interfaces.length > 0" class="bg-white border border-slate-200 rounded-xl p-4">
+                <div v-if="tabData.monitor.data.network_interfaces?.interfaces?.length > 0" class="bg-white border border-slate-200 rounded-xl p-4">
                   <div class="flex items-center justify-between mb-4">
                     <h4 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
                       <WifiIcon class="w-4 h-4 text-blue-500" />
                       {{ t('proxies.monitoring.networkInterfaces') }}
                     </h4>
-                    <select
-                      v-model="selectedNetworkInterface"
-                      class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="all">{{ t('proxies.monitoring.allInterfaces') }}</option>
-                      <option v-for="(iface, index) in tabData.monitor.data.network_interfaces" :key="index" :value="iface.name">
-                        {{ iface.name }} ({{ iface.ip_address || 'No IP' }})
-                      </option>
-                    </select>
+                    <div class="flex items-center gap-4">
+                      <!-- Total Stats -->
+                      <div class="flex items-center gap-3 text-sm">
+                        <span class="text-slate-500">{{ t('proxies.monitoring.total') }}:</span>
+                        <span class="text-purple-700 font-medium">↓ {{ formatBytes(tabData.monitor.data.network_interfaces.total_bytes_in) }}</span>
+                        <span class="text-cyan-700 font-medium">↑ {{ formatBytes(tabData.monitor.data.network_interfaces.total_bytes_out) }}</span>
+                      </div>
+                      <select
+                        v-model="selectedNetworkInterface"
+                        class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="all">{{ t('proxies.monitoring.allInterfaces') }}</option>
+                        <option v-for="(iface, index) in tabData.monitor.data.network_interfaces.interfaces" :key="index" :value="iface.name">
+                          {{ iface.name }} ({{ iface.ip_address || 'No IP' }})
+                        </option>
+                      </select>
+                    </div>
                   </div>
 
                   <!-- Network Interface Details -->
@@ -2517,11 +2516,10 @@ onUnmounted(() => {
                           <th class="text-left py-2 px-3 text-slate-600 font-medium">{{ t('proxies.monitoring.macAddress') }}</th>
                           <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.monitoring.bytesIn') }}</th>
                           <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.monitoring.bytesOut') }}</th>
-                          <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.monitoring.bandwidth') }}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="(iface, index) in tabData.monitor.data.network_interfaces" :key="index" class="border-b border-slate-100 hover:bg-slate-50">
+                        <tr v-for="(iface, index) in tabData.monitor.data.network_interfaces.interfaces" :key="index" class="border-b border-slate-100 hover:bg-slate-50">
                           <td class="py-2 px-3 font-medium text-slate-800">
                             <div class="flex items-center gap-2">
                               <span class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -2532,7 +2530,6 @@ onUnmounted(() => {
                           <td class="py-2 px-3 text-slate-600 font-mono text-xs">{{ iface.mac_address || '-' }}</td>
                           <td class="py-2 px-3 text-right text-slate-600">{{ formatBytes(iface.bytes_in) }}</td>
                           <td class="py-2 px-3 text-right text-slate-600">{{ formatBytes(iface.bytes_out) }}</td>
-                          <td class="py-2 px-3 text-right text-slate-600">{{ formatBandwidth(iface.bytes_in, iface.bytes_out, tabData.monitor.data.uptime_seconds) }}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -2540,7 +2537,7 @@ onUnmounted(() => {
 
                   <!-- Single Interface Detail -->
                   <div v-else class="space-y-4">
-                    <div v-for="(iface, index) in tabData.monitor.data.network_interfaces" :key="index">
+                    <div v-for="(iface, index) in tabData.monitor.data.network_interfaces.interfaces" :key="index">
                       <div v-if="iface.name === selectedNetworkInterface" class="grid grid-cols-4 gap-4">
                         <div class="bg-slate-50 rounded-lg p-3">
                           <p class="text-xs text-slate-500">{{ t('proxies.monitoring.ipAddress') }}</p>

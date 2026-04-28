@@ -782,22 +782,22 @@ logging:
             'network_io': network_io_data,
             'disk_io': disk_io_data,
 
-            # Network interfaces - transform format for frontend
-            'network_interfaces': [
-                {
-                    'name': ni.get('name'),
-                    'ip_address': ni.get('ip_addresses', [])[0] if ni.get('ip_addresses') else None,
-                    'mac_address': ni.get('mac'),
-                    'bytes_in': ni.get('bytes_in', 0),
-                    'bytes_out': ni.get('bytes_out', 0),
-                }
-                for ni in (proxy.network_interfaces or [])
-            ],
-            'network_stats': {
-                'bytes_sent': proxy.network_bytes_sent,
-                'bytes_recv': proxy.network_bytes_recv,
-                'bytes_sent_gb': round(proxy.network_bytes_sent / (1024**3), 2) if proxy.network_bytes_sent else 0,
-                'bytes_recv_gb': round(proxy.network_bytes_recv / (1024**3), 2) if proxy.network_bytes_recv else 0,
+            # Network interfaces - consolidated with stats
+            'network_interfaces': {
+                'interfaces': [
+                    {
+                        'name': ni.get('name'),
+                        'ip_address': ni.get('ip_addresses', [])[0] if ni.get('ip_addresses') else None,
+                        'mac_address': ni.get('mac'),
+                        'bytes_in': ni.get('bytes_in', 0),
+                        'bytes_out': ni.get('bytes_out', 0),
+                    }
+                    for ni in (proxy.network_interfaces or [])
+                ],
+                'total_bytes_in': proxy.network_bytes_recv or sum(ni.get('bytes_in', 0) for ni in (proxy.network_interfaces or [])),
+                'total_bytes_out': proxy.network_bytes_sent or sum(ni.get('bytes_out', 0) for ni in (proxy.network_interfaces or [])),
+                'total_bytes_in_gb': round((proxy.network_bytes_recv or 0) / (1024**3), 2),
+                'total_bytes_out_gb': round((proxy.network_bytes_sent or 0) / (1024**3), 2),
             },
         }
 
