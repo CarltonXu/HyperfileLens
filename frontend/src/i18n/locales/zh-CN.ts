@@ -715,6 +715,10 @@ export default {
       actions: '操作'
     },
 
+    errors: {
+      endpointUnreachable: '无法连接到端点。请检查 URL 和网络连通性。'
+    },
+
     confirmDelete: '确定要删除此仓库吗？',
     updateSuccess: '仓库更新成功',
     updateFailed: '仓库更新失败',

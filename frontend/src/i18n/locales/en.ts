@@ -723,6 +723,10 @@ export default {
     connectionTestNever: 'Never tested',
     connectionTestResult: 'Test Result',
 
+    errors: {
+      endpointUnreachable: 'Unable to connect to the endpoint. Please check the URL and network connectivity.'
+    },
+
     confirmDelete: 'Are you sure you want to delete this repository?'
   },
 
