@@ -2487,14 +2487,7 @@ onUnmounted(() => {
                       <WifiIcon class="w-4 h-4 text-blue-500" />
                       {{ t('proxies.monitoring.networkInterfaces') }}
                     </h4>
-                    <div class="flex items-center gap-4">
-                      <!-- Total Stats -->
-                      <div class="flex items-center gap-3 text-sm">
-                        <span class="text-slate-500">{{ t('proxies.monitoring.total') }}:</span>
-                        <span class="text-purple-700 font-medium">↓ {{ formatBytes(tabData.monitor.data.network_interfaces.total_bytes_in) }}</span>
-                        <span class="text-cyan-700 font-medium">↑ {{ formatBytes(tabData.monitor.data.network_interfaces.total_bytes_out) }}</span>
-                      </div>
-                      <select
+                    <select
                         v-model="selectedNetworkInterface"
                         class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       >
@@ -2503,7 +2496,6 @@ onUnmounted(() => {
                           {{ iface.name }} ({{ iface.ip_address || 'No IP' }})
                         </option>
                       </select>
-                    </div>
                   </div>
 
                   <!-- Network Interface Details -->
