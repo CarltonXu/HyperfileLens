@@ -634,6 +634,13 @@ export default {
       bucketNameAvailable: 'Bucket name is available',
       bucketNameUnavailable: 'Bucket name is unavailable',
       bucketNameInvalid: 'Invalid bucket name format',
+      bucketNameInvalidChars: 'Bucket name contains invalid characters. Only lowercase letters, numbers, hyphens (-), and periods (.) are allowed',
+      bucketNameStartEnd: 'Bucket name must start and end with a letter or number',
+      bucketNameIPFormat: 'Bucket name cannot be formatted as an IP address (e.g., 192.168.1.1)',
+      bucketNameConsecutive: 'Bucket name cannot contain consecutive periods or hyphens next to periods',
+      bucketNameTooShort: 'Bucket name must be at least 3 characters long',
+      bucketNameTooLong: 'Bucket name must not exceed 63 characters',
+      bucketNameXnPrefix: 'Bucket name cannot start with "xn--" (reserved for internationalized domains)',
       bucketListError: 'Failed to fetch bucket list',
       noBucketsFound: 'No buckets available in this account',
       fetchBucketsFailed: 'Failed to fetch bucket list. Please check your credentials.',
@@ -649,7 +656,10 @@ export default {
       urlStylePath: 'Path Style',
       urlStyleHint: 'Virtual Hosted Style uses bucket name as subdomain (bucket.endpoint). Path Style uses bucket as path (endpoint/bucket).',
       useTLS: 'Use TLS',
-      useTLSHint: 'Enable HTTPS for secure connection. Disable for HTTP or self-signed certificates.'
+      useTLSHint: 'Enable HTTPS for secure connection. Disable for HTTP or self-signed certificates.',
+      createBucketSuccess: 'Bucket created successfully',
+      createBucketFailed: 'Failed to create bucket',
+      bucketNameRequired: 'Bucket name is required'
     },
 
     nas: {

@@ -812,6 +812,125 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=False, methods=['post'])
+    def create_s3_bucket(self, request):
+        """
+        Create a new S3 bucket.
+        
+        Request body:
+        - endpoint: S3 endpoint URL
+        - access_key: Access key ID
+        - secret_key: Secret access key
+        - region: Region (optional, default: us-east-1)
+        - use_tls: Use SSL (optional, default: true)
+        - bucket_name: Name of the bucket to create
+        """
+        endpoint = request.data.get('endpoint')
+        access_key = request.data.get('access_key')
+        secret_key = request.data.get('secret_key')
+        region = request.data.get('region', 'us-east-1')
+        use_tls = request.data.get('use_tls', True)
+        bucket_name = request.data.get('bucket_name')
+        
+        logger.info(f"[S3] Create bucket request - endpoint: {endpoint}, bucket: {bucket_name}, region: {region}")
+        
+        # Validation
+        if not all([endpoint, access_key, secret_key, bucket_name]):
+            return Response({
+                'success': False,
+                'message': 'Missing required parameters: endpoint, access_key, secret_key, bucket_name',
+                'error_code': 'MISSING_PARAMETERS'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate bucket name
+        import re
+        if not re.match(r'^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$', bucket_name):
+            return Response({
+                'success': False,
+                'message': 'Invalid bucket name. Must be 3-63 characters, start and end with lowercase letter or number, contain only lowercase letters, numbers, hyphens, and dots.',
+                'error_code': 'INVALID_BUCKET_NAME'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            import boto3
+            from botocore.config import Config
+            from botocore.exceptions import ClientError
+            
+            # Build endpoint URL
+            endpoint_url = endpoint if endpoint.startswith('http') else f"{'https' if use_tls else 'http'}://{endpoint}"
+            
+            # Determine URL style
+            url_style = request.data.get('url_style', 'virtual')
+            
+            s3_config = Config(
+                signature_version='s3v4',
+                s3={'addressing_style': 'virtual' if url_style == 'virtual' else 'path'}
+            )
+            
+            session = boto3.Session()
+            s3_client = session.client(
+                's3',
+                endpoint_url=endpoint_url,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=region,
+                config=s3_config
+            )
+            
+            # Create bucket
+            try:
+                if region == 'us-east-1':
+                    # us-east-1 has special handling
+                    s3_client.create_bucket(Bucket=bucket_name)
+                else:
+                    s3_client.create_bucket(
+                        Bucket=bucket_name,
+                        CreateBucketConfiguration={'LocationConstraint': region}
+                    )
+                
+                logger.info(f"[S3] Successfully created bucket: {bucket_name}")
+                return Response({
+                    'success': True,
+                    'message': f'Bucket "{bucket_name}" created successfully',
+                    'bucket': {
+                        'name': bucket_name,
+                        'region': region,
+                        'creation_date': 'now'
+                    }
+                })
+                
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                error_msg = e.response.get('Error', {}).get('Message', str(e))
+                
+                if error_code == 'BucketAlreadyExists':
+                    return Response({
+                        'success': False,
+                        'message': f'Bucket "{bucket_name}" already exists',
+                        'error_code': 'BUCKET_ALREADY_EXISTS'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                elif error_code == 'AccessDenied':
+                    return Response({
+                        'success': False,
+                        'message': 'Access denied. Check your permissions.',
+                        'error_code': 'ACCESS_DENIED'
+                    }, status=status.HTTP_403_FORBIDDEN)
+                else:
+                    logger.error(f"[S3] Failed to create bucket: {error_code} - {error_msg}")
+                    return Response({
+                        'success': False,
+                        'message': f'Failed to create bucket: {error_msg}',
+                        'error_code': error_code
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                    
+        except Exception as e:
+            logger.error(f"[S3] Unexpected error creating bucket: {str(e)}")
+            return Response({
+                'success': False,
+                'message': f'Unexpected error: {str(e)}',
+                'error_code': 'UNKNOWN_ERROR'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'])
     def list_s3_buckets(self, request):
         """
         List S3 buckets from a given S3-compatible storage.

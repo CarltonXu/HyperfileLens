@@ -45,6 +45,7 @@ const editingRepoId = ref<string | null>(null)
 
 // Connection test states
 const testingConnection = ref<string | null>(null)
+const creatingBucket = ref(false)
 const connectionTestResult = ref<Record<string, { success: boolean; message: string }>>({})
 
 // View mode
@@ -628,6 +629,42 @@ async function createRepository() {
   }
   
   try {
+    // If creating a new S3 bucket, create it first
+    if (newRepo.value.repo_type === 's3' && newRepo.value.s3_config.bucket_mode === 'new') {
+      if (!newRepo.value.s3_config.bucket) {
+        formErrors.value.bucket = t('repository.s3.bucketNameRequired')
+        return
+      }
+      
+      creatingBucket.value = true
+      try {
+        const createBucketResponse = await repositoriesApi.createBucket({
+          endpoint: newRepo.value.s3_config.endpoint,
+          bucket_name: newRepo.value.s3_config.bucket,
+          region: newRepo.value.s3_config.region,
+          access_key: newRepo.value.s3_config.access_key,
+          secret_key: newRepo.value.s3_config.secret_key,
+          use_tls: newRepo.value.s3_config.use_tls
+        })
+        
+        if (!createBucketResponse.data.success) {
+          appStore.error(`${t('repository.s3.createBucketFailed')}: ${createBucketResponse.data.message}`)
+          creatingBucket.value = false
+          return
+        }
+        
+        appStore.success(t('repository.s3.createBucketSuccess'))
+      } catch (bucketError: any) {
+        console.error('Failed to create bucket:', bucketError)
+        const errorData = bucketError.response?.data || {}
+        const errorMsg = errorData.message || errorData.detail || bucketError.message || t('common.unknownError')
+        appStore.error(`${t('repository.s3.createBucketFailed')}: ${errorMsg}`)
+        creatingBucket.value = false
+        return
+      }
+      creatingBucket.value = false
+    }
+    
     let payload: any = {
       name: newRepo.value.name,
       repo_type: newRepo.value.repo_type,

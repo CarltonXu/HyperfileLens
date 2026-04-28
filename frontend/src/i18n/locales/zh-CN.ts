@@ -634,6 +634,13 @@ export default {
       bucketNameAvailable: 'Bucket 名称可用',
       bucketNameUnavailable: 'Bucket 名称不可用',
       bucketNameInvalid: 'Bucket 名称格式不正确',
+      bucketNameInvalidChars: 'Bucket 名称包含无效字符。只能包含小写字母、数字、连字符（-）和句点（.）',
+      bucketNameStartEnd: 'Bucket 名称必须以字母或数字开头和结尾',
+      bucketNameIPFormat: 'Bucket 名称不能是 IP 地址格式（如 192.168.1.1）',
+      bucketNameConsecutive: 'Bucket 名称不能包含连续的句点或句点旁边的连字符',
+      bucketNameTooShort: 'Bucket 名称长度至少为 3 个字符',
+      bucketNameTooLong: 'Bucket 名称长度不能超过 63 个字符',
+      bucketNameXnPrefix: 'Bucket 名称不能以 "xn--" 开头（保留给国际化域名）',
       bucketListError: '获取 Bucket 列表失败',
       noBucketsFound: '当前账户下没有可用的 Bucket',
       fetchBucketsFailed: '获取 Bucket 列表失败，请检查访问凭据是否正确',
@@ -649,7 +656,10 @@ export default {
       urlStylePath: '路径风格',
       urlStyleHint: '虚拟主机风格将 Bucket 名称作为子域名（bucket.endpoint），路径风格将 Bucket 作为路径（endpoint/bucket）。',
       useTLS: '使用 TLS',
-      useTLSHint: '启用 HTTPS 安全连接。如使用 HTTP 或自签名证书可关闭。'
+      useTLSHint: '启用 HTTPS 安全连接。如使用 HTTP 或自签名证书可关闭。',
+      createBucketSuccess: 'Bucket 创建成功',
+      createBucketFailed: 'Bucket 创建失败',
+      bucketNameRequired: '请输入 Bucket 名称'
     },
 
     nas: {

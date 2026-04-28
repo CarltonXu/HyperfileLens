@@ -328,7 +328,17 @@ export const repositoriesApi = {
     bucket_name: string;
     use_tls?: boolean;
   }) =>
-    api.post('/api/v1/repositories/validate_s3_bucket_name/', data, { timeout: 30000 })
+    api.post('/api/v1/repositories/validate_s3_bucket_name/', data, { timeout: 30000 }),
+  
+  createBucket: (data: {
+    endpoint: string;
+    region?: string;
+    access_key: string;
+    secret_key: string;
+    bucket_name: string;
+    use_tls?: boolean;
+  }) =>
+    api.post('/api/v1/repositories/create_s3_bucket/', data, { timeout: 60000 })
 }
 
 // ============== Policies API ==============
