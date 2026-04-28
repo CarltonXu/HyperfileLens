@@ -791,6 +791,21 @@ function getChartOptions(type: 'cpu' | 'memory' | 'disk') {
   }
 }
 
+// Compute heartbeat statistics
+const heartbeatStats = computed(() => {
+  const heartbeats = tabData.value.heartbeats.data
+  if (!heartbeats || heartbeats.length === 0) {
+    return { total: 0, avgCpu: 0, avgMemory: 0, avgDisk: 0 }
+  }
+  
+  const total = heartbeats.length
+  const avgCpu = heartbeats.reduce((sum, h) => sum + (h.cpu_usage || 0), 0) / total
+  const avgMemory = heartbeats.reduce((sum, h) => sum + (h.memory_usage || 0), 0) / total
+  const avgDisk = heartbeats.reduce((sum, h) => sum + (h.disk_usage || 0), 0) / total
+  
+  return { total, avgCpu, avgMemory, avgDisk }
+})
+
 // Close menu when clicking outside
 function closeMenu() {
   openMenuId.value = null
@@ -2297,9 +2312,10 @@ onUnmounted(() => {
 
             <!-- Tasks Tab -->
             <div v-else-if="detailTab === 'tasks'" class="space-y-4">
-              <div v-if="tabData.tasks.data.length === 0" class="text-center py-12 text-slate-500">
-                <ClipboardDocumentListIcon class="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>{{ t('proxies.detail.noTasks') }}</p>
+              <div v-if="tabData.tasks.data.length === 0" class="bg-slate-50 rounded-xl p-8 text-center">
+                <ClipboardDocumentListIcon class="w-16 h-16 mx-auto mb-4 text-slate-300" />
+                <p class="text-slate-500 font-medium">{{ t('proxies.detail.noTasks') }}</p>
+                <p class="text-sm text-slate-400 mt-1">{{ t('proxies.detail.noTasksHint') }}</p>
               </div>
               <div v-else class="space-y-3">
                 <div v-for="task in tabData.tasks.data" :key="task.id" class="bg-slate-50 rounded-xl p-4">
@@ -2359,24 +2375,29 @@ onUnmounted(() => {
               </div>
 
               <!-- Stats -->
-              <div v-if="tabData.monitor.data" class="grid grid-cols-3 gap-4">
+              <div class="grid grid-cols-4 gap-4">
                 <div class="bg-slate-50 rounded-xl p-4">
                   <p class="text-xs text-slate-500">{{ t('proxies.detail.totalHeartbeats') }}</p>
-                  <p class="text-2xl font-bold text-slate-800 mt-1">{{ tabData.monitor.data.heartbeat_stats?.total_24h || 0 }}</p>
+                  <p class="text-2xl font-bold text-slate-800 mt-1">{{ heartbeatStats.total }}</p>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
                   <p class="text-xs text-slate-500">{{ t('proxies.detail.avgCpu') }}</p>
-                  <p class="text-2xl font-bold text-indigo-600 mt-1">{{ (tabData.monitor.data.averages?.cpu_usage || 0).toFixed(1) }}%</p>
+                  <p class="text-2xl font-bold text-indigo-600 mt-1">{{ heartbeatStats.avgCpu.toFixed(1) }}%</p>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
                   <p class="text-xs text-slate-500">{{ t('proxies.detail.avgMemory') }}</p>
-                  <p class="text-2xl font-bold text-emerald-600 mt-1">{{ (tabData.monitor.data.averages?.memory_usage || 0).toFixed(1) }}%</p>
+                  <p class="text-2xl font-bold text-emerald-600 mt-1">{{ heartbeatStats.avgMemory.toFixed(1) }}%</p>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-4">
+                  <p class="text-xs text-slate-500">{{ t('proxies.detail.avgDisk') }}</p>
+                  <p class="text-2xl font-bold text-amber-600 mt-1">{{ heartbeatStats.avgDisk.toFixed(1) }}%</p>
                 </div>
               </div>
 
-              <div v-if="tabData.heartbeats.data.length === 0" class="text-center py-12 text-slate-500">
-                <SignalIcon class="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>{{ t('proxies.detail.noHeartbeats') }}</p>
+              <div v-if="tabData.heartbeats.data.length === 0" class="bg-slate-50 rounded-xl p-8 text-center">
+                <SignalIcon class="w-16 h-16 mx-auto mb-4 text-slate-300" />
+                <p class="text-slate-500 font-medium">{{ t('proxies.detail.noHeartbeats') }}</p>
+                <p class="text-sm text-slate-400 mt-1">{{ t('proxies.detail.noHeartbeatsHint') }}</p>
               </div>
               <div v-else class="space-y-2">
                 <div v-for="heartbeat in tabData.heartbeats.data" :key="heartbeat.id" class="bg-slate-50 rounded-lg p-3">

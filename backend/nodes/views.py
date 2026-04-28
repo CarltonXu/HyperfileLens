@@ -480,7 +480,7 @@ logging:
             )
         
         # Check if proxy is online
-        if proxy.status != ProxyNode.NodeStatus.ONLINE:
+        if proxy.status != ProxyNode.NodeStatus.ACTIVE:
             return Response(
                 {'error': 'Proxy is not online.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -656,16 +656,19 @@ logging:
             avg_memory = sum(h.memory_usage or 0 for h in heartbeats) / total_heartbeats
             avg_disk = sum(h.disk_usage or 0 for h in heartbeats) / total_heartbeats
 
-        # Get last 60 heartbeats for chart data
-        chart_heartbeats = heartbeats.last() and heartbeats.order_by('-timestamp')[:60] or []
-        chart_data = []
-        for h in reversed(list(chart_heartbeats)):
-            chart_data.append({
-                'timestamp': h.timestamp.isoformat(),
-                'cpu_usage': h.cpu_usage,
-                'memory_usage': h.memory_usage,
-                'disk_usage': h.disk_usage,
-            })
+        # Get last 100 heartbeats for chart data
+        chart_heartbeats = list(heartbeats.order_by('-timestamp')[:100])
+        
+        # Format chart data for each metric
+        cpu_usage_data = []
+        memory_usage_data = []
+        disk_usage_data = []
+        
+        for h in reversed(chart_heartbeats):
+            timestamp = h.timestamp.isoformat()
+            cpu_usage_data.append({'timestamp': timestamp, 'value': h.cpu_usage or 0})
+            memory_usage_data.append({'timestamp': timestamp, 'value': h.memory_usage or 0})
+            disk_usage_data.append({'timestamp': timestamp, 'value': h.disk_usage or 0})
 
         # Calculate uptime from registered_at
         uptime_seconds = None
@@ -711,8 +714,10 @@ logging:
                 'running': running_tasks,
             },
 
-            # Chart data
-            'chart_data': chart_data,
+            # Chart data (formatted for frontend charts)
+            'cpu_usage': cpu_usage_data,
+            'memory_usage': memory_usage_data,
+            'disk_usage': disk_usage_data,
 
             # Network interfaces
             'network_interfaces': proxy.network_interfaces or [],
