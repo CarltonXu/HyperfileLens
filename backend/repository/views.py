@@ -231,7 +231,9 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             s3_config = Config(
                 connect_timeout=5,
                 read_timeout=10,
-                retries={'max_attempts': 2}
+                retries={'max_attempts': 2},
+                # 华为云 OBS 需要使用 Virtual Host 风格访问
+                s3={'addressing_style': 'virtual'}
             )
             
             s3_client = boto3.client(
@@ -247,8 +249,114 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             
             # 测试 bucket 存在性
             logger.info(f"[S3 Connection Test] Testing bucket existence: '{bucket}'...")
-            s3_client.head_bucket(Bucket=bucket)
-            logger.info(f"[S3 Connection Test] Bucket '{bucket}' exists and is accessible")
+            
+            try:
+                s3_client.head_bucket(Bucket=bucket)
+                logger.info(f"[S3 Connection Test] Bucket '{bucket}' exists and is accessible")
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                
+                # 处理区域不匹配的情况
+                # 404/NoSuchBucket: bucket 不存在于当前区域
+                # 403/AccessDenied: 可能是权限问题，也可能是区域不匹配
+                # PermanentRedirect/TemporaryRedirect: 明确的区域不匹配
+                should_check_region = error_code in (
+                    'PermanentRedirect', 'TemporaryRedirect', 
+                    '404', 'NoSuchBucket',
+                    '403', 'AccessDenied'
+                )
+                
+                if should_check_region:
+                    # 尝试获取 bucket 的真实区域
+                    actual_region = self._get_bucket_actual_region(
+                        endpoint, access_key, secret_key, bucket, use_ssl, region
+                    )
+                    
+                    if actual_region and actual_region != region:
+                        logger.info(
+                            f"[S3 Connection Test] Bucket '{bucket}' is in region '{actual_region}', "
+                            f"but configured region is '{region}'. Attempting to connect with correct region..."
+                        )
+                        
+                        # 使用正确的区域重新创建 client
+                        actual_endpoint = self._build_regional_endpoint(endpoint, actual_region)
+                        logger.info(f"[S3 Connection Test] Using regional endpoint: {actual_endpoint}")
+                        
+                        s3_client_regional = boto3.client(
+                            's3',
+                            endpoint_url=actual_endpoint,
+                            region_name=actual_region,
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            config=Config(
+                                connect_timeout=5,
+                                read_timeout=10,
+                                retries={'max_attempts': 2},
+                                s3={'addressing_style': 'virtual'}
+                            ),
+                            use_ssl=use_ssl,
+                            verify=False
+                        )
+                        
+                        try:
+                            s3_client_regional.head_bucket(Bucket=bucket)
+                            logger.info(f"[S3 Connection Test] Bucket '{bucket}' accessible with correct region '{actual_region}'")
+                            
+                            # 更新 region 变量供后续使用
+                            region = actual_region
+                            endpoint = actual_endpoint
+                            s3_client = s3_client_regional
+                            
+                        except ClientError as regional_error:
+                            regional_code = regional_error.response.get('Error', {}).get('Code', 'Unknown')
+                            if regional_code in ('AccessDenied', '403'):
+                                return Response({
+                                    'success': False,
+                                    'message': f'Bucket "{bucket}" exists in region "{actual_region}", but access denied. Please check your permissions.',
+                                    'error_code': 'REGION_MISMATCH_ACCESS_DENIED',
+                                    'details': {
+                                        'configured_region': config.get('region'),
+                                        'actual_region': actual_region,
+                                        'suggested_endpoint': actual_endpoint,
+                                        'bucket': bucket
+                                    }
+                                }, status=status.HTTP_400_BAD_REQUEST)
+                            else:
+                                raise regional_error
+                    else:
+                        # 无法获取真实区域，或区域相同但仍然失败
+                        if error_code in ('PermanentRedirect', 'TemporaryRedirect'):
+                            return Response({
+                                'success': False,
+                                'message': f'Bucket "{bucket}" exists in a different region. Please update your endpoint and region configuration.',
+                                'error_code': 'REGION_MISMATCH',
+                                'details': {
+                                    'configured_region': region,
+                                    'endpoint': endpoint,
+                                    'bucket': bucket,
+                                    'hint': 'Use the regional endpoint where the bucket is located'
+                                }
+                            }, status=status.HTTP_400_BAD_REQUEST)
+                        # 对于 403，如果区域检测失败，提供更详细的错误信息
+                        if error_code in ('403', 'AccessDenied'):
+                            return Response({
+                                'success': False,
+                                'message': f'Access denied for bucket "{bucket}". This could be due to: 1) Insufficient permissions, 2) Wrong region/endpoint, 3) Bucket belongs to another account.',
+                                'error_code': 'ACCESS_DENIED',
+                                'details': {
+                                    'configured_region': region,
+                                    'endpoint': endpoint,
+                                    'bucket': bucket,
+                                    'hints': [
+                                        'Check if the bucket exists in the configured region',
+                                        'Verify your access key has the necessary permissions',
+                                        'Ensure the bucket belongs to your account'
+                                    ]
+                                }
+                            }, status=status.HTTP_400_BAD_REQUEST)
+                        raise
+                else:
+                    raise
             
             # 尝试列出对象（验证读取权限）
             logger.info(f"[S3 Connection Test] Testing list objects permission on '{bucket}'...")
@@ -349,6 +457,136 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 'message': error_msg,
                 'error_code': 'UNKNOWN_ERROR'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _get_bucket_actual_region(self, endpoint, access_key, secret_key, bucket, use_ssl, fallback_region):
+        """
+        尝试获取 bucket 的真实区域。
+        华为云 OBS 和其他 S3 兼容存储可能返回 bucket 所在区域。
+        """
+        import re
+        
+        logger.info(f"[S3 Region Detection] Attempting to detect actual region for bucket '{bucket}'...")
+        
+        try:
+            s3_config = Config(
+                connect_timeout=5,
+                read_timeout=10,
+                retries={'max_attempts': 1},
+                # 华为云 OBS 需要使用 Virtual Host 风格访问
+                s3={'addressing_style': 'virtual'}
+            )
+            
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=endpoint,
+                region_name=fallback_region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                config=s3_config,
+                use_ssl=use_ssl,
+                verify=False
+            )
+            
+            # 方法 1: 使用 get_bucket_location
+            try:
+                location = s3_client.get_bucket_location(Bucket=bucket)
+                region = location.get('LocationConstraint')
+                # AWS 返回 None 表示 us-east-1，其他返回区域名
+                if region is None:
+                    region = 'us-east-1'
+                logger.info(f"[S3 Region Detection] Bucket '{bucket}' location from get_bucket_location: {region}")
+                return region
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                logger.info(f"[S3 Region Detection] get_bucket_location failed for '{bucket}': {error_code}")
+                logger.info(f"[S3 Region Detection] Full error response: {e.response}")
+                
+                # 方法 2: 从错误响应中提取区域（某些存储服务会返回）
+                if error_code in ('PermanentRedirect', 'TemporaryRedirect', '404', 'AccessDenied', '403', 'VirtualHostDomainRequired'):
+                    # 华为云 OBS 特殊处理：从 VirtualHost 字段提取区域
+                    virtual_host = e.response.get('Error', {}).get('VirtualHost', '')
+                    if virtual_host:
+                        # VirtualHost 格式: bucket.obs.region.myhuaweicloud.com
+                        match = re.search(r'\.obs\.([a-z0-9-]+)\.', virtual_host)
+                        if match:
+                            region = match.group(1)
+                            logger.info(f"[S3 Region Detection] Bucket '{bucket}' region from VirtualHost: {region}")
+                            return region
+                    
+                    # 从错误响应中提取正确的 endpoint
+                    endpoint_from_error = e.response.get('Error', {}).get('Endpoint', '')
+                    if endpoint_from_error:
+                        # 解析 endpoint 获取区域，如 obs.cn-north-4.myhuaweicloud.com
+                        match = re.search(r'obs\.([a-z0-9-]+)\.', endpoint_from_error)
+                        if match:
+                            region = match.group(1)
+                            logger.info(f"[S3 Region Detection] Bucket '{bucket}' region extracted from error endpoint: {region}")
+                            return region
+                    
+                    # 尝试从响应头获取
+                    headers = e.response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
+                    region_header = headers.get('x-amz-bucket-region', '') or headers.get('x-obs-bucket-location', '')
+                    if region_header:
+                        logger.info(f"[S3 Region Detection] Bucket '{bucket}' region from response header: {region_header}")
+                        return region_header
+                    
+                    # 华为云 OBS 特殊处理：从错误消息中解析
+                    error_message = e.response.get('Error', {}).get('Message', '')
+                    # 尝试匹配 "Bucket 'xxx' exists in region 'yyy'" 格式
+                    match = re.search(r"exists in region ['\"]?([a-z0-9-]+)['\"]?", error_message, re.IGNORECASE)
+                    if match:
+                        region = match.group(1)
+                        logger.info(f"[S3 Region Detection] Bucket '{bucket}' region from error message: {region}")
+                        return region
+                
+                # 方法 3: 从请求 ID 中解析（某些服务）
+                request_id = e.response.get('ResponseMetadata', {}).get('RequestId', '')
+                
+            logger.warning(f"[S3 Region Detection] Could not determine actual region for bucket '{bucket}'")
+            return None
+            
+        except Exception as e:
+            logger.warning(f"[S3 Region Detection] Failed to get bucket region for '{bucket}': {str(e)}")
+            return None
+    
+    def _build_regional_endpoint(self, base_endpoint, region):
+        """
+        根据区域构建正确的 endpoint。
+        支持华为云 OBS、AWS S3 等多种格式。
+        """
+        import re
+        from urllib.parse import urlparse
+        
+        parsed = urlparse(base_endpoint)
+        hostname = parsed.netloc or parsed.path
+        
+        # 华为云 OBS: obs.ap-southeast-3.myhuaweicloud.com -> obs.{region}.myhuaweicloud.com
+        huaweicloud_pattern = r'^(obs\.)([a-z0-9-]+)(\.myhuaweicloud\.com)$'
+        match = re.match(huaweicloud_pattern, hostname)
+        if match:
+            new_hostname = f"obs.{region}.myhuaweicloud.com"
+            return f"{parsed.scheme}://{new_hostname}"
+        
+        # AWS S3: s3.ap-southeast-3.amazonaws.com -> s3.{region}.amazonaws.com
+        aws_pattern = r'^(s3[.-])([a-z0-9-]*)(\.amazonaws\.com)$'
+        match = re.match(aws_pattern, hostname)
+        if match:
+            new_hostname = f"s3.{region}.amazonaws.com"
+            return f"{parsed.scheme}://{new_hostname}"
+        
+        # 通用格式: 如果 hostname 中已有区域，尝试替换
+        # 格式: prefix.region.suffix -> prefix.{new_region}.suffix
+        generic_pattern = r'^([a-z0-9-]+\.)([a-z0-9-]+)(\.[a-z0-9.-]+)$'
+        match = re.match(generic_pattern, hostname)
+        if match:
+            prefix = match.group(1)
+            suffix = match.group(3)
+            new_hostname = f"{prefix}{region}{suffix}"
+            return f"{parsed.scheme}://{new_hostname}"
+        
+        # 无法解析，返回原始 endpoint
+        logger.warning(f"[S3] Could not build regional endpoint for {base_endpoint} with region {region}")
+        return base_endpoint
     
     def _test_node_connection(self, repo):
         """通过 Node 测试 NAS/Local 连接"""
