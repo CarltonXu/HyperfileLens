@@ -23,9 +23,10 @@ import {
   ExclamationCircleIcon,
   Squares2X2Icon,
   Bars3Icon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  XCircleIcon
 } from '@heroicons/vue/24/outline'
-import { GlobeAltIcon } from '@heroicons/vue/24/solid'
+import { GlobeAltIcon, PlusCircleIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/solid'
 
 const { t } = useI18n()
 
@@ -65,7 +66,9 @@ const newRepo = ref({
     region: '',
     prefix: '',
     access_key: '',
-    secret_key: ''
+    secret_key: '',
+    use_ssl: true,
+    bucket_mode: 'existing' as 'existing' | 'new'  // 选择已有或新建
   },
   // NAS config
   nas_config: {
@@ -84,6 +87,178 @@ const newRepo = ref({
 
 // Form validation errors
 const formErrors = ref<Record<string, string>>({})
+
+// S3 Bucket related states
+const s3BucketList = ref<Array<{ name: string; creation_date?: string; size?: number }>>([])
+const isLoadingBuckets = ref(false)
+const bucketListError = ref('')
+const checkingBucketName = ref(false)
+const bucketNameAvailable = ref<boolean | null>(null)
+const bucketNameMessage = ref('')
+
+// Bucket name validation rules (S3 standard)
+const BUCKET_NAME_RULES = {
+  minLength: 3,
+  maxLength: 63,
+  // Must start and end with letter or number
+  // Can contain lowercase letters, numbers, hyphens, and periods
+  pattern: /^[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/,
+  // Cannot be IP address format
+  ipPattern: /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+  // Cannot contain consecutive periods or hyphens next to periods
+  consecutivePattern: /\.\.|\.-|-\./
+}
+
+// Validate bucket name according to S3 rules
+function validateBucketName(name: string): { valid: boolean; message: string } {
+  if (!name) {
+    return { valid: false, message: t('repository.s3.bucketNameRequired') }
+  }
+  
+  if (name.length < BUCKET_NAME_RULES.minLength) {
+    return { valid: false, message: t('repository.s3.bucketNameTooShort', { min: BUCKET_NAME_RULES.minLength }) }
+  }
+  
+  if (name.length > BUCKET_NAME_RULES.maxLength) {
+    return { valid: false, message: t('repository.s3.bucketNameTooLong', { max: BUCKET_NAME_RULES.maxLength }) }
+  }
+  
+  // Check for valid characters (lowercase letters, numbers, hyphens, periods)
+  if (!/^[a-z0-9.-]+$/.test(name)) {
+    return { valid: false, message: t('repository.s3.bucketNameInvalidChars') }
+  }
+  
+  // Check start and end
+  if (!/^[a-z0-9]/.test(name) || !/[a-z0-9]$/.test(name)) {
+    return { valid: false, message: t('repository.s3.bucketNameStartEnd') }
+  }
+  
+  // Check for IP address format
+  if (BUCKET_NAME_RULES.ipPattern.test(name)) {
+    return { valid: false, message: t('repository.s3.bucketNameIPFormat') }
+  }
+  
+  // Check for consecutive periods or hyphens next to periods
+  if (BUCKET_NAME_RULES.consecutivePattern.test(name)) {
+    return { valid: false, message: t('repository.s3.bucketNameConsecutive') }
+  }
+  
+  return { valid: true, message: '' }
+}
+
+// Fetch S3 bucket list
+async function fetchBucketList() {
+  const { endpoint, access_key, secret_key, use_ssl } = newRepo.value.s3_config
+  
+  // Check required fields first
+  if (!endpoint || !access_key || !secret_key) {
+    bucketListError.value = t('repository.s3.fillCredentialsFirst')
+    return
+  }
+  
+  isLoadingBuckets.value = true
+  bucketListError.value = ''
+  s3BucketList.value = []
+  
+  try {
+    const response = await repositoriesApi.listBuckets({
+      endpoint,
+      region: newRepo.value.s3_config.region || undefined,
+      access_key,
+      secret_key,
+      use_ssl
+    })
+    
+    if (response.data.buckets) {
+      s3BucketList.value = response.data.buckets
+    }
+  } catch (error: any) {
+    bucketListError.value = error.response?.data?.error || t('repository.s3.fetchBucketsFailed')
+  } finally {
+    isLoadingBuckets.value = false
+  }
+}
+
+// Check bucket name availability
+async function checkBucketNameAvailability() {
+  const { endpoint, access_key, secret_key, bucket, use_ssl } = newRepo.value.s3_config
+  
+  // Validate bucket name format first
+  const validation = validateBucketName(bucket)
+  if (!validation.valid) {
+    bucketNameAvailable.value = false
+    bucketNameMessage.value = validation.message
+    return
+  }
+  
+  // Check required fields
+  if (!endpoint || !access_key || !secret_key) {
+    bucketNameMessage.value = t('repository.s3.fillCredentialsFirst')
+    return
+  }
+  
+  checkingBucketName.value = true
+  bucketNameMessage.value = ''
+  
+  try {
+    const response = await repositoriesApi.checkBucketName({
+      endpoint,
+      region: newRepo.value.s3_config.region || undefined,
+      access_key,
+      secret_key,
+      bucket_name: bucket,
+      use_ssl
+    })
+    
+    bucketNameAvailable.value = response.data.available
+    bucketNameMessage.value = response.data.message
+  } catch (error: any) {
+    bucketNameAvailable.value = false
+    bucketNameMessage.value = error.response?.data?.error || t('repository.s3.checkBucketFailed')
+  } finally {
+    checkingBucketName.value = false
+  }
+}
+
+// Watch bucket mode changes
+watch(() => newRepo.value.s3_config.bucket_mode, () => {
+  // Reset bucket related states
+  newRepo.value.s3_config.bucket = ''
+  s3BucketList.value = []
+  bucketListError.value = ''
+  bucketNameAvailable.value = null
+  bucketNameMessage.value = ''
+  clearError('bucket')
+})
+
+// Watch bucket name changes for new bucket mode
+watch(() => newRepo.value.s3_config.bucket, (newName) => {
+  if (newRepo.value.s3_config.bucket_mode === 'new') {
+    // Reset availability status when name changes
+    bucketNameAvailable.value = null
+    bucketNameMessage.value = ''
+    
+    // Real-time validation
+    if (newName) {
+      const validation = validateBucketName(newName)
+      if (!validation.valid) {
+        bucketNameMessage.value = validation.message
+      }
+    }
+  }
+})
+
+// Watch credentials changes to reset bucket list
+watch([
+  () => newRepo.value.s3_config.endpoint,
+  () => newRepo.value.s3_config.access_key,
+  () => newRepo.value.s3_config.secret_key
+], () => {
+  s3BucketList.value = []
+  bucketListError.value = ''
+  bucketNameAvailable.value = null
+  bucketNameMessage.value = ''
+})
 
 // Validate form before submission
 function validateForm(): boolean {
@@ -437,7 +612,9 @@ function resetForm() {
       region: '',
       prefix: '',
       access_key: '',
-      secret_key: ''
+      secret_key: '',
+      use_ssl: true,
+      bucket_mode: 'existing' as 'existing' | 'new'
     },
     nas_config: {
       server: '',
@@ -975,70 +1152,208 @@ onMounted(() => {
                 </div>
               </div>
               
-              <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.endpoint') }}</label>
-                <input 
-                  v-model="newRepo.s3_config.endpoint" 
-                  type="text" 
-                  placeholder="https://s3.amazonaws.com" 
-                  :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                    formErrors.endpoint ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
-                  @input="clearError('endpoint')"
-                />
-                <p class="text-xs text-slate-500 mt-1">{{ t('repository.s3.endpointHint') }}</p>
-                <p v-if="formErrors.endpoint" class="mt-1 text-xs text-red-500">{{ formErrors.endpoint }}</p>
+              <!-- Credentials Section (must be filled first) -->
+              <div class="p-3 bg-white rounded-lg border border-orange-200">
+                <h4 class="text-sm font-medium text-slate-700 mb-3">{{ t('repository.s3.credentials') }}</h4>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.endpoint') }} *</label>
+                    <input 
+                      v-model="newRepo.s3_config.endpoint" 
+                      type="text" 
+                      placeholder="https://s3.amazonaws.com" 
+                      :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                        formErrors.endpoint ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                      @input="clearError('endpoint')"
+                    />
+                    <p class="text-xs text-slate-500 mt-1">{{ t('repository.s3.endpointHint') }}</p>
+                    <p v-if="formErrors.endpoint" class="mt-1 text-xs text-red-500">{{ formErrors.endpoint }}</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.region') }}</label>
+                    <input v-model="newRepo.s3_config.region" type="text" placeholder="us-east-1" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.accessKey') }} *</label>
+                    <input 
+                      v-model="newRepo.s3_config.access_key" 
+                      type="text" 
+                      placeholder="AKIAIOSFODNN7EXAMPLE" 
+                      :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                        formErrors.access_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                      @input="clearError('access_key')"
+                    />
+                    <p v-if="formErrors.access_key" class="mt-1 text-xs text-red-500">{{ formErrors.access_key }}</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.secretKey') }} *</label>
+                    <input 
+                      v-model="newRepo.s3_config.secret_key" 
+                      type="password" 
+                      placeholder="••••••••••••••••" 
+                      :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                        formErrors.secret_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                      @input="clearError('secret_key')"
+                    />
+                    <p v-if="formErrors.secret_key" class="mt-1 text-xs text-red-500">{{ formErrors.secret_key }}</p>
+                  </div>
+                </div>
               </div>
               
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.bucket') }} *</label>
-                  <input 
-                    v-model="newRepo.s3_config.bucket" 
-                    type="text" 
-                    placeholder="my-backup-bucket" 
-                    :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                      formErrors.bucket ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
-                    @input="clearError('bucket')"
-                  />
-                  <p v-if="formErrors.bucket" class="mt-1 text-xs text-red-500">{{ formErrors.bucket }}</p>
+              <!-- Bucket Selection Mode -->
+              <div class="p-3 bg-white rounded-lg border border-orange-200">
+                <h4 class="text-sm font-medium text-slate-700 mb-3">{{ t('repository.s3.bucketSelection') }}</h4>
+                
+                <!-- Bucket Mode Selection -->
+                <div class="mb-4">
+                  <div class="grid grid-cols-2 gap-3">
+                    <button
+                      @click="newRepo.s3_config.bucket_mode = 'existing'"
+                      :class="[
+                        'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
+                        newRepo.s3_config.bucket_mode === 'existing' 
+                          ? 'border-orange-500 bg-orange-100 text-orange-700' 
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      ]"
+                    >
+                      <FolderIcon class="w-4 h-4" />
+                      {{ t('repository.s3.existingBucket') }}
+                    </button>
+                    <button
+                      @click="newRepo.s3_config.bucket_mode = 'new'"
+                      :class="[
+                        'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
+                        newRepo.s3_config.bucket_mode === 'new' 
+                          ? 'border-orange-500 bg-orange-100 text-orange-700' 
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      ]"
+                    >
+                      <PlusCircleIcon class="w-4 h-4" />
+                      {{ t('repository.s3.newBucket') }}
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.region') }}</label>
-                  <input v-model="newRepo.s3_config.region" type="text" placeholder="us-east-1" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                
+                <!-- Existing Bucket Selection -->
+                <div v-if="newRepo.s3_config.bucket_mode === 'existing'">
+                  <!-- Warning for existing bucket -->
+                  <div class="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 rounded-lg p-3 mb-4 border border-amber-200">
+                    <ExclamationTriangleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p class="font-medium">{{ t('repository.s3.existingBucketWarning') }}</p>
+                      <p class="mt-1 text-xs text-amber-600">{{ t('repository.s3.existingBucketWarningDetail') }}</p>
+                    </div>
+                  </div>
+                  
+                  <!-- Fetch bucket list button -->
+                  <button
+                    @click="fetchBucketList"
+                    :disabled="!newRepo.s3_config.endpoint || !newRepo.s3_config.access_key || !newRepo.s3_config.secret_key"
+                    :class="[
+                      'w-full px-4 py-2 rounded-lg text-sm font-medium transition-all mb-3',
+                      (!newRepo.s3_config.endpoint || !newRepo.s3_config.access_key || !newRepo.s3_config.secret_key)
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : 'bg-orange-500 text-white hover:bg-orange-600'
+                    ]"
+                  >
+                    <span v-if="isLoadingBuckets" class="flex items-center justify-center gap-2">
+                      <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {{ t('repository.s3.loadingBuckets') }}
+                    </span>
+                    <span v-else class="flex items-center justify-center gap-2">
+                      <ArrowPathIcon class="w-4 h-4" />
+                      {{ t('repository.s3.fetchBucketList') }}
+                    </span>
+                  </button>
+                  
+                  <!-- Bucket list error -->
+                  <p v-if="bucketListError" class="mb-3 text-xs text-red-500">{{ bucketListError }}</p>
+                  
+                  <!-- Bucket select -->
+                  <div v-if="s3BucketList.length > 0">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.selectBucket') }} *</label>
+                    <select
+                      v-model="newRepo.s3_config.bucket"
+                      :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                        formErrors.bucket ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                      @change="clearError('bucket')"
+                    >
+                      <option value="">{{ t('repository.s3.selectBucketPlaceholder') }}</option>
+                      <option v-for="bucket in s3BucketList" :key="bucket.name" :value="bucket.name">
+                        {{ bucket.name }}
+                      </option>
+                    </select>
+                    <p v-if="formErrors.bucket" class="mt-1 text-xs text-red-500">{{ formErrors.bucket }}</p>
+                  </div>
+                </div>
+                
+                <!-- New Bucket Creation -->
+                <div v-if="newRepo.s3_config.bucket_mode === 'new'">
+                  <!-- Bucket name rules info -->
+                  <div class="flex items-start gap-2 text-sm text-slate-600 bg-slate-50 rounded-lg p-3 mb-4 border border-slate-200">
+                    <InformationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5 text-slate-400" />
+                    <div class="text-xs space-y-1">
+                      <p class="font-medium text-slate-700">{{ t('repository.s3.bucketNameRules') }}:</p>
+                      <ul class="list-disc list-inside text-slate-600 space-y-0.5">
+                        <li>{{ t('repository.s3.bucketNameRule1') }}</li>
+                        <li>{{ t('repository.s3.bucketNameRule2') }}</li>
+                        <li>{{ t('repository.s3.bucketNameRule3') }}</li>
+                        <li>{{ t('repository.s3.bucketNameRule4') }}</li>
+                        <li>{{ t('repository.s3.bucketNameRule5') }}</li>
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.bucketName') }} *</label>
+                    <div class="relative">
+                      <input 
+                        v-model="newRepo.s3_config.bucket" 
+                        type="text" 
+                        placeholder="my-backup-bucket" 
+                        :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 pr-24',
+                          formErrors.bucket ? 'border-red-300 focus:ring-red-500' : 
+                          bucketNameAvailable === true ? 'border-green-300 focus:ring-green-500' :
+                          bucketNameAvailable === false ? 'border-red-300 focus:ring-red-500' :
+                          'border-slate-200 focus:ring-blue-500']"
+                        @input="clearError('bucket')"
+                      />
+                      <button
+                        @click="checkBucketNameAvailability"
+                        :disabled="!newRepo.s3_config.bucket || checkingBucketName"
+                        :class="[
+                          'absolute right-1 top-1 bottom-1 px-3 rounded text-xs font-medium transition-all',
+                          (!newRepo.s3_config.bucket || checkingBucketName)
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-blue-500 text-white hover:bg-blue-600'
+                        ]"
+                      >
+                        {{ checkingBucketName ? t('repository.s3.checking') : t('repository.s3.check') }}
+                      </button>
+                    </div>
+                    
+                    <!-- Bucket name validation message -->
+                    <p v-if="bucketNameMessage" :class="[
+                      'mt-1 text-xs flex items-center gap-1',
+                      bucketNameAvailable === true ? 'text-green-600' : 'text-red-500'
+                    ]">
+                      <CheckCircleIcon v-if="bucketNameAvailable === true" class="w-3 h-3" />
+                      <XCircleIcon v-else class="w-3 h-3" />
+                      {{ bucketNameMessage }}
+                    </p>
+                    <p v-if="formErrors.bucket" class="mt-1 text-xs text-red-500">{{ formErrors.bucket }}</p>
+                  </div>
                 </div>
               </div>
-
+              
+              <!-- Prefix -->
               <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.prefix') }}</label>
                 <input v-model="newRepo.s3_config.prefix" type="text" placeholder="backups/hyperfilelens" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 <p class="text-xs text-slate-500 mt-1">{{ t('repository.s3.prefixHint') }}</p>
-              </div>
-              
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.accessKey') }} *</label>
-                  <input 
-                    v-model="newRepo.s3_config.access_key" 
-                    type="text" 
-                    placeholder="AKIAIOSFODNN7EXAMPLE" 
-                    :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                      formErrors.access_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
-                    @input="clearError('access_key')"
-                  />
-                  <p v-if="formErrors.access_key" class="mt-1 text-xs text-red-500">{{ formErrors.access_key }}</p>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('repository.s3.secretKey') }} *</label>
-                  <input 
-                    v-model="newRepo.s3_config.secret_key" 
-                    type="password" 
-                    placeholder="••••••••••••••••" 
-                    :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                      formErrors.secret_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
-                    @input="clearError('secret_key')"
-                  />
-                  <p v-if="formErrors.secret_key" class="mt-1 text-xs text-red-500">{{ formErrors.secret_key }}</p>
-                </div>
               </div>
             </div>
 

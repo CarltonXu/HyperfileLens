@@ -2,6 +2,11 @@
 HyperFileLens Backend - Repository Views
 """
 
+import re
+import boto3
+from botocore.exceptions import ClientError, BotoCoreError
+from botocore.config import Config
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -19,6 +24,56 @@ from .serializers import (
     ConnectionTestResultSerializer
 )
 from nodes.models import Node
+
+
+# S3 Bucket name validation rules (AWS S3 naming rules)
+BUCKET_NAME_RULES = {
+    'min_length': 3,
+    'max_length': 63,
+    'pattern': r'^[a-z0-9][a-z0-9.-]*[a-z0-9]$',  # Must start and end with alphanumeric
+    'reserved_prefixes': ['xn--', 'sthree-', 'amzn-s3-demo-'],
+    'reserved_suffixes': ['-s3alias', '--ol-s3', '.mrap', '--x-s3'],
+    'ip_pattern': r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$',  # Cannot look like IP
+}
+
+
+def validate_bucket_name(bucket_name):
+    """
+    Validate S3 bucket name according to AWS rules.
+    Returns (is_valid, error_message)
+    """
+    if not bucket_name:
+        return False, "Bucket name is required"
+    
+    # Length check
+    if len(bucket_name) < BUCKET_NAME_RULES['min_length']:
+        return False, f"Bucket name must be at least {BUCKET_NAME_RULES['min_length']} characters"
+    if len(bucket_name) > BUCKET_NAME_RULES['max_length']:
+        return False, f"Bucket name must not exceed {BUCKET_NAME_RULES['max_length']} characters"
+    
+    # Pattern check (must be lowercase letters, numbers, dots, hyphens)
+    if not re.match(BUCKET_NAME_RULES['pattern'], bucket_name):
+        return False, "Bucket name can only contain lowercase letters, numbers, dots (.), and hyphens (-). Must start and end with a letter or number"
+    
+    # Must not contain consecutive dots
+    if '..' in bucket_name:
+        return False, "Bucket name cannot contain consecutive periods (..)"
+    
+    # Must not look like an IP address
+    if re.match(BUCKET_NAME_RULES['ip_pattern'], bucket_name):
+        return False, "Bucket name cannot be formatted as an IP address"
+    
+    # Reserved prefixes
+    for prefix in BUCKET_NAME_RULES['reserved_prefixes']:
+        if bucket_name.lower().startswith(prefix):
+            return False, f"Bucket name cannot start with reserved prefix '{prefix}'"
+    
+    # Reserved suffixes
+    for suffix in BUCKET_NAME_RULES['reserved_suffixes']:
+        if bucket_name.lower().endswith(suffix):
+            return False, f"Bucket name cannot end with reserved suffix '{suffix}'"
+    
+    return True, None
 
 
 class RepositoryViewSet(viewsets.ModelViewSet):
@@ -327,3 +382,298 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             'count': repo.snapshot_count,
             'results': []  # Placeholder for actual snapshots
         })
+    
+    @action(detail=False, methods=['post'])
+    def list_s3_buckets(self, request):
+        """
+        List S3 buckets from a given S3-compatible storage.
+        
+        Request body:
+        - endpoint: S3 endpoint URL
+        - access_key: Access key ID
+        - secret_key: Secret access key
+        - region: Region (optional, default: us-east-1)
+        - use_ssl: Use SSL (optional, default: true)
+        """
+        endpoint = request.data.get('endpoint')
+        access_key = request.data.get('access_key')
+        secret_key = request.data.get('secret_key')
+        region = request.data.get('region', 'us-east-1')
+        use_ssl = request.data.get('use_ssl', True)
+        
+        # Validation
+        if not all([endpoint, access_key, secret_key]):
+            return Response({
+                'success': False,
+                'message': 'endpoint, access_key, and secret_key are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Create S3 client
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=endpoint,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=region,
+                config=Config(
+                    connect_timeout=10,
+                    read_timeout=30,
+                    signature_version='s3v4'
+                ),
+                use_ssl=use_ssl,
+                verify=False  # For self-signed certificates
+            )
+            
+            # List buckets
+            response = s3_client.list_buckets()
+            
+            buckets = []
+            for bucket in response.get('Buckets', []):
+                # Get bucket location
+                try:
+                    location = s3_client.get_bucket_location(Bucket=bucket['Name'])
+                    bucket_region = location.get('LocationConstraint', 'us-east-1')
+                except Exception:
+                    bucket_region = 'unknown'
+                
+                buckets.append({
+                    'name': bucket['Name'],
+                    'creation_date': bucket['CreationDate'].isoformat() if bucket.get('CreationDate') else None,
+                    'region': bucket_region
+                })
+            
+            return Response({
+                'success': True,
+                'buckets': buckets,
+                'count': len(buckets)
+            })
+            
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_msg = e.response.get('Error', {}).get('Message', str(e))
+            
+            return Response({
+                'success': False,
+                'message': f'S3 Error ({error_code}): {error_msg}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except BotoCoreError as e:
+            return Response({
+                'success': False,
+                'message': f'Connection Error: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': f'Failed to list buckets: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'])
+    def validate_s3_bucket_name(self, request):
+        """
+        Validate S3 bucket name and check availability.
+        
+        Request body:
+        - bucket_name: Bucket name to validate
+        - endpoint: S3 endpoint URL (optional, for availability check)
+        - access_key: Access key ID (optional, for availability check)
+        - secret_key: Secret access key (optional, for availability check)
+        - region: Region (optional)
+        """
+        bucket_name = request.data.get('bucket_name')
+        
+        # First, validate the name format
+        is_valid, error_message = validate_bucket_name(bucket_name)
+        
+        if not is_valid:
+            return Response({
+                'success': False,
+                'valid': False,
+                'error': error_message,
+                'rules': {
+                    'min_length': BUCKET_NAME_RULES['min_length'],
+                    'max_length': BUCKET_NAME_RULES['max_length'],
+                    'pattern_description': 'Lowercase letters, numbers, dots (.), and hyphens (-). Must start and end with a letter or number.',
+                    'no_consecutive_dots': True,
+                    'no_ip_format': True
+                }
+            })
+        
+        # If credentials provided, check if bucket name is available
+        endpoint = request.data.get('endpoint')
+        access_key = request.data.get('access_key')
+        secret_key = request.data.get('secret_key')
+        region = request.data.get('region', 'us-east-1')
+        use_ssl = request.data.get('use_ssl', True)
+        
+        availability_checked = False
+        available = None
+        availability_message = None
+        
+        if all([endpoint, access_key, secret_key]):
+            try:
+                s3_client = boto3.client(
+                    's3',
+                    endpoint_url=endpoint,
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                    region_name=region,
+                    config=Config(
+                        connect_timeout=10,
+                        read_timeout=10,
+                        signature_version='s3v4'
+                    ),
+                    use_ssl=use_ssl,
+                    verify=False
+                )
+                
+                # Check if bucket exists
+                try:
+                    s3_client.head_bucket(Bucket=bucket_name)
+                    # Bucket exists
+                    availability_checked = True
+                    available = False
+                    availability_message = 'Bucket name already exists'
+                except ClientError as e:
+                    error_code = e.response.get('Error', {}).get('Code', '')
+                    if error_code in ['404', 'NoSuchBucket']:
+                        # Bucket does not exist - name is available
+                        availability_checked = True
+                        available = True
+                        availability_message = 'Bucket name is available'
+                    elif error_code == 'AccessDenied':
+                        # Can't determine - might exist or not
+                        availability_checked = True
+                        available = None
+                        availability_message = 'Unable to check availability (Access Denied)'
+                    else:
+                        availability_checked = True
+                        available = None
+                        availability_message = f'Unable to check availability ({error_code})'
+                        
+            except Exception as e:
+                availability_checked = True
+                available = None
+                availability_message = f'Could not check availability: {str(e)}'
+        
+        return Response({
+            'success': True,
+            'valid': True,
+            'bucket_name': bucket_name,
+            'availability_checked': availability_checked,
+            'available': available,
+            'availability_message': availability_message,
+            'rules': {
+                'min_length': BUCKET_NAME_RULES['min_length'],
+                'max_length': BUCKET_NAME_RULES['max_length'],
+                'pattern_description': 'Lowercase letters, numbers, dots (.), and hyphens (-). Must start and end with a letter or number.'
+            }
+        })
+    
+    @action(detail=False, methods=['post'])
+    def create_s3_bucket(self, request):
+        """
+        Create a new S3 bucket.
+        
+        Request body:
+        - bucket_name: Bucket name to create
+        - endpoint: S3 endpoint URL
+        - access_key: Access key ID
+        - secret_key: Secret access key
+        - region: Region (optional)
+        - use_ssl: Use SSL (optional, default: true)
+        """
+        bucket_name = request.data.get('bucket_name')
+        endpoint = request.data.get('endpoint')
+        access_key = request.data.get('access_key')
+        secret_key = request.data.get('secret_key')
+        region = request.data.get('region', 'us-east-1')
+        use_ssl = request.data.get('use_ssl', True)
+        
+        # Validation
+        if not all([bucket_name, endpoint, access_key, secret_key]):
+            return Response({
+                'success': False,
+                'message': 'bucket_name, endpoint, access_key, and secret_key are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate bucket name format
+        is_valid, error_message = validate_bucket_name(bucket_name)
+        if not is_valid:
+            return Response({
+                'success': False,
+                'message': error_message
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=endpoint,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=region,
+                config=Config(
+                    connect_timeout=10,
+                    read_timeout=30,
+                    signature_version='s3v4'
+                ),
+                use_ssl=use_ssl,
+                verify=False
+            )
+            
+            # Create bucket
+            # Note: For us-east-1, LocationConstraint is not needed
+            if region == 'us-east-1':
+                s3_client.create_bucket(Bucket=bucket_name)
+            else:
+                s3_client.create_bucket(
+                    Bucket=bucket_name,
+                    CreateBucketConfiguration={'LocationConstraint': region}
+                )
+            
+            return Response({
+                'success': True,
+                'message': f'Bucket "{bucket_name}" created successfully',
+                'bucket_name': bucket_name,
+                'region': region
+            })
+            
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_msg = e.response.get('Error', {}).get('Message', str(e))
+            
+            # Handle specific error codes
+            if error_code == 'BucketAlreadyExists':
+                return Response({
+                    'success': False,
+                    'message': 'Bucket name already exists. Please choose a different name.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            elif error_code == 'BucketAlreadyOwnedByYou':
+                return Response({
+                    'success': False,
+                    'message': 'You already own a bucket with this name.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            elif error_code == 'InvalidBucketName':
+                return Response({
+                    'success': False,
+                    'message': 'Invalid bucket name. Please check the naming rules.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({
+                'success': False,
+                'message': f'S3 Error ({error_code}): {error_msg}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except BotoCoreError as e:
+            return Response({
+                'success': False,
+                'message': f'Connection Error: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': f'Failed to create bucket: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

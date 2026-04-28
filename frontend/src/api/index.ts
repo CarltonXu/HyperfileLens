@@ -307,7 +307,27 @@ export const repositoriesApi = {
     api.post(`/api/v1/repository/repositories/${id}/bind-node/`, { node_id: nodeId }),
   
   unbindNode: (id: number | string) =>
-    api.post(`/api/v1/repository/repositories/${id}/unbind-node/`)
+    api.post(`/api/v1/repository/repositories/${id}/unbind-node/`),
+  
+  // S3 Bucket operations
+  listBuckets: (data: {
+    endpoint: string;
+    region?: string;
+    access_key: string;
+    secret_key: string;
+    use_ssl?: boolean;
+  }) =>
+    api.post('/api/v1/repository/repositories/list-buckets/', data),
+  
+  checkBucketName: (data: {
+    endpoint: string;
+    region?: string;
+    access_key: string;
+    secret_key: string;
+    bucket_name: string;
+    use_ssl?: boolean;
+  }) =>
+    api.post('/api/v1/repository/repositories/check-bucket-name/', data)
 }
 
 // ============== Policies API ==============
