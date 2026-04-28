@@ -284,33 +284,34 @@ class ProxyNode(models.Model):
                 self.installed_at = timezone.now()
 
         if data:
-            if 'version' in data:
+            # Only update fields that have non-None values
+            if data.get('version') is not None:
                 self.version = data['version']
-            if 'kopia_version' in data:
+            if data.get('kopia_version') is not None:
                 self.kopia_version = data['kopia_version']
-            if 'hostname' in data:
+            if data.get('hostname') is not None:
                 self.hostname = data['hostname']
-            if 'internal_ip' in data:
+            if data.get('internal_ip') is not None:
                 self.internal_ip = data['internal_ip']
-            if 'os' in data:
+            if data.get('os') is not None:
                 self.operating_system = data['os']
-            if 'os_version' in data:
+            if data.get('os_version') is not None:
                 self.os_version = data['os_version']
-            if 'cpu_cores' in data:
+            if data.get('cpu_cores') is not None:
                 self.cpu_cores = data['cpu_cores']
-            if 'memory_total' in data:
+            if data.get('memory_total') is not None:
                 self.memory_total = data['memory_total']
-            if 'disk_total' in data:
+            if data.get('disk_total') is not None:
                 self.disk_total = data['disk_total']
-            if 'cpu_usage' in data:
+            if data.get('cpu_usage') is not None:
                 self.cpu_usage = data['cpu_usage']
-            if 'memory_usage' in data:
+            if data.get('memory_usage') is not None:
                 self.memory_usage = data['memory_usage']
-            if 'disk_usage' in data:
+            if data.get('disk_usage') is not None:
                 self.disk_usage = data['disk_usage']
-            if 'active_tasks' in data:
+            if data.get('active_tasks') is not None:
                 self.active_tasks = data['active_tasks']
-            if 'capabilities' in data:
+            if data.get('capabilities') is not None:
                 self.capabilities = data['capabilities']
 
         self.save()

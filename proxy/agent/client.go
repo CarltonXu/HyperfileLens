@@ -37,6 +37,7 @@ type RegistrationResponse struct {
 // HeartbeatPayload represents heartbeat data
 type HeartbeatPayload struct {
 	NodeID      string                   `json:"node_id"`
+	APIToken    string                   `json:"api_token,omitempty"`
 	Status      string                   `json:"status"`
 	Metrics     *monitor.Metrics         `json:"metrics"`
 	HostInfo    map[string]interface{}   `json:"host_info"`
@@ -152,6 +153,7 @@ func (c *Client) Heartbeat() error {
 
 	payload := HeartbeatPayload{
 		NodeID:    c.nodeID,
+		APIToken:  c.config.Server.APIToken,
 		Status:    "healthy",
 		Metrics:   c.collector.GetCurrent(),
 		HostInfo:  monitor.GetHostInfo(),
@@ -163,7 +165,7 @@ func (c *Client) Heartbeat() error {
 	body, _ := json.Marshal(payload)
 
 	req, _ := http.NewRequest("POST",
-		fmt.Sprintf("%s/proxies/%s/heartbeat/", c.apiURL, c.nodeID),
+		fmt.Sprintf("%s/proxies/heartbeat/", c.apiURL),
 		bytes.NewReader(body))
 
 	req.Header.Set("Content-Type", "application/json")

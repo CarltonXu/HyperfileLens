@@ -613,6 +613,77 @@ logging:
         return Response(data)
 
     @extend_schema(
+        summary='Receive proxy heartbeat',
+        description='Receive heartbeat from a specific proxy by ID.',
+        request=ProxyHeartbeatCreateSerializer,
+        responses={200: ProxyNodeSerializer}
+    )
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
+    def heartbeat(self, request, pk=None):
+        """Receive heartbeat from a specific proxy."""
+        try:
+            proxy = ProxyNode.objects.get(id=pk)
+        except ProxyNode.DoesNotExist:
+            return Response(
+                {'error': 'Proxy not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Validate API token
+        api_token = request.data.get('api_token')
+        if not api_token:
+            # Try to get from header
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Token '):
+                api_token = auth_header[6:]
+
+        if not api_token or api_token != proxy.api_token:
+            return Response(
+                {'error': 'Invalid API token'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        data = request.data
+
+        # Update proxy heartbeat
+        proxy.update_heartbeat({
+            'version': data.get('version'),
+            'kopia_version': data.get('kopia_version'),
+            'hostname': data.get('hostname'),
+            'internal_ip': data.get('internal_ip'),
+            'os': data.get('os'),
+            'os_version': data.get('os_version'),
+            'cpu_cores': data.get('cpu_cores'),
+            'memory_total': data.get('memory_total'),
+            'disk_total': data.get('disk_total'),
+            'cpu_usage': data.get('cpu_usage'),
+            'memory_usage': data.get('memory_usage'),
+            'disk_usage': data.get('disk_usage'),
+            'active_tasks': data.get('active_tasks', 0),
+            'capabilities': data.get('capabilities', {}),
+        })
+
+        # Create heartbeat record
+        ProxyHeartbeat.objects.create(
+            proxy=proxy,
+            cpu_usage=data.get('cpu_usage'),
+            memory_usage=data.get('memory_usage'),
+            disk_usage=data.get('disk_usage'),
+            network_in=data.get('network_in'),
+            network_out=data.get('network_out'),
+            active_tasks=data.get('active_tasks', 0),
+            completed_tasks=data.get('completed_tasks', 0),
+            failed_tasks=data.get('failed_tasks', 0),
+            metadata=data.get('metadata', {})
+        )
+
+        return Response({
+            'status': 'ok',
+            'node_id': str(proxy.id),
+            'timestamp': timezone.now().isoformat(),
+        })
+
+    @extend_schema(
         summary='Update proxy status',
         description='Update the status of a specific proxy.',
     )
