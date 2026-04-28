@@ -732,6 +732,8 @@ export default {
     lastConnectionTest: 'Last Test',
     connectionTestNever: 'Never tested',
     connectionTestResult: 'Test Result',
+    updateSuccess: 'Repository updated successfully',
+    updateFailed: 'Failed to update repository',
 
     errors: {
       endpointUnreachable: 'Unable to connect to the endpoint. Please check the URL and network connectivity.'
