@@ -16,6 +16,7 @@ export interface ProxyNode {
   // Connection info
   hostname: string | null
   internal_ip: string | null
+  connection_ip: string | null
   
   // System info
   os: string | null

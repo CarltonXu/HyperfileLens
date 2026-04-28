@@ -519,6 +519,95 @@ logging:
         return Response(serializer.data)
 
     @extend_schema(
+        summary='Get proxy monitor stats',
+        description='Get monitoring statistics for a specific proxy.',
+    )
+    @action(detail=True, methods=['get'])
+    def monitor(self, request, pk=None):
+        """Get monitoring statistics for a proxy."""
+        proxy = self.get_object()
+        hours = int(request.query_params.get('hours', 24))
+        since = timezone.now() - timezone.timedelta(hours=hours)
+
+        # Get heartbeats in time range
+        heartbeats = proxy.heartbeats.filter(timestamp__gte=since).order_by('timestamp')
+
+        # Calculate stats
+        total_heartbeats = heartbeats.count()
+
+        # Task statistics
+        total_tasks = proxy.tasks.count()
+        completed_tasks = proxy.tasks.filter(status='completed').count()
+        failed_tasks = proxy.tasks.filter(status='failed').count()
+        running_tasks = proxy.tasks.filter(status__in=['pending', 'running']).count()
+
+        # Calculate average values from heartbeats
+        avg_cpu = 0
+        avg_memory = 0
+        avg_disk = 0
+
+        if total_heartbeats > 0:
+            avg_cpu = sum(h.cpu_usage or 0 for h in heartbeats) / total_heartbeats
+            avg_memory = sum(h.memory_usage or 0 for h in heartbeats) / total_heartbeats
+            avg_disk = sum(h.disk_usage or 0 for h in heartbeats) / total_heartbeats
+
+        # Get last 60 heartbeats for chart data
+        chart_heartbeats = heartbeats.last() and heartbeats.order_by('-timestamp')[:60] or []
+        chart_data = []
+        for h in reversed(list(chart_heartbeats)):
+            chart_data.append({
+                'timestamp': h.timestamp.isoformat(),
+                'cpu_usage': h.cpu_usage,
+                'memory_usage': h.memory_usage,
+                'disk_usage': h.disk_usage,
+            })
+
+        data = {
+            'proxy_id': str(proxy.id),
+            'status': proxy.status,
+            'is_online': proxy.is_online,
+            'uptime_seconds': proxy.uptime_seconds,
+            'last_heartbeat': proxy.last_heartbeat.isoformat() if proxy.last_heartbeat else None,
+
+            # Current resource usage
+            'current': {
+                'cpu_usage': proxy.cpu_usage,
+                'memory_usage': proxy.memory_usage,
+                'disk_usage': proxy.disk_usage,
+                'cpu_cores': proxy.cpu_cores,
+                'memory_total_gb': round(proxy.memory_total / (1024**3), 2) if proxy.memory_total else None,
+                'disk_total_gb': round(proxy.disk_total / (1024**3), 2) if proxy.disk_total else None,
+            },
+
+            # Average values
+            'averages': {
+                'cpu_usage': round(avg_cpu, 2),
+                'memory_usage': round(avg_memory, 2),
+                'disk_usage': round(avg_disk, 2),
+            },
+
+            # Heartbeat stats
+            'heartbeat_stats': {
+                'total_24h': total_heartbeats,
+                'expected_24h': hours * 6,  # Assuming 10 second interval
+                'missed_heartbeats': max(0, hours * 6 - total_heartbeats),
+            },
+
+            # Task stats
+            'task_stats': {
+                'total': total_tasks,
+                'completed': completed_tasks,
+                'failed': failed_tasks,
+                'running': running_tasks,
+            },
+
+            # Chart data
+            'chart_data': chart_data,
+        }
+
+        return Response(data)
+
+    @extend_schema(
         summary='Update proxy status',
         description='Update the status of a specific proxy.',
     )
