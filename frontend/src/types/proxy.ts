@@ -74,6 +74,7 @@ export interface ProxyTask {
   task_type: 'backup' | 'restore' | 'mount' | 'snapshot_list' | 'verify' | 'cleanup'
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   progress: number
+  progress_message: string | null
   error_message: string | null
   duration_seconds: number | null
   created_at: string

@@ -427,16 +427,30 @@ logging:
     @extend_schema(
         summary='Get proxy heartbeats',
         description='Get heartbeat history for a specific proxy.',
+        parameters=[
+            OpenApiParameter(name='hours', description='Time range in hours', type=int, required=False, default=24),
+            OpenApiParameter(name='page', description='Page number for pagination', type=int, required=False, default=1),
+            OpenApiParameter(name='page_size', description='Items per page', type=int, required=False, default=50),
+        ],
         responses={200: ProxyHeartbeatSerializer(many=True)}
     )
     @action(detail=True, methods=['get'])
     def heartbeats(self, request, pk=None):
-        """Get heartbeat history for a proxy."""
+        """Get heartbeat history for a proxy with pagination."""
         proxy = self.get_object()
         hours = int(request.query_params.get('hours', 24))
         since = timezone.now() - timezone.timedelta(hours=hours)
-        heartbeats = proxy.heartbeats.filter(timestamp__gte=since)
-        serializer = ProxyHeartbeatSerializer(heartbeats, many=True)
+        
+        # Get heartbeats in time range, ordered by most recent first
+        queryset = proxy.heartbeats.filter(timestamp__gte=since).order_by('-timestamp')
+        
+        # Paginate
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = ProxyHeartbeatSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = ProxyHeartbeatSerializer(queryset, many=True)
         return Response(serializer.data)
 
     @extend_schema(
@@ -517,6 +531,97 @@ logging:
         tasks = proxy.tasks.all()[:limit]
         serializer = ProxyTaskSerializer(tasks, many=True)
         return Response(serializer.data)
+
+    @extend_schema(
+        summary='Get proxy overview',
+        description='Get overview data for a specific proxy including system info, resources, and stats.',
+    )
+    @action(detail=True, methods=['get'])
+    def overview(self, request, pk=None):
+        """Get overview data for a proxy."""
+        proxy = self.get_object()
+        since = timezone.now() - timezone.timedelta(hours=24)
+        heartbeats = proxy.heartbeats.filter(timestamp__gte=since).order_by('timestamp')
+
+        # Calculate uptime
+        uptime_seconds = None
+        if proxy.registered_at:
+            uptime_seconds = int((timezone.now() - proxy.registered_at).total_seconds())
+
+        # Task statistics
+        total_tasks = proxy.tasks.count()
+        completed_tasks = proxy.tasks.filter(status='completed').count()
+        failed_tasks = proxy.tasks.filter(status='failed').count()
+        running_tasks = proxy.tasks.filter(status__in=['pending', 'dispatched', 'accepted', 'running']).count()
+
+        # Heartbeat stats
+        total_heartbeats = heartbeats.count()
+        expected_heartbeats = 24 * 6  # 10 second interval for 24 hours
+
+        # Average values
+        avg_cpu = 0
+        avg_memory = 0
+        avg_disk = 0
+        if total_heartbeats > 0:
+            avg_cpu = sum(h.cpu_usage or 0 for h in heartbeats) / total_heartbeats
+            avg_memory = sum(h.memory_usage or 0 for h in heartbeats) / total_heartbeats
+            avg_disk = sum(h.disk_usage or 0 for h in heartbeats) / total_heartbeats
+
+        data = {
+            # Basic info
+            'id': str(proxy.id),
+            'name': proxy.name,
+            'role': proxy.role,
+            'status': proxy.status,
+            'is_online': proxy.is_online(),
+            'owner_name': proxy.owner.username if proxy.owner else None,
+            'created_at': proxy.created_at.isoformat() if proxy.created_at else None,
+            
+            # System info
+            'hostname': proxy.hostname,
+            'internal_ip': proxy.internal_ip,
+            'operating_system': proxy.operating_system,
+            'os_version': proxy.os_version,
+            'version': proxy.version,
+            'kopia_version': proxy.kopia_version,
+            'uptime_seconds': uptime_seconds,
+            
+            # Hardware resources
+            'cpu_cores': proxy.cpu_cores,
+            'cpu_usage': proxy.cpu_usage,
+            'memory_total': proxy.memory_total,
+            'memory_usage': proxy.memory_usage,
+            'disk_total': proxy.disk_total,
+            'disk_usage': proxy.disk_usage,
+            
+            # Network
+            'last_heartbeat': proxy.last_heartbeat.isoformat() if proxy.last_heartbeat else None,
+            'heartbeat_interval': proxy.heartbeat_interval,
+            
+            # Capabilities and labels
+            'capabilities': proxy.capabilities or {},
+            'labels': proxy.labels or [],
+            
+            # Stats
+            'stats': {
+                'heartbeats_24h': total_heartbeats,
+                'expected_24h': expected_heartbeats,
+                'missed_heartbeats': max(0, expected_heartbeats - total_heartbeats),
+                'avg_cpu': round(avg_cpu, 2),
+                'avg_memory': round(avg_memory, 2),
+                'avg_disk': round(avg_disk, 2),
+            },
+            
+            # Task stats
+            'task_stats': {
+                'total': total_tasks,
+                'completed': completed_tasks,
+                'failed': failed_tasks,
+                'running': running_tasks,
+            },
+        }
+        
+        return Response(data)
 
     @extend_schema(
         summary='Get proxy monitor stats',
