@@ -280,34 +280,34 @@ export const sourceResourcesApi = {
 // ============== Repositories API ==============
 export const repositoriesApi = {
   list: (params?: { page?: number; page_size?: number; status?: string; repository_type?: string }) =>
-    api.get('/api/v1/repository/repositories/', { params }),
+    api.get('/api/v1/repositories/', { params }),
   
   detail: (id: number | string) =>
-    api.get(`/api/v1/repository/repositories/${id}/`),
+    api.get(`/api/v1/repositories/${id}/`),
   
   create: (data: any) =>
-    api.post('/api/v1/repository/repositories/', data),
+    api.post('/api/v1/repositories/', data),
   
   update: (id: number | string, data: any) =>
-    api.patch(`/api/v1/repository/repositories/${id}/`, data),
+    api.patch(`/api/v1/repositories/${id}/`, data),
   
   delete: (id: number | string) =>
-    api.delete(`/api/v1/repository/repositories/${id}/`),
+    api.delete(`/api/v1/repositories/${id}/`),
   
   stats: () =>
-    api.get('/api/v1/repository/repositories/statistics/'),
+    api.get('/api/v1/repositories/statistics/'),
   
   testConnection: (id: number | string) =>
-    api.post(`/api/v1/repository/repositories/${id}/test_connection/`),
+    api.post(`/api/v1/repositories/${id}/test_connection/`),
   
   initKopia: (id: number | string) =>
-    api.post(`/api/v1/repository/repositories/${id}/init-kopia/`),
+    api.post(`/api/v1/repositories/${id}/init-kopia/`),
   
   bindNode: (id: number | string, nodeId: number | string) =>
-    api.post(`/api/v1/repository/repositories/${id}/bind-node/`, { node_id: nodeId }),
+    api.post(`/api/v1/repositories/${id}/bind-node/`, { node_id: nodeId }),
   
   unbindNode: (id: number | string) =>
-    api.post(`/api/v1/repository/repositories/${id}/unbind-node/`),
+    api.post(`/api/v1/repositories/${id}/unbind-node/`),
   
   // S3 Bucket operations (with extended timeout for network operations)
   listBuckets: (data: {
@@ -317,7 +317,7 @@ export const repositoriesApi = {
     secret_key: string;
     use_ssl?: boolean;
   }) =>
-    api.post('/api/v1/repository/repositories/list_s3_buckets/', data, { timeout: 60000 }),
+    api.post('/api/v1/repositories/list_s3_buckets/', data, { timeout: 60000 }),
   
   checkBucketName: (data: {
     endpoint: string;
@@ -327,7 +327,7 @@ export const repositoriesApi = {
     bucket_name: string;
     use_ssl?: boolean;
   }) =>
-    api.post('/api/v1/repository/repositories/validate_s3_bucket_name/', data, { timeout: 30000 })
+    api.post('/api/v1/repositories/validate_s3_bucket_name/', data, { timeout: 30000 })
 }
 
 // ============== Policies API ==============

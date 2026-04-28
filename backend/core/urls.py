@@ -19,7 +19,7 @@ urlpatterns = [
     path('api/v1/source-resources/', include('source_resources.urls')),
     path('api/v1/backup-tasks/', include('backup_tasks.urls')),
     path('api/v1/recovery-tasks/', include('recovery_tasks.urls')),
-    path('api/v1/repository/', include('repository.urls')),
+    path('api/v1/repositories/', include('repository.urls')),
     path('api/v1/policies/', include('policies.urls')),
     path('api/v1/ai-query/', include('ai_query.urls')),
     path('api/v1/audit/', include('audit_log.urls')),
