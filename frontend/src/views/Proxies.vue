@@ -499,7 +499,9 @@ function refreshCurrentTab() {
       break
     case 'heartbeats':
       tabData.value.heartbeats.loaded = false
+      tabData.value.overview.loaded = false  // Also refresh overview for stats
       fetchProxyHeartbeats(proxyId)
+      fetchProxyOverview(proxyId)
       break
   }
 }
@@ -803,40 +805,11 @@ function getChartOptions(type: 'cpu' | 'memory' | 'disk') {
   }
 }
 
-// Compute heartbeat statistics
-const heartbeatStats = computed(() => {
-  const heartbeats = tabData.value.heartbeats.data
-  const proxy = selectedProxy.value
-  if (!heartbeats || heartbeats.length === 0 || !proxy) {
-    return { totalHeartbeats: 0, expectedHeartbeats: 0, missedHeartbeats: 0, heartbeatRate: 0 }
-  }
-  
-  const totalHeartbeats = heartbeats.length
-  
-  // Calculate expected heartbeats based on time range and heartbeat interval
-  // Default heartbeat interval is 10 seconds
-  const intervalSeconds = proxy.heartbeat_interval || 10
-  
-  // Get time range from the first and last heartbeat
-  if (heartbeats.length < 2) {
-    return { totalHeartbeats, expectedHeartbeats: 1, missedHeartbeats: 0, heartbeatRate: 100 }
-  }
-  
-  const sortedHeartbeats = [...heartbeats].sort((a, b) => 
-    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  )
-  
-  const lastTime = new Date(sortedHeartbeats[0].timestamp).getTime()
-  const firstTime = new Date(sortedHeartbeats[sortedHeartbeats.length - 1].timestamp).getTime()
-  const durationSeconds = (lastTime - firstTime) / 1000
-  
-  // Expected = duration / interval + 1 (for the first heartbeat)
-  const expectedHeartbeats = Math.floor(durationSeconds / intervalSeconds) + 1
-  const missedHeartbeats = Math.max(0, expectedHeartbeats - totalHeartbeats)
-  const heartbeatRate = expectedHeartbeats > 0 ? Math.round((totalHeartbeats / expectedHeartbeats) * 100) : 100
-  
-  return { totalHeartbeats, expectedHeartbeats, missedHeartbeats, heartbeatRate }
-})
+// Calculate heartbeat rate from overview stats
+function calculateHeartbeatRate(stats: { heartbeats_24h?: number; expected_24h?: number } | null | undefined): number {
+  if (!stats || !stats.expected_24h || stats.expected_24h === 0) return 100
+  return Math.round(((stats.heartbeats_24h || 0) / stats.expected_24h) * 100)
+}
 
 // Close menu when clicking outside
 function closeMenu() {
@@ -2481,23 +2454,27 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <!-- Stats -->
+              <!-- Stats - Use overview data for consistency -->
               <div class="grid grid-cols-4 gap-4">
                 <div class="bg-slate-50 rounded-xl p-4">
                   <p class="text-xs text-slate-500">{{ t('proxies.heartbeats.totalHeartbeats') }}</p>
-                  <p class="text-2xl font-bold text-slate-800 mt-1">{{ heartbeatStats.totalHeartbeats }}</p>
+                  <p class="text-2xl font-bold text-slate-800 mt-1">{{ tabData.overview.data?.stats?.heartbeats_24h || 0 }}</p>
+                  <p class="text-xs text-slate-400 mt-1">24h {{ t('proxies.heartbeats.totalHeartbeats') }}</p>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
                   <p class="text-xs text-slate-500">{{ t('proxies.heartbeats.expectedHeartbeats') }}</p>
-                  <p class="text-2xl font-bold text-indigo-600 mt-1">{{ heartbeatStats.expectedHeartbeats }}</p>
+                  <p class="text-2xl font-bold text-indigo-600 mt-1">{{ tabData.overview.data?.stats?.expected_24h || 0 }}</p>
+                  <p class="text-xs text-slate-400 mt-1">24h {{ t('proxies.heartbeats.expectedHeartbeats') }}</p>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
                   <p class="text-xs text-slate-500">{{ t('proxies.heartbeats.missedHeartbeats') }}</p>
-                  <p class="text-2xl font-bold text-red-600 mt-1">{{ heartbeatStats.missedHeartbeats }}</p>
+                  <p class="text-2xl font-bold" :class="(tabData.overview.data?.stats?.missed_heartbeats || 0) > 0 ? 'text-red-600' : 'text-slate-800'" >{{ tabData.overview.data?.stats?.missed_heartbeats || 0 }}</p>
+                  <p class="text-xs text-slate-400 mt-1">{{ t('proxies.heartbeats.missedHeartbeats') }}</p>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
                   <p class="text-xs text-slate-500">{{ t('proxies.heartbeats.heartbeatRate') }}</p>
-                  <p class="text-2xl font-bold text-emerald-600 mt-1">{{ heartbeatStats.heartbeatRate }}%</p>
+                  <p class="text-2xl font-bold text-emerald-600 mt-1">{{ calculateHeartbeatRate(tabData.overview.data?.stats) }}%</p>
+                  <p class="text-xs text-slate-400 mt-1">{{ t('proxies.heartbeats.heartbeatRate') }}</p>
                 </div>
               </div>
 

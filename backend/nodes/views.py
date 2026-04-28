@@ -554,9 +554,16 @@ logging:
         failed_tasks = proxy.tasks.filter(status='failed').count()
         running_tasks = proxy.tasks.filter(status__in=['pending', 'dispatched', 'accepted', 'running']).count()
 
-        # Heartbeat stats
+        # Heartbeat stats - calculate based on actual registration time
         total_heartbeats = heartbeats.count()
-        expected_heartbeats = 24 * 6  # 10 second interval for 24 hours
+        
+        # Calculate expected heartbeats based on actual uptime (max 24 hours)
+        heartbeat_interval = proxy.heartbeat_interval or 10  # Default 10 seconds
+        if proxy.registered_at:
+            uptime_hours = min(24, (timezone.now() - proxy.registered_at).total_seconds() / 3600)
+        else:
+            uptime_hours = 24
+        expected_heartbeats = int((uptime_hours * 3600) / heartbeat_interval)
 
         # Average values
         avg_cpu = 0
