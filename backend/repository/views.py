@@ -928,28 +928,76 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             matched_buckets = []
             other_buckets = []
             
+            logger.info(f"[S3] Starting bucket region detection for {len(response.get('Buckets', []))} buckets...")
+            logger.info(f"[S3] Configured region for filtering: '{region}'")
+            logger.info(f"[S3] Endpoint URL: '{endpoint}'")
+            
+            # Extract region from endpoint URL as fallback
+            # e.g., https://obs.ap-southeast-3.myhuaweicloud.com -> ap-southeast-3
+            endpoint_region = None
+            if endpoint:
+                import re
+                # Match pattern like obs.<region>.myhuaweicloud.com or obs.<region>.huawei.com
+                match = re.search(r'obs\.([a-z0-9-]+)\.(?:myhuaweicloud|huawei)', endpoint)
+                if match:
+                    endpoint_region = match.group(1)
+                    logger.info(f"[S3] Extracted region from endpoint: '{endpoint_region}'")
+            
             for bucket in response.get('Buckets', []):
+                bucket_name = bucket['Name']
                 # Get bucket location
                 bucket_region = 'unknown'
                 try:
                     # Note: get_bucket_location may fail for cross-region buckets
                     # In that case, we'll try to infer the region from the error response
-                    location = s3_client.get_bucket_location(Bucket=bucket['Name'])
-                    bucket_region = location.get('LocationConstraint', 'us-east-1')
-                    # Handle None for us-east-1 in AWS
-                    if bucket_region is None:
-                        bucket_region = 'us-east-1'
+                    location = s3_client.get_bucket_location(Bucket=bucket_name)
+                    raw_location = location.get('LocationConstraint')
+                    logger.info(f"[S3] Bucket '{bucket_name}': get_bucket_location raw response = {repr(raw_location)}")
+                    
+                    # Handle different response formats:
+                    # - AWS S3: returns actual region or None for us-east-1
+                    # - Huawei OBS: often returns empty string, None, or 'us-east-1' (default)
+                    # - MinIO: may return empty string
+                    
+                    # Check if this is a Huawei OBS endpoint
+                    is_huawei_obs = 'myhuaweicloud.com' in endpoint or 'huawei.com' in endpoint if endpoint else False
+                    
+                    if raw_location is None or raw_location == '' or (is_huawei_obs and raw_location == 'us-east-1'):
+                        # For empty/None/default responses on Huawei OBS, use endpoint region
+                        if is_huawei_obs and endpoint_region:
+                            bucket_region = endpoint_region
+                            logger.info(f"[S3] Bucket '{bucket_name}': Huawei OBS detected, using endpoint region = '{bucket_region}'")
+                        else:
+                            # Try head_bucket to get actual region
+                            try:
+                                head_response = s3_client.head_bucket(Bucket=bucket_name)
+                                # Check headers for region info
+                                headers = head_response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
+                                bucket_region = headers.get('x-amz-bucket-region', endpoint_region or 'unknown')
+                                logger.info(f"[S3] Bucket '{bucket_name}': head_bucket region from headers = '{bucket_region}'")
+                            except Exception as head_err:
+                                # If head_bucket fails, use endpoint region as fallback
+                                bucket_region = endpoint_region or 'unknown'
+                                logger.info(f"[S3] Bucket '{bucket_name}': head_bucket failed ({head_err}), using endpoint region = '{bucket_region}'")
+                    else:
+                        bucket_region = raw_location
+                    
+                    logger.info(f"[S3] Bucket '{bucket_name}': final detected region = '{bucket_region}', configured region = '{region}', match = {bucket_region == region}")
+                    
                 except ClientError as e:
                     # Try to extract region from error response headers
                     # Some S3-compatible services return region in headers
                     error_headers = e.response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
-                    bucket_region = error_headers.get('x-amz-bucket-region', 'unknown')
-                    logger.debug(f"[S3] Could not get location for bucket {bucket['Name']}: {e}, inferred region: {bucket_region}")
+                    bucket_region = error_headers.get('x-amz-bucket-region', endpoint_region or 'unknown')
+                    error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                    logger.warning(f"[S3] Bucket '{bucket_name}': get_bucket_location failed with error '{error_code}', inferred region from headers = '{bucket_region}'")
+                    logger.debug(f"[S3] Bucket '{bucket_name}': full error response = {e.response}")
                 except Exception as e:
-                    logger.debug(f"[S3] Could not get location for bucket {bucket['Name']}: {e}")
+                    bucket_region = endpoint_region or 'unknown'
+                    logger.warning(f"[S3] Bucket '{bucket_name}': get_bucket_location exception: {type(e).__name__}: {e}, using endpoint region = '{bucket_region}'")
                 
                 bucket_info = {
-                    'name': bucket['Name'],
+                    'name': bucket_name,
                     'creation_date': bucket['CreationDate'].isoformat() if bucket.get('CreationDate') else None,
                     'region': bucket_region,
                     'matches_configured_region': bucket_region == region or (bucket_region == 'unknown')
@@ -965,6 +1013,26 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             
             # Determine which buckets to return based on filter parameter
             filter_by_region = request.data.get('filter_by_region', True)
+            
+            # Log summary of region detection
+            logger.info(f"[S3] === REGION DETECTION SUMMARY ===")
+            logger.info(f"[S3] Total buckets found: {len(buckets)}")
+            logger.info(f"[S3] Buckets matching configured region '{region}': {len(matched_buckets)}")
+            logger.info(f"[S3] Buckets in other regions: {len(other_buckets)}")
+            
+            if matched_buckets:
+                matched_names = [b['name'] for b in matched_buckets]
+                logger.info(f"[S3] Matched bucket names: {matched_names}")
+            
+            if other_buckets:
+                # Group by region for better visibility
+                regions_summary = {}
+                for b in other_buckets:
+                    r = b['region']
+                    if r not in regions_summary:
+                        regions_summary[r] = []
+                    regions_summary[r].append(b['name'])
+                logger.info(f"[S3] Buckets by region: {regions_summary}")
             
             if filter_by_region and region:
                 # Return only buckets matching the configured region
