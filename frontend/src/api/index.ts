@@ -316,6 +316,7 @@ export const repositoriesApi = {
     access_key: string;
     secret_key: string;
     use_tls?: boolean;
+    filter_by_region?: boolean;  // Filter buckets by configured region
   }) =>
     api.post('/api/v1/repositories/list_s3_buckets/', data, { timeout: 60000 }),
   

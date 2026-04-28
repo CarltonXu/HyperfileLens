@@ -925,25 +925,68 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             logger.info(f"[S3] Successfully listed buckets, found {len(response.get('Buckets', []))} buckets")
             
             buckets = []
+            matched_buckets = []
+            other_buckets = []
+            
             for bucket in response.get('Buckets', []):
                 # Get bucket location
+                bucket_region = 'unknown'
                 try:
+                    # Note: get_bucket_location may fail for cross-region buckets
+                    # In that case, we'll try to infer the region from the error response
                     location = s3_client.get_bucket_location(Bucket=bucket['Name'])
                     bucket_region = location.get('LocationConstraint', 'us-east-1')
+                    # Handle None for us-east-1 in AWS
+                    if bucket_region is None:
+                        bucket_region = 'us-east-1'
+                except ClientError as e:
+                    # Try to extract region from error response headers
+                    # Some S3-compatible services return region in headers
+                    error_headers = e.response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
+                    bucket_region = error_headers.get('x-amz-bucket-region', 'unknown')
+                    logger.debug(f"[S3] Could not get location for bucket {bucket['Name']}: {e}, inferred region: {bucket_region}")
                 except Exception as e:
                     logger.debug(f"[S3] Could not get location for bucket {bucket['Name']}: {e}")
-                    bucket_region = 'unknown'
                 
-                buckets.append({
+                bucket_info = {
                     'name': bucket['Name'],
                     'creation_date': bucket['CreationDate'].isoformat() if bucket.get('CreationDate') else None,
-                    'region': bucket_region
-                })
+                    'region': bucket_region,
+                    'matches_configured_region': bucket_region == region or (bucket_region == 'unknown')
+                }
+                
+                buckets.append(bucket_info)
+                
+                # Categorize by region match
+                if bucket_region == region:
+                    matched_buckets.append(bucket_info)
+                else:
+                    other_buckets.append(bucket_info)
+            
+            # Determine which buckets to return based on filter parameter
+            filter_by_region = request.data.get('filter_by_region', True)
+            
+            if filter_by_region and region:
+                # Return only buckets matching the configured region
+                # If no buckets match, return all with a warning
+                result_buckets = matched_buckets if matched_buckets else buckets
+                logger.info(f"[S3] Filtering by region '{region}': {len(matched_buckets)}/{len(buckets)} buckets match")
+            else:
+                # Return all buckets
+                result_buckets = buckets
+                logger.info(f"[S3] Returning all {len(buckets)} buckets (no region filter)")
             
             return Response({
                 'success': True,
-                'buckets': buckets,
-                'count': len(buckets)
+                'buckets': result_buckets,
+                'total_count': len(buckets),
+                'filtered_count': len(result_buckets),
+                'matched_count': len(matched_buckets),
+                'configured_region': region,
+                'region_filter_applied': filter_by_region and region and bool(matched_buckets),
+                'suggestion': None if matched_buckets or not region else 
+                    f'No buckets found in region "{region}". Found {len(other_buckets)} buckets in other regions. '
+                    f'Consider creating a bucket in this region or updating your region configuration.'
             })
             
         except ClientError as e:

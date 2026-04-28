@@ -187,11 +187,17 @@ async function fetchBucketList() {
       region: newRepo.value.s3_config.region || undefined,
       access_key,
       secret_key,
-      use_tls
+      use_tls,
+      filter_by_region: true  // Filter buckets by configured region
     })
     
     if (response.data.buckets) {
       s3BucketList.value = response.data.buckets
+    }
+    
+    // Show suggestion if no buckets match the configured region
+    if (response.data.suggestion && response.data.matched_count === 0) {
+      bucketListError.value = response.data.suggestion
     }
   } catch (error: any) {
     console.error('[S3] Failed to fetch bucket list:', error)
