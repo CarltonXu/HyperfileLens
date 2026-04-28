@@ -8,6 +8,8 @@ import logging
 import boto3
 from botocore.exceptions import ClientError, BotoCoreError, EndpointConnectionError, ConnectTimeoutError
 from botocore.config import Config
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -943,19 +945,32 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                     endpoint_region = match.group(1)
                     logger.info(f"[S3] Extracted region from endpoint: '{endpoint_region}'")
             
-            for bucket in response.get('Buckets', []):
-                bucket_name = bucket['Name']
+            # Thread-local storage for S3 client (each thread needs its own client)
+            thread_local = threading.local()
+            
+            def get_thread_s3_client():
+                """Get or create S3 client for current thread"""
+                if not hasattr(thread_local, 's3_client'):
+                    thread_local.s3_client = boto3.client(
+                        's3',
+                        endpoint_url=endpoint,
+                        region_name=region or 'us-east-1',
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        config=s3_config
+                    )
+                return thread_local.s3_client
+            
+            def detect_bucket_region(bucket_info):
+                """Detect region for a single bucket - runs in thread pool"""
+                bucket_name = bucket_info['Name']
                 bucket_region = 'unknown'
-                actually_accessible = False  # Track if bucket is actually accessible via configured endpoint
-                
-                # Strategy for region detection (in order of reliability):
-                # 1. Try head_bucket with configured endpoint - this proves bucket is in this region
-                # 2. If fails, extract region from error response headers
-                # 3. Fallback to get_bucket_location API (may return incorrect values for OBS)
+                actually_accessible = False
                 
                 try:
+                    s3_client = get_thread_s3_client()
+                    
                     # First, try head_bucket to verify bucket is accessible via configured endpoint
-                    # This is the most reliable way to determine if bucket belongs to configured region
                     head_response = s3_client.head_bucket(Bucket=bucket_name)
                     headers = head_response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
                     
@@ -965,68 +980,93 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                     # Try to get region from response headers
                     bucket_region = headers.get('x-amz-bucket-region') or headers.get('x-obs-bucket-location')
                     if bucket_region:
-                        logger.info(f"[S3] Bucket '{bucket_name}': head_bucket SUCCESS, region from headers = '{bucket_region}'")
+                        logger.debug(f"[S3] Bucket '{bucket_name}': head_bucket SUCCESS, region = '{bucket_region}'")
                     else:
-                        # Bucket is accessible, so it must be in the configured region
                         bucket_region = region or 'unknown'
-                        logger.info(f"[S3] Bucket '{bucket_name}': head_bucket SUCCESS (accessible via configured endpoint), assuming region = '{bucket_region}'")
+                        logger.debug(f"[S3] Bucket '{bucket_name}': head_bucket SUCCESS, using config region = '{bucket_region}'")
                         
                 except ClientError as head_err:
                     error_code = head_err.response.get('Error', {}).get('Code', 'Unknown')
                     error_headers = head_err.response.get('ResponseMetadata', {}).get('HTTPHeaders', {})
                     
-                    # Try to get region from error headers
                     bucket_region = error_headers.get('x-amz-bucket-region') or error_headers.get('x-obs-bucket-location')
                     
                     if bucket_region:
-                        logger.info(f"[S3] Bucket '{bucket_name}': head_bucket FAILED (error={error_code}), region from error headers = '{bucket_region}'")
+                        logger.debug(f"[S3] Bucket '{bucket_name}': head_bucket FAILED ({error_code}), region from error = '{bucket_region}'")
                     else:
                         # Try get_bucket_location as fallback
                         try:
+                            s3_client = get_thread_s3_client()
                             location = s3_client.get_bucket_location(Bucket=bucket_name)
                             raw_location = location.get('LocationConstraint')
-                            logger.info(f"[S3] Bucket '{bucket_name}': get_bucket_location raw response = {repr(raw_location)}")
                             
-                            # Handle different response formats
                             if raw_location and raw_location not in ['', 'us-east-1']:
                                 bucket_region = raw_location
                             else:
-                                # Use endpoint region as last resort
                                 bucket_region = endpoint_region or region or 'unknown'
-                                logger.info(f"[S3] Bucket '{bucket_name}': get_bucket_location returned empty/default, using endpoint region = '{bucket_region}'")
-                        except Exception as loc_err:
+                        except Exception:
                             bucket_region = endpoint_region or region or 'unknown'
-                            logger.warning(f"[S3] Bucket '{bucket_name}': Both head_bucket and get_bucket_location failed, using endpoint region = '{bucket_region}'")
                 
                 except Exception as e:
                     bucket_region = endpoint_region or region or 'unknown'
-                    logger.warning(f"[S3] Bucket '{bucket_name}': head_bucket exception: {type(e).__name__}: {e}, using endpoint region = '{bucket_region}'")
+                    logger.debug(f"[S3] Bucket '{bucket_name}': error: {type(e).__name__}")
                 
                 # Determine if bucket matches configured region
-                # A bucket matches if:
-                # 1. It's actually accessible via configured endpoint (most reliable)
-                # 2. OR its detected region matches configured region
                 region_match = bucket_region == region
                 accessible_match = actually_accessible
                 
-                logger.info(f"[S3] Bucket '{bucket_name}': final region = '{bucket_region}', accessible = {actually_accessible}, matches_region = {region_match}")
-                
-                bucket_info = {
+                return {
                     'name': bucket_name,
-                    'creation_date': bucket['CreationDate'].isoformat() if bucket.get('CreationDate') else None,
+                    'creation_date': bucket_info['CreationDate'].isoformat() if bucket_info.get('CreationDate') else None,
                     'region': bucket_region,
                     'accessible': actually_accessible,
-                    'matches_configured_region': actually_accessible or (bucket_region == region)
+                    'matches_configured_region': actually_accessible or region_match
+                }
+            
+            # Use thread pool for concurrent bucket region detection
+            bucket_list = response.get('Buckets', [])
+            total_buckets = len(bucket_list)
+            
+            logger.info(f"[S3] Starting concurrent region detection for {total_buckets} buckets (max_workers=20)...")
+            start_time = time.time()
+            
+            buckets = []
+            matched_buckets = []
+            other_buckets = []
+            
+            # Process buckets concurrently
+            with ThreadPoolExecutor(max_workers=20) as executor:
+                # Submit all tasks
+                future_to_bucket = {
+                    executor.submit(detect_bucket_region, bucket): bucket 
+                    for bucket in bucket_list
                 }
                 
-                buckets.append(bucket_info)
-                
-                # Categorize by accessibility and region match
-                # A bucket is considered "matched" if it's accessible via configured endpoint
-                if actually_accessible or bucket_region == region:
-                    matched_buckets.append(bucket_info)
-                else:
-                    other_buckets.append(bucket_info)
+                # Collect results as they complete
+                for future in as_completed(future_to_bucket):
+                    try:
+                        bucket_info = future.result(timeout=10)  # 10 second timeout per bucket
+                        buckets.append(bucket_info)
+                        
+                        if bucket_info['matches_configured_region']:
+                            matched_buckets.append(bucket_info)
+                        else:
+                            other_buckets.append(bucket_info)
+                    except Exception as e:
+                        bucket = future_to_bucket[future]
+                        logger.warning(f"[S3] Failed to detect region for bucket '{bucket['Name']}': {e}")
+                        # Add with unknown region
+                        buckets.append({
+                            'name': bucket['Name'],
+                            'creation_date': bucket['CreationDate'].isoformat() if bucket.get('CreationDate') else None,
+                            'region': 'unknown',
+                            'accessible': False,
+                            'matches_configured_region': False
+                        })
+                        other_buckets.append(buckets[-1])
+            
+            elapsed = time.time() - start_time
+            logger.info(f"[S3] Region detection completed in {elapsed:.2f}s for {len(buckets)} buckets")
             
             # Determine which buckets to return based on filter parameter
             filter_by_region = request.data.get('filter_by_region', True)
