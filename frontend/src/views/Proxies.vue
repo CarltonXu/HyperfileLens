@@ -220,8 +220,9 @@ async function fetchProxies() {
 }
 
 // Tab data fetching functions
-async function fetchProxyOverview(proxyId: string) {
-  tabData.value.overview.loading = true
+// silent=true 时不显示loading，静默刷新数据
+async function fetchProxyOverview(proxyId: string, silent = false) {
+  if (!silent) tabData.value.overview.loading = true
   try {
     const res = await api.get(`/api/v1/proxies/${proxyId}/overview/`)
     tabData.value.overview.data = res.data
@@ -229,12 +230,12 @@ async function fetchProxyOverview(proxyId: string) {
   } catch (error) {
     console.error('Failed to fetch proxy overview:', error)
   } finally {
-    tabData.value.overview.loading = false
+    if (!silent) tabData.value.overview.loading = false
   }
 }
 
-async function fetchProxyTasks(proxyId: string, page = 1) {
-  tabData.value.tasks.loading = true
+async function fetchProxyTasks(proxyId: string, page = 1, silent = false) {
+  if (!silent) tabData.value.tasks.loading = true
   try {
     const res = await api.get(`/api/v1/proxies/${proxyId}/tasks/?limit=50&page=${page}`)
     // Handle paginated response
@@ -246,14 +247,14 @@ async function fetchProxyTasks(proxyId: string, page = 1) {
     tabData.value.tasks.loaded = true
   } catch (error) {
     console.error('Failed to fetch proxy tasks:', error)
-    tabData.value.tasks.data = []
+    if (!silent) tabData.value.tasks.data = []
   } finally {
-    tabData.value.tasks.loading = false
+    if (!silent) tabData.value.tasks.loading = false
   }
 }
 
-async function fetchProxyHeartbeats(proxyId: string, page = 1) {
-  tabData.value.heartbeats.loading = true
+async function fetchProxyHeartbeats(proxyId: string, page = 1, silent = false) {
+  if (!silent) tabData.value.heartbeats.loading = true
   try {
     const res = await api.get(`/api/v1/proxies/${proxyId}/heartbeats/?hours=24&page=${page}&page_size=${tabData.value.heartbeats.pagination.pageSize}`)
     // Handle paginated response
@@ -266,14 +267,14 @@ async function fetchProxyHeartbeats(proxyId: string, page = 1) {
     tabData.value.heartbeats.loaded = true
   } catch (error) {
     console.error('Failed to fetch proxy heartbeats:', error)
-    tabData.value.heartbeats.data = []
+    if (!silent) tabData.value.heartbeats.data = []
   } finally {
-    tabData.value.heartbeats.loading = false
+    if (!silent) tabData.value.heartbeats.loading = false
   }
 }
 
-async function fetchProxyMonitor(proxyId: string) {
-  tabData.value.monitor.loading = true
+async function fetchProxyMonitor(proxyId: string, silent = false) {
+  if (!silent) tabData.value.monitor.loading = true
   try {
     // Convert time range to hours
     let hours = 24
@@ -288,9 +289,9 @@ async function fetchProxyMonitor(proxyId: string) {
     tabData.value.monitor.loaded = true
   } catch (error) {
     console.error('Failed to fetch proxy monitor:', error)
-    tabData.value.monitor.data = null
+    if (!silent) tabData.value.monitor.data = null
   } finally {
-    tabData.value.monitor.loading = false
+    if (!silent) tabData.value.monitor.loading = false
   }
 }
 
@@ -470,9 +471,9 @@ function setAutoRefresh(tab: 'monitor' | 'heartbeats', enabled: boolean, interva
     refresh.timer = window.setInterval(() => {
       if (selectedProxy.value) {
         if (tab === 'monitor') {
-          fetchProxyMonitor(selectedProxy.value.id)
+          fetchProxyMonitor(selectedProxy.value.id, true)  // 静默刷新
         } else {
-          fetchProxyHeartbeats(selectedProxy.value.id)
+          fetchProxyHeartbeats(selectedProxy.value.id, 1, true)  // 静默刷新
         }
       }
     }, intervalSeconds * 1000)
@@ -484,24 +485,20 @@ function refreshCurrentTab() {
   if (!selectedProxy.value) return
   
   const proxyId = selectedProxy.value.id
+  // 静默刷新，不显示loading，只更新数据
   switch (detailTab.value) {
     case 'overview':
-      tabData.value.overview.loaded = false
-      fetchProxyOverview(proxyId)
+      fetchProxyOverview(proxyId, true)
       break
     case 'monitor':
-      tabData.value.monitor.loaded = false
-      fetchProxyMonitor(proxyId)
+      fetchProxyMonitor(proxyId, true)
       break
     case 'tasks':
-      tabData.value.tasks.loaded = false
-      fetchProxyTasks(proxyId)
+      fetchProxyTasks(proxyId, 1, true)
       break
     case 'heartbeats':
-      tabData.value.heartbeats.loaded = false
-      tabData.value.overview.loaded = false  // Also refresh overview for stats
-      fetchProxyHeartbeats(proxyId)
-      fetchProxyOverview(proxyId)
+      fetchProxyHeartbeats(proxyId, 1, true)
+      fetchProxyOverview(proxyId, true)  // Also refresh overview for stats
       break
   }
 }
