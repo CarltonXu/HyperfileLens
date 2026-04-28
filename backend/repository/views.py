@@ -992,7 +992,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                     bucket_region = error_headers.get('x-amz-bucket-region') or error_headers.get('x-obs-bucket-location')
                     
                     if bucket_region:
-                        logger.debug(f"[S3] Bucket '{bucket_name}': head_bucket FAILED ({error_code}), region from error = '{bucket_region}'")
+                        logger.debug(f"[S3] Bucket '{bucket_name}': head_bucket FAILED ({error_code}), region from error headers = '{bucket_region}'")
                     else:
                         # Try get_bucket_location as fallback
                         try:
@@ -1002,10 +1002,14 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                             
                             if raw_location and raw_location not in ['', 'us-east-1']:
                                 bucket_region = raw_location
+                                logger.debug(f"[S3] Bucket '{bucket_name}': get_bucket_location = '{bucket_region}'")
                             else:
+                                # Both head_bucket and get_bucket_location failed to return valid region
                                 bucket_region = endpoint_region or region or 'unknown'
-                        except Exception:
+                                logger.warning(f"[S3] Bucket '{bucket_name}': Both head_bucket and get_bucket_location failed (location='{raw_location}'), using endpoint region = '{bucket_region}'")
+                        except Exception as loc_err:
                             bucket_region = endpoint_region or region or 'unknown'
+                            logger.warning(f"[S3] Bucket '{bucket_name}': head_bucket FAILED ({error_code}), get_bucket_location also failed ({type(loc_err).__name__}), using endpoint region = '{bucket_region}'")
                 
                 except Exception as e:
                     bucket_region = endpoint_region or region or 'unknown'
@@ -1014,13 +1018,16 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 # Determine if bucket matches configured region
                 region_match = bucket_region == region
                 accessible_match = actually_accessible
+                final_match = actually_accessible or region_match
+                
+                logger.info(f"[S3] Bucket '{bucket_name}': final region = '{bucket_region}', accessible = {actually_accessible}, matches_region = {final_match}")
                 
                 return {
                     'name': bucket_name,
                     'creation_date': bucket_info['CreationDate'].isoformat() if bucket_info.get('CreationDate') else None,
                     'region': bucket_region,
                     'accessible': actually_accessible,
-                    'matches_configured_region': actually_accessible or region_match
+                    'matches_configured_region': final_match
                 }
             
             # Use thread pool for concurrent bucket region detection
@@ -1047,6 +1054,9 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                     try:
                         bucket_info = future.result(timeout=10)  # 10 second timeout per bucket
                         buckets.append(bucket_info)
+                        
+                        # Log each bucket result here (main thread) to ensure it gets written
+                        logger.info(f"[S3] Bucket '{bucket_info['name']}': region = '{bucket_info['region']}', accessible = {bucket_info['accessible']}, matches_region = {bucket_info['matches_configured_region']}")
                         
                         if bucket_info['matches_configured_region']:
                             matched_buckets.append(bucket_info)
