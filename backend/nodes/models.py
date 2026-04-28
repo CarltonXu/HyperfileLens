@@ -186,6 +186,19 @@ class ProxyNode(models.Model):
         default=dict,
         help_text='Additional proxy metadata'
     )
+    network_interfaces = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Network interface information (name, IP, MAC, bytes in/out)'
+    )
+    network_bytes_sent = models.BigIntegerField(
+        default=0,
+        help_text='Total network bytes sent'
+    )
+    network_bytes_recv = models.BigIntegerField(
+        default=0,
+        help_text='Total network bytes received'
+    )
 
     # === Installation Info ===
     install_token = models.CharField(
@@ -313,6 +326,12 @@ class ProxyNode(models.Model):
                 self.active_tasks = data['active_tasks']
             if data.get('capabilities') is not None:
                 self.capabilities = data['capabilities']
+            if data.get('network_interfaces') is not None:
+                self.network_interfaces = data['network_interfaces']
+            if data.get('network_bytes_sent') is not None:
+                self.network_bytes_sent = data['network_bytes_sent']
+            if data.get('network_bytes_recv') is not None:
+                self.network_bytes_recv = data['network_bytes_recv']
 
         self.save()
 

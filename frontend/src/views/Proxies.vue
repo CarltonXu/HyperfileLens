@@ -5,6 +5,18 @@ import api from '@/api'
 import type { ProxyNode, ProxyStats, ProxyTask } from '@/types/proxy'
 import Pagination from '@/components/Pagination.vue'
 import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+import { Line } from 'vue-chartjs'
+import {
   ServerIcon,
   PlusIcon,
   MagnifyingGlassIcon,
@@ -34,8 +46,21 @@ import {
   WifiIcon,
   ChartBarIcon,
   ClipboardDocumentListIcon,
-  SignalIcon
+  SignalIcon,
+  CalendarIcon,
 } from '@heroicons/vue/24/outline'
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
 
 const { t } = useI18n()
 
@@ -48,6 +73,11 @@ const selectedStatus = ref<string>('all')
 const searchQuery = ref('')
 const viewMode = ref<'card' | 'list'>('card') // View mode: card or list
 const showInstallInfoModal = ref(false)
+
+// Monitor time range
+const monitorTimeRange = ref<'1h' | '6h' | '24h' | '7d' | '30d' | 'custom'>('24h')
+const customTimeRange = ref<{ start: string; end: string }>({ start: '', end: '' })
+const showCustomDatePicker = ref(false)
 
 // Pagination
 const currentPage = ref(1)
@@ -177,11 +207,39 @@ async function fetchProxyHeartbeats(proxyId: string) {
 
 async function fetchProxyMonitor(proxyId: string) {
   try {
-    const res = await api.get(`/api/v1/proxies/${proxyId}/monitor/?hours=24`)
+    // Convert time range to hours
+    let hours = 24
+    if (monitorTimeRange.value === '1h') hours = 1
+    else if (monitorTimeRange.value === '6h') hours = 6
+    else if (monitorTimeRange.value === '24h') hours = 24
+    else if (monitorTimeRange.value === '7d') hours = 168
+    else if (monitorTimeRange.value === '30d') hours = 720
+    
+    const res = await api.get(`/api/v1/proxies/${proxyId}/monitor/?hours=${hours}`)
     proxyMonitor.value = res.data
   } catch (error) {
     console.error('Failed to fetch proxy monitor:', error)
     proxyMonitor.value = null
+  }
+}
+
+function setTimeRange(range: '1h' | '6h' | '24h' | '7d' | '30d' | 'custom') {
+  monitorTimeRange.value = range
+  if (range !== 'custom' && selectedProxy.value) {
+    fetchProxyMonitor(selectedProxy.value.id)
+  }
+  showCustomDatePicker.value = range === 'custom'
+}
+
+function applyCustomTimeRange() {
+  if (customTimeRange.value.start && customTimeRange.value.end && selectedProxy.value) {
+    // Calculate hours from the date range
+    const start = new Date(customTimeRange.value.start)
+    const end = new Date(customTimeRange.value.end)
+    const hours = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60))
+    if (hours > 0) {
+      fetchProxyMonitor(selectedProxy.value.id)
+    }
   }
 }
 
@@ -458,6 +516,102 @@ function timeSince(date: string | null): string {
   if (hours < 24) return `${hours}${t('common.hoursAgo')}`
   const days = Math.floor(hours / 24)
   return `${days}${t('common.daysAgo')}`
+}
+
+function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// Chart data and options generators
+// Chart helper functions
+const chartColors = {
+  cpu: '#6366f1',
+  memory: '#10b981',
+  disk: '#f59e0b'
+}
+
+function getChartData(type: 'cpu' | 'memory' | 'disk') {
+  if (!proxyMonitor.value) {
+    return { labels: [], datasets: [] }
+  }
+  
+  let data: { timestamp: string; value: number }[] = []
+  let label = ''
+  const color = chartColors[type]
+  
+  if (type === 'cpu') {
+    data = proxyMonitor.value.cpu_usage || []
+    label = 'CPU'
+  } else if (type === 'memory') {
+    data = proxyMonitor.value.memory_usage || []
+    label = 'Memory'
+  } else {
+    data = proxyMonitor.value.disk_usage || []
+    label = 'Disk'
+  }
+  
+  return {
+    labels: data.map(d => new Date(d.timestamp).toLocaleTimeString()),
+    datasets: [{
+      label,
+      data: data.map(d => d.value),
+      borderColor: color,
+      backgroundColor: color + '20',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 2,
+      pointHoverRadius: 4,
+    }]
+  }
+}
+
+function getChartOptions(type: 'cpu' | 'memory' | 'disk') {
+  let label = ''
+  if (type === 'cpu') label = 'CPU'
+  else if (type === 'memory') label = 'Memory'
+  else label = 'Disk'
+  
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        mode: 'index' as const,
+        intersect: false,
+        callbacks: {
+          label: (context: { parsed: { y: number | null } }) => 
+            `${label}: ${context.parsed.y !== null ? context.parsed.y.toFixed(1) : 0}%`
+        }
+      }
+    },
+    scales: {
+      x: {
+        display: true,
+        grid: { display: false },
+        ticks: { maxTicksLimit: 8, font: { size: 10 } }
+      },
+      y: {
+        display: true,
+        min: 0,
+        max: 100,
+        grid: { color: '#e5e7eb' },
+        ticks: {
+          callback: (value: number | string) => value + '%',
+          font: { size: 10 }
+        }
+      }
+    },
+    interaction: {
+      mode: 'nearest' as const,
+      axis: 'x' as const,
+      intersect: false
+    }
+  }
 }
 
 // Close menu when clicking outside
@@ -1801,6 +1955,68 @@ onUnmounted(() => {
               <p>{{ t('proxies.detail.noMonitorData') }}</p>
             </div>
             <template v-else>
+              <!-- Time Range Selector -->
+              <div class="flex items-center justify-between bg-slate-50 rounded-xl p-4">
+                <div class="flex items-center gap-2">
+                  <CalendarIcon class="w-5 h-5 text-slate-500" />
+                  <span class="text-sm font-medium text-slate-700">{{ t('proxies.detail.timeRange') }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button
+                    v-for="range in ['1h', '6h', '24h', '7d', '30d']"
+                    :key="range"
+                    @click="setTimeRange(range as any)"
+                    :class="[
+                      'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                      monitorTimeRange === range
+                        ? 'bg-indigo-500 text-white'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    ]"
+                  >
+                    {{ range }}
+                  </button>
+                  <button
+                    @click="setTimeRange('custom')"
+                    :class="[
+                      'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                      monitorTimeRange === 'custom'
+                        ? 'bg-indigo-500 text-white'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    ]"
+                  >
+                    {{ t('proxies.detail.custom') }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Custom Date Picker -->
+              <div v-if="showCustomDatePicker" class="bg-slate-50 rounded-xl p-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs text-slate-500 mb-1">{{ t('proxies.detail.startTime') }}</label>
+                    <input
+                      type="datetime-local"
+                      v-model="customTimeRange.start"
+                      class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-slate-500 mb-1">{{ t('proxies.detail.endTime') }}</label>
+                    <input
+                      type="datetime-local"
+                      v-model="customTimeRange.end"
+                      class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <button
+                  @click="applyCustomTimeRange"
+                  class="mt-3 px-4 py-2 text-sm font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
+                >
+                  {{ t('proxies.detail.apply') }}
+                </button>
+              </div>
+
               <!-- Current Status Cards -->
               <div class="grid grid-cols-4 gap-4">
                 <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-4 text-white">
@@ -1822,6 +2038,79 @@ onUnmounted(() => {
                   <p class="text-xs opacity-80">{{ t('proxies.detail.uptime') }}</p>
                   <p class="text-lg font-bold mt-1">{{ formatUptime(proxyMonitor.uptime_seconds) }}</p>
                   <p class="text-xs opacity-70 mt-1">{{ proxyMonitor.is_online ? t('proxies.online') : t('proxies.offline') }}</p>
+                </div>
+              </div>
+
+              <!-- Resource Usage Charts -->
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- CPU Chart -->
+                <div class="bg-white border border-slate-200 rounded-xl p-4">
+                  <h4 class="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                    <CpuChipIcon class="w-4 h-4 text-indigo-500" />
+                    {{ t('proxies.detail.cpuChart') }}
+                  </h4>
+                  <div class="h-48">
+                    <Line
+                      :data="getChartData('cpu')"
+                      :options="getChartOptions('cpu')"
+                    />
+                  </div>
+                </div>
+                <!-- Memory Chart -->
+                <div class="bg-white border border-slate-200 rounded-xl p-4">
+                  <h4 class="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                    <ServerIcon class="w-4 h-4 text-emerald-500" />
+                    {{ t('proxies.detail.memoryChart') }}
+                  </h4>
+                  <div class="h-48">
+                    <Line
+                      :data="getChartData('memory')"
+                      :options="getChartOptions('memory')"
+                    />
+                  </div>
+                </div>
+                <!-- Disk Chart -->
+                <div class="bg-white border border-slate-200 rounded-xl p-4">
+                  <h4 class="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                    <CircleStackIcon class="w-4 h-4 text-amber-500" />
+                    {{ t('proxies.detail.diskChart') }}
+                  </h4>
+                  <div class="h-48">
+                    <Line
+                      :data="getChartData('disk')"
+                      :options="getChartOptions('disk')"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Network Interfaces -->
+              <div v-if="proxyMonitor.network_interfaces && proxyMonitor.network_interfaces.length > 0" class="bg-slate-50 rounded-xl p-4">
+                <h4 class="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                  <WifiIcon class="w-4 h-4 text-blue-500" />
+                  {{ t('proxies.detail.networkInterfaces') }}
+                </h4>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="border-b border-slate-200">
+                        <th class="text-left py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.interface') }}</th>
+                        <th class="text-left py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.ipAddress') }}</th>
+                        <th class="text-left py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.macAddress') }}</th>
+                        <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.bytesIn') }}</th>
+                        <th class="text-right py-2 px-3 text-slate-600 font-medium">{{ t('proxies.detail.bytesOut') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="iface in proxyMonitor.network_interfaces" :key="iface.name" class="border-b border-slate-100">
+                        <td class="py-2 px-3 font-medium text-slate-800">{{ iface.name }}</td>
+                        <td class="py-2 px-3 text-slate-600 font-mono text-xs">{{ iface.ip_address || '-' }}</td>
+                        <td class="py-2 px-3 text-slate-600 font-mono text-xs">{{ iface.mac_address || '-' }}</td>
+                        <td class="py-2 px-3 text-right text-emerald-600">{{ formatBytes(iface.bytes_in) }}</td>
+                        <td class="py-2 px-3 text-right text-blue-600">{{ formatBytes(iface.bytes_out) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
 

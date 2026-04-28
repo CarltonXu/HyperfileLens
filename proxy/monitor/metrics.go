@@ -187,19 +187,28 @@ func GetNetworkIO() (*NetworkIO, error) {
 	}, nil
 }
 
-// GetNetworkInterfaces returns network interface info
-func GetNetworkInterfaces() []map[string]interface{} {
+
+// NetworkInterfaceInfo represents network interface information
+type NetworkInterfaceInfo struct {
+	Name        string   `json:"name"`
+	IPAddresses []string `json:"ip_addresses,omitempty"`
+	MAC         string   `json:"mac,omitempty"`
+	BytesIn     int64    `json:"bytes_in,omitempty"`
+	BytesOut    int64    `json:"bytes_out,omitempty"`
+}
+
+// GetNetworkInterfaces returns network interface information
+func GetNetworkInterfaces() []NetworkInterfaceInfo {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return nil
 	}
 
-	result := make([]map[string]interface{}, 0, len(interfaces))
+	result := make([]NetworkInterfaceInfo, 0, len(interfaces))
 	for _, iface := range interfaces {
-		info := map[string]interface{}{
-			"name":  iface.Name,
-			"mtu":   iface.MTU,
-			"flags": iface.Flags,
+		info := NetworkInterfaceInfo{
+			Name: iface.Name,
+			MAC:  iface.HardwareAddr,
 		}
 
 		// Add IP addresses
@@ -207,7 +216,19 @@ func GetNetworkInterfaces() []map[string]interface{} {
 		for _, addr := range iface.Addrs {
 			addrs = append(addrs, addr.Addr)
 		}
-		info["addresses"] = addrs
+		info.IPAddresses = addrs
+
+		// Get IO counters for this interface
+		counters, err := net.IOCounters(true)
+		if err == nil {
+			for _, c := range counters {
+				if c.Name == iface.Name {
+					info.BytesIn = int64(c.BytesRecv)
+					info.BytesOut = int64(c.BytesSent)
+					break
+				}
+			}
+		}
 
 		result = append(result, info)
 	}

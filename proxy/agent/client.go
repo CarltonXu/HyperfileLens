@@ -62,8 +62,15 @@ type HeartbeatPayload struct {
 	DiskUsage   float64 `json:"disk_usage,omitempty"`
 
 	// Network
-	NetworkIn  int64 `json:"network_in,omitempty"`
-	NetworkOut int64 `json:"network_out,omitempty"`
+	NetworkIn       int64 `json:"network_in,omitempty"`
+	NetworkOut      int64 `json:"network_out,omitempty"`
+	MemoryUsed       int64 `json:"memory_used,omitempty"`
+	MemoryFree       int64 `json:"memory_free,omitempty"`
+	DiskUsed         int64 `json:"disk_used,omitempty"`
+	DiskFree         int64 `json:"disk_free,omitempty"`
+	NetworkBytesSent int64 `json:"network_bytes_sent,omitempty"`
+	NetworkBytesRecv int64 `json:"network_bytes_recv,omitempty"`
+	NetworkInterfaces []monitor.NetworkInterfaceInfo `json:"network_interfaces,omitempty"`
 
 	// Task stats
 	ActiveTasks     int `json:"active_tasks,omitempty"`
@@ -74,6 +81,7 @@ type HeartbeatPayload struct {
 	Capabilities map[string]interface{} `json:"capabilities,omitempty"`
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
+
 
 // Client handles agent operations
 type Client struct {
@@ -207,17 +215,26 @@ func (c *Client) Heartbeat() error {
 		}
 	}
 
-	// Add metrics if available
-	if metrics != nil {
-		payload.CPUUsage = metrics.CPUUsage
-		payload.MemoryUsage = metrics.MemoryUsage
-		payload.DiskUsage = metrics.DiskUsage
-		payload.CPUCores = metrics.CPUCores
-		payload.MemoryTotal = int64(metrics.MemoryTotal)
-		payload.DiskTotal = int64(metrics.DiskTotal)
-	}
+		// Add metrics if available
+		if metrics != nil {
+			payload.CPUUsage = metrics.CPUUsage
+			payload.MemoryUsage = metrics.MemoryUsage
+			payload.DiskUsage = metrics.DiskUsage
+			payload.CPUCores = metrics.CPUCores
+			payload.MemoryTotal = int64(metrics.MemoryTotal)
+			payload.DiskTotal = int64(metrics.DiskTotal)
+			payload.MemoryUsed = int64(metrics.MemoryUsed)
+			payload.DiskUsed = int64(metrics.DiskUsed)
+			payload.MemoryFree = int64(metrics.MemoryFree)
+			payload.DiskFree = int64(metrics.DiskFree)
+			payload.NetworkBytesSent = int64(metrics.NetworkBytesSent)
+			payload.NetworkBytesRecv = int64(metrics.NetworkBytesRecv)
+		}
 
-	body, _ := json.Marshal(payload)
+		// Add network interfaces
+		payload.NetworkInterfaces = monitor.GetNetworkInterfaces()
+
+		body, _ := json.Marshal(payload)
 
 	req, _ := http.NewRequest("POST",
 		fmt.Sprintf("%s/proxies/heartbeat/", c.apiURL),

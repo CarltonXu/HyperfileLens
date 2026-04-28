@@ -608,6 +608,15 @@ logging:
 
             # Chart data
             'chart_data': chart_data,
+
+            # Network interfaces
+            'network_interfaces': proxy.network_interfaces or [],
+            'network_stats': {
+                'bytes_sent': proxy.network_bytes_sent,
+                'bytes_recv': proxy.network_bytes_recv,
+                'bytes_sent_gb': round(proxy.network_bytes_sent / (1024**3), 2) if proxy.network_bytes_sent else 0,
+                'bytes_recv_gb': round(proxy.network_bytes_recv / (1024**3), 2) if proxy.network_bytes_recv else 0,
+            },
         }
 
         return Response(data)

@@ -250,8 +250,19 @@ class ProxyHeartbeatCreateSerializer(serializers.Serializer):
     cpu_usage = serializers.FloatField(required=False)
     memory_usage = serializers.FloatField(required=False)
     disk_usage = serializers.FloatField(required=False)
+    memory_used = serializers.BigIntegerField(required=False)
+    memory_free = serializers.BigIntegerField(required=False)
+    disk_used = serializers.BigIntegerField(required=False)
+    disk_free = serializers.BigIntegerField(required=False)
     network_in = serializers.IntegerField(required=False)
     network_out = serializers.IntegerField(required=False)
+    network_bytes_sent = serializers.BigIntegerField(required=False)
+    network_bytes_recv = serializers.BigIntegerField(required=False)
+    network_interfaces = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        default=list
+    )
     active_tasks = serializers.IntegerField(required=False, default=0)
     completed_tasks = serializers.IntegerField(required=False, default=0)
     failed_tasks = serializers.IntegerField(required=False, default=0)
