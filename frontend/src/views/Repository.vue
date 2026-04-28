@@ -682,12 +682,31 @@ async function testConnection(repo: Repository) {
     await fetchRepositories()
   } catch (error: any) {
     console.error('Connection test failed:', error)
-    const errorMsg = error.response?.data?.detail || error.message || 'Unknown error'
+    // 处理后端返回的错误信息
+    const errorData = error.response?.data || {}
+    const errorMsg = errorData.message || errorData.detail || error.message || t('common.unknownError')
+    const errorCode = errorData.error_code || ''
+    
     connectionTestResult.value[repo.id] = {
       success: false,
       message: errorMsg
     }
-    appStore.error(`${t('repository.connectionTestFailed')}: ${errorMsg}`)
+    
+    // 根据错误代码显示不同的提示
+    let displayMsg = errorMsg
+    if (errorCode === 'NO_BOUND_NODE') {
+      displayMsg = t('repository.errors.noBoundNode')
+    } else if (errorCode === 'NODE_NOT_ACTIVE') {
+      displayMsg = t('repository.errors.nodeNotActive')
+    } else if (errorCode === 'MISSING_CONFIG') {
+      displayMsg = t('repository.errors.missingConfig')
+    } else if (errorCode === 'ENDPOINT_UNREACHABLE') {
+      displayMsg = t('repository.errors.endpointUnreachable')
+    } else if (errorCode === 'CONNECTION_TIMEOUT') {
+      displayMsg = t('repository.errors.connectionTimeout')
+    }
+    
+    appStore.error(`${t('repository.connectionTestFailed')}: ${displayMsg}`)
   } finally {
     testingConnection.value = null
   }

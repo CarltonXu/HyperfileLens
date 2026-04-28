@@ -707,6 +707,14 @@ export default {
       actions: 'Actions'
     },
 
+    testConnection: 'Test Connection',
+    testingConnection: 'Testing...',
+    connectionTestSuccess: 'Connection test successful',
+    connectionTestFailed: 'Connection test failed',
+    lastConnectionTest: 'Last Test',
+    connectionTestNever: 'Never tested',
+    connectionTestResult: 'Test Result',
+
     confirmDelete: 'Are you sure you want to delete this repository?'
   },
 

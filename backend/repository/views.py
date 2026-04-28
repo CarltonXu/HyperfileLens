@@ -145,55 +145,166 @@ class RepositoryViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def test_connection(self, request, pk=None):
         """
-        Test repository connection through bound Node.
+        Test repository connection.
         
-        This sends a test command to the bound Node to verify
-        connectivity to the storage backend.
+        For S3: Direct connection test using boto3.
+        For NAS/Local: Test through bound Node.
         """
         repo = self.get_object()
         
+        # S3 类型：直接测试连接，不需要绑定 Node
+        if repo.repo_type == Repository.TYPE_S3:
+            return self._test_s3_connection(repo)
+        
+        # NAS/Local 类型：需要绑定 Node
         if not repo.bound_node:
             return Response({
                 'success': False,
-                'message': 'No bound node configured. Please bind a node first.'
+                'message': 'No bound node configured. Please bind a Sync Proxy first.',
+                'error_code': 'NO_BOUND_NODE'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         if repo.bound_node.status != Node.NodeStatus.ACTIVE:
             return Response({
                 'success': False,
-                'message': f'Bound node is {repo.bound_node.get_status_display()}. Node must be active.'
+                'message': f'Bound node is {repo.bound_node.get_status_display()}. Node must be active.',
+                'error_code': 'NODE_NOT_ACTIVE'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # In production, this would send a WebSocket command to the Node
-        # to test the connection. For now, we simulate the response.
+        # TODO: 通过 WebSocket 向 Node 发送测试命令
+        # 目前模拟测试结果
+        return self._test_node_connection(repo)
+    
+    def _test_s3_connection(self, repo):
+        """测试 S3 连接"""
+        config = repo.config or {}
+        credentials = repo.get_decrypted_credentials() or {}
+        
+        endpoint = config.get('endpoint', '')
+        bucket = config.get('bucket', '')
+        region = config.get('region', 'us-east-1')
+        use_ssl = config.get('use_ssl', True)
+        access_key = credentials.get('access_key', '')
+        secret_key = credentials.get('secret_key', '')
+        
+        if not all([endpoint, bucket, access_key, secret_key]):
+            return Response({
+                'success': False,
+                'message': 'Missing required S3 configuration. Please check endpoint, bucket, and credentials.',
+                'error_code': 'MISSING_CONFIG'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
-            # Simulate connection test
-            # TODO: Implement actual Node communication via WebSocket
+            s3_config = Config(
+                connect_timeout=5,
+                read_timeout=10,
+                retries={'max_attempts': 2}
+            )
             
-            # Update repository status
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=endpoint,
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                config=s3_config,
+                use_ssl=use_ssl,
+                verify=False  # 对于自签名证书
+            )
+            
+            # 测试 bucket 存在性
+            s3_client.head_bucket(Bucket=bucket)
+            
+            # 尝试列出对象（验证读取权限）
+            s3_client.list_objects_v2(Bucket=bucket, MaxKeys=1)
+            
+            # 更新仓库状态
             repo.last_connection_test = timezone.now()
             repo.connection_test_result = 'Connection successful'
             repo.status = Repository.STATUS_ACTIVE
             repo.save()
             
+            logger.info(f"S3 connection test successful for repository {repo.name}")
+            
             return Response({
                 'success': True,
                 'message': 'Connection test successful',
                 'details': {
-                    'node': repo.bound_node.name,
-                    'repo_type': repo.repo_type,
+                    'endpoint': endpoint,
+                    'bucket': bucket,
+                    'region': region,
                     'tested_at': repo.last_connection_test.isoformat()
                 }
             })
-        except Exception as e:
-            repo.status = Repository.STATUS_ERROR
-            repo.status_message = str(e)
-            repo.save()
             
+        except EndpointConnectionError as e:
+            error_msg = f'Cannot connect to endpoint: {endpoint}'
+            logger.warning(f"S3 connection failed for {repo.name}: {error_msg}")
             return Response({
                 'success': False,
-                'message': f'Connection test failed: {str(e)}'
+                'message': error_msg,
+                'error_code': 'ENDPOINT_UNREACHABLE',
+                'details': {'endpoint': endpoint}
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except ConnectTimeoutError:
+            error_msg = f'Connection timeout to endpoint: {endpoint}'
+            logger.warning(f"S3 connection timeout for {repo.name}")
+            return Response({
+                'success': False,
+                'message': error_msg,
+                'error_code': 'CONNECTION_TIMEOUT',
+                'details': {'endpoint': endpoint}
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_msg = str(e)
+            
+            if error_code == '403':
+                error_msg = 'Access denied. Please check your access key and secret key.'
+            elif error_code == '404':
+                error_msg = f'Bucket "{bucket}" not found.'
+            elif error_code == 'InvalidAccessKeyId':
+                error_msg = 'Invalid access key ID.'
+            elif error_code == 'SignatureDoesNotMatch':
+                error_msg = 'Invalid secret key. Signature does not match.'
+            
+            logger.warning(f"S3 client error for {repo.name}: {error_code} - {error_msg}")
+            return Response({
+                'success': False,
+                'message': error_msg,
+                'error_code': f'S3_{error_code}',
+                'details': {'error_code': error_code}
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            error_msg = f'Unexpected error: {str(e)}'
+            logger.error(f"S3 connection test error for {repo.name}: {error_msg}", exc_info=True)
+            return Response({
+                'success': False,
+                'message': error_msg,
+                'error_code': 'UNKNOWN_ERROR'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _test_node_connection(self, repo):
+        """通过 Node 测试 NAS/Local 连接"""
+        # TODO: 实现通过 WebSocket 向 Node 发送测试命令
+        # 目前返回模拟结果
+        repo.last_connection_test = timezone.now()
+        repo.connection_test_result = 'Connection test successful (simulated)'
+        repo.status = Repository.STATUS_ACTIVE
+        repo.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Connection test successful (simulated)',
+            'details': {
+                'node': repo.bound_node.name,
+                'repo_type': repo.repo_type,
+                'tested_at': repo.last_connection_test.isoformat()
+            }
+        })
     
     @action(detail=True, methods=['post'])
     def initialize(self, request, pk=None):
