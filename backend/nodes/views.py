@@ -685,8 +685,8 @@ logging:
         cpu_usage_data = []
         memory_usage_data = []
         disk_usage_data = []
-        network_io_data = []  # {timestamp, interfaces: [{name, bytes_in, bytes_out, packets_in, packets_out, drop_in, errs_in}]}
-        disk_io_data = []  # {timestamp, disks: [{name, read_bytes, write_bytes, read_count, write_count, utilization, await}]}
+        network_io_data = []  # {timestamp, interface, bytes_in, bytes_out, packets_in, packets_out, drop_in, errs_in}
+        disk_io_data = []  # {timestamp, disk, read_bytes, write_bytes, read_count, write_count, utilization, await}
         
         for h in reversed(chart_heartbeats):
             timestamp = h.timestamp.isoformat()
@@ -696,15 +696,39 @@ logging:
             
             # Extract network and disk IO data from metadata
             metadata = h.metadata or {}
-            if 'network_interfaces' in metadata:
+            
+            # Flatten network interfaces - each interface as a separate record
+            for ni in metadata.get('network_interfaces', []):
                 network_io_data.append({
                     'timestamp': timestamp,
-                    'interfaces': metadata['network_interfaces']
+                    'interface': ni.get('name'),
+                    'rx_bytes': ni.get('bytes_in', 0),
+                    'tx_bytes': ni.get('bytes_out', 0),
+                    'rx_packets': ni.get('packets_in', 0),
+                    'tx_packets': ni.get('packets_out', 0),
+                    'rx_drop': ni.get('drop_in', 0),
+                    'tx_drop': ni.get('drop_out', 0),
+                    'rx_errs': ni.get('errs_in', 0),
+                    'tx_errs': ni.get('errs_out', 0),
                 })
-            if 'disk_io_stats' in metadata:
+            
+            # Flatten disk IO stats - each disk as a separate record
+            for disk in metadata.get('disk_io_stats', []):
                 disk_io_data.append({
                     'timestamp': timestamp,
-                    'disks': metadata['disk_io_stats']
+                    'disk': disk.get('name'),
+                    'read_bytes': disk.get('read_bytes', 0),
+                    'write_bytes': disk.get('write_bytes', 0),
+                    'read_count': disk.get('read_count', 0),
+                    'write_count': disk.get('write_count', 0),
+                    'utilization': disk.get('utilization', 0),
+                    'await': disk.get('await', 0),
+                    'io_time_ms': disk.get('io_time_ms', 0),
+                    # Calculate IOPS and throughput rates
+                    'r_s': disk.get('read_count', 0),
+                    'w_s': disk.get('write_count', 0),
+                    'rkB_s': disk.get('read_bytes', 0) / 1024,
+                    'wkB_s': disk.get('write_bytes', 0) / 1024,
                 })
 
         # Calculate uptime from registered_at
@@ -779,6 +803,9 @@ logging:
     @action(detail=True, methods=['post'], permission_classes=[AllowAny])
     def heartbeat(self, request, pk=None):
         """Receive heartbeat from a specific proxy."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
             proxy = ProxyNode.objects.get(id=pk)
         except ProxyNode.DoesNotExist:
@@ -786,6 +813,11 @@ logging:
                 {'error': 'Proxy not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        
+        # Debug logging
+        logger.info(f"[Heartbeat] Received data keys: {list(request.data.keys())}")
+        logger.info(f"[Heartbeat] network_interfaces: {request.data.get('network_interfaces', 'NOT FOUND')}")
+        logger.info(f"[Heartbeat] disk_io_stats: {request.data.get('disk_io_stats', 'NOT FOUND')}")
 
         # Validate API token
         api_token = request.data.get('api_token')
@@ -1030,7 +1062,13 @@ class ProxyHeartbeatView(APIView):
             'capabilities': data.get('capabilities', {}),
         })
 
-        # Create heartbeat record
+        # Create heartbeat record with network and disk IO data in metadata
+        heartbeat_metadata = data.get('metadata', {})
+        if data.get('network_interfaces'):
+            heartbeat_metadata['network_interfaces'] = data.get('network_interfaces')
+        if data.get('disk_io_stats'):
+            heartbeat_metadata['disk_io_stats'] = data.get('disk_io_stats')
+
         ProxyHeartbeat.objects.create(
             proxy=proxy,
             cpu_usage=data.get('cpu_usage'),
@@ -1041,7 +1079,7 @@ class ProxyHeartbeatView(APIView):
             active_tasks=data.get('active_tasks', 0),
             completed_tasks=data.get('completed_tasks', 0),
             failed_tasks=data.get('failed_tasks', 0),
-            metadata=data.get('metadata', {})
+            metadata=heartbeat_metadata
         )
 
         return Response({

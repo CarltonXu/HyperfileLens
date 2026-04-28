@@ -70,8 +70,8 @@ type HeartbeatPayload struct {
 	DiskFree         int64 `json:"disk_free,omitempty"`
 	NetworkBytesSent int64 `json:"network_bytes_sent,omitempty"`
 	NetworkBytesRecv int64 `json:"network_bytes_recv,omitempty"`
-	NetworkInterfaces []monitor.NetworkInterfaceInfo `json:"network_interfaces,omitempty"`
-	DiskIOStats       []monitor.DiskIOStats          `json:"disk_io_stats,omitempty"`
+	NetworkInterfaces []monitor.NetworkInterfaceInfo `json:"network_interfaces"`
+	DiskIOStats       []monitor.DiskIOStats          `json:"disk_io_stats"`
 
 	// Task stats
 	ActiveTasks     int `json:"active_tasks,omitempty"`
@@ -232,13 +232,14 @@ func (c *Client) Heartbeat() error {
 			payload.NetworkBytesRecv = int64(metrics.NetworkBytesRecv)
 		}
 
-		// Add network interfaces
-		payload.NetworkInterfaces = monitor.GetNetworkInterfaces()
 
-		// Add disk I/O stats
-		payload.DiskIOStats = monitor.GetDiskIOStats()
+	// Add network interfaces
+	payload.NetworkInterfaces = monitor.GetNetworkInterfaces()
 
-		body, _ := json.Marshal(payload)
+	// Add disk I/O stats
+	payload.DiskIOStats = monitor.GetDiskIOStats()
+
+	body, _ := json.Marshal(payload)
 
 	req, _ := http.NewRequest("POST",
 		fmt.Sprintf("%s/proxies/heartbeat/", c.apiURL),
