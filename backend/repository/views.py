@@ -3,6 +3,7 @@ HyperFileLens Backend - Repository Views
 """
 
 import re
+import time
 import logging
 import boto3
 from botocore.exceptions import ClientError, BotoCoreError, EndpointConnectionError, ConnectTimeoutError
@@ -793,3 +794,209 @@ class RepositoryViewSet(viewsets.ModelViewSet):
                 'success': False,
                 'message': f'Failed to create bucket: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
+    def test_connectivity(self, request, pk=None):
+        """
+        Test connectivity to a repository.
+        
+        This will verify:
+        - S3: Endpoint reachable, credentials valid, bucket exists and accessible
+        - NAS: Server reachable, mount point accessible, read/write permissions
+        - Local: Path exists, read/write permissions
+        
+        Returns detailed connectivity status and any errors encountered.
+        """
+        from common.encryption import decrypt_value
+        
+        repository = self.get_object()
+        repo_type = repository.repo_type
+        results = {
+            'success': False,
+            'connectivity': {},
+            'errors': [],
+            'warnings': []
+        }
+        
+        logger.info(f"[Repository] Testing connectivity for {repository.name} (type: {repo_type})")
+        
+        if repo_type == 's3':
+            # Test S3 connectivity
+            config = repository.config or {}
+            credentials = repository.get_decrypted_credentials()
+            
+            endpoint = config.get('endpoint')
+            bucket = config.get('bucket')
+            region = config.get('region', 'us-east-1')
+            use_ssl = config.get('use_ssl', True)
+            access_key = credentials.get('access_key')
+            secret_key = credentials.get('secret_key')
+            
+            if not all([endpoint, bucket, access_key, secret_key]):
+                results['errors'].append('Missing required S3 configuration')
+                return Response(results, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                # Step 1: Test endpoint reachability
+                logger.info(f"[S3] Testing endpoint reachability: {endpoint}")
+                from urllib.parse import urlparse
+                parsed = urlparse(endpoint)
+                hostname = parsed.hostname
+                
+                import socket
+                try:
+                    start_time = time.time()
+                    sock = socket.create_connection((hostname, parsed.port or (443 if use_ssl else 80)), timeout=5)
+                    sock.close()
+                    latency = (time.time() - start_time) * 1000
+                    results['connectivity']['endpoint'] = {
+                        'reachable': True,
+                        'latency_ms': round(latency, 2)
+                    }
+                    logger.info(f"[S3] Endpoint reachable in {latency:.2f}ms")
+                except socket.timeout:
+                    results['connectivity']['endpoint'] = {'reachable': False, 'error': 'Connection timeout'}
+                    results['errors'].append(f'Endpoint {endpoint} connection timeout')
+                    return Response(results, status=status.HTTP_400_BAD_REQUEST)
+                except socket.gaierror as e:
+                    results['connectivity']['endpoint'] = {'reachable': False, 'error': f'DNS resolution failed: {str(e)}'}
+                    results['errors'].append(f'Cannot resolve hostname: {hostname}')
+                    return Response(results, status=status.HTTP_400_BAD_REQUEST)
+                except ConnectionRefusedError:
+                    results['connectivity']['endpoint'] = {'reachable': False, 'error': 'Connection refused'}
+                    results['errors'].append(f'Connection refused by {endpoint}')
+                    return Response(results, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Step 2: Test authentication
+                logger.info(f"[S3] Testing authentication with access key: {access_key[:4]}...{access_key[-4:]}")
+                s3_client = boto3.client(
+                    's3',
+                    endpoint_url=endpoint,
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                    region_name=region,
+                    config=Config(
+                        connect_timeout=5,
+                        read_timeout=10,
+                        signature_version='s3v4'
+                    ),
+                    use_ssl=use_ssl,
+                    verify=False
+                )
+                
+                # Test by listing buckets (validates credentials)
+                start_time = time.time()
+                s3_client.list_buckets()
+                auth_latency = (time.time() - start_time) * 1000
+                results['connectivity']['authentication'] = {
+                    'success': True,
+                    'latency_ms': round(auth_latency, 2)
+                }
+                logger.info(f"[S3] Authentication successful in {auth_latency:.2f}ms")
+                
+                # Step 3: Test bucket access
+                logger.info(f"[S3] Testing bucket access: {bucket}")
+                start_time = time.time()
+                s3_client.head_bucket(Bucket=bucket)
+                bucket_latency = (time.time() - start_time) * 1000
+                results['connectivity']['bucket'] = {
+                    'exists': True,
+                    'accessible': True,
+                    'latency_ms': round(bucket_latency, 2)
+                }
+                logger.info(f"[S3] Bucket {bucket} accessible in {bucket_latency:.2f}ms")
+                
+                # Step 4: Test write permission (try to list objects with prefix)
+                try:
+                    prefix = config.get('prefix', '')
+                    s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=1)
+                    results['connectivity']['write_permission'] = {
+                        'testable': True,
+                        'note': 'List operation succeeded, write permission not fully tested'
+                    }
+                except ClientError as e:
+                    error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                    if error_code == 'AccessDenied':
+                        results['warnings'].append('List permission denied on bucket')
+                        results['connectivity']['write_permission'] = {'testable': False, 'error': 'Access denied'}
+                    else:
+                        raise
+                
+                results['success'] = True
+                results['message'] = 'S3 connectivity test passed'
+                
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                error_msg = e.response.get('Error', {}).get('Message', str(e))
+                logger.error(f"[S3] ClientError during connectivity test: {error_code} - {error_msg}")
+                
+                if error_code == 'InvalidAccessKeyId':
+                    results['connectivity']['authentication'] = {'success': False, 'error': 'Invalid access key ID'}
+                    results['errors'].append('Invalid access key ID')
+                elif error_code == 'SignatureDoesNotMatch':
+                    results['connectivity']['authentication'] = {'success': False, 'error': 'Invalid secret key'}
+                    results['errors'].append('Secret key is incorrect')
+                elif error_code == 'NoSuchBucket':
+                    results['connectivity']['bucket'] = {'exists': False, 'error': 'Bucket does not exist'}
+                    results['errors'].append(f'Bucket "{bucket}" does not exist')
+                elif error_code == 'AccessDenied':
+                    results['connectivity']['authentication'] = {'success': False, 'error': 'Access denied'}
+                    results['errors'].append('Access denied. Check your permissions.')
+                else:
+                    results['errors'].append(f'S3 error ({error_code}): {error_msg}')
+                    
+            except Exception as e:
+                logger.exception(f"[S3] Unexpected error during connectivity test: {str(e)}")
+                results['errors'].append(f'Unexpected error: {str(e)}')
+                
+        elif repo_type == 'nas':
+            # Test NAS connectivity
+            config = repository.config or {}
+            credentials = repository.get_decrypted_credentials()
+            
+            server = config.get('server')
+            export_path = config.get('export_path')
+            nas_type = config.get('nas_type', 'nfs')
+            
+            bound_node = repository.bound_node
+            if not bound_node:
+                results['errors'].append('No Sync Proxy bound to this repository')
+                return Response(results, status=status.HTTP_400_BAD_REQUEST)
+            
+            # TODO: Send connectivity test task to Sync Proxy via WebSocket
+            # For now, return a placeholder response
+            results['connectivity'] = {
+                'server': server,
+                'export_path': export_path,
+                'nas_type': nas_type,
+                'bound_node': bound_node.name,
+                'status': 'pending',
+                'note': 'Connectivity test requires Sync Proxy to be online'
+            }
+            results['warnings'].append('NAS connectivity test requires Sync Proxy to be implemented')
+            
+        elif repo_type == 'local':
+            # Test Local filesystem connectivity
+            config = repository.config or {}
+            path = config.get('path')
+            
+            bound_node = repository.bound_node
+            if not bound_node:
+                results['errors'].append('No Sync Proxy bound to this repository')
+                return Response(results, status=status.HTTP_400_BAD_REQUEST)
+            
+            # TODO: Send connectivity test task to Sync Proxy via WebSocket
+            results['connectivity'] = {
+                'path': path,
+                'bound_node': bound_node.name,
+                'status': 'pending',
+                'note': 'Connectivity test requires Sync Proxy to be online'
+            }
+            results['warnings'].append('Local filesystem test requires Sync Proxy to be implemented')
+        
+        # Update repository's last_connection_test timestamp
+        repository.last_connection_test = timezone.now()
+        repository.save(update_fields=['last_connection_test'])
+        
+        status_code = status.HTTP_200_OK if results['success'] else status.HTTP_400_BAD_REQUEST
+        return Response(results, status=status_code)

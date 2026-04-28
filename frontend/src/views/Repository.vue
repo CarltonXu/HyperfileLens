@@ -38,6 +38,12 @@ const typeFilter = ref('')
 const showCreateModal = ref(false)
 const showDetailModal = ref(false)
 const selectedRepo = ref<Repository | null>(null)
+const isEditMode = ref(false)
+const editingRepoId = ref<string | null>(null)
+
+// Connection test states
+const testingConnection = ref<string | null>(null)
+const connectionTestResult = ref<Record<string, { success: boolean; message: string }>>({})
 
 // View mode
 const viewMode = ref<'card' | 'list'>('card')
@@ -604,11 +610,16 @@ async function createRepository() {
       }
     }
 
-    await repositoriesApi.create(payload)
+    if (isEditMode.value && editingRepoId.value) {
+      await repositoriesApi.update(editingRepoId.value, payload)
+      appStore.success(t('repository.updateSuccess'))
+    } else {
+      await repositoriesApi.create(payload)
+      appStore.success(t('repository.createSuccess'))
+    }
     showCreateModal.value = false
     resetForm()
     await fetchRepositories()
-    appStore.success(t('repository.createSuccess'))
   } catch (error: any) {
     console.error('Failed to create repository:', error)
     // Handle backend validation errors
@@ -641,29 +652,58 @@ async function deleteRepository(repo: Repository) {
   try {
     await repositoriesApi.delete(repo.id)
     await fetchRepositories()
+    appStore.success(t('repository.deleteSuccess'))
   } catch (error) {
     console.error('Failed to delete repository:', error)
+    appStore.error(t('repository.deleteFailed'))
   }
 }
 
 async function testConnection(repo: Repository) {
+  testingConnection.value = repo.id
+  connectionTestResult.value[repo.id] = { success: false, message: '' }
+  
   try {
-    await repositoriesApi.testConnection(repo.id)
-    alert(t('common.connectionSuccess'))
-  } catch (error) {
+    const response = await repositoriesApi.testConnection(repo.id)
+    const result = response.data
+    
+    connectionTestResult.value[repo.id] = {
+      success: result.success,
+      message: result.message
+    }
+    
+    if (result.success) {
+      appStore.success(t('repository.connectionTestSuccess'))
+    } else {
+      appStore.error(`${t('repository.connectionTestFailed')}: ${result.message}`)
+    }
+    
+    // Refresh repository data
+    await fetchRepositories()
+  } catch (error: any) {
     console.error('Connection test failed:', error)
-    alert(t('common.connectionFailed'))
+    const errorMsg = error.response?.data?.detail || error.message || 'Unknown error'
+    connectionTestResult.value[repo.id] = {
+      success: false,
+      message: errorMsg
+    }
+    appStore.error(`${t('repository.connectionTestFailed')}: ${errorMsg}`)
+  } finally {
+    testingConnection.value = null
   }
 }
 
 async function initKopia(repo: Repository) {
+  if (!confirm(t('repository.confirmInitKopia'))) return
+  
   try {
     await repositoriesApi.initKopia(repo.id)
-    alert(t('repository.kopiaInitialized'))
+    appStore.success(t('repository.kopiaInitialized'))
     await fetchRepositories()
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to initialize Kopia:', error)
-    alert(t('common.operationFailed'))
+    const errorMsg = error.response?.data?.detail || error.message
+    appStore.error(`${t('repository.kopiaInitFailed')}: ${errorMsg}`)
   }
 }
 
@@ -699,6 +739,49 @@ function resetForm() {
   selectedProxy.value = null
   proxyDirectories.value = []
   currentPath.value = ''
+  isEditMode.value = false
+  editingRepoId.value = null
+}
+
+// 编辑仓库
+function openEditModal(repo: Repository) {
+  isEditMode.value = true
+  editingRepoId.value = repo.id
+  
+  // 填充基本信息
+  newRepo.value.name = repo.name
+  newRepo.value.description = repo.description || ''
+  newRepo.value.repo_type = (repo.repo_type === 'nfs' ? 'nas' : repo.repo_type) as 's3' | 'nas' | 'local'
+  newRepo.value.bound_node = repo.bound_node ?? null
+  
+  // 根据类型填充配置
+  if (repo.repo_type === 's3' && repo.config) {
+    newRepo.value.s3_config = {
+      endpoint: repo.config.endpoint || '',
+      bucket: repo.config.bucket || '',
+      region: repo.config.region || '',
+      prefix: repo.config.prefix || '',
+      access_key: repo.credentials_masked?.access_key || '',
+      secret_key: '', // 密钥不回显，需要用户重新输入
+      use_ssl: repo.config.use_ssl !== false,
+      bucket_mode: 'existing' as 'existing' | 'new'
+    }
+  } else if ((repo.repo_type === 'nas' || repo.repo_type === 'nfs') && repo.config) {
+    newRepo.value.nas_config = {
+      server: repo.config.server || '',
+      export_path: repo.config.export_path || '',
+      mount_type: repo.config.nas_type || 'nfs',
+      mount_options: repo.config.mount_options || '',
+      username: repo.credentials_masked?.username || '',
+      password: '' // 密码不回显
+    }
+  } else if (repo.repo_type === 'local' && repo.config) {
+    newRepo.value.local_config = {
+      path: repo.config.path || ''
+    }
+  }
+  
+  showCreateModal.value = true
 }
 
 function formatBytes(bytes: number): string {
@@ -971,12 +1054,28 @@ onMounted(() => {
               <PlayIcon class="w-4 h-4" />
             </button>
             <button
-              v-if="repo.bound_node"
               @click="testConnection(repo)"
-              class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              :title="t('sourceResources.testConnection')"
+              :disabled="testingConnection === repo.id"
+              :class="[
+                'p-1.5 rounded-lg transition-colors',
+                testingConnection === repo.id 
+                  ? 'text-slate-300 cursor-wait' 
+                  : connectionTestResult[repo.id]?.success 
+                    ? 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50' 
+                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+              ]"
+              :title="testingConnection === repo.id ? t('repository.testing') : t('repository.testConnection')"
             >
-              <LinkIcon class="w-4 h-4" />
+              <SignalIcon v-if="testingConnection === repo.id" class="w-4 h-4 animate-pulse" />
+              <CheckCircleIcon v-else-if="connectionTestResult[repo.id]?.success" class="w-4 h-4" />
+              <LinkIcon v-else class="w-4 h-4" />
+            </button>
+            <button
+              @click="openEditModal(repo)"
+              class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              :title="t('common.edit')"
+            >
+              <PencilIcon class="w-4 h-4" />
             </button>
             <button
               @click="selectedRepo = repo; showDetailModal = true"
@@ -1113,6 +1212,30 @@ onMounted(() => {
                       :title="t('repository.initKopia')"
                     >
                       <PlayIcon class="w-4 h-4" />
+                    </button>
+                    <button
+                      @click="testConnection(repo)"
+                      :disabled="testingConnection === repo.id"
+                      :class="[
+                        'p-1.5 rounded-lg transition-colors',
+                        testingConnection === repo.id 
+                          ? 'text-slate-300 cursor-wait' 
+                          : connectionTestResult[repo.id]?.success 
+                            ? 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50' 
+                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                      ]"
+                      :title="testingConnection === repo.id ? t('repository.testing') : t('repository.testConnection')"
+                    >
+                      <SignalIcon v-if="testingConnection === repo.id" class="w-4 h-4 animate-pulse" />
+                      <CheckCircleIcon v-else-if="connectionTestResult[repo.id]?.success" class="w-4 h-4" />
+                      <LinkIcon v-else class="w-4 h-4" />
+                    </button>
+                    <button
+                      @click="openEditModal(repo)"
+                      class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      :title="t('common.edit')"
+                    >
+                      <PencilIcon class="w-4 h-4" />
                     </button>
                     <button
                       @click="selectedRepo = repo; showDetailModal = true"

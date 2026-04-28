@@ -707,7 +707,18 @@ export default {
       actions: '操作'
     },
 
-    confirmDelete: '确定要删除此仓库吗？'
+    confirmDelete: '确定要删除此仓库吗？',
+    updateSuccess: '仓库更新成功',
+    updateFailed: '仓库更新失败',
+    configInfo: '配置信息',
+    initialized: '已初始化',
+    edit: '编辑',
+    testConnection: '测试连通性',
+    testingConnection: '正在测试连通性...',
+    connectionSuccess: '连通性测试成功',
+    connectionFailed: '连通性测试失败',
+    bucketExists: 'Bucket 存在且可访问',
+    bucketNotExists: 'Bucket 不存在或无权限访问'
   },
 
   // Source Resources
@@ -759,29 +770,7 @@ export default {
       username: '用户名',
       password: '密码',
       path: '路径'
-    },
-
-    list: {
-      name: '名称',
-      type: '类型',
-      status: '状态',
-      connection: '连接信息',
-      boundNode: '绑定节点',
-      capacity: '容量',
-      kopia: 'Kopia',
-      actions: '操作'
-    },
-
-    viewModes: {
-      card: '卡片视图',
-      list: '列表视图'
-    },
-
-    createSuccess: '仓库创建成功',
-    createFailed: '仓库创建失败',
-    confirmDelete: '确定要删除此仓库吗？',
-    configInfo: '配置信息',
-    initialized: '已初始化'
+    }
   },
 
   // Policies
