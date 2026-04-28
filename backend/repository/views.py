@@ -151,6 +151,10 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         For NAS/Local: Test through bound Node.
         """
         repo = self.get_object()
+        logger.info(
+            f"[Connection Test] Starting connection test for repository '{repo.name}' "
+            f"(ID: {repo.id}, Type: {repo.repo_type})"
+        )
         
         # S3 类型：直接测试连接，不需要绑定 Node
         if repo.repo_type == Repository.TYPE_S3:
@@ -158,6 +162,9 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         
         # NAS/Local 类型：需要绑定 Node
         if not repo.bound_node:
+            logger.warning(
+                f"[Connection Test] FAILED for '{repo.name}': No bound node configured for NAS/Local repository"
+            )
             return Response({
                 'success': False,
                 'message': 'No bound node configured. Please bind a Sync Proxy first.',
@@ -165,6 +172,10 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         if repo.bound_node.status != Node.NodeStatus.ACTIVE:
+            logger.warning(
+                f"[Connection Test] FAILED for '{repo.name}': Bound node '{repo.bound_node.name}' "
+                f"is not active (status: {repo.bound_node.get_status_display()})"
+            )
             return Response({
                 'success': False,
                 'message': f'Bound node is {repo.bound_node.get_status_display()}. Node must be active.',
@@ -187,14 +198,36 @@ class RepositoryViewSet(viewsets.ModelViewSet):
         access_key = credentials.get('access_key', '')
         secret_key = credentials.get('secret_key', '')
         
+        # 记录测试开始（脱敏敏感信息）
+        masked_key = access_key[:4] + '****' + access_key[-4:] if len(access_key) > 8 else '****'
+        logger.info(
+            f"[S3 Connection Test] Starting test for repository '{repo.name}' (ID: {repo.id}): "
+            f"endpoint={endpoint}, bucket={bucket}, region={region}, "
+            f"use_ssl={use_ssl}, access_key={masked_key}"
+        )
+        
         if not all([endpoint, bucket, access_key, secret_key]):
+            missing = []
+            if not endpoint:
+                missing.append('endpoint')
+            if not bucket:
+                missing.append('bucket')
+            if not access_key:
+                missing.append('access_key')
+            if not secret_key:
+                missing.append('secret_key')
+            logger.warning(
+                f"[S3 Connection Test] Missing required configuration for '{repo.name}': {', '.join(missing)}"
+            )
             return Response({
                 'success': False,
-                'message': 'Missing required S3 configuration. Please check endpoint, bucket, and credentials.',
-                'error_code': 'MISSING_CONFIG'
+                'message': f'Missing required S3 configuration: {", ".join(missing)}',
+                'error_code': 'MISSING_CONFIG',
+                'details': {'missing_fields': missing}
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            logger.info(f"[S3 Connection Test] Creating S3 client for '{repo.name}'...")
             s3_config = Config(
                 connect_timeout=5,
                 read_timeout=10,
@@ -213,10 +246,14 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             )
             
             # 测试 bucket 存在性
+            logger.info(f"[S3 Connection Test] Testing bucket existence: '{bucket}'...")
             s3_client.head_bucket(Bucket=bucket)
+            logger.info(f"[S3 Connection Test] Bucket '{bucket}' exists and is accessible")
             
             # 尝试列出对象（验证读取权限）
+            logger.info(f"[S3 Connection Test] Testing list objects permission on '{bucket}'...")
             s3_client.list_objects_v2(Bucket=bucket, MaxKeys=1)
+            logger.info(f"[S3 Connection Test] List objects permission verified for '{bucket}'")
             
             # 更新仓库状态
             repo.last_connection_test = timezone.now()
@@ -224,7 +261,10 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             repo.status = Repository.STATUS_ACTIVE
             repo.save()
             
-            logger.info(f"S3 connection test successful for repository {repo.name}")
+            logger.info(
+                f"[S3 Connection Test] SUCCESS for repository '{repo.name}': "
+                f"endpoint={endpoint}, bucket={bucket}"
+            )
             
             return Response({
                 'success': True,
@@ -239,48 +279,71 @@ class RepositoryViewSet(viewsets.ModelViewSet):
             
         except EndpointConnectionError as e:
             error_msg = f'Cannot connect to endpoint: {endpoint}'
-            logger.warning(f"S3 connection failed for {repo.name}: {error_msg}")
+            logger.warning(
+                f"[S3 Connection Test] FAILED for '{repo.name}': Endpoint unreachable - {endpoint}. "
+                f"Error: {str(e)}"
+            )
             return Response({
                 'success': False,
                 'message': error_msg,
                 'error_code': 'ENDPOINT_UNREACHABLE',
-                'details': {'endpoint': endpoint}
+                'details': {'endpoint': endpoint, 'error': str(e)}
             }, status=status.HTTP_400_BAD_REQUEST)
             
-        except ConnectTimeoutError:
+        except ConnectTimeoutError as e:
             error_msg = f'Connection timeout to endpoint: {endpoint}'
-            logger.warning(f"S3 connection timeout for {repo.name}")
+            logger.warning(
+                f"[S3 Connection Test] FAILED for '{repo.name}': Connection timeout - {endpoint}. "
+                f"Timeout: 5s"
+            )
             return Response({
                 'success': False,
                 'message': error_msg,
                 'error_code': 'CONNECTION_TIMEOUT',
-                'details': {'endpoint': endpoint}
+                'details': {'endpoint': endpoint, 'timeout': '5s'}
             }, status=status.HTTP_400_BAD_REQUEST)
             
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            http_status = e.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 'Unknown')
             error_msg = str(e)
             
             if error_code == '403':
                 error_msg = 'Access denied. Please check your access key and secret key.'
             elif error_code == '404':
-                error_msg = f'Bucket "{bucket}" not found.'
+                error_msg = f'Bucket "{bucket}" not found. Please verify the bucket name and ensure it exists in the specified region ({region}).'
             elif error_code == 'InvalidAccessKeyId':
-                error_msg = 'Invalid access key ID.'
+                error_msg = 'Invalid access key ID. Please verify your access key.'
             elif error_code == 'SignatureDoesNotMatch':
-                error_msg = 'Invalid secret key. Signature does not match.'
+                error_msg = 'Invalid secret key. Signature does not match. Please verify your secret key.'
+            elif error_code == 'NoSuchBucket':
+                error_msg = f'Bucket "{bucket}" does not exist in region "{region}".'
             
-            logger.warning(f"S3 client error for {repo.name}: {error_code} - {error_msg}")
+            logger.warning(
+                f"[S3 Connection Test] FAILED for '{repo.name}': "
+                f"Client error - code={error_code}, http_status={http_status}, "
+                f"endpoint={endpoint}, bucket={bucket}, region={region}. "
+                f"Message: {error_msg}"
+            )
             return Response({
                 'success': False,
                 'message': error_msg,
                 'error_code': f'S3_{error_code}',
-                'details': {'error_code': error_code}
+                'details': {
+                    'error_code': error_code,
+                    'http_status': http_status,
+                    'endpoint': endpoint,
+                    'bucket': bucket,
+                    'region': region
+                }
             }, status=status.HTTP_400_BAD_REQUEST)
             
         except Exception as e:
             error_msg = f'Unexpected error: {str(e)}'
-            logger.error(f"S3 connection test error for {repo.name}: {error_msg}", exc_info=True)
+            logger.error(
+                f"[S3 Connection Test] FAILED for '{repo.name}': Unexpected error - {str(e)}",
+                exc_info=True
+            )
             return Response({
                 'success': False,
                 'message': error_msg,
@@ -289,12 +352,24 @@ class RepositoryViewSet(viewsets.ModelViewSet):
     
     def _test_node_connection(self, repo):
         """通过 Node 测试 NAS/Local 连接"""
+        logger.info(
+            f"[Node Connection Test] Starting test for repository '{repo.name}' "
+            f"(ID: {repo.id}, Type: {repo.repo_type}, Bound Node: {repo.bound_node.name if repo.bound_node else 'None'})"
+        )
         # TODO: 实现通过 WebSocket 向 Node 发送测试命令
         # 目前返回模拟结果
+        logger.info(
+            f"[Node Connection Test] Simulated test for '{repo.name}' - "
+            f"actual WebSocket test not yet implemented"
+        )
         repo.last_connection_test = timezone.now()
         repo.connection_test_result = 'Connection test successful (simulated)'
         repo.status = Repository.STATUS_ACTIVE
         repo.save()
+        
+        logger.info(
+            f"[Node Connection Test] SUCCESS (simulated) for repository '{repo.name}'"
+        )
         
         return Response({
             'success': True,
