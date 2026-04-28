@@ -258,7 +258,7 @@ func (c *Client) Unregister() error {
 	}
 
 	req, _ := http.NewRequest("DELETE",
-		fmt.Sprintf("%s/nodes/%s/", c.apiURL, c.nodeID), nil)
+		fmt.Sprintf("%s/proxies/%s/", c.apiURL, c.nodeID), nil)
 
 	if c.config.Server.APIToken != "" {
 		req.Header.Set("Authorization", "Token "+c.config.Server.APIToken)
