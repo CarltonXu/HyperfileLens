@@ -89,6 +89,12 @@ func (d *Dispatcher) HandleMessage(msg ws.Message) {
 		go d.cancelTask(msg)
 	case "ping":
 		d.wsClient.Send(ws.Message{Type: "pong", ID: msg.ID})
+	case "connection_established":
+		// Server confirmed WebSocket connection
+		fmt.Println("[INFO] WebSocket connection confirmed by server")
+	case "register_ack":
+		// Server acknowledged proxy registration
+		fmt.Println("[INFO] Proxy registration acknowledged by server")
 	default:
 		fmt.Printf("[WARN] Unknown task type: %s\n", msg.Type)
 	}
