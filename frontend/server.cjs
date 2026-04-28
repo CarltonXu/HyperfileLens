@@ -116,6 +116,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Proxy static files (downloads) to backend
+  if (req.url.startsWith('/static/')) {
+    proxyRequest(req, res);
+    return;
+  }
+
   // Handle static files
   let urlPath = req.url.split('?')[0];
   
