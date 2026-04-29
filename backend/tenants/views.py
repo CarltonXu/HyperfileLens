@@ -149,7 +149,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         serializer = TenantInvitationSerializer(invitations, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
     def users(self, request, pk=None):
         """List users in a tenant."""
         tenant = self.get_object()
@@ -173,7 +172,6 @@ class TenantViewSet(viewsets.ModelViewSet):
             'current_page': page,
         })
 
-    @action(detail=True, methods=['post'])
     def add_user(self, request, pk=None):
         """Add an existing user to a tenant (super admin only)."""
         if not request.user.is_superuser:
@@ -209,7 +207,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         from accounts.serializers import UserProfileSerializer
         return Response(UserProfileSerializer(user).data)
 
-    @action(detail=True, methods=['patch'], url_path='users/(?P<user_id>[^/.]+)')
     def update_user(self, request, pk=None, user_id=None):
         """Update a user's role and permissions in a tenant (super admin only)."""
         if not request.user.is_superuser:
@@ -239,7 +236,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         from accounts.serializers import UserProfileSerializer
         return Response(UserProfileSerializer(user).data)
 
-    @action(detail=True, methods=['delete'], url_path='users/(?P<user_id>[^/.]+)')
     def remove_user(self, request, pk=None, user_id=None):
         """Remove a user from a tenant (super admin only)."""
         if not request.user.is_superuser:
