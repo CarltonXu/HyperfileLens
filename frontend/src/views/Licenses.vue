@@ -291,155 +291,135 @@
     </TransitionRoot>
 
     <!-- Detail Modal -->
-    <TransitionRoot appear :show="showDetailDrawer" as="template">
-      <Dialog as="div" class="relative z-10" @close="closeDetailDrawer">
-        <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0" enter-to="opacity-100" leave="duration-200 ease-in" leave-from="opacity-100" leave-to="opacity-0">
-          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-        </TransitionChild>
+    <Teleport to="body">
+      <div v-if="showDetailDrawer && detailLicense" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" @click="closeDetailDrawer" />
+        <div class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <!-- Header -->
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 z-10">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">
+              {{ detailLicense.licensee_name || detailLicense.license_key?.substring(0, 20) + '...' }}
+            </h2>
+            <button @click="closeDetailDrawer" class="p-1 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg">
+              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <!-- Content -->
+          <div class="p-6 space-y-6">
+            <!-- Status -->
+            <div class="flex items-center gap-4 p-4 rounded-lg" :class="getStatusBgClass(detailLicense.status)">
+              <component :is="getStatusIcon(detailLicense.status)" class="h-8 w-8" />
+              <div>
+                <p class="text-lg font-semibold" :class="getStatusTextClass(detailLicense.status)">
+                  {{ t(`licenses.${detailLicense.status}`) }}
+                </p>
+                <p v-if="detailLicense.status === 'active' && detailLicense.days_until_expiry !== undefined" class="text-sm text-gray-500">
+                  {{ t('licenses.daysRemaining', { n: detailLicense.days_until_expiry }) }}
+                </p>
+              </div>
+            </div>
 
-        <div class="fixed inset-0 z-10 overflow-y-auto">
-          <div class="flex min-h-full items-center justify-center p-4">
-            <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 scale-95" enter-to="opacity-100 scale-100" leave="duration-200 ease-in" leave-from="opacity-100 scale-100" leave-to="opacity-0 scale-95">
-              <DialogPanel class="w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl rounded-xl max-h-[90vh] overflow-y-auto">
-                <div class="p-6">
-                  <div class="flex items-center justify-between mb-6">
-                    <DialogTitle class="text-lg font-semibold text-gray-900 dark:text-white">
-                      {{ t('licenses.licenseName') }}: {{ detailLicense?.name }}
-                    </DialogTitle>
-                    <button type="button" class="rounded-md text-gray-400 hover:text-gray-500" @click="closeDetailDrawer">
-                      <XMarkIcon class="h-6 w-6" aria-hidden="true" />
-                    </button>
-                  </div>
-                  
-                  <div v-if="detailLicense" class="space-y-6">
-                    <!-- Status -->
-                    <div class="flex items-center gap-4 p-4 rounded-lg" :class="getStatusBgClass(detailLicense.status)">
-                      <component :is="getStatusIcon(detailLicense.status)" class="h-8 w-8" />
-                      <div>
-                        <p class="text-lg font-semibold" :class="getStatusTextClass(detailLicense.status)">
-                          {{ t(`licenses.${detailLicense.status}`) }}
-                        </p>
-                        <p v-if="detailLicense.status === 'valid' && detailLicense.days_remaining !== undefined" class="text-sm text-gray-500">
-                          {{ t('licenses.daysRemaining', { n: detailLicense.days_remaining }) }}
-                        </p>
-                      </div>
-                    </div>
+            <!-- License Info -->
+            <div class="bg-slate-50 dark:bg-gray-900 rounded-lg p-4 space-y-3">
+              <h4 class="font-medium text-slate-900 dark:text-white">{{ t('licenses.licenseKey') }}</h4>
+              <pre class="text-xs text-slate-600 dark:text-gray-400 whitespace-pre-wrap break-all bg-slate-100 dark:bg-gray-800 p-3 rounded">{{ detailLicense.license_key }}</pre>
+            </div>
 
-                    <!-- License Info -->
-                    <div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 space-y-3">
-                      <h4 class="font-medium text-gray-900 dark:text-white">{{ t('licenses.licenseKey') }}</h4>
-                      <pre class="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-all bg-gray-100 dark:bg-gray-800 p-3 rounded">{{ detailLicense.license_key }}</pre>
-                    </div>
+            <!-- Limits -->
+            <div class="grid grid-cols-2 gap-4">
+              <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                <p class="text-sm text-blue-600 dark:text-blue-400">{{ t('licenses.maxTenants') }}</p>
+                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ detailLicense.max_tenants || '∞' }}</p>
+              </div>
+              <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                <p class="text-sm text-green-600 dark:text-green-400">{{ t('licenses.maxUsers') }}</p>
+                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ detailLicense.max_users_per_tenant || '∞' }}</p>
+              </div>
+              <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                <p class="text-sm text-purple-600 dark:text-purple-400">{{ t('licenses.maxProxies') }}</p>
+                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ detailLicense.max_proxies_per_tenant || '∞' }}</p>
+              </div>
+              <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                <p class="text-sm text-orange-600 dark:text-orange-400">{{ t('licenses.maxStorageGb') }}</p>
+                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ detailLicense.max_storage_gb || '∞' }} GB</p>
+              </div>
+            </div>
 
-                    <!-- Limits -->
-                    <div class="grid grid-cols-2 gap-4">
-                      <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                        <p class="text-sm text-blue-600 dark:text-blue-400">{{ t('licenses.maxUsers') }}</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ detailLicense.max_users || '∞' }}</p>
-                      </div>
-                      <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                        <p class="text-sm text-green-600 dark:text-green-400">{{ t('licenses.maxProxies') }}</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ detailLicense.max_proxies || '∞' }}</p>
-                      </div>
-                      <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                        <p class="text-sm text-purple-600 dark:text-purple-400">{{ t('licenses.maxRepositories') }}</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ detailLicense.max_repositories || '∞' }}</p>
-                      </div>
-                      <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
-                        <p class="text-sm text-orange-600 dark:text-orange-400">{{ t('licenses.maxStorageGb') }}</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ detailLicense.max_storage_gb || '∞' }} GB</p>
-                      </div>
-                    </div>
-
-                    <!-- Features -->
-                    <div v-if="detailLicense.features && (Array.isArray(detailLicense.features) ? detailLicense.features.length > 0 : Object.keys(detailLicense.features).length > 0)">
-                      <h4 class="font-medium text-gray-900 dark:text-white mb-3">{{ t('licenses.features') }}</h4>
-                      <div class="flex flex-wrap gap-2">
-                        <template v-if="Array.isArray(detailLicense.features)">
-                          <span v-for="feature in detailLicense.features" :key="feature" class="inline-flex items-center rounded-full bg-indigo-100 dark:bg-indigo-900 px-3 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
-                            {{ feature }}
-                          </span>
-                        </template>
-                        <template v-else>
-                          <span v-for="(enabled, feature) in detailLicense.features" :key="feature" class="inline-flex items-center rounded-full bg-indigo-100 dark:bg-indigo-900 px-3 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
-                            {{ feature }} {{ enabled ? '✓' : '✗' }}
-                          </span>
-                        </template>
-                      </div>
-                    </div>
-
-                    <!-- Dates -->
-                    <div class="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p class="text-gray-500 dark:text-gray-400">{{ t('licenses.issuedAt') }}</p>
-                        <p class="text-gray-900 dark:text-white">{{ detailLicense.issued_at ? formatDate(detailLicense.issued_at) : '-' }}</p>
-                      </div>
-                      <div>
-                        <p class="text-gray-500 dark:text-gray-400">{{ t('licenses.expiresAt') }}</p>
-                        <p class="text-gray-900 dark:text-white">{{ detailLicense.expires_at ? formatDate(detailLicense.expires_at) : t('common.unlimited') || 'Unlimited' }}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </DialogPanel>
-            </TransitionChild>
+            <!-- Dates -->
+            <div class="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p class="text-slate-500 dark:text-gray-400">{{ t('licenses.issuedAt') }}</p>
+                <p class="text-slate-900 dark:text-white">{{ detailLicense.starts_at ? formatDate(detailLicense.starts_at) : '-' }}</p>
+              </div>
+              <div>
+                <p class="text-slate-500 dark:text-gray-400">{{ t('licenses.expiresAt') }}</p>
+                <p class="text-slate-900 dark:text-white">{{ detailLicense.expires_at ? formatDate(detailLicense.expires_at) : t('common.unlimited') || 'Unlimited' }}</p>
+              </div>
+            </div>
           </div>
         </div>
-      </Dialog>
-    </TransitionRoot>
+      </div>
+    </Teleport>
 
     <!-- Import License Dialog -->
-    <TransitionRoot appear :show="showImportDialog" as="template">
-      <Dialog as="div" class="relative z-10" @close="showImportDialog = false">
-        <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0" enter-to="opacity-100" leave="duration-200 ease-in" leave-from="opacity-100" leave-to="opacity-0">
-          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-        </TransitionChild>
-
-        <div class="fixed inset-0 z-10 overflow-y-auto">
-          <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" enter-to="opacity-100 translate-y-0 sm:scale-100" leave="duration-200 ease-in" leave-from="opacity-100 translate-y-0 sm:scale-100" leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-              <DialogPanel class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6 dark:bg-gray-800">
-                <div class="absolute right-0 top-0 pr-4 pt-4">
-                  <button type="button" class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none dark:bg-gray-800 dark:hover:text-gray-300" @click="showImportDialog = false">
-                    <span class="sr-only">Close</span>
-                    <XMarkIcon class="h-6 w-6" aria-hidden="true" />
-                  </button>
-                </div>
-                <div class="sm:flex sm:items-start">
-                  <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10 dark:bg-indigo-900">
-                    <KeyIcon class="h-6 w-6 text-indigo-600 dark:text-indigo-300" aria-hidden="true" />
-                  </div>
-                  <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
-                    <DialogTitle as="h3" class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
-                      {{ t('licenses.importLicense') || 'Import License' }}
-                    </DialogTitle>
-                    <div class="mt-4">
-                      <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                        {{ t('licenses.importDescription') || 'Paste the license string you received from sales team' }}
-                      </p>
-                      <textarea
-                        v-model="importLicenseString"
-                        rows="6"
-                        class="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 dark:bg-gray-700 dark:text-white dark:ring-gray-600"
-                        :placeholder="t('licenses.importPlaceholder') || 'HFL-LICENSE-...'"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                  <button type="button" :disabled="importing || !importLicenseString.trim()" class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" @click="importLicense">
-                    {{ importing ? (t('licenses.importing') || 'Importing...') : (t('licenses.import') || 'Import') }}
-                  </button>
-                  <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto dark:bg-gray-700 dark:text-white" @click="showImportDialog = false">
-                    {{ t('common.cancel') }}
-                  </button>
-                </div>
-              </DialogPanel>
-            </TransitionChild>
+    <Teleport to="body">
+      <div v-if="showImportDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" @click="showImportDialog = false" />
+        <div class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg">
+          <!-- Header -->
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
+                <KeyIcon class="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
+              </div>
+              <h2 class="text-lg font-semibold text-slate-800 dark:text-white">
+                {{ t('licenses.importLicense') || 'Import License' }}
+              </h2>
+            </div>
+            <button @click="showImportDialog = false" class="p-1 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg">
+              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <!-- Content -->
+          <div class="p-6 space-y-4">
+            <p class="text-sm text-slate-500 dark:text-gray-400">
+              {{ t('licenses.importDescription') || 'Paste the license string you received from sales team' }}
+            </p>
+            <textarea
+              v-model="importLicenseString"
+              rows="6"
+              class="block w-full rounded-lg border-0 py-2 px-3 text-slate-900 dark:text-white shadow-sm ring-1 ring-inset ring-slate-200 dark:ring-gray-600 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm dark:bg-gray-700"
+              :placeholder="t('licenses.importPlaceholder') || 'HFL-LICENSE-...'"
+            />
+          </div>
+          
+          <!-- Footer -->
+          <div class="px-6 py-4 border-t border-slate-100 dark:border-gray-700 flex justify-end gap-3">
+            <button
+              type="button"
+              class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-slate-200 dark:border-gray-600 rounded-lg hover:bg-slate-50 dark:hover:bg-gray-600"
+              @click="showImportDialog = false"
+            >
+              {{ t('common.cancel') }}
+            </button>
+            <button
+              type="button"
+              :disabled="importing || !importLicenseString.trim()"
+              class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="importLicense"
+            >
+              {{ importing ? (t('licenses.importing') || 'Importing...') : (t('licenses.import') || 'Import') }}
+            </button>
           </div>
         </div>
-      </Dialog>
-    </TransitionRoot>
+      </div>
+    </Teleport>
 
     <!-- Delete Confirmation -->
     <TransitionRoot appear :show="showDeleteConfirm" as="template">
@@ -487,7 +467,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Dialog, DialogPanel, DialogTitle, Menu, MenuButton, MenuItem, MenuItems, TransitionChild, TransitionRoot } from '@headlessui/vue'
+import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
 import { CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, EllipsisVerticalIcon, ExclamationCircleIcon, ExclamationTriangleIcon, KeyIcon, SparklesIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { licensesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
