@@ -613,7 +613,7 @@ const saveLicense = async () => {
 
 const activateLicense = async (license: License) => {
   try {
-    const response = await licensesApi.activate(license.id)
+    await licensesApi.activate(license.id)
     showToast(t('licenses.activateSuccess'), 'success')
     fetchLicenses()
     fetchStats()

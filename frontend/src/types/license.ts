@@ -26,7 +26,7 @@ export interface License {
   max_storage_gb: number;
   features: string[] | Record<string, boolean>;
   modules: string[];
-  status: 'active' | 'expired' | 'revoked' | 'trial' | 'valid' | 'invalid';
+  status: 'inactive' | 'active' | 'expired' | 'revoked' | 'trial' | 'valid' | 'invalid';
   is_valid: boolean;
   days_until_expiry: number;
   days_remaining?: number;
