@@ -133,30 +133,101 @@
               <th class="py-3.5 pl-6 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('licenses.changeType') || 'Change Type' }}</th>
               <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('licenses.licenseKey') || 'License Key' }}</th>
               <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('licenses.changedAt') || 'Changed At' }}</th>
-              <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('licenses.previousExpiry') || 'Previous Expiry' }}</th>
+              <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('licenses.previousExpiry') || 'Expiry Date' }}</th>
               <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('licenses.reason') || 'Reason' }}</th>
+              <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.actions') || 'Actions' }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-            <tr v-for="history in licenseHistory" :key="history.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <td class="whitespace-nowrap py-4 pl-6 pr-3 text-sm">
-                <span :class="getChangeTypeClass(history.change_type)">
-                  {{ getChangeTypeLabel(history.change_type) }}
-                </span>
-              </td>
-              <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
-                {{ history.license_key?.substring(0, 20) }}...
-              </td>
-              <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
-                {{ formatDate(history.changed_at) }}
-              </td>
-              <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
-                {{ history.previous_expires_at ? formatDate(history.previous_expires_at) : '-' }}
-              </td>
-              <td class="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
-                {{ history.reason || '-' }}
-              </td>
-            </tr>
+            <template v-for="history in licenseHistory" :key="history.id">
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" @click="toggleHistoryDetail(history.id)">
+                <td class="whitespace-nowrap py-4 pl-6 pr-3 text-sm">
+                  <span :class="getChangeTypeClass(history.change_type)">
+                    {{ getChangeTypeLabel(history.change_type) }}
+                  </span>
+                </td>
+                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">
+                  <span :title="history.license_key">{{ history.license_key?.substring(0, 25) }}...</span>
+                </td>
+                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+                  {{ formatDate(history.archived_at) }}
+                </td>
+                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+                  {{ history.expires_at ? formatDate(history.expires_at) : (history.is_perpetual ? (t('licenses.perpetual') || 'Perpetual') : '-') }}
+                </td>
+                <td class="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+                  {{ history.change_reason || '-' }}
+                </td>
+                <td class="px-3 py-4 text-sm">
+                  <button class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                    {{ expandedHistoryId === history.id ? (t('common.hide') || 'Hide') : (t('common.viewDetails') || 'Details') }}
+                  </button>
+                </td>
+              </tr>
+              <!-- Expanded Details Row -->
+              <tr v-if="expandedHistoryId === history.id" class="bg-gray-50 dark:bg-gray-900">
+                <td colspan="6" class="px-6 py-4">
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxTenants') || 'Max Tenants' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_tenants || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxUsers') || 'Max Users' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_users || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxProxies') || 'Max Proxies' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_proxies || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxStorageGb') || 'Max Storage (GB)' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_storage_gb || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxGateways') || 'Max Gateways' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_gateways || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.aiInsightsQuota') || 'AI Insights Quota' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.ai_insights_quota || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxBackupTasks') || 'Max Backup Tasks' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_backup_tasks || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxRecoveryTasks') || 'Max Recovery Tasks' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_recovery_tasks || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxSourceResources') || 'Max Source Resources' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_source_resources || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxPolicies') || 'Max Policies' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_policies || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxRepositories') || 'Max Repositories' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ history.max_repositories || '-' }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.issuedAt') || 'Issued At' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ formatDate(history.issued_at) }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.activatedAt') || 'Activated At' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400">{{ formatDate(history.activated_at) }}</dd>
+                    </div>
+                    <div>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.machineCode') || 'Machine Code' }}</dt>
+                      <dd class="text-gray-500 dark:text-gray-400 font-mono text-xs">{{ history.machine_code?.substring(0, 30) }}...</dd>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -318,16 +389,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { licensesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
-import type { License } from '@/types/license'
-
-interface LicenseHistory {
-  id: number
-  license_key: string
-  change_type: string
-  changed_at: string
-  previous_expires_at: string | null
-  reason: string | null
-}
+import type { License, LicenseHistory } from '@/types/license'
 
 const { t } = useI18n()
 const { showToast } = useToast()
@@ -344,6 +406,7 @@ const activating = ref(false)
 const activateError = ref('')
 const licenseHistory = ref<LicenseHistory[]>([])
 const copied = ref(false)
+const expandedHistoryId = ref<string | null>(null)
 
 // Limit items for display - 完整的配额列表
 const limitItems = computed(() => [
@@ -436,7 +499,7 @@ const activateLicense = async () => {
   }
 }
 
-const formatDate = (date: string) => {
+const formatDate = (date: string | null | undefined) => {
   if (!date) return '-'
   return new Date(date).toLocaleDateString()
 }
@@ -457,6 +520,10 @@ const getChangeTypeClass = (type: string) => {
     'expired': 'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   }
   return classes[type] || classes['initial']
+}
+
+const toggleHistoryDetail = (id: string) => {
+  expandedHistoryId.value = expandedHistoryId.value === id ? null : id
 }
 
 const getChangeTypeLabel = (type: string) => {

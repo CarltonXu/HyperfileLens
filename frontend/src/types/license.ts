@@ -32,15 +32,39 @@ export interface License {
 }
 
 export interface LicenseHistory {
-  id: number
-  tenant: number
+  id: string
+  tenant: string
   license_key: string
+  version: number
+  machine_code: string
+  
+  // Quota limits (snapshot at archive time)
+  max_tenants: number
+  max_users: number
+  max_proxies: number
+  max_storage_gb: number
+  max_gateways: number
+  ai_insights_quota: number
+  max_backup_tasks: number
+  max_recovery_tasks: number
+  max_source_resources: number
+  max_policies: number
+  max_repositories: number
+  
+  // Timestamps
+  issued_at: string
+  expires_at: string | null
+  is_perpetual: boolean
+  activated_at: string | null
+  archived_at: string
+  
+  // Status and change info
+  status: string
   change_type: 'initial' | 'renewal' | 'upgrade' | 'downgrade' | 'expired'
-  changed_at: string
-  previous_expires_at: string | null
-  previous_limits: Record<string, number> | null
-  reason: string | null
-  changed_by: number | null
+  change_reason: string | null
+  
+  // Audit info
+  changed_by: string | null
   ip_address: string | null
 }
 

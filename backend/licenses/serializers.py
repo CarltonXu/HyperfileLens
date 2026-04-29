@@ -36,19 +36,43 @@ class LicenseSerializer(serializers.ModelSerializer):
 class LicenseHistorySerializer(serializers.ModelSerializer):
     """Serializer for License history (audit)."""
     
+    is_perpetual = serializers.SerializerMethodField()
+    limits = serializers.SerializerMethodField()
+    
     class Meta:
         model = LicenseHistory
         fields = [
             'id', 'license_key', 'version',
             'machine_code', 'tenant',
+            'limits',
             'max_tenants', 'max_users', 'max_proxies', 'max_storage_gb',
             'max_gateways', 'ai_insights_quota',
             'max_backup_tasks', 'max_recovery_tasks', 'max_source_resources',
             'max_policies', 'max_repositories',
             'issued_at', 'expires_at', 'activated_at', 'archived_at',
-            'status', 'change_type', 'change_reason',
+            'status', 'is_perpetual', 'change_type', 'change_reason',
         ]
         read_only_fields = fields
+    
+    def get_is_perpetual(self, obj):
+        """Check if the license was perpetual."""
+        return obj.expires_at is None
+    
+    def get_limits(self, obj):
+        """Return limits as a nested object."""
+        return {
+            'max_tenants': obj.max_tenants,
+            'max_users': obj.max_users,
+            'max_proxies': obj.max_proxies,
+            'max_storage_gb': obj.max_storage_gb,
+            'max_gateways': obj.max_gateways,
+            'ai_insights_quota': obj.ai_insights_quota,
+            'max_backup_tasks': obj.max_backup_tasks,
+            'max_recovery_tasks': obj.max_recovery_tasks,
+            'max_source_resources': obj.max_source_resources,
+            'max_policies': obj.max_policies,
+            'max_repositories': obj.max_repositories,
+        }
 
 
 class MachineCodeSerializer(serializers.ModelSerializer):
