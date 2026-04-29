@@ -18,6 +18,8 @@ const Layout = () => import('@/views/Layout.vue')
 const Tenants = () => import('@/views/Tenants.vue')
 const Users = () => import('@/views/Users.vue')
 const Licenses = () => import('@/views/Licenses.vue')
+const Register = () => import('@/views/Register.vue')
+const ForgotPassword = () => import('@/views/ForgotPassword.vue')
 
 // Route types
 declare module 'vue-router' {
@@ -38,6 +40,26 @@ const routes: RouteRecordRaw[] = [
     component: Login,
     meta: {
       title: 'Login',
+      layout: 'auth',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: Register,
+    meta: {
+      title: 'Register',
+      layout: 'auth',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: ForgotPassword,
+    meta: {
+      title: 'Forgot Password',
       layout: 'auth',
       requiresAuth: false
     }
@@ -114,6 +136,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Settings',
         component: Settings,
         meta: { title: 'Settings' }
+      },
+      {
+        path: 'settings/smtp',
+        name: 'SettingsSMTP',
+        component: () => import('@/views/SettingsSMTP.vue'),
+        meta: { title: 'SMTP Settings', requiresSuperuser: true }
       },
       {
         path: 'tenants',

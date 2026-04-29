@@ -95,12 +95,93 @@ export default {
     confirmPassword: '确认密码',
     rememberMe: '记住我',
     forgotPassword: '忘记密码？',
+    forgotPasswordSubtitle: '重置您的密码',
     createAccount: '创建账户',
     welcomeBack: '欢迎回来！',
     loginSubtitle: '登录您的账户以继续',
+    registerSubtitle: '开始您的免费试用',
     invalidCredentials: '邮箱或密码错误',
     loginSuccess: '登录成功',
-    logoutSuccess: '退出成功'
+    logoutSuccess: '退出成功',
+    
+    // Form fields
+    firstName: '名字',
+    lastName: '姓氏',
+    firstNamePlaceholder: '请输入名字',
+    lastNamePlaceholder: '请输入姓氏',
+    emailPlaceholder: '请输入邮箱地址',
+    passwordPlaceholder: '请输入密码',
+    newPassword: '新密码',
+    newPasswordPlaceholder: '请输入新密码',
+    confirmPasswordPlaceholder: '请再次输入密码',
+    
+    // Password strength
+    weak: '弱',
+    fair: '一般',
+    good: '良好',
+    strong: '强',
+    passwordMismatch: '两次输入的密码不一致',
+    passwordRequirements: '密码至少8位，包含大小写字母和数字',
+    
+    // Captcha
+    captcha: '验证码',
+    captchaPlaceholder: '请输入验证码',
+    refreshCaptcha: '点击刷新验证码',
+    invalidCaptcha: '验证码错误',
+    
+    // Terms
+    agreeTermsPrefix: '我已阅读并同意',
+    termsOfService: '服务条款',
+    privacyPolicy: '隐私政策',
+    and: '和',
+    
+    // Buttons
+    signingIn: '登录中...',
+    registering: '注册中...',
+    sendResetCode: '发送重置码',
+    verifyCode: '验证',
+    resetPassword: '重置密码',
+    goToLogin: '前往登录',
+    backToLogin: '返回登录',
+    
+    // Links
+    or: '或',
+    haveAccount: '已有账户？',
+    loginNow: '立即登录',
+    
+    // Messages
+    registerFailed: '注册失败，请重试',
+    registerSuccess: '注册成功，请登录',
+    sendResetFailed: '发送重置码失败',
+    resetCodeSent: '重置码已发送到您的邮箱',
+    enterVerificationCode: '我们已向您的邮箱发送了6位验证码',
+    verificationCode: '验证码',
+    verificationCodePlaceholder: '请输入6位验证码',
+    invalidCode: '验证码无效或已过期',
+    codeVerified: '验证成功',
+    passwordResetSuccess: '密码重置成功',
+    canNowLogin: '您现在可以使用新密码登录',
+    resetPasswordFailed: '重置密码失败',
+    
+    // Features
+    registerFeature1: '智能备份与恢复管理',
+    registerFeature2: 'AI驱动的文件分析',
+    registerFeature3: '企业级安全保障',
+    
+    // MFA
+    mfaEnabled: 'MFA 已启用',
+    mfaDisabled: 'MFA 未启用',
+    mfaSetup: '设置 MFA',
+    mfaVerify: '验证 MFA',
+    mfaCode: 'MFA 验证码',
+    mfaCodePlaceholder: '请输入6位验证码',
+    mfaSetupDesc: '使用身份验证器应用扫描二维码',
+    mfaSetupSuccess: 'MFA 设置成功',
+    mfaSetupFailed: 'MFA 设置失败',
+    mfaVerifyFailed: 'MFA 验证失败',
+    enableMfa: '启用 MFA',
+    disableMfa: '禁用 MFA',
+    mfaSecret: 'MFA 密钥'
   },
 
   // Dashboard
@@ -1169,6 +1250,38 @@ export default {
       title: '语言',
       english: 'English',
       chinese: '中文'
+    },
+
+    smtp: {
+      title: 'SMTP 邮件配置',
+      description: '配置 SMTP 服务器用于发送系统邮件，如验证码、密码重置等',
+      addConfig: '添加配置',
+      editConfig: '编辑配置',
+      noConfigs: '暂无 SMTP 配置',
+      noConfigsDesc: '点击上方按钮添加 SMTP 配置',
+      name: '配置名称',
+      server: '服务器地址',
+      host: 'SMTP 服务器',
+      port: '端口',
+      username: '用户名',
+      password: '密码',
+      fromEmail: '发件人邮箱',
+      fromName: '发件人名称',
+      useTLS: '使用 TLS',
+      useSSL: '使用 SSL',
+      testConnection: '测试连接',
+      sendTestEmail: '发送测试邮件',
+      sendTest: '发送',
+      testEmailTo: '收件人邮箱',
+      setDefault: '设为默认',
+      setDefaultSuccess: '已设为默认配置',
+      confirmDelete: '确定要删除此 SMTP 配置吗？',
+      connectionSuccess: 'SMTP 连接成功',
+      connectionFailed: 'SMTP 连接失败',
+      emailSent: '测试邮件已发送',
+      emailFailed: '发送测试邮件失败',
+      isActive: '启用',
+      isDefault: '默认',
     }
   },
 
@@ -1468,5 +1581,5 @@ export default {
     resourceTenants: '租户',
     resourceStorage: '存储空间',
     resourceAiInsights: 'AI Insights',
-  }
+  },
 }

@@ -834,7 +834,7 @@ const showRemoveUserConfirm = ref(false)
 const removingUser = ref<any>(null)
 
 // Current user ID for self-check
-const currentUserId = ref<number | null>(null)
+const currentUserId = ref<string | null>(null)
 
 const handleAddUser = async () => {
   if (!newUserEmail.value || !usersTenant.value) return

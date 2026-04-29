@@ -1,21 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api'
 
 const router = useRouter()
-const route = useRoute()
-const authStore = useAuthStore()
 const { t } = useI18n()
 
 // Form fields
 const email = ref('')
 const password = ref('')
+const confirmPassword = ref('')
+const firstName = ref('')
+const lastName = ref('')
 const captcha = ref('')
-const rememberMe = ref(false)
+const agreeTerms = ref(false)
 const showPassword = ref(false)
+const showConfirmPassword = ref(false)
 const isLoading = ref(false)
 const error = ref('')
 
@@ -23,15 +24,37 @@ const error = ref('')
 const captchaUrl = ref('')
 const captchaKey = ref('')
 
-// MFA
-const showMfaDialog = ref(false)
-const mfaCode = ref('')
-const mfaMethod = ref<'email' | 'totp'>('email')
-const pendingUserId = ref('')
-const loginToken = ref('')
+// Password strength
+const passwordStrength = computed(() => {
+  const pwd = password.value
+  if (!pwd) return 0
+  let strength = 0
+  if (pwd.length >= 8) strength++
+  if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) strength++
+  if (/\d/.test(pwd)) strength++
+  if (/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) strength++
+  return strength
+})
+
+const passwordStrengthText = computed(() => {
+  const texts = ['', t('auth.weak'), t('auth.fair'), t('auth.good'), t('auth.strong')]
+  return texts[passwordStrength.value]
+})
+
+const passwordStrengthColor = computed(() => {
+  const colors = ['', 'bg-danger-500', 'bg-warning-500', 'bg-primary-500', 'bg-success-500']
+  return colors[passwordStrength.value]
+})
 
 const isValid = computed(() => {
-  return email.value.length > 0 && password.value.length > 0 && captcha.value.length > 0
+  return (
+    email.value.length > 0 &&
+    password.value.length >= 8 &&
+    password.value === confirmPassword.value &&
+    firstName.value.length > 0 &&
+    captcha.value.length > 0 &&
+    agreeTerms.value
+  )
 })
 
 // Fetch captcha image
@@ -39,60 +62,39 @@ async function refreshCaptcha() {
   try {
     const response = await api.get('/accounts/captcha/', { responseType: 'blob' })
     captchaUrl.value = URL.createObjectURL(response.data)
-    // Get captcha key from header
     captchaKey.value = response.headers['x-captcha-key'] || ''
   } catch (err) {
     console.error('Failed to fetch captcha:', err)
   }
 }
 
-async function handleLogin() {
+async function handleRegister() {
   if (!isValid.value) return
+
+  if (password.value !== confirmPassword.value) {
+    error.value = t('auth.passwordMismatch')
+    return
+  }
 
   isLoading.value = true
   error.value = ''
 
   try {
-    const response = await authStore.login({
+    await api.post('/accounts/register/', {
       email: email.value,
       password: password.value,
-      captcha_code: captcha.value,
+      first_name: firstName.value,
+      last_name: lastName.value,
+      captcha: captcha.value,
       captcha_key: captchaKey.value
     })
     
-    // Check if MFA is required
-    if (response.mfa_required) {
-      pendingUserId.value = response.user_id || ''
-      mfaMethod.value = response.mfa_method || 'email'
-      loginToken.value = response.login_token || ''
-      showMfaDialog.value = true
-      if (mfaMethod.value === 'email') {
-        // Send MFA code via email
-        await api.post('/accounts/mfa/send/', { user_id: pendingUserId.value, login_token: loginToken.value })
-      }
-    } else {
-      router.push(route.query.redirect as string || '/')
-    }
+    // Redirect to login with success message
+    router.push({ path: '/login', query: { registered: 'true' } })
   } catch (err: any) {
-    error.value = err.response?.data?.error || t('auth.invalidCredentials')
+    error.value = err.response?.data?.error || t('auth.registerFailed')
     refreshCaptcha()
     captcha.value = ''
-  } finally {
-    isLoading.value = false
-  }
-}
-
-async function handleVerifyMfa() {
-  if (!mfaCode.value) return
-  
-  try {
-    isLoading.value = true
-    await authStore.verifyMfa(pendingUserId.value, mfaCode.value, loginToken.value)
-    // Complete login
-    router.push(route.query.redirect as string || '/')
-  } catch (err: any) {
-    error.value = err.response?.data?.error || t('auth.invalidMfaCode')
-    mfaCode.value = ''
   } finally {
     isLoading.value = false
   }
@@ -141,27 +143,27 @@ onMounted(() => {
             <svg class="w-5 h-5 text-primary-300" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
             </svg>
-            <span>{{ t('auth.feature1') }}</span>
+            <span>{{ t('auth.registerFeature1') }}</span>
           </div>
           <div class="flex items-center gap-3">
             <svg class="w-5 h-5 text-primary-300" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
             </svg>
-            <span>{{ t('auth.feature2') }}</span>
+            <span>{{ t('auth.registerFeature2') }}</span>
           </div>
           <div class="flex items-center gap-3">
             <svg class="w-5 h-5 text-primary-300" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
             </svg>
-            <span>{{ t('auth.feature3') }}</span>
+            <span>{{ t('auth.registerFeature3') }}</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Right Side - Login Form -->
-    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
-      <div class="max-w-md w-full">
+    <!-- Right Side - Register Form -->
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50 overflow-y-auto">
+      <div class="max-w-md w-full py-8">
         <!-- Mobile Logo -->
         <div class="lg:hidden text-center mb-8">
           <div class="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4">
@@ -174,19 +176,63 @@ onMounted(() => {
         </div>
 
         <div class="text-center mb-8">
-          <h2 class="text-2xl font-bold text-gray-900">{{ t('auth.welcomeBack') }}</h2>
-          <p class="text-gray-600 mt-2">{{ t('auth.loginSubtitle') }}</p>
+          <h2 class="text-2xl font-bold text-gray-900">{{ t('auth.createAccount') }}</h2>
+          <p class="text-gray-600 mt-2">{{ t('auth.registerSubtitle') }}</p>
         </div>
 
-        <!-- Login Form Card -->
+        <!-- Register Form Card -->
         <div class="bg-white rounded-2xl shadow-xl p-8">
-          <form @submit.prevent="handleLogin" class="space-y-5">
+          <form @submit.prevent="handleRegister" class="space-y-4">
             <!-- Error Message -->
             <div v-if="error" class="bg-danger-50 border border-danger-200 text-danger-700 px-4 py-3 rounded-xl flex items-center gap-2">
               <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
               </svg>
               {{ error }}
+            </div>
+
+            <!-- Name Row -->
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label for="firstName" class="block text-sm font-medium text-gray-700 mb-1.5">
+                  {{ t('auth.firstName') }}
+                </label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
+                  </div>
+                  <input
+                    id="firstName"
+                    v-model="firstName"
+                    type="text"
+                    class="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                    :placeholder="t('auth.firstNamePlaceholder')"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label for="lastName" class="block text-sm font-medium text-gray-700 mb-1.5">
+                  {{ t('auth.lastName') }}
+                </label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
+                  </div>
+                  <input
+                    id="lastName"
+                    v-model="lastName"
+                    type="text"
+                    class="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                    :placeholder="t('auth.lastNamePlaceholder')"
+                    required
+                  />
+                </div>
+              </div>
             </div>
 
             <!-- Email Input -->
@@ -207,7 +253,6 @@ onMounted(() => {
                   class="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                   :placeholder="t('auth.emailPlaceholder')"
                   required
-                  autofocus
                 />
               </div>
             </div>
@@ -245,6 +290,54 @@ onMounted(() => {
                   </svg>
                 </button>
               </div>
+              <!-- Password Strength -->
+              <div v-if="password" class="mt-2">
+                <div class="flex gap-1 mb-1">
+                  <div v-for="i in 4" :key="i" class="h-1 flex-1 rounded-full bg-gray-200">
+                    <div v-if="i <= passwordStrength" class="h-full rounded-full transition-colors" :class="passwordStrengthColor"></div>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500">{{ passwordStrengthText }}</p>
+              </div>
+            </div>
+
+            <!-- Confirm Password Input -->
+            <div>
+              <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1.5">
+                {{ t('auth.confirmPassword') }}
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                  </svg>
+                </div>
+                <input
+                  id="confirmPassword"
+                  v-model="confirmPassword"
+                  :type="showConfirmPassword ? 'text' : 'password'"
+                  class="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                  :class="{'border-danger-500 focus:ring-danger-500 focus:border-danger-500': confirmPassword && password !== confirmPassword}"
+                  :placeholder="t('auth.confirmPasswordPlaceholder')"
+                  required
+                />
+                <button
+                  type="button"
+                  @click="showConfirmPassword = !showConfirmPassword"
+                  class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg v-if="!showConfirmPassword" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                  <svg v-else class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                  </svg>
+                </button>
+              </div>
+              <p v-if="confirmPassword && password !== confirmPassword" class="mt-1 text-xs text-danger-500">
+                {{ t('auth.passwordMismatch') }}
+              </p>
             </div>
 
             <!-- Captcha -->
@@ -281,19 +374,20 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- Remember & Forgot -->
-            <div class="flex items-center justify-between">
-              <label class="flex items-center cursor-pointer">
-                <input
-                  v-model="rememberMe"
-                  type="checkbox"
-                  class="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                <span class="ml-2 text-sm text-gray-600">{{ t('auth.rememberMe') }}</span>
+            <!-- Terms -->
+            <div class="flex items-start">
+              <input
+                id="terms"
+                v-model="agreeTerms"
+                type="checkbox"
+                class="mt-1 w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <label for="terms" class="ml-2 text-sm text-gray-600">
+                {{ t('auth.agreeTermsPrefix') }}
+                <a href="#" class="text-primary-600 hover:text-primary-700">{{ t('auth.termsOfService') }}</a>
+                {{ t('auth.and') }}
+                <a href="#" class="text-primary-600 hover:text-primary-700">{{ t('auth.privacyPolicy') }}</a>
               </label>
-              <router-link to="/forgot-password" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                {{ t('auth.forgotPassword') }}
-              </router-link>
             </div>
 
             <!-- Submit Button -->
@@ -306,7 +400,7 @@ onMounted(() => {
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
               </svg>
-              {{ isLoading ? t('auth.loggingIn') : t('auth.login') }}
+              {{ isLoading ? t('auth.registering') : t('auth.register') }}
             </button>
           </form>
 
@@ -320,12 +414,12 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Register Link -->
+          <!-- Login Link -->
           <div class="text-center">
             <p class="text-sm text-gray-600">
-              {{ t('auth.noAccount') }}
-              <router-link to="/register" class="text-primary-600 hover:text-primary-700 font-medium">
-                {{ t('auth.registerNow') }}
+              {{ t('auth.haveAccount') }}
+              <router-link to="/login" class="text-primary-600 hover:text-primary-700 font-medium">
+                {{ t('auth.loginNow') }}
               </router-link>
             </p>
           </div>
@@ -334,52 +428,6 @@ onMounted(() => {
         <!-- Footer -->
         <div class="mt-8 text-center text-sm text-gray-500">
           <p>&copy; 2024 HyperFileLens. All rights reserved.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- MFA Dialog -->
-    <div v-if="showMfaDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
-        <div class="text-center mb-6">
-          <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
-          </div>
-          <h3 class="text-xl font-semibold text-gray-900">{{ t('auth.mfaRequired') }}</h3>
-          <p class="text-gray-600 mt-2">{{ t('auth.mfaCodeSent') }}</p>
-        </div>
-
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5">
-              {{ t('auth.mfaCode') }}
-            </label>
-            <input
-              v-model="mfaCode"
-              type="text"
-              maxlength="6"
-              class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-center text-2xl tracking-widest uppercase"
-              :placeholder="t('auth.mfaCodePlaceholder')"
-            />
-          </div>
-
-          <div class="flex gap-3">
-            <button
-              @click="showMfaDialog = false"
-              class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
-            >
-              {{ t('common.cancel') }}
-            </button>
-            <button
-              @click="handleVerifyMfa"
-              :disabled="!mfaCode || isLoading"
-              class="flex-1 py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl disabled:opacity-50"
-            >
-              {{ t('auth.verify') }}
-            </button>
-          </div>
         </div>
       </div>
     </div>

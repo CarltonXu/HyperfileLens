@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { User, LoginCredentials } from '@/types/auth'
+import type { User, LoginCredentials, LoginResponse } from '@/types/auth'
 import api from '@/api'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -21,7 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
   const userRole = computed(() => user.value?.role?.name || 'User')
 
   // Actions
-  async function login(credentials: LoginCredentials) {
+  async function login(credentials: LoginCredentials): Promise<LoginResponse> {
     loading.value = true
     error.value = null
 
@@ -30,23 +30,55 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
 
     try {
-      const response = await api.post<{ token: string; [key: string]: any }>(
-        '/api/v1/accounts/login/',
+      const response = await api.post<LoginResponse>(
+        '/accounts/login/',
         credentials
       )
 
-      // Backend returns user fields + token directly (not nested under 'user')
-      const { token: authToken, ...userData } = response.data
-      
-      token.value = authToken
-      user.value = userData as User
+      const data = response.data
 
-      // Store token
-      localStorage.setItem('token', authToken)
+      // Check if MFA is required
+      if (data.mfa_required) {
+        return data
+      }
 
-      return { user: userData as User, token: authToken }
+      // Normal login - store token and user
+      if (data.token && data.user) {
+        token.value = data.token
+        user.value = data.user
+        localStorage.setItem('token', data.token)
+      }
+
+      return data
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Login failed'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function verifyMfa(userId: string, code: string, loginToken?: string): Promise<LoginResponse> {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await api.post<LoginResponse>(
+        '/accounts/mfa/verify/',
+        { user_id: userId, code, login_token: loginToken }
+      )
+
+      const data = response.data
+
+      if (data.token && data.user) {
+        token.value = data.token
+        user.value = data.user
+        localStorage.setItem('token', data.token)
+      }
+
+      return data
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'MFA verification failed'
       throw err
     } finally {
       loading.value = false
@@ -174,6 +206,7 @@ export const useAuthStore = defineStore('auth', () => {
     userRole,
     // Actions
     login,
+    verifyMfa,
     logout,
     fetchUser,
     register,

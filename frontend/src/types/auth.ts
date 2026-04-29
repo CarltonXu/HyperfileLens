@@ -1,6 +1,6 @@
 // User and Authentication types
 export interface User {
-  id: number
+  id: string
   email: string
   username?: string
   first_name?: string
@@ -17,6 +17,8 @@ export interface User {
   last_login_at?: string
   is_active: boolean
   is_superuser: boolean
+  mfa_enabled?: boolean
+  mfa_method?: 'email' | 'totp'
 }
 
 export interface Role {
@@ -30,6 +32,17 @@ export interface Role {
 export interface LoginCredentials {
   email: string
   password: string
+  captcha_key?: string
+  captcha_code?: string
+}
+
+export interface LoginResponse {
+  user?: User
+  token?: string
+  mfa_required?: boolean
+  user_id?: string
+  mfa_method?: 'email' | 'totp'
+  login_token?: string
 }
 
 export interface RegisterData {
@@ -38,6 +51,8 @@ export interface RegisterData {
   password_confirm: string
   first_name?: string
   last_name?: string
+  captcha_key?: string
+  captcha_code?: string
 }
 
 export interface APIToken {

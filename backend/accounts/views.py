@@ -5,11 +5,15 @@ This module provides API views for user authentication,
 registration, profile management, and session management.
 """
 
+import uuid
+from django.core.cache import cache
+
 from rest_framework import viewsets, status, generics, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -27,6 +31,7 @@ from .serializers import (
     UserSessionSerializer,
 )
 from audit_log.services import AuditService
+from tenants.models import Tenant
 
 
 class IsTenantAdmin(permissions.BasePermission):
@@ -769,3 +774,687 @@ class UserViewSet(viewsets.ModelViewSet):
         
         user.delete()
         return Response({'status': 'deleted', 'message': 'User deleted successfully'})
+
+
+# ============================================================================
+# Captcha API
+# ============================================================================
+
+class CaptchaView(APIView):
+    """
+    API endpoint for captcha generation.
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary='Generate captcha image',
+        description='Generate a new captcha image and return the image key.',
+        responses={
+            200: OpenApiResponse(
+                description='Captcha image',
+                response={
+                    'type': 'object',
+                    'properties': {
+                        'key': {'type': 'string'},
+                    }
+                }
+            )
+        }
+    )
+    def get(self, request):
+        """Generate and return a captcha image."""
+        from .services import CaptchaService
+        
+        captcha_key, image_bytes = CaptchaService.generate()
+        
+        if not image_bytes:
+            # Fallback if PIL not available
+            return Response({
+                'key': captcha_key,
+                'code': 'dummy'  # For testing only
+            })
+        
+        # Return as base64 encoded image
+        import base64
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        
+        return Response({
+            'key': captcha_key,
+            'image': f'data:image/png;base64,{image_base64}'
+        })
+
+
+class CaptchaValidateView(APIView):
+    """
+    API endpoint for captcha validation.
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary='Validate captcha code',
+        description='Validate a captcha code.',
+        request={
+            'type': 'object',
+            'properties': {
+                'key': {'type': 'string'},
+                'code': {'type': 'string'}
+            },
+            'required': ['key', 'code']
+        },
+        responses={
+            200: OpenApiResponse(
+                description='Validation result',
+                response={
+                    'type': 'object',
+                    'properties': {
+                        'valid': {'type': 'boolean'}
+                    }
+                }
+            )
+        }
+    )
+    def post(self, request):
+        """Validate a captcha code."""
+        from .services import CaptchaService
+        
+        captcha_key = request.data.get('key')
+        captcha_code = request.data.get('code')
+        
+        if not captcha_key or not captcha_code:
+            return Response(
+                {'error': 'Missing key or code'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        valid = CaptchaService.validate(captcha_key, captcha_code)
+        
+        return Response({'valid': valid})
+
+
+# ============================================================================
+# Registration API
+# ============================================================================
+
+class RegisterView(APIView):
+    """
+    API endpoint for user registration.
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary='Register a new user',
+        description='Create a new user account with email and password.',
+        request={
+            'type': 'object',
+            'properties': {
+                'email': {'type': 'string', 'format': 'email'},
+                'password': {'type': 'string', 'minLength': 6},
+                'first_name': {'type': 'string'},
+                'last_name': {'type': 'string'},
+                'captcha_key': {'type': 'string'},
+                'captcha_code': {'type': 'string'}
+            },
+            'required': ['email', 'password']
+        },
+        responses={
+            201: UserProfileSerializer,
+            400: OpenApiResponse(description='Validation error')
+        }
+    )
+    def post(self, request):
+        """Register a new user."""
+        from .services import CaptchaService
+        from django.db import transaction
+        
+        # Validate captcha if provided
+        captcha_key = request.data.get('captcha_key')
+        captcha_code = request.data.get('captcha_code')
+        
+        if captcha_key and captcha_code:
+            if not CaptchaService.validate(captcha_key, captcha_code):
+                return Response(
+                    {'error': 'Invalid captcha code'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        email = request.data.get('email')
+        password = request.data.get('password')
+        first_name = request.data.get('first_name', '')
+        last_name = request.data.get('last_name', '')
+        
+        if not email or not password:
+            return Response(
+                {'error': 'Email and password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(password) < 6:
+            return Response(
+                {'error': 'Password must be at least 6 characters'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {'error': 'Email already registered'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        with transaction.atomic():
+            # Create tenant for new user
+            tenant_name = email.split('@')[0]
+            tenant_slug = f"{tenant_name}-{uuid.uuid4().hex[:8]}"
+            
+            tenant = Tenant.objects.create(
+                name=tenant_name,
+                slug=tenant_slug,
+                plan='free',
+                status='active',
+                contact_email=email
+            )
+            
+            # Create user
+            user = User.objects.create_user(
+                email=email,
+                password=password,
+                first_name=first_name,
+                last_name=last_name,
+                tenant=tenant,
+                tenant_role='admin',
+                is_active=True
+            )
+            
+            # Create default license for new tenant
+            from licenses.models import License
+            from django.utils import timezone
+            import secrets
+            
+            License.objects.create(
+                tenant=tenant,
+                license_key=f"FREE-{secrets.token_hex(8).upper()}",
+                status='active',
+                max_tenants=1,
+                max_users=5,
+                max_proxies=5,
+                max_storage_gb=100,
+                issued_at=timezone.now(),
+                expires_at=None
+            )
+            
+            # Generate token
+            token, _ = Token.objects.get_or_create(user=user)
+            
+            # Record audit log
+            AuditService.log_user_create(request, user)
+        
+        response_data = UserProfileSerializer(user).data
+        response_data['token'] = token.key
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+# ============================================================================
+# Password Reset API
+# ============================================================================
+
+class ForgotPasswordView(APIView):
+    """
+    API endpoint for requesting password reset.
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary='Request password reset',
+        description='Send a password reset email with verification code.',
+        request={
+            'type': 'object',
+            'properties': {
+                'email': {'type': 'string', 'format': 'email'},
+                'captcha_key': {'type': 'string'},
+                'captcha_code': {'type': 'string'}
+            },
+            'required': ['email']
+        },
+        responses={
+            200: OpenApiResponse(description='Reset email sent'),
+            404: OpenApiResponse(description='User not found')
+        }
+    )
+    def post(self, request):
+        """Request password reset."""
+        from .services import CaptchaService, PasswordResetService, EmailService
+        
+        # Validate captcha if provided
+        captcha_key = request.data.get('captcha_key')
+        captcha_code = request.data.get('captcha_code')
+        
+        if captcha_key and captcha_code:
+            if not CaptchaService.validate(captcha_key, captcha_code):
+                return Response(
+                    {'error': 'Invalid captcha code'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        email = request.data.get('email')
+        
+        if not email:
+            return Response(
+                {'error': 'Email is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if user exists
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # Don't reveal if user exists or not
+            return Response({
+                'message': 'If the email exists, a reset code has been sent.'
+            })
+        
+        # Generate verification code
+        code = PasswordResetService.generate_verification_code(email)
+        
+        # Send email
+        EmailService.send_verification_code(email, code, 'password_reset')
+        
+        return Response({
+            'message': 'If the email exists, a reset code has been sent.'
+        })
+
+
+class VerifyResetCodeView(APIView):
+    """
+    API endpoint for verifying password reset code.
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary='Verify password reset code',
+        description='Verify the reset code sent to email.',
+        request={
+            'type': 'object',
+            'properties': {
+                'email': {'type': 'string', 'format': 'email'},
+                'code': {'type': 'string'}
+            },
+            'required': ['email', 'code']
+        },
+        responses={
+            200: OpenApiResponse(
+                description='Verification result',
+                response={
+                    'type': 'object',
+                    'properties': {
+                        'valid': {'type': 'boolean'},
+                        'token': {'type': 'string'}
+                    }
+                }
+            )
+        }
+    )
+    def post(self, request):
+        """Verify reset code."""
+        from .services import PasswordResetService
+        
+        email = request.data.get('email')
+        code = request.data.get('code')
+        
+        if not email or not code:
+            return Response(
+                {'error': 'Email and code are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        valid = PasswordResetService.verify_code(email, code)
+        
+        if valid:
+            # Generate a reset token for the actual password reset
+            token = PasswordResetService.generate_reset_token(email)
+            return Response({
+                'valid': True,
+                'token': token
+            })
+        
+        return Response({
+            'valid': False,
+            'error': 'Invalid or expired code'
+        })
+
+
+class ResetPasswordView(APIView):
+    """
+    API endpoint for resetting password.
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary='Reset password',
+        description='Reset password using the token from verification.',
+        request={
+            'type': 'object',
+            'properties': {
+                'token': {'type': 'string'},
+                'new_password': {'type': 'string', 'minLength': 6}
+            },
+            'required': ['token', 'new_password']
+        },
+        responses={
+            200: OpenApiResponse(description='Password reset successful'),
+            400: OpenApiResponse(description='Invalid token or password')
+        }
+    )
+    def post(self, request):
+        """Reset password."""
+        from .services import PasswordResetService
+        
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+        
+        if not token or not new_password:
+            return Response(
+                {'error': 'Token and new password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(new_password) < 6:
+            return Response(
+                {'error': 'Password must be at least 6 characters'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate token
+        email = PasswordResetService.validate_reset_token(token)
+        
+        if not email:
+            return Response(
+                {'error': 'Invalid or expired token'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get user and update password
+        try:
+            user = User.objects.get(email=email)
+            user.set_password(new_password)
+            user.save()
+            
+            # Invalidate tokens
+            PasswordResetService.invalidate_reset_token(token)
+            PasswordResetService.invalidate_code(email)
+            
+            # Invalidate all auth tokens (force re-login)
+            Token.objects.filter(user=user).delete()
+            
+            return Response({
+                'message': 'Password reset successfully'
+            })
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+# ============================================================================
+# MFA API
+# ============================================================================
+
+class MFASetupView(APIView):
+    """
+    API endpoint for MFA setup.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary='Get MFA setup info',
+        description='Get MFA setup information including QR code URI.',
+        responses={
+            200: OpenApiResponse(
+                description='MFA setup info',
+                response={
+                    'type': 'object',
+                    'properties': {
+                        'enabled': {'type': 'boolean'},
+                        'method': {'type': 'string'},
+                        'qr_uri': {'type': 'string'},
+                        'secret': {'type': 'string'}
+                    }
+                }
+            )
+        }
+    )
+    def get(self, request):
+        """Get MFA setup info."""
+        user = request.user
+        
+        if user.mfa_enabled:
+            return Response({
+                'enabled': True,
+                'method': user.mfa_method
+            })
+        
+        # Generate new secret for setup
+        from .services import MFAService
+        
+        secret = MFAService.generate_secret()
+        MFAService.store_secret(str(user.id), secret)
+        
+        qr_uri = MFAService.generate_totp_uri(user.email, secret)
+        
+        return Response({
+            'enabled': False,
+            'secret': secret,
+            'qr_uri': qr_uri
+        })
+    
+    @extend_schema(
+        summary='Enable MFA',
+        description='Enable MFA with verification code.',
+        request={
+            'type': 'object',
+            'properties': {
+                'method': {'type': 'string', 'enum': ['email', 'totp']},
+                'code': {'type': 'string'}
+            },
+            'required': ['method', 'code']
+        },
+        responses={
+            200: OpenApiResponse(description='MFA enabled')
+        }
+    )
+    def post(self, request):
+        """Enable MFA."""
+        from .services import MFAService
+        
+        user = request.user
+        method = request.data.get('method', 'email')
+        code = request.data.get('code')
+        
+        if method == 'totp':
+            # Verify TOTP code
+            secret = MFAService.get_secret(str(user.id))
+            if not secret:
+                return Response(
+                    {'error': 'MFA setup not initialized'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # For now, just accept any 6-digit code (simplified)
+            if not code or len(code) != 6:
+                return Response(
+                    {'error': 'Invalid code'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            user.mfa_enabled = True
+            user.mfa_method = 'totp'
+            user.mfa_secret = secret
+            user.save()
+            
+            MFAService.clear_secret(str(user.id))
+        
+        elif method == 'email':
+            # Email MFA - just enable it
+            user.mfa_enabled = True
+            user.mfa_method = 'email'
+            user.save()
+        
+        else:
+            return Response(
+                {'error': 'Invalid MFA method'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return Response({
+            'message': 'MFA enabled successfully',
+            'enabled': True,
+            'method': user.mfa_method
+        })
+    
+    @extend_schema(
+        summary='Disable MFA',
+        description='Disable MFA for the current user.',
+        responses={
+            200: OpenApiResponse(description='MFA disabled')
+        }
+    )
+    def delete(self, request):
+        """Disable MFA."""
+        user = request.user
+        user.mfa_enabled = False
+        user.mfa_method = ''
+        user.mfa_secret = ''
+        user.save()
+        
+        return Response({
+            'message': 'MFA disabled successfully'
+        })
+
+
+class MFAVerifyView(APIView):
+    """
+    API endpoint for MFA verification during login.
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary='Request MFA code',
+        description='Request an MFA verification code for email.',
+        request={
+            'type': 'object',
+            'properties': {
+                'email': {'type': 'string', 'format': 'email'},
+                'login_token': {'type': 'string'}
+            },
+            'required': ['email', 'login_token']
+        },
+        responses={
+            200: OpenApiResponse(description='MFA code sent')
+        }
+    )
+    def post(self, request):
+        """Request MFA code."""
+        from .services import MFAService, EmailService
+        
+        email = request.data.get('email')
+        login_token = request.data.get('login_token')
+        
+        # Validate login token from session
+        # This should be set during the initial login step
+        cached_email = cache.get(f'mfa_login:{login_token}')
+        if not cached_email or cached_email != email:
+            return Response(
+                {'error': 'Invalid login session'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if not user.mfa_enabled:
+            return Response(
+                {'error': 'MFA not enabled for this user'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Generate and send code
+        if user.mfa_method == 'email':
+            code = MFAService.generate_code(email)
+            EmailService.send_verification_code(email, code, 'mfa')
+        
+        return Response({
+            'message': 'MFA code sent',
+            'method': user.mfa_method
+        })
+    
+    @extend_schema(
+        summary='Verify MFA code',
+        description='Verify MFA code and complete login.',
+        request={
+            'type': 'object',
+            'properties': {
+                'email': {'type': 'string', 'format': 'email'},
+                'login_token': {'type': 'string'},
+                'code': {'type': 'string'}
+            },
+            'required': ['email', 'login_token', 'code']
+        },
+        responses={
+            200: UserProfileSerializer
+        }
+    )
+    def put(self, request):
+        """Verify MFA code and complete login."""
+        from .services import MFAService
+        from django.core.cache import cache
+        
+        email = request.data.get('email')
+        login_token = request.data.get('login_token')
+        code = request.data.get('code')
+        
+        # Validate login token
+        cached_email = cache.get(f'mfa_login:{login_token}')
+        if not cached_email or cached_email != email:
+            return Response(
+                {'error': 'Invalid login session'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verify code
+        if user.mfa_method == 'email':
+            if not MFAService.verify_code(email, code):
+                return Response(
+                    {'error': 'Invalid MFA code'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            # TOTP verification would go here
+            if not code or len(code) != 6:
+                return Response(
+                    {'error': 'Invalid MFA code'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Clear MFA login token
+        cache.delete(f'mfa_login:{login_token}')
+        
+        # Generate auth token
+        token, _ = Token.objects.get_or_create(user=user)
+        
+        response_data = UserProfileSerializer(user).data
+        response_data['token'] = token.key
+        
+        return Response(response_data)

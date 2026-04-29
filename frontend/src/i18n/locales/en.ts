@@ -96,12 +96,93 @@ export default {
     confirmPassword: 'Confirm Password',
     rememberMe: 'Remember me',
     forgotPassword: 'Forgot password?',
+    forgotPasswordSubtitle: 'Reset your password',
     createAccount: 'Create an account',
     welcomeBack: 'Welcome back!',
     loginSubtitle: 'Sign in to your account to continue',
+    registerSubtitle: 'Start your free trial',
     invalidCredentials: 'Invalid email or password',
     loginSuccess: 'Login successful',
-    logoutSuccess: 'Logout successful'
+    logoutSuccess: 'Logout successful',
+    
+    // Form fields
+    firstName: 'First Name',
+    lastName: 'Last Name',
+    firstNamePlaceholder: 'Enter your first name',
+    lastNamePlaceholder: 'Enter your last name',
+    emailPlaceholder: 'Enter your email address',
+    passwordPlaceholder: 'Enter your password',
+    newPassword: 'New Password',
+    newPasswordPlaceholder: 'Enter new password',
+    confirmPasswordPlaceholder: 'Confirm your password',
+    
+    // Password strength
+    weak: 'Weak',
+    fair: 'Fair',
+    good: 'Good',
+    strong: 'Strong',
+    passwordMismatch: 'Passwords do not match',
+    passwordRequirements: 'At least 8 characters with uppercase, lowercase and numbers',
+    
+    // Captcha
+    captcha: 'Captcha',
+    captchaPlaceholder: 'Enter captcha',
+    refreshCaptcha: 'Click to refresh captcha',
+    invalidCaptcha: 'Invalid captcha',
+    
+    // Terms
+    agreeTermsPrefix: 'I agree to the',
+    termsOfService: 'Terms of Service',
+    privacyPolicy: 'Privacy Policy',
+    and: 'and',
+    
+    // Buttons
+    signingIn: 'Signing in...',
+    registering: 'Registering...',
+    sendResetCode: 'Send Reset Code',
+    verifyCode: 'Verify',
+    resetPassword: 'Reset Password',
+    goToLogin: 'Go to Login',
+    backToLogin: 'Back to Login',
+    
+    // Links
+    or: 'or',
+    haveAccount: 'Already have an account?',
+    loginNow: 'Login now',
+    
+    // Messages
+    registerFailed: 'Registration failed, please try again',
+    registerSuccess: 'Registration successful, please login',
+    sendResetFailed: 'Failed to send reset code',
+    resetCodeSent: 'Reset code sent to your email',
+    enterVerificationCode: 'We sent a 6-digit code to your email',
+    verificationCode: 'Verification Code',
+    verificationCodePlaceholder: 'Enter 6-digit code',
+    invalidCode: 'Invalid or expired code',
+    codeVerified: 'Verification successful',
+    passwordResetSuccess: 'Password reset successful',
+    canNowLogin: 'You can now login with your new password',
+    resetPasswordFailed: 'Failed to reset password',
+    
+    // Features
+    registerFeature1: 'Smart Backup & Recovery Management',
+    registerFeature2: 'AI-Powered File Analysis',
+    registerFeature3: 'Enterprise-Grade Security',
+    
+    // MFA
+    mfaEnabled: 'MFA Enabled',
+    mfaDisabled: 'MFA Disabled',
+    mfaSetup: 'Setup MFA',
+    mfaVerify: 'Verify MFA',
+    mfaCode: 'MFA Code',
+    mfaCodePlaceholder: 'Enter 6-digit code',
+    mfaSetupDesc: 'Scan QR code with authenticator app',
+    mfaSetupSuccess: 'MFA setup successful',
+    mfaSetupFailed: 'MFA setup failed',
+    mfaVerifyFailed: 'MFA verification failed',
+    enableMfa: 'Enable MFA',
+    disableMfa: 'Disable MFA',
+    mfaSecret: 'MFA Secret'
   },
 
   // Dashboard
@@ -1164,6 +1245,38 @@ export default {
       title: 'Language',
       english: 'English',
       chinese: '中文'
+    },
+
+    smtp: {
+      title: 'SMTP Email Configuration',
+      description: 'Configure SMTP server for sending system emails, such as verification codes, password reset, etc.',
+      addConfig: 'Add Configuration',
+      editConfig: 'Edit Configuration',
+      noConfigs: 'No SMTP configurations',
+      noConfigsDesc: 'Click the button above to add SMTP configuration',
+      name: 'Configuration Name',
+      server: 'Server Address',
+      host: 'SMTP Server',
+      port: 'Port',
+      username: 'Username',
+      password: 'Password',
+      fromEmail: 'From Email',
+      fromName: 'From Name',
+      useTLS: 'Use TLS',
+      useSSL: 'Use SSL',
+      testConnection: 'Test Connection',
+      sendTestEmail: 'Send Test Email',
+      sendTest: 'Send',
+      testEmailTo: 'Recipient Email',
+      setDefault: 'Set as Default',
+      setDefaultSuccess: 'Set as default configuration',
+      confirmDelete: 'Are you sure you want to delete this SMTP configuration?',
+      connectionSuccess: 'SMTP connection successful',
+      connectionFailed: 'SMTP connection failed',
+      emailSent: 'Test email sent',
+      emailFailed: 'Failed to send test email',
+      isActive: 'Active',
+      isDefault: 'Default',
     }
   },
 
@@ -1461,5 +1574,5 @@ export default {
     resourceTenants: 'Tenants',
     resourceStorage: 'Storage',
     resourceAiInsights: 'AI Insights',
-  }
+  },
 }

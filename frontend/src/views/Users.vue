@@ -583,7 +583,7 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 
 interface User {
-  id: number
+  id: string
   email: string
   full_name?: string
   first_name?: string
@@ -867,7 +867,7 @@ async function updateUser() {
 // Toggle superuser
 async function toggleSuperuser(user: User, isSuperuser: boolean) {
   try {
-    await usersApi.setSuperuser(String(user.id), isSuperuser)
+    await usersApi.setSuperuser(user.id, isSuperuser)
     appStore.showToast({ type: 'success', title: isSuperuser ? t('users.setPlatformAdmin') : t('users.removePlatformAdmin') })
     fetchUsers()
   } catch (error: unknown) {
@@ -904,9 +904,9 @@ async function sendInvite() {
 async function toggleUserStatus(user: User, active: boolean) {
   try {
     if (active) {
-      await usersApi.enable(String(user.id))
+      await usersApi.enable(user.id)
     } else {
-      await usersApi.disable(String(user.id))
+      await usersApi.disable(user.id)
     }
     appStore.showToast({ type: 'success', title: active ? t('users.enableSuccess') : t('users.disableSuccess') })
     fetchUsers()

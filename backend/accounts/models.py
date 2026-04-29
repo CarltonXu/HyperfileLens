@@ -268,6 +268,24 @@ class User(AbstractBaseUser, PermissionsMixin):
         default=dict,
         help_text='User preferences and settings'
     )
+    
+    # MFA (Multi-Factor Authentication)
+    mfa_enabled = models.BooleanField(
+        default=False,
+        help_text='Whether MFA is enabled for this user'
+    )
+    mfa_method = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        help_text='MFA method: email, totp'
+    )
+    mfa_secret = models.CharField(
+        max_length=64,
+        blank=True,
+        default='',
+        help_text='MFA secret for TOTP'
+    )
 
     objects = UserManager()
 

@@ -69,6 +69,7 @@ PROJECT_APPS = [
     'policies',
     'ai_query',
     'audit_log',
+    'system_settings',  # System settings & SMTP config
 ]
 
 INSTALLED_APPS = DJANGO_APPS + PROJECT_APPS
