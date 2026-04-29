@@ -1268,6 +1268,7 @@ export default {
     role: '角色',
     admin: '管理员',
     member: '成员',
+    owner: '所有者',
     activate: '激活',
     deactivate: '停用',
     confirmDelete: '确定要删除租户"{name}"吗？此操作不可恢复。',

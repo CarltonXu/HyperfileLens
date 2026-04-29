@@ -1262,6 +1262,7 @@ export default {
     role: 'Role',
     admin: 'Admin',
     member: 'Member',
+    owner: 'Owner',
     activate: 'Activate',
     deactivate: 'Deactivate',
     confirmDelete: 'Are you sure you want to delete tenant "{name}"? This action cannot be undone.',
