@@ -29,10 +29,14 @@ pkill -f "node server.cjs" 2>/dev/null || true
 pkill -f "uvicorn gateway" 2>/dev/null || true
 sleep 2
 
+# 启动Redis服务
+redis-server &
+
 # 启动后端服务 (Django)
 echo -e "${GREEN}Starting Backend (Django)...${NC}"
 cd $PROJECT_ROOT/backend
-USE_POSTGRES=false python manage.py runserver 0.0.0.0:8000 > $LOG_DIR/backend.log 2>&1 &
+# USE_POSTGRES=false python manage.py runserver 0.0.0.0:8000 > $LOG_DIR/backend.log 2>&1 &
+USE_POSTGRES=false daphne -b 0.0.0.0 -p 8000 core.asgi:application > $LOG_DIR/backend.log 2>&1 &
 sleep 3
 
 # 检查后端是否启动

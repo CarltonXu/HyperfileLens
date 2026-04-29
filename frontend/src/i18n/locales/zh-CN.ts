@@ -898,6 +898,10 @@ export default {
     },
 
     confirmDelete: '确定要删除此仓库吗？',
+    createSuccess: '仓库创建成功',
+    createFailed: '仓库创建失败',
+    deleteSuccess: '仓库删除成功',
+    deleteFailed: '仓库删除失败',
     updateSuccess: '仓库更新成功',
     updateFailed: '仓库更新失败',
     configInfo: '配置信息',

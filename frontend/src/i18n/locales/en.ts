@@ -901,6 +901,10 @@ export default {
     lastConnectionTest: 'Last Test',
     connectionTestNever: 'Never tested',
     connectionTestResult: 'Test Result',
+    createSuccess: 'Repository created successfully',
+    createFailed: 'Failed to create repository',
+    deleteSuccess: 'Repository deleted successfully',
+    deleteFailed: 'Failed to delete repository',
     updateSuccess: 'Repository updated successfully',
     updateFailed: 'Failed to update repository',
 
