@@ -130,7 +130,7 @@ const navigation = computed(() => {
       icon: UsersIcon,
       iconSolid: UsersIconSolid,
       current: route.path === '/users',
-      requiresTenantAdmin: true
+      requiresTenantAdmin: true  // 超级管理员或租户管理员可见
     },
     {
       name: t('nav.licenses'),
@@ -149,14 +149,16 @@ const navigation = computed(() => {
   ]
 
   // Filter out items that require superuser if user is not superuser
-  // Filter out items that require tenant admin if user is not tenant admin
+  // Filter out items that require tenant admin if user is not tenant admin or superuser
   return items.filter(item => {
     if (item.requiresSuperuser && !authStore.user?.is_superuser) {
       return false
     }
     if (item.requiresTenantAdmin) {
+      // 超级管理员或租户 owner/admin 可见
+      const isSuperuser = authStore.user?.is_superuser
       const role = authStore.user?.tenant_role
-      if (!['owner', 'admin'].includes(role || '')) {
+      if (!isSuperuser && !['owner', 'admin'].includes(role || '')) {
         return false
       }
     }

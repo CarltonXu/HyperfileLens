@@ -125,7 +125,7 @@ const routes: RouteRecordRaw[] = [
         path: 'users',
         name: 'Users',
         component: Users,
-        meta: { title: 'User Management' }
+        meta: { title: 'User Management', requiresTenantAdmin: true }
       },
       {
         path: 'licenses',
@@ -196,6 +196,16 @@ router.beforeEach(async (to, _from, next) => {
   if (to.meta.requiresSuperuser && !authStore.user?.is_superuser) {
     next({ name: 'Dashboard' })
     return
+  }
+
+  // Check tenant admin permission (superuser or tenant owner/admin)
+  if (to.meta.requiresTenantAdmin) {
+    const isSuperuser = authStore.user?.is_superuser
+    const role = authStore.user?.tenant_role
+    if (!isSuperuser && !['owner', 'admin'].includes(role || '')) {
+      next({ name: 'Dashboard' })
+      return
+    }
   }
 
   // If authenticated and trying to access login, redirect to dashboard
