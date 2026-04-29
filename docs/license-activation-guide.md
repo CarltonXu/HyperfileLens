@@ -11,14 +11,14 @@ HyperFileLens 使用机器绑定 License 机制，确保每个 License 只能在
 │                         License 激活流程                                 │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  1. 导出机器码                                                           │
+│  1. 获取机器码                                                           │
 │     ┌──────────────┐                                                    │
-│     │ 平台管理员    │ ──▶ License 管理页面 ──▶ 导出机器码                  │
+│     │ 平台管理员    │ ──▶ License 管理页面 ──▶ 获取机器码                  │
 │     └──────────────┘                                                    │
 │              │                                                          │
 │              ▼                                                          │
-│     生成: HFL-MCH-1089-817D-3A31-351A                                   │
-│     (绑定: 机器硬件标识 + 租户ID)                                         │
+│     生成: HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5                   │
+│     (128位，绑定: 机器硬件标识 + 租户ID)                                  │
 │              │                                                          │
 │              ▼                                                          │
 │     发送给销售团队                                                       │
@@ -30,7 +30,7 @@ HyperFileLens 使用机器绑定 License 机制，确保每个 License 只能在
 │              │                                                          │
 │              ▼                                                          │
 │     $ python scripts/license_generator.py \                             │
-│         --machine-code HFL-MCH-1089-817D-3A31-351A \                    │
+│         --machine-code HFL-MCH-... \                                    │
 │         --tier pro                                                      │
 │              │                                                          │
 │              ▼                                                          │
@@ -134,38 +134,114 @@ HyperFileLens 使用机器绑定 License 机制，确保每个 License 只能在
 
 ## 使用 license_generator.py
 
-### 基本用法
+### 预设套餐（快速生成）
 
 ```bash
-# 生成试用版 License
+# 试用版 (30天，基础配额)
 python scripts/license_generator.py \
-    --machine-code HFL-MCH-1089-817D-3A31-351A \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
     --tier trial
 
-# 生成专业版 License
+# 专业版 (1年，中等配额)
 python scripts/license_generator.py \
-    --machine-code HFL-MCH-1089-817D-3A31-351A \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
     --tier pro
 
-# 生成永久版 License
+# 企业版 (1年，高级配额)
 python scripts/license_generator.py \
-    --machine-code HFL-MCH-1089-817D-3A31-351A \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
+    --tier enterprise
+
+# 永久版 (永久有效，最高配额)
+python scripts/license_generator.py \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
     --tier perpetual
+```
 
-# 自定义有效期
-python scripts/license_generator.py \
-    --machine-code HFL-MCH-1089-817D-3A31-351A \
-    --tier pro \
-    --valid-days 730
+### 自定义配额（灵活配置）
 
-# 自定义配额
+```bash
+# 在套餐基础上覆盖特定配额
 python scripts/license_generator.py \
-    --machine-code HFL-MCH-1089-817D-3A31-351A \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
     --tier pro \
-    --max-users 500 \
+    --max-users 200 \
+    --max-proxies 50 \
     --max-storage-gb 2000
 
-# 验证激活码
+# 自定义有效期（天数）
+python scripts/license_generator.py \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
+    --tier pro \
+    --valid-days 730  # 2年
+
+# 永久有效
+python scripts/license_generator.py \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
+    --tier enterprise \
+    --perpetual
+```
+
+### 完全自定义（无预设套餐）
+
+```bash
+# 不使用预设套餐，完全自定义所有配额
+python scripts/license_generator.py \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
+    --tier custom \
+    --max-tenants 10 \
+    --max-users 500 \
+    --max-proxies 100 \
+    --max-storage-gb 5000 \
+    --max-gateways 5 \
+    --ai-insights-quota 5000 \
+    --max-backup-tasks 200 \
+    --max-recovery-tasks 200 \
+    --max-source-resources 100 \
+    --max-policies 500 \
+    --max-repositories 20 \
+    --valid-days 365
+```
+
+### 可配置参数
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `--tier` | 套餐类型 | trial, pro, enterprise, perpetual, custom |
+| `--valid-days` | 有效期（天数） | 365, 730 |
+| `--perpetual` | 永久有效 | 标志参数，无需值 |
+| `--max-tenants` | 最大租户数 | 10 |
+| `--max-users` | 最大用户数 | 500 |
+| `--max-proxies` | 最大代理数 | 100 |
+| `--max-storage-gb` | 最大存储容量(GB) | 5000 |
+| `--max-gateways` | 最大网关数 | 5 |
+| `--ai-insights-quota` | AI Insights配额 | 5000 |
+| `--max-backup-tasks` | 最大备份任务数 | 200 |
+| `--max-recovery-tasks` | 最大恢复任务数 | 200 |
+| `--max-source-resources` | 最大源端资源数 | 100 |
+| `--max-policies` | 最大策略数 | 500 |
+| `--max-repositories` | 最大仓库数 | 20 |
+| `--output json` | JSON格式输出 | 便于脚本处理 |
+
+### 输出格式
+
+```bash
+# 文本格式（默认）
+python scripts/license_generator.py \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
+    --tier pro
+
+# JSON格式（便于脚本处理）
+python scripts/license_generator.py \
+    --machine-code HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5 \
+    --tier pro \
+    --output json
+```
+
+### 验证激活码
+
+```bash
+# 验证激活码是否有效
 python scripts/license_generator.py \
     --verify "HFL-ACT-eyJsaWNlbnNlX2tleSI6..."
 ```
@@ -179,17 +255,15 @@ HyperFileLens License Generator
 
 License Key:    HFL-PRO-2026-D0802BC293CD6A52
 Tier:           Professional
-Machine Code:   HFL-MCH-1089-817D-3A31-351A
+Machine Code:   HFL-MCH-5F2086D3-BC4DA929-EC6547F1-14042CD5
 Valid Days:     365
 Expires At:     2027-04-29T03:50:25+00:00
 Issued At:      2026-04-29T03:50:25+00:00
 
-Limits:
-  max_tenants: 5
-  max_users: 100
-  max_proxies: 20
-  max_storage_gb: 1000
-  ...
+Limits (Customized):
+  max_users: 200        ← 自定义覆盖
+  max_proxies: 50       ← 自定义覆盖
+  max_storage_gb: 1000  ← 套餐默认
 
 ------------------------------------------------------------
 ACTIVATION CODE:
