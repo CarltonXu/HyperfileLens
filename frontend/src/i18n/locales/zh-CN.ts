@@ -69,7 +69,8 @@ export default {
     createdAt: '创建时间',
     updatedAt: '更新时间',
     viewDetails: '查看详情',
-    unlimited: '无限制'
+    unlimited: '无限制',
+    hide: '隐藏'
   },
 
   // Auth
@@ -1334,6 +1335,10 @@ export default {
     maxSourceResources: '源端资源数',
     maxPolicies: '策略数',
     maxRepositories: '仓库数',
+    
+    // Additional fields
+    machineCode: '机器码',
+    activatedAt: '激活时间',
     
     // History
     history: '许可证历史',

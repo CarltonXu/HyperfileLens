@@ -70,7 +70,8 @@ export default {
     daysAgo: 'd ago',
     createdAt: 'Created At',
     updatedAt: 'Updated At',
-    unlimited: 'Unlimited'
+    unlimited: 'Unlimited',
+    hide: 'Hide'
   },
 
   // Auth
@@ -1315,7 +1316,9 @@ export default {
     expiresAt: 'Expires At',
     daysRemaining: '{n} days remaining',
     machineId: 'Machine Code',
+    machineCode: 'Machine Code',
     licenseKey: 'License Key',
+    activatedAt: 'Activated At',
     
     // Limits - all quota types
     maxTenants: 'Max Tenants',
