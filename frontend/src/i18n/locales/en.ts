@@ -1259,6 +1259,7 @@ export default {
     users: 'Users',
     addUser: 'Add User',
     removeUser: 'Remove User',
+    manageUsers: 'Manage Users',
     role: 'Role',
     admin: 'Admin',
     member: 'Member',
@@ -1272,7 +1273,11 @@ export default {
     tenantNamePlaceholder: 'Enter tenant name',
     tenantSlugPlaceholder: 'e.g., my-company',
     tenantSlugHelp: 'Only lowercase letters, numbers, and hyphens',
-    descriptionPlaceholder: 'Enter tenant description (optional)'
+    descriptionPlaceholder: 'Enter tenant description (optional)',
+    confirmRemoveUser: 'Confirm Remove User',
+    confirmRemoveUserDesc: 'Are you sure you want to remove user {email} from this tenant?',
+    cannotRemoveSuperuser: 'Cannot remove platform admin',
+    cannotRemoveSelf: 'Cannot remove yourself'
   },
 
   // Users

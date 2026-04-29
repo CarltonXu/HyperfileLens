@@ -354,12 +354,17 @@
         <div class="flex min-h-screen items-center justify-center p-4">
           <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeUsersDrawer"></div>
           
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] flex flex-col">
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
             <!-- Header -->
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                {{ t('tenants.manageUsers') }} - {{ usersTenant?.name }}
-              </h3>
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ usersTenant?.name }} - {{ t('tenants.manageUsers') }}
+                </h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  {{ t('tenants.userCount') }}: {{ tenantUsers.length }}
+                </p>
+              </div>
               <button @click="closeUsersDrawer" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                 <XMarkIcon class="h-5 w-5" />
               </button>
@@ -367,61 +372,90 @@
             
             <!-- Content -->
             <div class="flex-1 overflow-y-auto px-6 py-4">
-              <!-- Add User Form -->
-              <div class="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ t('tenants.addUser') }}</h4>
-                <div class="grid grid-cols-3 gap-3">
-                  <input v-model="newUserEmail" type="email" :placeholder="t('users.email')" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 text-sm" />
-                  <select v-model="newUserRole" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 text-sm">
-                    <option value="admin">{{ t('users.roles.admin') }}</option>
-                    <option value="member">{{ t('users.roles.member') }}</option>
-                  </select>
-                  <button @click="handleAddUser" :disabled="!newUserEmail" class="bg-blue-600 text-white rounded-md px-3 py-2 text-sm hover:bg-blue-500 disabled:opacity-50">
-                    {{ t('common.add') }}
-                  </button>
+              <!-- Add User Section -->
+              <div class="mb-6">
+                <button 
+                  @click="showAddUserForm = !showAddUserForm"
+                  class="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                >
+                  <PlusIcon class="h-4 w-4" />
+                  {{ t('tenants.addUser') }}
+                </button>
+                
+                <div v-if="showAddUserForm" class="mt-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg space-y-3">
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('users.email') }}</label>
+                      <input v-model="newUserEmail" type="email" :placeholder="t('users.emailPlaceholder')" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('users.role') }}</label>
+                      <select v-model="newUserRole" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 text-sm">
+                        <option value="admin">{{ t('users.roles.admin') }}</option>
+                        <option value="member">{{ t('users.roles.member') }}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="flex justify-end gap-2">
+                    <button @click="showAddUserForm = false" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400">
+                      {{ t('common.cancel') }}
+                    </button>
+                    <button @click="handleAddUser" :disabled="!newUserEmail" class="bg-indigo-600 text-white rounded-md px-3 py-1.5 text-sm hover:bg-indigo-500 disabled:opacity-50">
+                      {{ t('common.add') }}
+                    </button>
+                  </div>
                 </div>
               </div>
               
               <!-- Users List -->
-              <div class="space-y-2">
-                <div v-if="loadingUsers" class="text-center py-4 text-gray-500">
-                  {{ t('common.loading') }}
+              <div class="space-y-3">
+                <div v-if="loadingUsers" class="text-center py-8">
+                  <svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
                 </div>
-                <div v-else-if="tenantUsers.length === 0" class="text-center py-4 text-gray-500">
+                <div v-else-if="tenantUsers.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
                   {{ t('common.noData') }}
                 </div>
-                <div v-else v-for="user in tenantUsers" :key="user.id" class="flex items-center justify-between p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                <div v-else v-for="user in tenantUsers" :key="user.id" class="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-sm transition-shadow">
                   <div class="flex items-center gap-3">
-                    <div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 font-medium">
+                    <div class="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-medium text-sm">
                       {{ (user.email || 'U').slice(0, 2).toUpperCase() }}
                     </div>
                     <div>
                       <p class="font-medium text-gray-900 dark:text-white">{{ user.email }}</p>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ user.is_superuser ? t('users.roles.superAdmin') : t(`users.roles.${user.tenant_role}`) }}
-                      </p>
+                      <div class="flex items-center gap-2 mt-0.5">
+                        <span :class="[
+                          user.is_superuser ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' :
+                          user.tenant_role === 'admin' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                          'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300',
+                          'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium'
+                        ]">
+                          {{ user.is_superuser ? t('users.roles.superAdmin') : t(`users.roles.${user.tenant_role}`) }}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div class="flex items-center gap-2">
+                    <!-- Role Selector -->
                     <select 
                       :value="user.tenant_role" 
                       @change="updateUserRole(user.id, ($event.target as HTMLSelectElement).value, user.is_superuser)"
-                      class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1 text-sm"
+                      :disabled="user.is_superuser"
+                      class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1.5 text-sm disabled:opacity-50"
                     >
                       <option value="admin">{{ t('users.roles.admin') }}</option>
                       <option value="member">{{ t('users.roles.member') }}</option>
                     </select>
-                    <label class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-                      <input 
-                        type="checkbox" 
-                        :checked="user.is_superuser" 
-                        @change="updateUserRole(user.id, user.tenant_role, ($event.target as HTMLInputElement).checked)"
-                        class="rounded border-gray-300 dark:border-gray-600"
-                      />
-                      {{ t('users.isSuperuser') }}
-                    </label>
-                    <button @click="removeUserFromTenant(user.id)" class="text-red-600 hover:text-red-500 text-sm">
-                      {{ t('common.remove') }}
+                    <!-- Remove Button -->
+                    <button 
+                      @click="confirmRemoveUser(user)"
+                      :disabled="user.is_superuser || user.id === currentUserId"
+                      class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md disabled:opacity-30 disabled:cursor-not-allowed"
+                      :title="user.is_superuser ? t('tenants.cannotRemoveSuperuser') : user.id === currentUserId ? t('tenants.cannotRemoveSelf') : t('common.remove')"
+                    >
+                      <UserMinusIcon class="h-5 w-5" />
                     </button>
                   </div>
                 </div>
@@ -442,6 +476,47 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Remove User Confirmation -->
+    <TransitionRoot appear :show="showRemoveUserConfirm" as="template">
+      <Dialog as="div" class="relative z-[60]" @close="showRemoveUserConfirm = false">
+        <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0" enter-to="opacity-100" leave="duration-200 ease-in" leave-from="opacity-100" leave-to="opacity-0">
+          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+        </TransitionChild>
+
+        <div class="fixed inset-0 z-[60] overflow-y-auto">
+          <div class="flex min-h-full items-center justify-center p-4">
+            <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" enter-to="opacity-100 translate-y-0 sm:scale-100" leave="duration-200 ease-in" leave-from="opacity-100 translate-y-0 sm:scale-100" leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+              <DialogPanel class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-sm sm:p-6">
+                <div>
+                  <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                    <ExclamationTriangleIcon class="h-6 w-6 text-red-600" aria-hidden="true" />
+                  </div>
+                  <div class="mt-3 text-center sm:mt-5">
+                    <DialogTitle as="h3" class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
+                      {{ t('tenants.confirmRemoveUser') }}
+                    </DialogTitle>
+                    <div class="mt-2">
+                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ t('tenants.confirmRemoveUserDesc', { email: removingUser?.email }) }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
+                  <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600" @click="showRemoveUserConfirm = false">
+                    {{ t('common.cancel') }}
+                  </button>
+                  <button type="button" class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500" @click="executeRemoveUser">
+                    {{ t('common.remove') }}
+                  </button>
+                </div>
+              </DialogPanel>
+            </TransitionChild>
+          </div>
+        </div>
+      </Dialog>
+    </TransitionRoot>
 
     <!-- Delete Confirmation -->
     <TransitionRoot appear :show="showDeleteConfirm" as="template">
@@ -490,13 +565,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Dialog, DialogPanel, DialogTitle, Menu, MenuButton, MenuItem, MenuItems, TransitionChild, TransitionRoot } from '@headlessui/vue'
-import { BuildingOffice2Icon, ChevronLeftIcon, ChevronRightIcon, EllipsisVerticalIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PlusIcon, ServerIcon, UsersIcon, XMarkIcon, CircleStackIcon } from '@heroicons/vue/24/outline'
+import { BuildingOffice2Icon, ChevronLeftIcon, ChevronRightIcon, EllipsisVerticalIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PlusIcon, ServerIcon, UsersIcon, XMarkIcon, CircleStackIcon, UserMinusIcon } from '@heroicons/vue/24/outline'
 import { tenantsApi } from '@/api'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import type { Tenant } from '@/types/tenant'
 
 const { t } = useI18n()
 const { showToast } = useToast()
+const authStore = useAuthStore()
 
 // State
 const tenants = ref<Tenant[]>([])
@@ -714,20 +791,33 @@ const updateUserRole = async (userId: string, role: string, isSuperuser: boolean
   }
 }
 
-const removeUserFromTenant = async (userId: string) => {
-  if (!usersTenant.value) return
+const confirmRemoveUser = (user: any) => {
+  removingUser.value = user
+  showRemoveUserConfirm.value = true
+}
+
+const executeRemoveUser = async () => {
+  if (!removingUser.value || !usersTenant.value) return
   try {
-    await tenantsApi.removeUser(usersTenant.value.id, userId)
+    await tenantsApi.removeUser(usersTenant.value.id, removingUser.value.id)
     showToast(t('common.deleted'), 'success')
+    showRemoveUserConfirm.value = false
+    removingUser.value = null
     await fetchTenantUsers(usersTenant.value.id)
   } catch (error: any) {
-    showToast(error.response?.data?.detail || t('common.error'), 'error')
+    showToast(error.response?.data?.error || error.response?.data?.detail || t('common.error'), 'error')
   }
 }
 
 // New user form state
 const newUserEmail = ref('')
 const newUserRole = ref('member')
+const showAddUserForm = ref(false)
+const showRemoveUserConfirm = ref(false)
+const removingUser = ref<any>(null)
+
+// Current user ID for self-check
+const currentUserId = ref<number | null>(null)
 
 const handleAddUser = async () => {
   if (!newUserEmail.value || !usersTenant.value) return
@@ -740,9 +830,10 @@ const handleAddUser = async () => {
     showToast(t('common.success'), 'success')
     newUserEmail.value = ''
     newUserRole.value = 'member'
+    showAddUserForm.value = false
     await fetchTenantUsers(usersTenant.value.id)
   } catch (error: any) {
-    showToast(error.response?.data?.detail || t('common.error'), 'error')
+    showToast(error.response?.data?.error || error.response?.data?.detail || t('common.error'), 'error')
   }
 }
 
@@ -788,5 +879,9 @@ const formatBytes = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-onMounted(fetchTenants)
+onMounted(() => {
+  fetchTenants()
+  // Get current user ID from auth store
+  currentUserId.value = authStore.user?.id || null
+})
 </script>

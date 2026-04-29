@@ -1278,7 +1278,11 @@ export default {
     tenantNamePlaceholder: '请输入租户名称',
     tenantSlugPlaceholder: '例如: my-company',
     tenantSlugHelp: '只能使用小写字母、数字和连字符',
-    descriptionPlaceholder: '请输入租户描述（可选）'
+    descriptionPlaceholder: '请输入租户描述（可选）',
+    confirmRemoveUser: '确认移除用户',
+    confirmRemoveUserDesc: '确定要将用户 {email} 从此租户移除吗？',
+    cannotRemoveSuperuser: '平台管理员不能被移除',
+    cannotRemoveSelf: '不能移除自己'
   },
 
   // Users
