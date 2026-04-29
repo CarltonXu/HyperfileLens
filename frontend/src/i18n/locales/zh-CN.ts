@@ -1311,6 +1311,8 @@ export default {
     emailPlaceholder: '请输入邮箱地址',
     passwordPlaceholder: '请输入密码',
     roles: {
+      platformAdmin: '平台管理员',
+      tenantAdmin: '租户管理员',
       admin: '租户管理员',
       member: '租户用户',
       superAdmin: '平台管理员',

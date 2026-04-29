@@ -102,9 +102,6 @@
                 <div class="ml-4">
                   <div class="font-medium text-gray-900 dark:text-white">
                     {{ user.full_name || user.email.split('@')[0] }}
-                    <span v-if="user.is_superuser" class="ml-2 inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                      {{ t('users.platformAdmin') }}
-                    </span>
                   </div>
                   <div class="text-gray-500 dark:text-gray-400 text-xs">ID: {{ user.id }}</div>
                 </div>
@@ -117,8 +114,8 @@
               {{ user.tenant_name || '-' }}
             </td>
             <td class="whitespace-nowrap px-3 py-4 text-sm">
-              <span :class="getRoleClass(user.tenant_role)" class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
-                {{ t(`users.roles.${user.tenant_role || 'undefined'}`) }}
+              <span :class="getUnifiedRoleClass(user)" class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
+                {{ getUnifiedRoleName(user) }}
               </span>
             </td>
             <td class="whitespace-nowrap px-3 py-4 text-sm">
@@ -290,22 +287,17 @@
                       <option v-for="tenant in tenants" :key="tenant.id" :value="tenant.id">{{ tenant.name }}</option>
                     </select>
                   </div>
+                  <!-- 统一角色选择 -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.role') }}</label>
                     <select
-                      v-model="createForm.tenant_role"
+                      v-model="createForm.role"
                       class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
                     >
-                      <option value="admin">{{ t('users.roles.admin') }}</option>
+                      <option v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
+                      <option value="admin">{{ t('users.roles.tenantAdmin') }}</option>
                       <option value="member">{{ t('users.roles.member') }}</option>
                     </select>
-                  </div>
-                  <div v-if="isPlatformAdmin" class="flex items-center">
-                    <input v-model="createForm.is_superuser" type="checkbox" id="create-superuser" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600" />
-                    <label for="create-superuser" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                      {{ t('users.platformAdmin') }}
-                      <span class="block text-xs text-gray-500">{{ t('users.platformAdminHint') }}</span>
-                    </label>
                   </div>
                 </div>
               </div>
@@ -381,22 +373,17 @@
                       class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
                     />
                   </div>
+                  <!-- 统一角色选择 -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.role') }}</label>
                     <select
-                      v-model="editForm.tenant_role"
+                      v-model="editForm.role"
                       class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
                     >
-                      <option value="admin">{{ t('users.roles.admin') }}</option>
+                      <option v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
+                      <option value="admin">{{ t('users.roles.tenantAdmin') }}</option>
                       <option value="member">{{ t('users.roles.member') }}</option>
                     </select>
-                  </div>
-                  <div v-if="isPlatformAdmin" class="flex items-center">
-                    <input v-model="editForm.is_superuser" type="checkbox" id="edit-superuser" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600" />
-                    <label for="edit-superuser" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                      {{ t('users.platformAdmin') }}
-                      <span class="block text-xs text-gray-500">{{ t('users.platformAdminHint') }}</span>
-                    </label>
                   </div>
                 </div>
               </div>
@@ -645,8 +632,7 @@ const createForm = ref({
   first_name: '',
   last_name: '',
   phone: '',
-  tenant_role: 'member',
-  is_superuser: false,
+  role: 'member', // 统一角色：platform_admin / admin / member
   tenant_id: ''
 })
 
@@ -663,8 +649,7 @@ const editForm = ref({
   first_name: '',
   last_name: '',
   phone: '',
-  tenant_role: '',
-  is_superuser: false
+  role: '' // 统一角色：platform_admin / admin / member
 })
 
 // Reset password dialog
@@ -734,12 +719,23 @@ function getInitials(user: User) {
   return (user.email || 'U').slice(0, 2).toUpperCase()
 }
 
-function getRoleClass(role: string) {
-  const classes: Record<string, string> = {
-    admin: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
-    member: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+// 统一角色辅助函数
+function getUnifiedRoleName(user: User) {
+  if (user.is_superuser) {
+    return t('users.roles.platformAdmin')
+  } else if (user.tenant_role === 'admin') {
+    return t('users.roles.tenantAdmin')
   }
-  return classes[role] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+  return t('users.roles.member')
+}
+
+function getUnifiedRoleClass(user: User) {
+  if (user.is_superuser) {
+    return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+  } else if (user.tenant_role === 'admin') {
+    return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
+  }
+  return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
 }
 
 function formatDate(date: string) {
@@ -749,7 +745,7 @@ function formatDate(date: string) {
 
 // Create
 async function openCreateDialog() {
-  createForm.value = { email: '', password: '', first_name: '', last_name: '', phone: '', tenant_role: 'member', is_superuser: false, tenant_id: '' }
+  createForm.value = { email: '', password: '', first_name: '', last_name: '', phone: '', role: 'member', tenant_id: '' }
   showCreateDialog.value = true
   
   // Fetch tenants for platform admin
@@ -773,12 +769,22 @@ function closeCreateDialog() {
 async function createUser() {
   creating.value = true
   try {
-    // Build payload - include tenant_id for platform admin
-    const payload: Record<string, unknown> = { ...createForm.value }
-    if (!isPlatformAdmin.value) {
-      delete payload.tenant_id
+    // 将统一角色转换为后端字段
+    const role = createForm.value.role
+    const is_superuser = role === 'platform_admin'
+    const tenant_role = role === 'platform_admin' ? 'admin' : role
+
+    const payload = {
+      email: createForm.value.email,
+      password: createForm.value.password,
+      first_name: createForm.value.first_name,
+      last_name: createForm.value.last_name,
+      phone: createForm.value.phone,
+      tenant_role,
+      is_superuser,
+      tenant_id: createForm.value.tenant_id || undefined
     }
-    await usersApi.create(payload as Parameters<typeof usersApi.create>[0])
+    await usersApi.create(payload)
     appStore.showToast({ type: 'success', title: t('users.createSuccess') })
     closeCreateDialog()
     fetchUsers()
@@ -798,13 +804,19 @@ async function createUser() {
 // Edit
 function openEditDialog(user: User) {
   editingUser.value = user
+  // 根据用户的 is_superuser 和 tenant_role 确定统一角色
+  let role = 'member'
+  if (user.is_superuser) {
+    role = 'platform_admin'
+  } else if (user.tenant_role === 'admin') {
+    role = 'admin'
+  }
   editForm.value = {
     email: user.email || '',
     first_name: user.first_name || '',
     last_name: user.last_name || '',
     phone: user.phone || '',
-    tenant_role: user.tenant_role || 'member',
-    is_superuser: user.is_superuser || false
+    role: role
   }
   showEditDialog.value = true
 }
@@ -826,14 +838,19 @@ async function updateUser() {
       phone: editForm.value.phone
     })
 
-    // Update role if changed
-    if (editForm.value.tenant_role !== editingUser.value.tenant_role) {
-      await usersApi.changeRole(String(editingUser.value.id), editForm.value.tenant_role)
+    // Calculate new role values
+    const newRole = editForm.value.role
+    const newIsSuperuser = newRole === 'platform_admin'
+    const newTenantRole = newRole === 'platform_admin' ? 'admin' : newRole
+
+    // Update superuser status if changed
+    if (newIsSuperuser !== editingUser.value.is_superuser) {
+      await usersApi.setSuperuser(String(editingUser.value.id), newIsSuperuser)
     }
 
-    // Update superuser status if changed (platform admin only)
-    if (isPlatformAdmin.value && editForm.value.is_superuser !== editingUser.value.is_superuser) {
-      await usersApi.setSuperuser(String(editingUser.value.id), editForm.value.is_superuser)
+    // Update tenant role if changed
+    if (newTenantRole !== editingUser.value.tenant_role) {
+      await usersApi.changeRole(String(editingUser.value.id), newTenantRole)
     }
 
     appStore.showToast({ type: 'success', title: t('users.updateSuccess') })

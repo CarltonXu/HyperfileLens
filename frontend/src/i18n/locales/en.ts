@@ -1306,6 +1306,8 @@ export default {
     emailPlaceholder: 'Enter email address',
     passwordPlaceholder: 'Enter password',
     roles: {
+      platformAdmin: 'Platform Admin',
+      tenantAdmin: 'Tenant Admin',
       admin: 'Tenant Admin',
       member: 'Tenant User',
       superAdmin: 'Platform Admin',
