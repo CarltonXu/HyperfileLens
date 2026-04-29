@@ -11,7 +11,7 @@ urlpatterns = [
     path('<uuid:pk>/', TenantViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='tenant-detail'),
     path('<uuid:pk>/stats/', TenantViewSet.as_view({'get': 'stats'}), name='tenant-stats'),
     path('<uuid:pk>/users/', TenantViewSet.as_view({'get': 'users', 'post': 'add_user'}), name='tenant-users'),
-    path('<uuid:pk>/users/<uuid:user_id>/', TenantViewSet.as_view({'patch': 'update_user', 'delete': 'remove_user'}), name='tenant-user-detail'),
+    path('<uuid:pk>/users/<int:user_id>/', TenantViewSet.as_view({'patch': 'update_user', 'delete': 'remove_user'}), name='tenant-user-detail'),
     path('<uuid:pk>/activate/', TenantViewSet.as_view({'post': 'activate'}), name='tenant-activate'),
     path('<uuid:pk>/deactivate/', TenantViewSet.as_view({'post': 'deactivate'}), name='tenant-deactivate'),
     # Invitation endpoints

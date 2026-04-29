@@ -453,7 +453,7 @@ export const tenantsApi = {
     api.get(`/api/v1/tenants/${id}/users/`, { params }),
   
   addUser: (id: number | string, data: { email: string; role: string; is_superuser?: boolean }) =>
-    api.post(`/api/v1/tenants/${id}/add-user/`, data),
+    api.post(`/api/v1/tenants/${id}/users/`, data),
   
   updateUser: (id: number | string, userId: string, data: { role: string; is_superuser?: boolean }) =>
     api.patch(`/api/v1/tenants/${id}/users/${userId}/`, data),

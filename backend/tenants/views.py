@@ -276,6 +276,13 @@ class TenantViewSet(viewsets.ModelViewSet):
         
         tenant = self.get_object()
         
+        # 不允许从 administrator 租户移除用户
+        if tenant.name == 'administrator':
+            return Response(
+                {'error': 'Cannot remove users from the system administrator tenant'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         try:
             user = User.objects.get(id=user_id, tenant=tenant)
         except User.DoesNotExist:
@@ -284,6 +291,14 @@ class TenantViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
+        # 不允许移除自己
+        if user.id == request.user.id:
+            return Response(
+                {'error': 'Cannot remove yourself from a tenant'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 清除用户的租户关联
         user.tenant = None
         user.tenant_role = ''
         user.is_superuser = False
