@@ -103,6 +103,7 @@ export default {
     invalidCredentials: '邮箱或密码错误',
     loginSuccess: '登录成功',
     logoutSuccess: '退出成功',
+    noAccount: '还没有账户？',
     
     // Form fields
     firstName: '名字',

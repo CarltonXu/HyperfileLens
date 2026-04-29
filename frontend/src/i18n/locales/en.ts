@@ -104,6 +104,7 @@ export default {
     invalidCredentials: 'Invalid email or password',
     loginSuccess: 'Login successful',
     logoutSuccess: 'Logout successful',
+    noAccount: "Don't have an account?",
     
     // Form fields
     firstName: 'First Name',
