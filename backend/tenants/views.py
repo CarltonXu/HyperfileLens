@@ -168,7 +168,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         tenant.save()
         return Response({'status': 'activated'})
 
-    @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
         """Deactivate a tenant (super admin only)."""
         if not request.user.is_superuser:
@@ -279,7 +278,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         is_superuser = request.data.get('is_superuser')
         
         try:
-            user_id = int(user_id)
             user = User.objects.get(id=user_id, tenant=tenant)
         except (ValueError, User.DoesNotExist):
             return Response(
@@ -314,7 +312,6 @@ class TenantViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            user_id = int(user_id)
             user = User.objects.get(id=user_id, tenant=tenant)
         except (ValueError, User.DoesNotExist):
             return Response(
