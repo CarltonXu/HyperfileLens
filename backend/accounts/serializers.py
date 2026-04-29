@@ -76,7 +76,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """
-        Create a new user account.
+        Create a new user account with auto-created tenant and license.
+
+        This method:
+        1. Creates a new tenant using email prefix as name
+        2. Creates the user as tenant owner
+        3. Creates a default Free license for the tenant
 
         Args:
             validated_data: Validated data from the serializer
@@ -84,8 +89,76 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         Returns:
             The created user instance
         """
+        from tenants.models import Tenant
+        from licenses.models import License
+        from django.utils import timezone
+        import uuid
+        import secrets
+        import hashlib
+
         validated_data.pop('password_confirm')
-        user = User.objects.create_user(**validated_data)
+        email = validated_data['email']
+
+        # Generate tenant name from email prefix
+        email_prefix = email.split('@')[0]
+        # Clean the prefix to be a valid name/slug
+        tenant_name = ''.join(c if c.isalnum() or c in '-_' else '-' for c in email_prefix)
+        tenant_slug = f"{tenant_name}-{secrets.token_hex(4)}"
+
+        # Create tenant
+        tenant = Tenant.objects.create(
+            name=tenant_name,
+            slug=tenant_slug,
+            plan=Tenant.PlanType.FREE,
+            status=Tenant.TenantStatus.ACTIVE,
+            contact_email=email,
+            # Free plan defaults
+            max_users=10,
+            max_proxies=5,
+            max_repositories=3,
+            max_storage_gb=100,
+            max_backup_tasks=50,
+        )
+
+        # Create user as tenant owner
+        user = User.objects.create_user(
+            **validated_data,
+            tenant=tenant,
+            tenant_role=User.TenantRole.OWNER,
+        )
+
+        # Generate unique license key and machine code
+        license_key = f"FREE-{secrets.token_hex(16).upper()}"
+        machine_code = hashlib.sha256(
+            f"{tenant.id}-{user.id}-{secrets.token_hex(8)}".encode()
+        ).hexdigest()[:64]
+
+        # Create default Free license
+        License.objects.create(
+            license_key=license_key,
+            tenant=tenant,
+            activated_by=user,
+            machine_code=machine_code,
+            change_type=License.ChangeType.INITIAL,
+            change_reason='Auto-created on registration',
+            # Free plan limits
+            max_tenants=1,
+            max_users=10,
+            max_proxies=5,
+            max_storage_gb=100,
+            max_gateways=1,
+            ai_insights_quota=100,
+            max_backup_tasks=10,
+            max_recovery_tasks=10,
+            max_source_resources=20,
+            max_policies=50,
+            max_repositories=5,
+            issued_at=timezone.now(),
+            expires_at=None,  # Perpetual for free plan
+            signature='auto-generated-free-license',
+            status=License.LicenseStatus.ACTIVE,
+        )
+
         return user
 
 
@@ -105,10 +178,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'username', 'first_name', 'last_name',
             'full_name', 'role', 'permissions', 'phone', 'avatar',
-            'preferences', 'date_joined', 'last_login_at', 'is_active'
+            'preferences', 'date_joined', 'last_login_at', 'is_active',
+            'is_superuser', 'tenant_role', 'tenant'
         ]
         read_only_fields = [
-            'id', 'email', 'role', 'date_joined', 'last_login_at'
+            'id', 'email', 'role', 'date_joined', 'last_login_at',
+            'is_superuser', 'tenant_role', 'tenant'
         ]
 
     def get_full_name(self, obj):

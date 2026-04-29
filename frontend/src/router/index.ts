@@ -16,6 +16,7 @@ const AuditLog = () => import('@/views/AuditLog.vue')
 const Settings = () => import('@/views/Settings.vue')
 const Layout = () => import('@/views/Layout.vue')
 const Tenants = () => import('@/views/Tenants.vue')
+const Users = () => import('@/views/Users.vue')
 const Licenses = () => import('@/views/Licenses.vue')
 
 // Route types
@@ -24,6 +25,7 @@ declare module 'vue-router' {
     title?: string
     requiresAuth?: boolean
     layout?: 'default' | 'auth'
+    requiresSuperuser?: boolean
   }
 }
 
@@ -117,7 +119,13 @@ const routes: RouteRecordRaw[] = [
         path: 'tenants',
         name: 'Tenants',
         component: Tenants,
-        meta: { title: 'Tenant Management' }
+        meta: { title: 'Tenant Management', requiresSuperuser: true }
+      },
+      {
+        path: 'users',
+        name: 'Users',
+        component: Users,
+        meta: { title: 'User Management' }
       },
       {
         path: 'licenses',
@@ -167,6 +175,11 @@ router.beforeEach(async (to, _from, next) => {
     if (authStore.token) {
       try {
         await authStore.fetchUser()
+        // Check superuser permission after fetching user
+        if (to.meta.requiresSuperuser && !authStore.user?.is_superuser) {
+          next({ name: 'Dashboard' })
+          return
+        }
         next()
         return
       } catch {
@@ -176,6 +189,12 @@ router.beforeEach(async (to, _from, next) => {
       }
     }
     next({ name: 'Login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  // Check superuser permission for authenticated users
+  if (to.meta.requiresSuperuser && !authStore.user?.is_superuser) {
+    next({ name: 'Dashboard' })
     return
   }
 

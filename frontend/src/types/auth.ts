@@ -5,13 +5,17 @@ export interface User {
   username?: string
   first_name?: string
   last_name?: string
+  full_name?: string
   role?: Role
+  tenant_role?: 'owner' | 'admin' | 'member' | 'viewer'
+  tenant?: string
   phone?: string
   avatar?: string
   preferences?: Record<string, any>
   date_joined: string
   last_login_at?: string
   is_active: boolean
+  is_superuser: boolean
 }
 
 export interface Role {

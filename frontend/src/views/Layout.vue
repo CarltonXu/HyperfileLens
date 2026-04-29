@@ -21,7 +21,8 @@ import {
   Bars3Icon,
   UserCircleIcon,
   BuildingOffice2Icon,
-  KeyIcon
+  KeyIcon,
+  UsersIcon
 } from '@heroicons/vue/24/outline'
 import {
   HomeIcon as HomeIconSolid,
@@ -34,7 +35,8 @@ import {
   ClipboardDocumentListIcon as ClipboardDocumentListIconSolid,
   Cog6ToothIcon as Cog6ToothIconSolid,
   BuildingOffice2Icon as BuildingOffice2IconSolid,
-  KeyIcon as KeyIconSolid
+  KeyIcon as KeyIconSolid,
+  UsersIcon as UsersIconSolid
 } from '@heroicons/vue/24/solid'
 
 const router = useRouter()
@@ -49,92 +51,118 @@ const hoverItem = ref<string | null>(null)
 const tooltipPosition = ref({ top: 0, show: false, text: '' })
 
 // Navigation items with icons
-const navigation = computed(() => [
-  {
-    name: t('nav.dashboard'),
-    path: '/',
-    icon: HomeIcon,
-    iconSolid: HomeIconSolid,
-    current: route.path === '/'
-  },
-  {
-    name: t('nav.proxies'),
-    path: '/proxies',
-    icon: ServerIcon,
-    iconSolid: ServerIconSolid,
-    current: route.path.startsWith('/proxies')
-  },
-  {
-    name: t('nav.backupTasks'),
-    path: '/backup-tasks',
-    icon: CloudArrowUpIcon,
-    iconSolid: CloudArrowUpIconSolid,
-    current: route.path === '/backup-tasks'
-  },
-  {
-    name: t('nav.recoveryTasks'),
-    path: '/recovery-tasks',
-    icon: ArrowUturnLeftIcon,
-    iconSolid: ArrowUturnLeftIconSolid,
-    current: route.path === '/recovery-tasks'
-  },
-  {
-    name: t('nav.repository'),
-    path: '/repository',
-    icon: CircleStackIcon,
-    iconSolid: CircleStackIconSolid,
-    current: route.path === '/repository'
-  },
-  {
-    name: t('nav.sourceResources'),
-    path: '/source-resources',
-    icon: ComputerDesktopIcon,
-    iconSolid: ComputerDesktopIcon,
-    current: route.path === '/source-resources'
-  },
-  {
-    name: t('nav.policies'),
-    path: '/policies',
-    icon: ClockIcon,
-    iconSolid: ClockIconSolid,
-    current: route.path === '/policies'
-  },
-  {
-    name: t('nav.aiQuery'),
-    path: '/ai-query',
-    icon: SparklesIcon,
-    iconSolid: SparklesIconSolid,
-    current: route.path === '/ai-query'
-  },
-  {
-    name: t('nav.auditLog'),
-    path: '/audit-log',
-    icon: ClipboardDocumentListIcon,
-    iconSolid: ClipboardDocumentListIconSolid,
-    current: route.path === '/audit-log'
-  },
-  {
-    name: t('nav.tenants'),
-    path: '/tenants',
-    icon: BuildingOffice2Icon,
-    iconSolid: BuildingOffice2IconSolid,
-    current: route.path === '/tenants'
-  },
-  {
-    name: t('nav.licenses'),
-    path: '/licenses',
-    icon: KeyIcon,
-    iconSolid: KeyIconSolid,
-    current: route.path === '/licenses'
-  },
-  {
-    name: t('nav.settings'),
-    path: '/settings',
-    icon: Cog6ToothIcon,
-    iconSolid: Cog6ToothIconSolid,
-    current: route.path === '/settings'
-  }
-])
+const navigation = computed(() => {
+  const items = [
+    {
+      name: t('nav.dashboard'),
+      path: '/',
+      icon: HomeIcon,
+      iconSolid: HomeIconSolid,
+      current: route.path === '/'
+    },
+    {
+      name: t('nav.proxies'),
+      path: '/proxies',
+      icon: ServerIcon,
+      iconSolid: ServerIconSolid,
+      current: route.path.startsWith('/proxies')
+    },
+    {
+      name: t('nav.backupTasks'),
+      path: '/backup-tasks',
+      icon: CloudArrowUpIcon,
+      iconSolid: CloudArrowUpIconSolid,
+      current: route.path === '/backup-tasks'
+    },
+    {
+      name: t('nav.recoveryTasks'),
+      path: '/recovery-tasks',
+      icon: ArrowUturnLeftIcon,
+      iconSolid: ArrowUturnLeftIconSolid,
+      current: route.path === '/recovery-tasks'
+    },
+    {
+      name: t('nav.repository'),
+      path: '/repository',
+      icon: CircleStackIcon,
+      iconSolid: CircleStackIconSolid,
+      current: route.path === '/repository'
+    },
+    {
+      name: t('nav.sourceResources'),
+      path: '/source-resources',
+      icon: ComputerDesktopIcon,
+      iconSolid: ComputerDesktopIcon,
+      current: route.path === '/source-resources'
+    },
+    {
+      name: t('nav.policies'),
+      path: '/policies',
+      icon: ClockIcon,
+      iconSolid: ClockIconSolid,
+      current: route.path === '/policies'
+    },
+    {
+      name: t('nav.aiQuery'),
+      path: '/ai-query',
+      icon: SparklesIcon,
+      iconSolid: SparklesIconSolid,
+      current: route.path === '/ai-query'
+    },
+    {
+      name: t('nav.auditLog'),
+      path: '/audit-log',
+      icon: ClipboardDocumentListIcon,
+      iconSolid: ClipboardDocumentListIconSolid,
+      current: route.path === '/audit-log'
+    },
+    {
+      name: t('nav.tenants'),
+      path: '/tenants',
+      icon: BuildingOffice2Icon,
+      iconSolid: BuildingOffice2IconSolid,
+      current: route.path === '/tenants',
+      requiresSuperuser: true
+    },
+    {
+      name: t('nav.users'),
+      path: '/users',
+      icon: UsersIcon,
+      iconSolid: UsersIconSolid,
+      current: route.path === '/users',
+      requiresTenantAdmin: true
+    },
+    {
+      name: t('nav.licenses'),
+      path: '/licenses',
+      icon: KeyIcon,
+      iconSolid: KeyIconSolid,
+      current: route.path === '/licenses'
+    },
+    {
+      name: t('nav.settings'),
+      path: '/settings',
+      icon: Cog6ToothIcon,
+      iconSolid: Cog6ToothIconSolid,
+      current: route.path === '/settings'
+    }
+  ]
+
+  // Filter out items that require superuser if user is not superuser
+  // Filter out items that require tenant admin if user is not tenant admin
+  return items.filter(item => {
+    if (item.requiresSuperuser && !authStore.user?.is_superuser) {
+      return false
+    }
+    if (item.requiresTenantAdmin) {
+      const role = authStore.user?.tenant_role
+      if (!['owner', 'admin'].includes(role || '')) {
+        return false
+      }
+    }
+    return true
+  })
+})
 
 function toggleSidebar() {
   isCollapsed.value = !isCollapsed.value

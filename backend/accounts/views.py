@@ -5,7 +5,7 @@ This module provides API views for user authentication,
 registration, profile management, and session management.
 """
 
-from rest_framework import viewsets, status, generics
+from rest_framework import viewsets, status, generics, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -27,6 +27,18 @@ from .serializers import (
     UserSessionSerializer,
 )
 
+
+class IsTenantAdmin(permissions.BasePermission):
+    """
+    Permission class for tenant admin or super admin.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user:
+            return False
+        if request.user.is_superuser:
+            return True
+        return request.user.tenant_role in ['owner', 'admin']
 
 class RoleViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -502,3 +514,112 @@ class UserSessionViewSet(viewsets.ReadOnlyModelViewSet):
 # Import timezone for last_login_at update
 from django.utils import timezone
 import secrets
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for user management within a tenant.
+
+    Tenant admins can manage users within their own tenant.
+    Super admins can manage all users.
+    """
+
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return User.objects.all()
+        if user.tenant and user.tenant_role in ['owner', 'admin']:
+            return User.objects.filter(tenant=user.tenant)
+        # Regular users can only see themselves
+        return User.objects.filter(pk=user.pk)
+
+    def get_permissions(self):
+        """Only tenant admins can create/update/delete users."""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), IsTenantAdmin()]
+        return super().get_permissions()
+
+    def perform_create(self, serializer):
+        """Create a user within the same tenant."""
+        user = self.request.user
+        if not user.tenant:
+            raise ValueError("User must belong to a tenant to create users")
+        serializer.save(tenant=user.tenant)
+
+    @extend_schema(
+        summary='Disable user',
+        description='Disable a user account (tenant admin only).',
+        responses={200: OpenApiResponse(description='User disabled')}
+    )
+    @action(detail=True, methods=['post'])
+    def disable(self, request, pk=None):
+        """Disable a user account."""
+        user = self.get_object()
+        # Cannot disable yourself
+        if user == request.user:
+            return Response(
+                {'error': 'Cannot disable your own account'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        user.is_active = False
+        user.save()
+        return Response({'status': 'disabled'})
+
+    @extend_schema(
+        summary='Enable user',
+        description='Enable a user account (tenant admin only).',
+        responses={200: OpenApiResponse(description='User enabled')}
+    )
+    @action(detail=True, methods=['post'])
+    def enable(self, request, pk=None):
+        """Enable a user account."""
+        user = self.get_object()
+        user.is_active = True
+        user.save()
+        return Response({'status': 'enabled'})
+
+    @extend_schema(
+        summary='Change user role',
+        description='Change a user\'s role within the tenant.',
+        request={
+            'type': 'object',
+            'properties': {
+                'role': {'type': 'string', 'enum': ['owner', 'admin', 'member', 'viewer']},
+            },
+            'required': ['role'],
+        },
+        responses={200: OpenApiResponse(description='Role changed')}
+    )
+    @action(detail=True, methods=['post'])
+    def change_role(self, request, pk=None):
+        """Change a user's role within the tenant."""
+        user = self.get_object()
+        new_role = request.data.get('role')
+
+        if new_role not in ['owner', 'admin', 'member', 'viewer']:
+            return Response(
+                {'error': 'Invalid role'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Cannot change your own role
+        if user == request.user:
+            return Response(
+                {'error': 'Cannot change your own role'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Only owner can change to/from owner role
+        if new_role == 'owner' or user.tenant_role == 'owner':
+            if request.user.tenant_role != 'owner':
+                return Response(
+                    {'error': 'Only tenant owner can assign or remove owner role'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        user.tenant_role = new_role
+        user.save()
+        return Response({'status': 'role_changed', 'role': new_role})

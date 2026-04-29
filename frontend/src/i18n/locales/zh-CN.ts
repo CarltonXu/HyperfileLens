@@ -12,6 +12,7 @@ export default {
     aiQuery: 'AI 查询',
     auditLog: '审计日志',
     tenants: '租户管理',
+    users: '用户管理',
     licenses: '许可证管理',
     settings: '设置',
     logout: '退出登录'
@@ -1274,6 +1275,47 @@ export default {
     tenantSlugPlaceholder: '例如: my-company',
     tenantSlugHelp: '只能使用小写字母、数字和连字符',
     descriptionPlaceholder: '请输入租户描述（可选）'
+  },
+
+  // Users
+  users: {
+    title: '用户管理',
+    description: '管理租户内的用户',
+    createUser: '创建用户',
+    inviteUser: '邀请用户',
+    user: '用户',
+    email: '邮箱',
+    password: '密码',
+    firstName: '名字',
+    lastName: '姓氏',
+    role: '角色',
+    status: '状态',
+    active: '启用',
+    inactive: '禁用',
+    lastLogin: '最后登录',
+    createdAt: '创建时间',
+    disableUser: '禁用用户',
+    enableUser: '启用用户',
+    changeRole: '修改角色',
+    changeRoleHint: '修改用户 {user} 的角色',
+    sendInvite: '发送邀请',
+    sending: '发送中...',
+    emailPlaceholder: '请输入邮箱地址',
+    passwordPlaceholder: '请输入密码',
+    roles: {
+      owner: '所有者',
+      admin: '管理员',
+      member: '成员',
+      viewer: '只读'
+    },
+    createSuccess: '用户创建成功',
+    createFailed: '用户创建失败',
+    inviteSuccess: '邀请发送成功',
+    inviteFailed: '邀请发送失败',
+    roleChangeSuccess: '角色修改成功',
+    roleChangeFailed: '角色修改失败',
+    enableSuccess: '用户已启用',
+    disableSuccess: '用户已禁用'
   },
 
   // Licenses

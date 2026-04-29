@@ -12,6 +12,7 @@ export default {
     aiQuery: 'AI Query',
     auditLog: 'Audit Log',
     tenants: 'Tenants',
+    users: 'Users',
     licenses: 'Licenses',
     settings: 'Settings',
     logout: 'Logout'
@@ -1269,6 +1270,47 @@ export default {
     tenantSlugPlaceholder: 'e.g., my-company',
     tenantSlugHelp: 'Only lowercase letters, numbers, and hyphens',
     descriptionPlaceholder: 'Enter tenant description (optional)'
+  },
+
+  // Users
+  users: {
+    title: 'User Management',
+    description: 'Manage users within your tenant',
+    createUser: 'Create User',
+    inviteUser: 'Invite User',
+    user: 'User',
+    email: 'Email',
+    password: 'Password',
+    firstName: 'First Name',
+    lastName: 'Last Name',
+    role: 'Role',
+    status: 'Status',
+    active: 'Active',
+    inactive: 'Inactive',
+    lastLogin: 'Last Login',
+    createdAt: 'Created At',
+    disableUser: 'Disable User',
+    enableUser: 'Enable User',
+    changeRole: 'Change Role',
+    changeRoleHint: 'Change role for user {user}',
+    sendInvite: 'Send Invite',
+    sending: 'Sending...',
+    emailPlaceholder: 'Enter email address',
+    passwordPlaceholder: 'Enter password',
+    roles: {
+      owner: 'Owner',
+      admin: 'Admin',
+      member: 'Member',
+      viewer: 'Viewer'
+    },
+    createSuccess: 'User created successfully',
+    createFailed: 'Failed to create user',
+    inviteSuccess: 'Invitation sent successfully',
+    inviteFailed: 'Failed to send invitation',
+    roleChangeSuccess: 'Role changed successfully',
+    roleChangeFailed: 'Failed to change role',
+    enableSuccess: 'User enabled',
+    disableSuccess: 'User disabled'
   },
 
   // Licenses

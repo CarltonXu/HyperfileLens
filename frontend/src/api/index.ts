@@ -500,6 +500,44 @@ export const licensesApi = {
     api.post(`/api/v1/licenses/${id}/revoke/`)
 }
 
+// ============== Users API ==============
+export const usersApi = {
+  // List users in current tenant
+  list: (params?: { page?: number; page_size?: number; search?: string; tenant_role?: string; is_active?: boolean }) =>
+    api.get('/api/v1/accounts/users/', { params }),
+
+  // Create user in current tenant
+  create: (data: { email: string; password: string; first_name?: string; last_name?: string; tenant_role?: string }) =>
+    api.post('/api/v1/accounts/users/', data),
+
+  // Change user role
+  changeRole: (id: string, role: string) =>
+    api.post(`/api/v1/accounts/users/${id}/change_role/`, { role }),
+
+  // Enable user
+  enable: (id: string) =>
+    api.post(`/api/v1/accounts/users/${id}/enable/`),
+
+  // Disable user
+  disable: (id: string) =>
+    api.post(`/api/v1/accounts/users/${id}/disable/`)
+}
+
+// ============== Invitations API ==============
+export const invitationsApi = {
+  // List invitations for current tenant
+  list: (params?: { page?: number; page_size?: number }) =>
+    api.get('/api/v1/tenants/invitations/', { params }),
+
+  // Send invitation
+  create: (data: { email: string; role: string }) =>
+    api.post('/api/v1/tenants/invitations/', data),
+
+  // Cancel invitation
+  cancel: (id: string) =>
+    api.delete(`/api/v1/tenants/invitations/${id}/`)
+}
+
 // Export api instance
 export default api
 

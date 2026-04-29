@@ -17,6 +17,7 @@ from .views import (
     CSRFTokenView,
     APITokenViewSet,
     UserSessionViewSet,
+    UserViewSet,
 )
 
 
@@ -25,6 +26,7 @@ router = DefaultRouter()
 router.register(r'tokens', APITokenViewSet, basename='api-token')
 router.register(r'sessions', UserSessionViewSet, basename='user-session')
 router.register(r'roles', RoleViewSet, basename='role')
+router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
     # Registration
