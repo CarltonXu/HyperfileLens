@@ -524,8 +524,15 @@ class UserViewSet(viewsets.ModelViewSet):
     Super admins can manage all users.
     """
 
-    serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        """Return appropriate serializer based on action."""
+        if self.action in ['update', 'partial_update']:
+            return UserUpdateSerializer
+        if self.action == 'create':
+            return UserCreateSerializer
+        return UserProfileSerializer
 
     def get_queryset(self):
         user = self.request.user

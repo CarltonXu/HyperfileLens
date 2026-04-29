@@ -14,6 +14,48 @@ from .models import Role, APIToken, UserSession
 User = get_user_model()
 
 
+class UserCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating users by admin.
+
+    Handles validation and creation of new user accounts by administrators.
+    """
+
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password],
+        style={'input_type': 'password'}
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'email', 'password', 'first_name', 'last_name', 'phone',
+            'tenant_role'
+        ]
+        extra_kwargs = {
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+            'phone': {'required': False},
+            'tenant_role': {'required': False, 'default': 'member'},
+        }
+
+    def validate_email(self, value):
+        """Validate email uniqueness."""
+        if User.objects.filter(email=value.lower()).exists():
+            raise serializers.ValidationError('A user with this email already exists.')
+        return value.lower()
+
+    def create(self, validated_data):
+        """Create a new user account."""
+        password = validated_data.pop('password')
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
+        return user
+
+
 class RoleSerializer(serializers.ModelSerializer):
     """
     Serializer for Role model.

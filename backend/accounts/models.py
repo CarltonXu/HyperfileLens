@@ -15,6 +15,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.utils import timezone
 from django.conf import settings
 import secrets
+import uuid
 
 
 class UserManager(BaseUserManager):
@@ -161,6 +162,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     as the primary identifier for authentication.
     """
 
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text='Unique identifier (UUID4 format)'
+    )
     email = models.EmailField(
         unique=True,
         max_length=255,
