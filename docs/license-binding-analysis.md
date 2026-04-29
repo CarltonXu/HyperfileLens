@@ -1,226 +1,153 @@
-# License 机器绑定安全方案
+# License 机器绑定机制
 
-## 问题分析
+## 概述
 
-当前实现的问题是：License 在生成时不包含机器信息，任何拿到 License 的人都可以在自己机器上激活使用。这违背了"机器绑定"的初衷。
+HyperFileLens 使用改进的机器码绑定机制，确保 License 只能在指定的环境中使用。
 
-## 三种正确的绑定方案
+## 机器码生成逻辑
 
-### 方案 A：预绑定模式（推荐 - 最安全）
+### 组成部分
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  1. 客户提供机器指纹                                                 │
-│     ┌──────────────────┐                                            │
-│     │  客户环境        │                                            │
-│     │  运行命令获取    │                                            │
-│     │  机器指纹        │                                            │
-│     └────────┬─────────┘                                            │
-│              │                                                       │
-│              │ 发送给销售                                            │
-│              ▼                                                       │
-│  2. 销售生成绑定 License                                            │
-│     ┌──────────────────┐                                            │
-│     │  License 生成    │                                            │
-│     │  - 其他信息      │                                            │
-│     │  - machine_id ✓ │  ← 包含机器指纹                             │
-│     │  - signature     │  ← 签名包含 machine_id                      │
-│     └────────┬─────────┘                                            │
-│              │                                                       │
-│              │ 发送给客户                                            │
-│              ▼                                                       │
-│  3. 客户导入并验证                                                   │
-│     ┌──────────────────┐                                            │
-│     │  导入 License    │                                            │
-│     │  验证签名        │                                            │
-│     │  检查 machine_id │  ← 必须匹配当前机器                         │
-│     │  == 当前机器?    │                                            │
-│     └────────┬─────────┘                                            │
-│              │                                                       │
-│         ┌────┴────┐                                                 │
-│         │         │                                                 │
-│      匹配 ✓    不匹配 ❌                                             │
-│         │         │                                                 │
-│         ▼         ▼                                                 │
-│      导入成功   导入失败                                             │
-│      可直接使用  "此 License 绑定到其他机器"                          │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+机器码由以下部分组成（按优先级排序）：
 
-优点：最安全，License 一旦生成就绑定特定机器
-缺点：需要客户先提供机器指纹
-```
+| 优先级 | 标识符类型 | 说明 | 稳定性 |
+|--------|-----------|------|--------|
+| 1 | 云平台实例 ID | AWS/GCP/Azure 实例 ID | ⭐⭐⭐⭐⭐ |
+| 2 | 主板 UUID | 物理服务器的 DMI UUID | ⭐⭐⭐⭐⭐ |
+| 3 | 磁盘序列号 | 启动盘序列号 | ⭐⭐⭐⭐ |
+| 4 | 混合标识符 | MAC + 主机名（兜底） | ⭐⭐ |
 
-### 方案 B：双向激活码模式（灵活）
+### 计算公式
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  1. 客户导入 License                                                │
-│     ┌──────────────────┐                                            │
-│     │  导入 License    │                                            │
-│     │  status=inactive │                                            │
-│     │  生成激活请求码  │                                            │
-│     │  = machine_id    │                                            │
-│     │  + license_key   │                                            │
-│     └────────┬─────────┘                                            │
-│              │                                                       │
-│              │ 发送给销售                                            │
-│              ▼                                                       │
-│  2. 销售生成激活确认码                                              │
-│     ┌──────────────────┐                                            │
-│     │  验证请求码      │                                            │
-│     │  签名确认码      │                                            │
-│     │  = sign(         │                                            │
-│     │    machine_id +  │                                            │
-│     │    license_key   │                                            │
-│     │  )               │                                            │
-│     └────────┬─────────┘                                            │
-│              │                                                       │
-│              │ 发送给客户                                            │
-│              ▼                                                       │
-│  3. 客户输入确认码激活                                              │
-│     ┌──────────────────┐                                            │
-│     │  验证确认码签名  │                                            │
-│     │  激活 License    │                                            │
-│     │  status=active   │                                            │
-│     └──────────────────┘                                            │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-
-优点：License 可以提前生成，激活时才绑定
-缺点：需要销售介入每次激活
+Machine Code = SHA256(机器唯一标识 + 租户ID)[:32]
+格式: HFL-MCH-XXXX-XXXX-XXXX-XXXX
 ```
 
-### 方案 C：在线激活模式（便捷）
+### 云平台支持
+
+| 平台 | 检测方式 | 示例 ID |
+|------|----------|---------|
+| AWS EC2 | 169.254.169.254/latest/meta-data/instance-id | `aws:i-1234567890abcdef0` |
+| Google Cloud | metadata.google.internal/computeMetadata/v1/instance/id | `gcp:1234567890123456789` |
+| Azure VM | 169.254.169.254/metadata/instance/compute/vmId | `azure:12345678-1234-1234-1234-123456789012` |
+
+## 激活流程
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  1. 客户导入 License                                                │
-│     ┌──────────────────┐                                            │
-│     │  导入 License    │                                            │
-│     │  status=inactive │                                            │
-│     └────────┬─────────┘                                            │
-│              │                                                       │
-│              ▼                                                       │
-│  2. 点击"在线激活"                                                   │
-│     ┌──────────────────┐                                            │
-│     │  发送到激活服务器│                                            │
-│     │  - license_key   │                                            │
-│     │  - machine_id    │                                            │
-│     └────────┬─────────┘                                            │
-│              │                                                       │
-│              ▼                                                       │
-│  3. 激活服务器验证                                                  │
-│     ┌──────────────────┐                                            │
-│     │  检查 License    │                                            │
-│     │  是否已激活？    │                                            │
-│     └────────┬─────────┘                                            │
-│              │                                                       │
-│         ┌────┴────┐                                                 │
-│         │         │                                                 │
-│      未激活    已激活                                                │
-│         │         │                                                 │
-│         ▼         ▼                                                 │
-│     记录绑定   检查 machine_id                                      │
-│     返回成功   匹配? → 成功 : 失败                                  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-
-优点：自动化，用户体验好
-缺点：需要联网，激活服务器可能成为攻击目标
+┌────────────────────────────────────────────────────────────────────┐
+│                        激活流程                                     │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  1. 导出机器码                                                      │
+│     ┌──────────────┐                                               │
+│     │ 平台管理员     │ ──▶ License管理页面                           │
+│     └──────────────┘           │                                   │
+│                                ▼                                   │
+│                    点击「导出机器码」                                │
+│                                │                                   │
+│                                ▼                                   │
+│                    生成唯一机器码 (HFL-MCH-xxx)                      │
+│                    包含: 机器标识 + 租户ID                           │
+│                                │                                   │
+│                                ▼                                   │
+│                    复制机器码发给销售                                │
+│                                                                    │
+│  2. 生成激活码                                                      │
+│     ┌──────────────┐                                               │
+│     │ 销售团队      │ ──▶ license_generator.py                      │
+│     └──────────────┘           │                                   │
+│                                ▼                                   │
+│                    输入: 机器码 + 配额设置                           │
+│                    输出: 激活码 (HFL-ACT-base64)                     │
+│                    包含: License Key + 机器码 + 配额 + 签名          │
+│                                │                                   │
+│                                ▼                                   │
+│                    将激活码发给客户                                  │
+│                                                                    │
+│  3. 激活 License                                                    │
+│     ┌──────────────┐                                               │
+│     │ 平台管理员     │ ──▶ License管理页面                           │
+│     └──────────────┘           │                                   │
+│                                ▼                                   │
+│                    点击「激活 License」                              │
+│                                │                                   │
+│                                ▼                                   │
+│                    输入激活码                                       │
+│                                │                                   │
+│                                ▼                                   │
+│                    后端验证:                                        │
+│                    - 机器码匹配                                     │
+│                    - 签名有效                                       │
+│                    - 未过期                                         │
+│                                │                                   │
+│                                ▼                                   │
+│                    License 绑定到当前租户                            │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-## 推荐实现
+## 安全保证
 
-结合方案 A 和 B，提供两种模式：
+### 1. 环境绑定
+- 机器码包含租户 ID，确保不同租户的 License 不能混用
+- 机器码绑定硬件标识，确保 License 不能迁移到其他环境
 
-1. **标准模式（预绑定）**：客户先提供机器指纹，销售生成绑定 License
-2. **灵活模式（激活码）**：License 可导入，但需要销售确认才能激活
+### 2. 签名验证
+- 激活码使用 HMAC-SHA256 签名
+- 任何篡改都会导致签名验证失败
 
-## 代码改进建议
+### 3. 持久化存储
+- 生成的机器码持久化到 `/var/lib/hyperfilelens/machine_code.json`
+- 避免因硬件检测方式变化导致的不一致
 
-### 1. 添加机器指纹获取工具
+### 4. 防重放
+- 每个 License Key 只能激活一次
+- 激活后机器码被标记为已使用
 
-```python
-# backend/licenses/management/commands/get_machine_fingerprint.py
-from django.core.management.base import BaseCommand
-from licenses.crypto import HardwareFingerprint
+## 配额限制项
 
-class Command(BaseCommand):
-    help = 'Get current machine fingerprint for license binding'
-    
-    def handle(self, *args, **options):
-        fingerprint = HardwareFingerprint.get_machine_id()
-        self.stdout.write(self.style.SUCCESS(f'Machine Fingerprint: {fingerprint}'))
-```
+| 限制项 | 说明 | 默认值 (Pro) |
+|--------|------|-------------|
+| `max_tenants` | 租户数量 | 5 |
+| `max_users` | 用户数量 | 100 |
+| `max_proxies` | Proxy 数量 | 20 |
+| `max_storage_gb` | 存储容量 (GB) | 1000 |
+| `max_gateways` | Gateway 数量 | 3 |
+| `ai_insights_quota` | AI Insights 月度免费次数 | 1000 |
+| `max_backup_tasks` | 备份任务数量 | 50 |
+| `max_recovery_tasks` | 恢复任务数量 | 50 |
+| `max_source_resources` | 源端资源数量 | 50 |
+| `max_policies` | 备份策略数量 | 100 |
+| `max_repositories` | 备份仓库数量 | 10 |
 
-### 2. License 导入时验证预绑定
+## 常见场景处理
 
-```python
-# 在 License.import_license 中添加
-def import_license(cls, encoded_license: str) -> 'License':
-    license_data, signature = LicenseEncoder.decode(encoded_license)
-    
-    # 验证签名
-    if not LicenseSigner.verify_signature(license_data, signature):
-        raise ValueError("License signature verification failed")
-    
-    # 检查预绑定
-    pre_bound_machine = license_data.get("machine_id")
-    if pre_bound_machine:
-        current_machine = HardwareFingerprint.get_machine_id()
-        if pre_bound_machine != current_machine:
-            raise ValueError(
-                f"This license is bound to another machine. "
-                f"Expected: {pre_bound_machine[:16]}... "
-                f"Current: {current_machine[:16]}..."
-            )
-        # 预绑定且匹配，直接激活
-        initial_status = cls.LicenseStatus.ACTIVE
-    else:
-        # 未预绑定，需要后续激活
-        initial_status = cls.LicenseStatus.INACTIVE
-    
-    # ... 创建 License
-```
+### 场景 1: 硬件更换
+如果服务器硬件更换（如磁盘更换），机器码会变化。需要：
+1. 联系销售团队重新生成激活码
+2. 或在 License 管理页面强制重新生成机器码
 
-### 3. 激活时需要确认码（可选）
+### 场景 2: 云服务器迁移
+- **同区域迁移**：实例 ID 通常不变，机器码有效
+- **跨区域迁移**：实例 ID 变化，需要重新激活
 
-```python
-# 新增激活确认码验证
-@action(detail=True, methods=['post'])
-def activate(self, request, pk=None):
-    license = self.get_object()
-    
-    # 方案 1：直接激活（当前实现）
-    # 任何人都可以激活
-    
-    # 方案 2：需要确认码
-    confirmation_code = request.data.get('confirmation_code')
-    if not confirmation_code:
-        # 返回激活请求码
-        machine_id = HardwareFingerprint.get_machine_id()
-        request_code = f"{license.license_key}:{machine_id}"
-        return Response({
-            'status': 'confirmation_required',
-            'request_code': request_code,
-            'message': 'Please contact sales with this request code to get confirmation code'
-        })
-    
-    # 验证确认码
-    if not verify_confirmation_code(license.license_key, confirmation_code):
-        return Response({'error': 'Invalid confirmation code'}, status=400)
-    
-    # 激活
-    license.activate()
-    return Response({'status': 'activated'})
-```
+### 场景 3: 容器环境
+容器环境建议：
+1. 使用云平台实例 ID（运行在云上的容器）
+2. 或挂载持久化卷存储机器码文件
 
-## 总结
+### 场景 4: 开发/测试环境
+开发环境可能没有稳定的硬件标识：
+- 使用 fallback 模式（MAC + 主机名）
+- 机器码可能因容器重启而变化
 
-| 方案 | 安全性 | 便捷性 | 适用场景 |
-|------|--------|--------|----------|
-| A 预绑定 | ⭐⭐⭐⭐⭐ | ⭐⭐ | 高安全要求，企业版 |
-| B 激活码 | ⭐⭐⭐⭐ | ⭐⭐⭐ | 中等安全要求，需要销售介入 |
-| C 在线激活 | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 有网络环境，SaaS 模式 |
-| 当前实现 | ⭐⭐ | ⭐⭐⭐⭐⭐ | 不推荐，存在安全漏洞 |
+## API 接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/licenses/machine-code/` | GET | 获取当前租户的机器码 |
+| `/api/v1/licenses/machine-code/` | POST | 强制重新生成机器码 |
+| `/api/v1/licenses/activate/` | POST | 使用激活码激活 License |
+| `/api/v1/licenses/current/` | GET | 获取当前 License 信息 |
+| `/api/v1/licenses/usage/` | GET | 获取配额使用情况 |

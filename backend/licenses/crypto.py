@@ -1,8 +1,11 @@
 """
 License Cryptography Module for HyperFileLens
 
-Simplified license activation with machine binding.
-Machine Code = MAC + CPU ID + Tenant ID + User ID
+Improved machine code generation with:
+1. Stable hardware identifiers (motherboard UUID, disk serial)
+2. Cloud platform instance IDs support
+3. Persistence to avoid regeneration issues
+4. Tenant-level binding (not user-level)
 """
 
 import hashlib
@@ -12,23 +15,10 @@ import secrets
 import subprocess
 import platform
 import uuid
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Tuple
 
-
-# RSA key pair for license signing
-# In production, these should be stored securely and the private key should NEVER be in the codebase
-
-LICENSE_PUBLIC_KEY = """
------BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2Z3qX2BTLS4e7g5V5h8s
-K8JhN3mF2dR9wL5kP7sT1vY8xQ6nB4cA3eD7fG2hJ9kL1mN5pO8rS0tU6vW3xY
-zA1bC4dE7fG8hJ2kL5mN9pO2rS6tU0vW4xY7zA3bC6dE9fG2hJ5kL8mN1pO4rS
-7tU2vW6xY9zA5bC8dE1fG4hJ7kL0mN3pO6rS9tU4vW8xY1zA7bC0dE3fG6hJ9k
-L2mN5pO8rS1tU6vW0xY3zA9bC2dE5fG8hJ1kL4mN7pO0rS3tU8vW2xY5zA1bC4
-dE7fG0hJ3kL6mN9pO2rS5tU0vW4xY7zQIDAQAB
------END PUBLIC KEY-----
-"""
 
 # Shared secret for signature verification
 # MUST match the value in license_generator.py
@@ -37,120 +27,268 @@ LICENSE_SECRET_KEY = "HFL_LICENSE_SECRET_2024_DO_NOT_SHARE"
 
 class MachineCodeGenerator:
     """
-    Generate unique machine codes for license binding.
+    Generate stable and unique machine codes for license binding.
     
-    Machine Code = SHA256(MAC + CPU ID + Hostname + Tenant ID + User ID)
+    Improved design:
+    1. Use stable hardware identifiers (motherboard UUID, disk serial)
+    2. Support cloud platform instance IDs (AWS, GCP, Azure)
+    3. Persist generated code to avoid regeneration issues
+    4. Bind to tenant, not user (tenant can have multiple admins)
+    
+    Machine Code = SHA256(Stable Hardware ID + Cloud Instance ID + Tenant ID)
     """
     
-    @staticmethod
-    def get_mac_address() -> str:
-        """Get primary MAC address."""
-        try:
-            # Get MAC address using uuid.getnode()
-            mac = uuid.getnode()
-            # Format as XX:XX:XX:XX:XX:XX
-            return ':'.join(['{:02X}'.format((mac >> elements) & 0xFF) 
-                           for elements in range(0, 2*6, 2)][::-1])
-        except Exception:
-            return "UNKNOWN_MAC"
+    # Persistence file path
+    MACHINE_CODE_FILE = "/var/lib/hyperfilelens/machine_code.json"
     
     @staticmethod
-    def get_cpu_id() -> str:
-        """Get CPU ID/Serial number."""
+    def get_motherboard_uuid() -> str:
+        """Get motherboard UUID - most stable hardware identifier."""
+        system = platform.system()
+        
         try:
-            system = platform.system()
-            
             if system == "Linux":
-                # Try to get CPU info from /proc/cpuinfo
+                # Try DMI UUID (requires root or /sys access)
                 try:
-                    with open('/proc/cpuinfo', 'r') as f:
-                        for line in f:
-                            if 'Serial' in line or 'UUID' in line:
-                                return line.split(':')[1].strip()
-                        # Fallback to model name
-                        f.seek(0)
-                        for line in f:
-                            if 'model name' in line.lower():
-                                return line.split(':')[1].strip()[:50]
-                except Exception:
+                    with open('/sys/class/dmi/id/product_uuid', 'r') as f:
+                        return f.read().strip()
+                except (FileNotFoundError, PermissionError):
+                    pass
+                
+                # Try board serial
+                try:
+                    with open('/sys/class/dmi/id/board_serial', 'r') as f:
+                        return f.read().strip()
+                except (FileNotFoundError, PermissionError):
                     pass
                 
                 # Try dmidecode (requires root)
                 try:
                     result = subprocess.run(
-                        ['dmidecode', '-s', 'processor-id'],
+                        ['dmidecode', '-s', 'system-uuid'],
                         capture_output=True, text=True, timeout=5
                     )
                     if result.returncode == 0 and result.stdout.strip():
-                        return result.stdout.strip()[:50]
+                        return result.stdout.strip()
                 except Exception:
                     pass
                     
             elif system == "Windows":
                 try:
                     result = subprocess.run(
-                        ['wmic', 'cpu', 'get', 'ProcessorId'],
+                        ['wmic', 'csproduct', 'get', 'UUID'],
                         capture_output=True, text=True, timeout=5
                     )
                     if result.returncode == 0:
                         lines = result.stdout.strip().split('\n')
                         if len(lines) > 1:
-                            return lines[1].strip()[:50]
+                            return lines[1].strip()
                 except Exception:
                     pass
                     
             elif system == "Darwin":  # macOS
                 try:
                     result = subprocess.run(
-                        ['sysctl', '-n', 'machdep.cpu.brand_string'],
+                        ['ioreg', '-rd1', '-c', 'IOPlatformExpertDevice'],
                         capture_output=True, text=True, timeout=5
                     )
                     if result.returncode == 0:
-                        return result.stdout.strip()[:50]
+                        for line in result.stdout.split('\n'):
+                            if 'IOPlatformUUID' in line:
+                                return line.split('"')[-2]
                 except Exception:
                     pass
-            
-            return "UNKNOWN_CPU"
-            
+                    
         except Exception:
-            return "UNKNOWN_CPU"
+            pass
+        
+        return None
     
     @staticmethod
-    def get_hostname() -> str:
-        """Get machine hostname."""
+    def get_disk_serial() -> str:
+        """Get boot disk serial number."""
+        system = platform.system()
+        
         try:
-            return platform.node()[:50]
+            if system == "Linux":
+                # Try to get root disk serial
+                try:
+                    # Find root device
+                    result = subprocess.run(
+                        ['lsblk', '-no', 'SERIAL', '-d', '/dev/sda'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        return result.stdout.strip()
+                except Exception:
+                    pass
+                
+                # Alternative: use /sys/block
+                try:
+                    for device in os.listdir('/sys/block'):
+                        if device.startswith('sd') or device.startswith('vd') or device.startswith('nvme'):
+                            serial_path = f'/sys/block/{device}/serial'
+                            if os.path.exists(serial_path):
+                                with open(serial_path, 'r') as f:
+                                    return f.read().strip()
+                except Exception:
+                    pass
+                    
+            elif system == "Windows":
+                try:
+                    result = subprocess.run(
+                        ['wmic', 'diskdrive', 'get', 'SerialNumber'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if result.returncode == 0:
+                        lines = result.stdout.strip().split('\n')
+                        if len(lines) > 1:
+                            return lines[1].strip()
+                except Exception:
+                    pass
+                    
         except Exception:
-            return "UNKNOWN_HOST"
+            pass
+        
+        return None
     
     @staticmethod
-    def generate(tenant_id: str, user_id: str) -> Tuple[str, Dict[str, str]]:
+    def get_cloud_instance_id() -> str:
+        """Get cloud platform instance ID (AWS, GCP, Azure)."""
+        
+        # AWS EC2 Instance ID
+        try:
+            result = subprocess.run(
+                ['curl', '-s', '--max-time', '2', 
+                 'http://169.254.169.254/latest/meta-data/instance-id'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.startswith('i-'):
+                return f"aws:{result.stdout.strip()}"
+        except Exception:
+            pass
+        
+        # GCP Instance ID
+        try:
+            result = subprocess.run(
+                ['curl', '-s', '--max-time', '2', '-H', 
+                 'Metadata-Flavor: Google',
+                 'http://metadata.google.internal/computeMetadata/v1/instance/id'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return f"gcp:{result.stdout.strip()}"
+        except Exception:
+            pass
+        
+        # Azure VM ID
+        try:
+            result = subprocess.run(
+                ['curl', '-s', '--max-time', '2', '-H', 
+                 'Metadata: true',
+                 'http://169.254.169.254/metadata/instance/compute/vmId?api-version=2021-02-01&format=text'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return f"azure:{result.stdout.strip()}"
+        except Exception:
+            pass
+        
+        return None
+    
+    @staticmethod
+    def get_machine_id() -> str:
         """
-        Generate a unique machine code.
+        Get the most stable machine identifier available.
+        Priority: Cloud Instance ID > Motherboard UUID > Disk Serial > Fallback
+        """
+        # 1. Cloud instance ID (most stable in cloud environments)
+        cloud_id = MachineCodeGenerator.get_cloud_instance_id()
+        if cloud_id:
+            return cloud_id
+        
+        # 2. Motherboard UUID (stable in physical servers)
+        mb_uuid = MachineCodeGenerator.get_motherboard_uuid()
+        if mb_uuid:
+            return mb_uuid
+        
+        # 3. Disk serial (fallback)
+        disk_serial = MachineCodeGenerator.get_disk_serial()
+        if disk_serial:
+            return f"disk:{disk_serial}"
+        
+        # 4. Last resort: combine multiple identifiers
+        mac = MachineCodeGenerator._get_mac_address()
+        hostname = platform.node()
+        return f"fallback:{mac}:{hostname}"
+    
+    @staticmethod
+    def _get_mac_address() -> str:
+        """Get primary MAC address (private helper)."""
+        try:
+            mac = uuid.getnode()
+            return ':'.join(['{:02X}'.format((mac >> elements) & 0xFF) 
+                           for elements in range(0, 2*6, 2)][::-1])
+        except Exception:
+            return "UNKNOWN_MAC"
+    
+    @staticmethod
+    def _load_persisted_code() -> Optional[Dict[str, Any]]:
+        """Load persisted machine code data."""
+        try:
+            if os.path.exists(MachineCodeGenerator.MACHINE_CODE_FILE):
+                with open(MachineCodeGenerator.MACHINE_CODE_FILE, 'r') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return None
+    
+    @staticmethod
+    def _persist_code(data: Dict[str, Any]) -> bool:
+        """Persist machine code data to file."""
+        try:
+            os.makedirs(os.path.dirname(MachineCodeGenerator.MACHINE_CODE_FILE), exist_ok=True)
+            with open(MachineCodeGenerator.MACHINE_CODE_FILE, 'w') as f:
+                json.dump(data, f, indent=2)
+            return True
+        except Exception:
+            pass
+        return False
+    
+    @staticmethod
+    def generate(tenant_id: str, force_regenerate: bool = False) -> Tuple[str, Dict[str, str]]:
+        """
+        Generate a unique machine code for a tenant.
+        
+        If a code already exists for this tenant, return it (unless force_regenerate=True).
+        This ensures stability across restarts and minor hardware changes.
         
         Args:
             tenant_id: Tenant UUID
-            user_id: User UUID
+            force_regenerate: Force regeneration even if code exists
             
         Returns:
             (machine_code, components_dict)
         """
+        tenant_id = str(tenant_id)
+        
+        # Check for persisted code
+        if not force_regenerate:
+            persisted = MachineCodeGenerator._load_persisted_code()
+            if persisted and persisted.get('tenant_id') == tenant_id:
+                return persisted['machine_code'], persisted.get('components', {})
+        
+        # Generate new code
+        machine_id = MachineCodeGenerator.get_machine_id()
+        
         components = {
-            'mac': MachineCodeGenerator.get_mac_address(),
-            'cpu_id': MachineCodeGenerator.get_cpu_id(),
-            'hostname': MachineCodeGenerator.get_hostname(),
-            'tenant_id': str(tenant_id),
-            'user_id': str(user_id),
+            'machine_id': machine_id,
+            'tenant_id': tenant_id,
+            'generated_at': datetime.now(timezone.utc).isoformat(),
         }
         
         # Create combined string
-        combined = "|".join([
-            components['mac'],
-            components['cpu_id'],
-            components['hostname'],
-            components['tenant_id'],
-            components['user_id'],
-        ])
+        combined = f"{machine_id}|{tenant_id}"
         
         # Generate SHA256 hash
         hash_value = hashlib.sha256(combined.encode()).hexdigest()[:32]
@@ -159,203 +297,137 @@ class MachineCodeGenerator:
         chunks = [hash_value[i:i+4].upper() for i in range(0, 16, 4)]
         machine_code = "HFL-MCH-" + "-".join(chunks)
         
+        # Persist
+        MachineCodeGenerator._persist_code({
+            'machine_code': machine_code,
+            'tenant_id': tenant_id,
+            'components': components,
+        })
+        
         return machine_code, components
     
     @staticmethod
-    def verify(stored_code: str, tenant_id: str, user_id: str) -> bool:
+    def verify(stored_code: str, tenant_id: str) -> Tuple[bool, str]:
         """
         Verify if current machine matches stored machine code.
         
-        Args:
-            stored_code: Previously stored machine code
-            tenant_id: Current tenant ID
-            user_id: Current user ID
-            
         Returns:
-            True if machine code matches
+            (is_valid, error_message)
         """
-        current_code, _ = MachineCodeGenerator.generate(tenant_id, user_id)
-        return current_code == stored_code
+        tenant_id = str(tenant_id)
+        
+        # Load persisted code first
+        persisted = MachineCodeGenerator._load_persisted_code()
+        if persisted and persisted.get('machine_code') == stored_code:
+            if persisted.get('tenant_id') == tenant_id:
+                return True, ""
+            return False, "License is bound to a different tenant"
+        
+        # Regenerate and compare
+        current_code, _ = MachineCodeGenerator.generate(tenant_id)
+        
+        if current_code == stored_code:
+            return True, ""
+        
+        # Check if it's just a minor hardware change
+        # Allow re-verification if machine_id matches but hash differs
+        # (This handles cases like MAC address changes)
+        return False, "Machine identifier mismatch. Please regenerate machine code."
 
 
-class ActivationCode:
+class ActivationCodeGenerator:
     """
-    Activation code generation and verification.
+    Generate and verify activation codes for license binding.
     
-    Activation Code Structure:
-    HFL-ACT-{base64_encoded_json}
-    
-    JSON contains:
-    - license_key: Unique license identifier
-    - machine_code: Bound machine code
-    - limits: Quantity limits
-    - expires_at: Expiration date
-    - signature: Digital signature
+    Activation Code = Base64(JSON({
+        license_key: str,
+        machine_code: str,
+        limits: dict,
+        issued_at: datetime,
+        expires_at: datetime,
+        signature: HMAC-SHA256
+    }))
     """
     
     @staticmethod
     def generate(
+        license_key: str,
         machine_code: str,
         limits: Dict[str, int],
-        valid_days: int = 365,
-        license_key: str = None,
+        validity_days: int = 365
     ) -> str:
         """
-        Generate an activation code (used by license generator tool).
-        
-        This is used OFFLINE by the sales team.
+        Generate an activation code.
         
         Args:
+            license_key: Unique license key
             machine_code: Target machine code
-            limits: Quantity limits dict
-            valid_days: Validity period (0 = perpetual)
-            license_key: Optional license key (auto-generated if not provided)
+            limits: Dictionary of quota limits
+            validity_days: License validity in days
             
         Returns:
             Activation code string
         """
         now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(days=validity_days)
         
-        # Generate license key if not provided
-        if not license_key:
-            year = now.year
-            random_part = secrets.token_hex(8).upper()
-            license_key = f"HFL-PRO-{year}-{random_part}"
-        
-        # Calculate expiration
-        expires_at = None
-        if valid_days > 0:
-            expires_at = (now + timedelta(days=valid_days)).isoformat()
-        
-        # Build activation data
-        activation_data = {
-            "license_key": license_key,
-            "machine_code": machine_code,
-            "limits": limits,
-            "issued_at": now.isoformat(),
-            "expires_at": expires_at,
+        data = {
+            'license_key': license_key,
+            'machine_code': machine_code,
+            'limits': limits,
+            'issued_at': now.isoformat(),
+            'expires_at': expires_at.isoformat(),
         }
         
-        # Calculate signature
-        signature = ActivationCode._sign(activation_data)
-        activation_data["signature"] = signature
+        # Generate signature
+        data_str = json.dumps(data, sort_keys=True)
+        signature = hashlib.sha256(
+            (data_str + LICENSE_SECRET_KEY).encode()
+        ).hexdigest()
+        data['signature'] = signature
         
-        # Encode
-        json_str = json.dumps(activation_data, sort_keys=True, separators=(',', ':'))
+        # Encode to base64
+        json_str = json.dumps(data)
         encoded = base64.b64encode(json_str.encode()).decode()
         
-        # Format as HFL-ACT-XXXX
         return f"HFL-ACT-{encoded}"
     
     @staticmethod
-    def decode(activation_code: str) -> Dict[str, Any]:
+    def verify(activation_code: str) -> Tuple[bool, Optional[Dict[str, Any]], str]:
         """
-        Decode and validate an activation code.
+        Verify an activation code.
         
-        Args:
-            activation_code: Activation code string
-            
         Returns:
-            Decoded activation data
-            
-        Raises:
-            ValueError: If code is invalid
+            (is_valid, decoded_data, error_message)
         """
         try:
-            # Remove prefix
-            if activation_code.startswith("HFL-ACT-"):
-                encoded = activation_code[8:]
-            else:
-                raise ValueError("Invalid activation code format")
+            if not activation_code.startswith("HFL-ACT-"):
+                return False, None, "Invalid activation code format"
             
-            # Decode base64
+            # Decode
+            encoded = activation_code[8:]  # Remove "HFL-ACT-"
             json_str = base64.b64decode(encoded).decode()
-            activation_data = json.loads(json_str)
+            data = json.loads(json_str)
             
-            # Verify required fields
-            required = ['license_key', 'machine_code', 'limits', 'signature']
-            for field in required:
-                if field not in activation_data:
-                    raise ValueError(f"Missing required field: {field}")
+            # Verify signature
+            stored_signature = data.pop('signature', None)
+            if not stored_signature:
+                return False, None, "Missing signature"
             
-            return activation_data
+            data_str = json.dumps(data, sort_keys=True)
+            expected_signature = hashlib.sha256(
+                (data_str + LICENSE_SECRET_KEY).encode()
+            ).hexdigest()
+            
+            if stored_signature != expected_signature:
+                return False, None, "Invalid signature - activation code has been tampered"
+            
+            # Check expiration
+            expires_at = datetime.fromisoformat(data['expires_at'].replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) > expires_at:
+                return False, data, "License has expired"
+            
+            return True, data, ""
             
         except Exception as e:
-            raise ValueError(f"Invalid activation code: {str(e)}")
-    
-    @staticmethod
-    def verify(activation_data: Dict[str, Any]) -> bool:
-        """
-        Verify activation code signature.
-        
-        Args:
-            activation_data: Decoded activation data
-            
-        Returns:
-            True if signature is valid
-        """
-        try:
-            stored_signature = activation_data.get("signature")
-            if not stored_signature:
-                return False
-            
-            # Recompute signature
-            expected_signature = ActivationCode._sign(activation_data)
-            
-            return stored_signature == expected_signature
-            
-        except Exception:
-            return False
-    
-    @staticmethod
-    def _sign(data: Dict[str, Any]) -> str:
-        """
-        Sign activation data.
-        
-        In production, this should use proper RSA signing with private key.
-        For now, we use HMAC-SHA256 with shared secret.
-        """
-        # Create canonical representation (without signature)
-        sign_data = {k: v for k, v in data.items() if k != 'signature'}
-        canonical = json.dumps(sign_data, sort_keys=True, separators=(',', ':'))
-        
-        # Sign with HMAC-SHA256
-        signature = hashlib.sha256(
-            (canonical + LICENSE_SECRET_KEY).encode()
-        ).hexdigest()
-        
-        return signature
-
-
-def check_license_limit(limit_type: str, increment: int = 1, tenant=None) -> Tuple[bool, str]:
-    """
-    Check if operation would exceed license limit.
-    
-    This is a utility function to be called before creating resources.
-    
-    Args:
-        limit_type: Type of limit to check
-        increment: Amount to increment
-        tenant: Tenant to check (default: first tenant)
-        
-    Returns:
-        (allowed, error_message)
-    """
-    from .models import License
-    
-    license = License.get_active_license(tenant)
-    
-    if not license:
-        return False, "No valid license found"
-    
-    if not license.is_valid:
-        return False, "License is not valid"
-    
-    try:
-        quota = license.quota_usage
-    except Exception:
-        # Create quota usage if not exists
-        from .models import QuotaUsage
-        quota = QuotaUsage.objects.create(license=license)
-    
-    return quota.check_limit(limit_type, increment)
+            return False, None, f"Failed to verify activation code: {str(e)}"

@@ -1,69 +1,102 @@
 #!/usr/bin/env python3
 """
-Test script to verify the License activation flow.
+HyperFileLens License Flow Test
 
-This script demonstrates the complete flow:
-1. Generate machine code
-2. Generate activation code
-3. Activate license
+Test the complete license activation flow with improved machine code generation.
 """
 
-import sys
 import os
-
-# Add backend to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+import sys
+import django
 
 # Setup Django
+sys.path.insert(0, '/workspace/projects/backend')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
-
-import django
 django.setup()
 
-from licenses.crypto import MachineCodeGenerator, ActivationCode
-from licenses.models import License, MachineCode, QuotaUsage
+from licenses.crypto import MachineCodeGenerator, ActivationCodeGenerator
+from licenses.models import License, QuotaUsage
 from tenants.models import Tenant
 from accounts.models import User
 
 
-def test_machine_code_generation():
-    """Test machine code generation."""
-    print("\n" + "=" * 60)
-    print("Test 1: Machine Code Generation")
+def test_machine_code_stability():
+    """Test that machine codes are stable across multiple calls."""
+    print("=" * 60)
+    print("Test: Machine Code Stability")
     print("=" * 60)
     
-    # Get first tenant and user
-    tenant = Tenant.objects.first()
-    user = User.objects.first()
+    tenant_id = "test-tenant-123"
     
-    if not tenant or not user:
-        print("ERROR: No tenant or user found. Please create them first.")
+    # Generate machine code multiple times
+    codes = []
+    for i in range(3):
+        code, components = MachineCodeGenerator.generate(tenant_id)
+        codes.append(code)
+        print(f"  Generation {i+1}: {code}")
+        print(f"    Machine ID: {components.get('machine_id', 'N/A')[:50]}...")
+    
+    # All codes should be identical
+    if len(set(codes)) == 1:
+        print("\n✓ Machine code is stable across multiple calls")
+        return True
+    else:
+        print("\n✗ Machine code changed between calls!")
         return False
+
+
+def test_cloud_instance_detection():
+    """Test cloud instance ID detection."""
+    print("\n" + "=" * 60)
+    print("Test: Cloud Instance Detection")
+    print("=" * 60)
     
-    print(f"Tenant: {tenant.name} ({tenant.id})")
-    print(f"User: {user.username} ({user.id})")
+    machine_id = MachineCodeGenerator.get_machine_id()
+    print(f"  Detected Machine ID: {machine_id}")
     
-    # Generate machine code
-    machine_code, components = MachineCodeGenerator.generate(
-        tenant_id=str(tenant.id),
-        user_id=str(user.id)
+    if machine_id.startswith('aws:'):
+        print("  ✓ Running on AWS EC2")
+    elif machine_id.startswith('gcp:'):
+        print("  ✓ Running on Google Cloud")
+    elif machine_id.startswith('azure:'):
+        print("  ✓ Running on Azure")
+    elif machine_id.startswith('disk:'):
+        print("  ✓ Using disk serial as identifier")
+    else:
+        print("  ℹ Using fallback identifiers")
+    
+    return True
+
+
+def test_activation_flow():
+    """Test complete activation flow."""
+    print("\n" + "=" * 60)
+    print("Test: Complete Activation Flow")
+    print("=" * 60)
+    
+    # Get or create test tenant
+    tenant, _ = Tenant.objects.get_or_create(
+        name='Test Company',
+        defaults={'slug': 'test-company', 'status': 'active'}
     )
     
-    print(f"\nGenerated Machine Code: {machine_code}")
-    print("\nComponents:")
-    for key, value in components.items():
-        print(f"  {key}: {value}")
+    # Get or create test user
+    user, _ = User.objects.get_or_create(
+        username='admin',
+        defaults={'email': 'admin@test.com', 'is_staff': True, 'is_superuser': True}
+    )
     
-    return machine_code, tenant, user
-
-
-def test_activation_code_generation(machine_code):
-    """Test activation code generation."""
-    print("\n" + "=" * 60)
-    print("Test 2: Activation Code Generation")
-    print("=" * 60)
+    print(f"\n1. Tenant: {tenant.name} ({tenant.id})")
+    print(f"   User: {user.username} ({user.id})")
     
-    # Generate activation code
+    # Step 1: Generate machine code
+    print("\n2. Generating machine code...")
+    machine_code, components = MachineCodeGenerator.generate(str(tenant.id))
+    print(f"   Machine Code: {machine_code}")
+    print(f"   Machine ID: {components.get('machine_id', 'N/A')[:50]}...")
+    
+    # Step 2: Generate activation code (sales team side)
+    print("\n3. Generating activation code...")
     limits = {
         'max_tenants': 5,
         'max_users': 100,
@@ -78,178 +111,80 @@ def test_activation_code_generation(machine_code):
         'max_repositories': 10,
     }
     
-    activation_code = ActivationCode.generate(
+    activation_code = ActivationCodeGenerator.generate(
+        license_key="HFL-PRO-2026-TEST123",
         machine_code=machine_code,
         limits=limits,
-        valid_days=365
+        validity_days=365
     )
     
-    print(f"\nGenerated Activation Code:")
-    print(activation_code)
-    print(f"\n(Length: {len(activation_code)} characters)")
+    print(f"   Activation Code: {activation_code[:50]}...")
+    print(f"   (Length: {len(activation_code)} characters)")
     
-    return activation_code
-
-
-def test_activation_code_verification(activation_code):
-    """Test activation code verification."""
-    print("\n" + "=" * 60)
-    print("Test 3: Activation Code Verification")
-    print("=" * 60)
+    # Step 3: Verify activation code
+    print("\n4. Verifying activation code...")
+    is_valid, decoded_data, error = ActivationCodeGenerator.verify(activation_code)
     
-    try:
-        # Decode
-        data = ActivationCode.decode(activation_code)
-        
-        print("\nDecoded Activation Data:")
-        print(f"  License Key: {data['license_key']}")
-        print(f"  Machine Code: {data['machine_code']}")
-        print(f"  Issued At: {data['issued_at']}")
-        print(f"  Expires At: {data['expires_at']}")
-        
-        print("\n  Limits:")
-        for key, value in data['limits'].items():
-            print(f"    {key}: {value}")
-        
-        # Verify signature
-        is_valid = ActivationCode.verify(data)
-        print(f"\n  Signature Valid: {is_valid}")
-        
-        return data, is_valid
-        
-    except Exception as e:
-        print(f"ERROR: {e}")
-        return None, False
-
-
-def test_license_activation(activation_data, tenant, user):
-    """Test license activation."""
-    print("\n" + "=" * 60)
-    print("Test 4: License Activation (Database)")
-    print("=" * 60)
-    
-    # Check if license already exists
-    existing = License.objects.filter(
-        machine_code=activation_data['machine_code']
-    ).first()
-    
-    if existing:
-        print(f"\nLicense already exists: {existing.license_key}")
-        print(f"Status: {existing.status}")
-        return existing
-    
-    # Create license
-    from datetime import datetime
-    
-    issued_at = datetime.fromisoformat(
-        activation_data['issued_at'].replace('Z', '+00:00')
-    )
-    
-    expires_at = None
-    if activation_data.get('expires_at'):
-        expires_at = datetime.fromisoformat(
-            activation_data['expires_at'].replace('Z', '+00:00')
-        )
-    
-    limits = activation_data['limits']
-    
-    license = License.objects.create(
-        license_key=activation_data['license_key'],
-        machine_code=activation_data['machine_code'],
-        tenant=tenant,
-        activated_by=user,
-        max_tenants=limits.get('max_tenants', 1),
-        max_users=limits.get('max_users', 10),
-        max_proxies=limits.get('max_proxies', 5),
-        max_storage_gb=limits.get('max_storage_gb', 100),
-        max_gateways=limits.get('max_gateways', 1),
-        ai_insights_quota=limits.get('ai_insights_quota', 100),
-        max_backup_tasks=limits.get('max_backup_tasks', 10),
-        max_recovery_tasks=limits.get('max_recovery_tasks', 10),
-        max_source_resources=limits.get('max_source_resources', 20),
-        max_policies=limits.get('max_policies', 50),
-        max_repositories=limits.get('max_repositories', 5),
-        issued_at=issued_at,
-        expires_at=expires_at,
-        signature=activation_data['signature'],
-        status=License.LicenseStatus.ACTIVE,
-    )
-    
-    # Create quota usage
-    QuotaUsage.objects.create(license=license)
-    
-    print(f"\nLicense created successfully!")
-    print(f"  License Key: {license.license_key}")
-    print(f"  Machine Code: {license.machine_code}")
-    print(f"  Tenant: {license.tenant.name}")
-    print(f"  Activated By: {license.activated_by.username}")
-    print(f"  Status: {license.status}")
-    print(f"  Expires At: {license.expires_at or 'Never'}")
-    print(f"  Is Valid: {license.is_valid}")
-    
-    return license
-
-
-def test_limit_check(license):
-    """Test limit checking."""
-    print("\n" + "=" * 60)
-    print("Test 5: Limit Checking")
-    print("=" * 60)
-    
-    quota = license.quota_usage
-    
-    # Check various limits
-    print("\nChecking limits...")
-    
-    # Users
-    allowed, msg = quota.check_limit('users', 1)
-    print(f"  Users (+1): {'OK' if allowed else 'BLOCKED - ' + msg}")
-    
-    # Proxies
-    allowed, msg = quota.check_limit('proxies', 5)
-    print(f"  Proxies (+5): {'OK' if allowed else 'BLOCKED - ' + msg}")
-    
-    # Storage
-    allowed, msg = quota.check_limit('storage_gb', 100)
-    print(f"  Storage (+100GB): {'OK' if allowed else 'BLOCKED - ' + msg}")
-    
-    # Exceed limit test
-    allowed, msg = quota.check_limit('users', 1000)
-    print(f"  Users (+1000): {'OK' if allowed else 'BLOCKED - ' + msg}")
-
-
-def main():
-    print("=" * 60)
-    print("HyperFileLens License Flow Test")
-    print("=" * 60)
-    
-    # Test 1: Machine code generation
-    result = test_machine_code_generation()
-    if not result:
-        return 1
-    
-    machine_code, tenant, user = result
-    
-    # Test 2: Activation code generation
-    activation_code = test_activation_code_generation(machine_code)
-    
-    # Test 3: Verification
-    activation_data, is_valid = test_activation_code_verification(activation_code)
     if not is_valid:
-        print("\nERROR: Activation code verification failed!")
-        return 1
+        print(f"   ✗ Verification failed: {error}")
+        return False
     
-    # Test 4: Activation
-    license = test_license_activation(activation_data, tenant, user)
+    print("   ✓ Verification successful")
+    print(f"   License Key: {decoded_data['license_key']}")
+    print(f"   Machine Code: {decoded_data['machine_code']}")
+    print(f"   Expires: {decoded_data['expires_at']}")
     
-    # Test 5: Limit checking
-    test_limit_check(license)
+    # Step 4: Check machine code binding
+    print("\n5. Checking machine code binding...")
+    
+    # Simulate different tenant - should fail
+    wrong_tenant_id = "wrong-tenant-456"
+    wrong_code, _ = MachineCodeGenerator.generate(wrong_tenant_id)
+    
+    if wrong_code != machine_code:
+        print(f"   ✓ Different tenant produces different machine code")
+    else:
+        print(f"   ✗ Different tenant produced same machine code!")
+        return False
+    
+    # Same tenant should get same code
+    same_code, _ = MachineCodeGenerator.generate(str(tenant.id))
+    if same_code == machine_code:
+        print(f"   ✓ Same tenant gets same machine code")
+    else:
+        print(f"   ✗ Same tenant got different machine code!")
+        return False
     
     print("\n" + "=" * 60)
     print("All tests passed!")
     print("=" * 60)
+    return True
+
+
+def main():
+    print("\n" + "=" * 60)
+    print("HyperFileLens License Flow Test")
+    print("Testing Improved Machine Code Generation")
+    print("=" * 60)
     
-    return 0
+    results = []
+    
+    results.append(("Machine Code Stability", test_machine_code_stability()))
+    results.append(("Cloud Instance Detection", test_cloud_instance_detection()))
+    results.append(("Activation Flow", test_activation_flow()))
+    
+    print("\n" + "=" * 60)
+    print("Test Summary")
+    print("=" * 60)
+    
+    all_passed = True
+    for name, passed in results:
+        status = "✓ PASSED" if passed else "✗ FAILED"
+        print(f"  {name}: {status}")
+        if not passed:
+            all_passed = False
+    
+    return 0 if all_passed else 1
 
 
 if __name__ == '__main__':

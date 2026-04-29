@@ -7,7 +7,7 @@ API endpoints for license management with machine binding.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
@@ -20,7 +20,7 @@ from .serializers import (
     ActivationSerializer,
     QuotaUsageSerializer,
 )
-from .crypto import MachineCodeGenerator, ActivationCode
+from .crypto import MachineCodeGenerator, ActivationCodeGenerator
 
 
 class IsSuperUser(IsAdminUser):
@@ -36,7 +36,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
     
     Security Notes:
     - Licenses can only be activated with valid activation code
-    - Machine code binds license to specific machine + tenant + user
+    - Machine code binds license to specific machine + tenant
     - All limits are verified on resource creation
     """
     
@@ -50,6 +50,13 @@ class LicenseViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return License.objects.all()
         return License.objects.filter(tenant=user.tenant)
+    
+    def get_client_ip(self, request):
+        """Get client IP address."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0]
+        return request.META.get('REMOTE_ADDR', '')
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def current(self, request):
@@ -90,20 +97,18 @@ class LicenseViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Decode activation code
-            activation_data = ActivationCode.decode(activation_code)
+            # Verify activation code
+            is_valid, activation_data, error_msg = ActivationCodeGenerator.verify(activation_code)
             
-            # Verify signature
-            if not ActivationCode.verify(activation_data):
+            if not is_valid:
                 return Response({
-                    'error': 'invalid_signature',
-                    'message': _('Activation code signature verification failed')
+                    'error': 'invalid_activation_code',
+                    'message': error_msg
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Generate current machine code
             current_machine_code, components = MachineCodeGenerator.generate(
-                tenant_id=request.user.tenant.id,
-                user_id=request.user.id
+                tenant_id=request.user.tenant.id
             )
             
             # Verify machine code matches
@@ -118,8 +123,11 @@ class LicenseViewSet(viewsets.ModelViewSet):
                     'current_machine_code': current_machine_code,
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Check if already activated
-            if License.objects.filter(machine_code=current_machine_code).exists():
+            # Check if already activated for this machine
+            if License.objects.filter(
+                machine_code=current_machine_code,
+                status=License.LicenseStatus.ACTIVE
+            ).exists():
                 return Response({
                     'error': 'already_activated',
                     'message': _('This machine has already activated a license')
@@ -172,9 +180,6 @@ class LicenseViewSet(viewsets.ModelViewSet):
             # Create quota usage tracker
             QuotaUsage.objects.create(license=license)
             
-            # Update machine code record
-            MachineCode.objects.filter(code=current_machine_code).update(used_at=timezone.now())
-            
             # Log activation
             LicenseAuditLog.objects.create(
                 license=license,
@@ -184,6 +189,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
                     'machine_code': current_machine_code,
                     'tenant': str(request.user.tenant.id),
                     'user': str(request.user.id),
+                    'machine_id': components.get('machine_id'),
                 },
                 ip_address=self.get_client_ip(request),
                 user_agent=request.META.get('HTTP_USER_AGENT', '')[:255]
@@ -206,17 +212,22 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['get', 'post'], permission_classes=[IsAuthenticated])
     def machine_code(self, request):
         """
         Generate and return machine code for current environment.
         
+        GET: Get or generate machine code for current tenant
+        POST: Force regenerate machine code (use when hardware changed)
+        
         The user should send this code to sales team to get an activation code.
         """
+        force_regenerate = request.method == 'POST'
+        
         # Generate machine code
         machine_code, components = MachineCodeGenerator.generate(
             tenant_id=request.user.tenant.id,
-            user_id=request.user.id
+            force_regenerate=force_regenerate
         )
         
         # Store machine code record
@@ -225,9 +236,9 @@ class LicenseViewSet(viewsets.ModelViewSet):
             defaults={
                 'tenant': request.user.tenant,
                 'user': request.user,
-                'mac_address': components['mac'],
-                'cpu_id': components['cpu_id'],
-                'hostname': components['hostname'],
+                'mac_address': components.get('machine_id', '')[:50],  # Store as identifier
+                'cpu_id': components.get('machine_id', '')[:50],
+                'hostname': components.get('machine_id', '')[:50],
             }
         )
         
@@ -239,6 +250,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 'machine_code': machine_code,
                 'tenant': str(request.user.tenant.id),
                 'user': str(request.user.id),
+                'components': components,
             },
             ip_address=self.get_client_ip(request),
             user_agent=request.META.get('HTTP_USER_AGENT', '')[:255]
@@ -247,15 +259,14 @@ class LicenseViewSet(viewsets.ModelViewSet):
         return Response({
             'machine_code': machine_code,
             'components': {
-                'mac_address': components['mac'],
-                'cpu_id': components['cpu_id'][:20] + '...' if len(components['cpu_id']) > 20 else components['cpu_id'],
-                'hostname': components['hostname'],
+                'machine_id': components.get('machine_id', 'Unknown'),
                 'tenant_id': str(request.user.tenant.id),
                 'tenant_name': request.user.tenant.name,
+                'generated_at': components.get('generated_at'),
             },
             'instructions': _(
                 'Please send this machine code to the sales team to get your activation code. '
-                'The activation code can only be used in this environment with your current account.'
+                'The activation code can only be used in this environment for your tenant.'
             )
         })
     
@@ -298,16 +309,95 @@ class LicenseViewSet(viewsets.ModelViewSet):
         LicenseAuditLog.objects.create(
             license=license,
             action=LicenseAuditLog.ActionType.REVOKED,
-            details={'reason': request.data.get('reason', 'No reason provided')},
+            details={
+                'reason': request.data.get('reason', 'Manual revocation'),
+            },
             ip_address=self.get_client_ip(request),
             user_agent=request.META.get('HTTP_USER_AGENT', '')[:255]
         )
         
-        return Response({'message': _('License revoked successfully')})
+        return Response({
+            'success': True,
+            'message': _('License revoked successfully')
+        })
+
+
+# Standalone API views for license status check
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def license_status(request):
+    """
+    Public endpoint to check if the system has a valid license.
+    Used by other services to verify license status.
+    """
+    from tenants.models import Tenant
     
-    def get_client_ip(self, request):
-        """Get client IP address."""
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            return x_forwarded_for.split(',')[0]
-        return request.META.get('REMOTE_ADDR')
+    tenant_id = request.query_params.get('tenant_id')
+    if not tenant_id:
+        return Response({
+            'is_valid': False,
+            'message': 'tenant_id is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        tenant = Tenant.objects.get(id=tenant_id)
+    except Tenant.DoesNotExist:
+        return Response({
+            'is_valid': False,
+            'message': 'Tenant not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    license = License.get_active_license(tenant)
+    
+    if not license:
+        return Response({
+            'is_valid': False,
+            'message': 'No active license'
+        })
+    
+    return Response({
+        'is_valid': True,
+        'license_key': license.license_key[:20] + '...',
+        'expires_at': license.expires_at,
+        'limits': license.get_limits(),
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def check_quota(request):
+    """
+    Check if a resource can be created based on license limits.
+    
+    Request body:
+    {
+        "resource_type": "users" | "proxies" | "storage_gb" | "gateways" | ...,
+        "quantity": 1
+    }
+    """
+    resource_type = request.data.get('resource_type')
+    quantity = request.data.get('quantity', 1)
+    
+    if not resource_type:
+        return Response({
+            'error': 'resource_type_required',
+            'message': _('Resource type is required')
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    license = License.get_active_license(request.user.tenant)
+    
+    if not license:
+        return Response({
+            'allowed': False,
+            'error': 'no_license',
+            'message': _('No active license found')
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    allowed, error_msg = license.check_limit(resource_type, quantity)
+    
+    return Response({
+        'allowed': allowed,
+        'message': error_msg if not allowed else 'OK',
+        'current_usage': getattr(license.quota_usage, f'{resource_type}_count', 0) if hasattr(license, 'quota_usage') else 0,
+        'limit': getattr(license, f'max_{resource_type}', 0),
+    })
