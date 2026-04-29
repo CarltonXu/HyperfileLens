@@ -45,6 +45,10 @@ class ProxyViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_superuser:
             return ProxyNode.objects.all()
+        # Filter by tenant if user belongs to one
+        if user.tenant:
+            return ProxyNode.objects.filter(tenant=user.tenant)
+        # Fallback to owner-based filtering
         return ProxyNode.objects.filter(owner=user)
 
     def get_serializer_class(self):

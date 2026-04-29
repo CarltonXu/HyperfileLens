@@ -78,6 +78,23 @@ class TenantViewSet(viewsets.ModelViewSet):
         user.save()
 
     @action(detail=True, methods=['get'])
+    def stats(self, request, pk=None):
+        """Get statistics for a tenant."""
+        tenant = self.get_object()
+        usage = tenant.get_quota_usage()
+        data = {
+            'user_count': usage['users'],
+            'proxy_count': usage['proxies'],
+            'repository_count': usage['repositories'],
+            'storage_used': usage['storage_used_gb'] * 1024 * 1024 * 1024,  # Convert GB to bytes
+            'max_users': tenant.max_users,
+            'max_proxies': tenant.max_proxies,
+            'max_repositories': tenant.max_repositories,
+            'max_storage_gb': tenant.max_storage_gb,
+        }
+        return Response(data)
+
+    @action(detail=True, methods=['get'])
     def quota(self, request, pk=None):
         """Get quota usage for a tenant."""
         tenant = self.get_object()
