@@ -290,7 +290,7 @@
       </Dialog>
     </TransitionRoot>
 
-    <!-- Detail Drawer -->
+    <!-- Detail Modal -->
     <TransitionRoot appear :show="showDetailDrawer" as="template">
       <Dialog as="div" class="relative z-10" @close="closeDetailDrawer">
         <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0" enter-to="opacity-100" leave="duration-200 ease-in" leave-from="opacity-100" leave-to="opacity-0">
@@ -298,9 +298,9 @@
         </TransitionChild>
 
         <div class="fixed inset-0 z-10 overflow-y-auto">
-          <div class="flex min-h-full items-center justify-end">
-            <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 translate-x-full" enter-to="opacity-100 translate-x-0" leave="duration-200 ease-in" leave-from="opacity-100 translate-x-0" leave-to="opacity-0 translate-x-full">
-              <DialogPanel class="w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl h-full overflow-y-auto">
+          <div class="flex min-h-full items-center justify-center p-4">
+            <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 scale-95" enter-to="opacity-100 scale-100" leave="duration-200 ease-in" leave-from="opacity-100 scale-100" leave-to="opacity-0 scale-95">
+              <DialogPanel class="w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl rounded-xl max-h-[90vh] overflow-y-auto">
                 <div class="p-6">
                   <div class="flex items-center justify-between mb-6">
                     <DialogTitle class="text-lg font-semibold text-gray-900 dark:text-white">
