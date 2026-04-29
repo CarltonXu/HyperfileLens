@@ -111,7 +111,7 @@
                   <EllipsisVerticalIcon class="h-5 w-5" aria-hidden="true" />
                 </MenuButton>
                 <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
-                  <MenuItems class="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                  <MenuItems class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                     <MenuItem v-slot="{ active }">
                       <button @click="openEditDialog(tenant)" :class="[active ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300', 'block w-full px-4 py-2 text-left text-sm']">
                         {{ t('common.edit') }}
@@ -201,35 +201,35 @@
                     <form @submit.prevent="saveTenant" class="mt-4 space-y-4">
                       <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.tenantName') }} *</label>
-                        <input v-model="formData.name" type="text" required class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                        <input v-model="formData.name" type="text" required :placeholder="t('tenants.tenantNamePlaceholder') || '请输入租户名称'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
                       </div>
                       <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.tenantSlug') }} *</label>
-                        <input v-model="formData.slug" type="text" required pattern="[a-z0-9-]+" class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
-                        <p class="mt-1 text-xs text-gray-500">Only lowercase letters, numbers, and hyphens</p>
+                        <input v-model="formData.slug" type="text" required pattern="[a-z0-9-]+" :placeholder="t('tenants.tenantSlugPlaceholder') || '例如: my-company'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                        <p class="mt-1 text-xs text-gray-500">{{ t('tenants.tenantSlugHelp') || '只能使用小写字母、数字和连字符' }}</p>
                       </div>
                       <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.description') }}</label>
-                        <textarea v-model="formData.description" rows="2" class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                        <textarea v-model="formData.description" rows="2" :placeholder="t('tenants.descriptionPlaceholder') || '请输入租户描述（可选）'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
                       </div>
                       <div class="grid grid-cols-2 gap-4">
                         <div>
                           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxUsers') }}</label>
-                          <input v-model.number="formData.max_users" type="number" min="1" class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                          <input v-model.number="formData.max_users" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
                         </div>
                         <div>
                           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxProxies') }}</label>
-                          <input v-model.number="formData.max_proxies" type="number" min="1" class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                          <input v-model.number="formData.max_proxies" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
                         </div>
                       </div>
                       <div class="grid grid-cols-2 gap-4">
                         <div>
                           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxRepositories') }}</label>
-                          <input v-model.number="formData.max_repositories" type="number" min="1" class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                          <input v-model.number="formData.max_repositories" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
                         </div>
                         <div>
                           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxStorageGb') }}</label>
-                          <input v-model.number="formData.max_storage_gb" type="number" min="1" class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                          <input v-model.number="formData.max_storage_gb" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
                         </div>
                       </div>
                       <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
@@ -250,86 +250,98 @@
       </Dialog>
     </TransitionRoot>
 
-    <!-- Stats Drawer -->
-    <TransitionRoot appear :show="showStatsDrawer" as="template">
-      <Dialog as="div" class="relative z-10" @close="closeStatsDrawer">
-        <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0" enter-to="opacity-100" leave="duration-200 ease-in" leave-from="opacity-100" leave-to="opacity-0">
-          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-        </TransitionChild>
+    <!-- Stats Dialog -->
+    <Teleport to="body">
+      <div v-if="showStatsDrawer" class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4">
+          <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="closeStatsDrawer"></div>
+          
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full">
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                  {{ t('tenants.stats') }}
+                </h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{ statsTenant?.name }}
+                </p>
+              </div>
+              <button type="button" class="rounded-md text-gray-400 hover:text-gray-500" @click="closeStatsDrawer">
+                <XMarkIcon class="h-6 w-6" aria-hidden="true" />
+              </button>
+            </div>
+            
+            <!-- Content -->
+            <div class="px-6 py-4">
+              <div v-if="loadingStats" class="text-center py-8">
+                <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </div>
 
-        <div class="fixed inset-0 z-10 overflow-y-auto">
-          <div class="flex min-h-full items-center justify-end">
-            <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 translate-x-full" enter-to="opacity-100 translate-x-0" leave="duration-200 ease-in" leave-from="opacity-100 translate-x-0" leave-to="opacity-0 translate-x-full">
-              <DialogPanel class="w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl h-full overflow-y-auto">
-                <div class="p-6">
-                  <div class="flex items-center justify-between mb-6">
-                    <DialogTitle class="text-lg font-semibold text-gray-900 dark:text-white">
-                      {{ t('tenants.stats') }} - {{ statsTenant?.name }}
-                    </DialogTitle>
-                    <button type="button" class="rounded-md text-gray-400 hover:text-gray-500" @click="closeStatsDrawer">
-                      <XMarkIcon class="h-6 w-6" aria-hidden="true" />
-                    </button>
-                  </div>
-                  
-                  <div v-if="loadingStats" class="text-center py-8">
-                    <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-
-                  <div v-else class="space-y-6">
-                    <!-- Resource Usage Cards -->
-                    <div class="grid grid-cols-2 gap-4">
-                      <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                        <div class="flex items-center">
-                          <UsersIcon class="h-8 w-8 text-blue-600" />
-                          <div class="ml-3">
-                            <p class="text-sm text-blue-600 dark:text-blue-400">{{ t('tenants.userCount') }}</p>
-                            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ statsData?.user_count || 0 }}</p>
-                          </div>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-2">Limit: {{ statsData?.max_users || '∞' }}</p>
-                      </div>
-                      <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                        <div class="flex items-center">
-                          <ServerIcon class="h-8 w-8 text-green-600" />
-                          <div class="ml-3">
-                            <p class="text-sm text-green-600 dark:text-green-400">{{ t('tenants.proxyCount') }}</p>
-                            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ statsData?.proxy_count || 0 }}</p>
-                          </div>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-2">Limit: {{ statsData?.max_proxies || '∞' }}</p>
-                      </div>
-                      <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                        <div class="flex items-center">
-                          <CircleStackIcon class="h-8 w-8 text-purple-600" />
-                          <div class="ml-3">
-                            <p class="text-sm text-purple-600 dark:text-purple-400">{{ t('tenants.repositoryCount') }}</p>
-                            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ statsData?.repository_count || 0 }}</p>
-                          </div>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-2">Limit: {{ statsData?.max_repositories || '∞' }}</p>
-                      </div>
-                      <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
-                        <div class="flex items-center">
-                          <CircleStackIcon class="h-8 w-8 text-orange-600" />
-                          <div class="ml-3">
-                            <p class="text-sm text-orange-600 dark:text-orange-400">{{ t('tenants.storageUsed') }}</p>
-                            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ formatBytes(statsData?.storage_used || 0) }}</p>
-                          </div>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-2">Limit: {{ statsData?.max_storage_gb ? `${statsData.max_storage_gb} GB` : '∞' }}</p>
+              <div v-else class="space-y-6">
+                <!-- Resource Usage Cards -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                    <div class="flex items-center">
+                      <UsersIcon class="h-8 w-8 text-blue-600" />
+                      <div class="ml-3">
+                        <p class="text-sm text-blue-600 dark:text-blue-400">{{ t('tenants.userCount') }}</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ statsData?.user_count || 0 }}</p>
                       </div>
                     </div>
+                    <p class="text-xs text-gray-500 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_users || '∞' }}</p>
+                  </div>
+                  <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                    <div class="flex items-center">
+                      <ServerIcon class="h-8 w-8 text-green-600" />
+                      <div class="ml-3">
+                        <p class="text-sm text-green-600 dark:text-green-400">{{ t('tenants.proxyCount') }}</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ statsData?.proxy_count || 0 }}</p>
+                      </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_proxies || '∞' }}</p>
+                  </div>
+                  <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                    <div class="flex items-center">
+                      <CircleStackIcon class="h-8 w-8 text-purple-600" />
+                      <div class="ml-3">
+                        <p class="text-sm text-purple-600 dark:text-purple-400">{{ t('tenants.repositoryCount') }}</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ statsData?.repository_count || 0 }}</p>
+                      </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_repositories || '∞' }}</p>
+                  </div>
+                  <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                    <div class="flex items-center">
+                      <CircleStackIcon class="h-8 w-8 text-orange-600" />
+                      <div class="ml-3">
+                        <p class="text-sm text-orange-600 dark:text-orange-400">{{ t('tenants.storageUsed') }}</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ formatBytes(statsData?.storage_used || 0) }}</p>
+                      </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_storage_gb ? `${statsData.max_storage_gb} GB` : '∞' }}</p>
                   </div>
                 </div>
-              </DialogPanel>
-            </TransitionChild>
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                type="button"
+                class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                @click="closeStatsDrawer"
+              >
+                {{ t('common.close') || 'Close' }}
+              </button>
+            </div>
           </div>
         </div>
-      </Dialog>
-    </TransitionRoot>
+      </div>
+    </Teleport>
 
     <!-- Delete Confirmation -->
     <TransitionRoot appear :show="showDeleteConfirm" as="template">

@@ -74,7 +74,10 @@ export default {
     success: '成功',
     error: '错误',
     warning: '警告',
-    info: '信息'
+    info: '信息',
+    confirmDelete: '确认删除',
+    deleting: '删除中...',
+    saving: '保存中...'
   },
 
   // Auth
@@ -1242,6 +1245,7 @@ export default {
     active: '活跃',
     inactive: '已停用',
     suspended: '已暂停',
+    undefined: '未知',
     owner: '所有者',
     maxUsers: '最大用户数',
     maxProxies: '最大代理数',
@@ -1264,7 +1268,12 @@ export default {
     deactivate: '停用',
     confirmDelete: '确定要删除租户"{name}"吗？此操作不可恢复。',
     stats: '统计信息',
-    resources: '资源使用'
+    resources: '资源使用',
+    limit: '限制',
+    tenantNamePlaceholder: '请输入租户名称',
+    tenantSlugPlaceholder: '例如: my-company',
+    tenantSlugHelp: '只能使用小写字母、数字和连字符',
+    descriptionPlaceholder: '请输入租户描述（可选）'
   },
 
   // Licenses

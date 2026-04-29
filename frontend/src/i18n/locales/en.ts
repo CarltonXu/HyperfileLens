@@ -75,7 +75,10 @@ export default {
     success: 'Success',
     error: 'Error',
     warning: 'Warning',
-    info: 'Info'
+    info: 'Info',
+    confirmDelete: 'Confirm Delete',
+    deleting: 'Deleting...',
+    saving: 'Saving...'
   },
 
   // Auth
@@ -1237,6 +1240,7 @@ export default {
     active: 'Active',
     inactive: 'Inactive',
     suspended: 'Suspended',
+    undefined: 'Unknown',
     owner: 'Owner',
     maxUsers: 'Max Users',
     maxProxies: 'Max Proxies',
@@ -1259,7 +1263,12 @@ export default {
     deactivate: 'Deactivate',
     confirmDelete: 'Are you sure you want to delete tenant "{name}"? This action cannot be undone.',
     stats: 'Statistics',
-    resources: 'Resource Usage'
+    resources: 'Resource Usage',
+    limit: 'Limit',
+    tenantNamePlaceholder: 'Enter tenant name',
+    tenantSlugPlaceholder: 'e.g., my-company',
+    tenantSlugHelp: 'Only lowercase letters, numbers, and hyphens',
+    descriptionPlaceholder: 'Enter tenant description (optional)'
   },
 
   // Licenses
