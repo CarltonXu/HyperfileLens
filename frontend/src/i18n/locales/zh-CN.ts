@@ -70,7 +70,11 @@ export default {
     updatedAt: '更新时间',
     viewDetails: '查看详情',
     unlimited: '无限制',
-    hide: '隐藏'
+    hide: '隐藏',
+    success: '成功',
+    error: '错误',
+    warning: '警告',
+    info: '信息'
   },
 
   // Auth

@@ -71,7 +71,11 @@ export default {
     createdAt: 'Created At',
     updatedAt: 'Updated At',
     unlimited: 'Unlimited',
-    hide: 'Hide'
+    hide: 'Hide',
+    success: 'Success',
+    error: 'Error',
+    warning: 'Warning',
+    info: 'Info'
   },
 
   // Auth
