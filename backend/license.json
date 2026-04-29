@@ -1,0 +1,33 @@
+{
+  "license_key": "HFL-PRO-2026-FEA7CCC682322D3E",
+  "license_string": "HFL-LICENSE-eyJkYXRhIjogeyJl-ZGl0aW9uIjogInBy-byIsICJleHBpcmVz-X2F0IjogIjIwMjct-MDQtMjlUMDE6NDU6-MDQuMDM1OTE0KzAw-OjAwIiwgImZlYXR1-cmVzIjogeyJhZHZh-bmNlZF9iYWNrdXAi-OiB0cnVlLCAiYWR2-YW5jZWRfcmVjb3Zl-cnkiOiB0cnVlLCAi-YWlfcXVlcnkiOiB0-cnVlLCAiYXVkaXRf-bG9nIjogdHJ1ZSwg-InBvbGljeV9tYW5h-Z2VtZW50IjogdHJ1-ZX0sICJpc3N1ZWRf-YXQiOiAiMjAyNi0w-NC0yOVQwMTo0NTow-NC4wMzU5MTQrMDA6-MDAiLCAibGljZW5z-ZV9rZXkiOiAiSEZM-LVBSTy0yMDI2LUZF-QTdDQ0M2ODIzMjJE-M0UiLCAibGljZW5z-ZWUiOiB7ImVtYWls-IjogImFkbWluQGNv-bXBhbnkuY29tIiwg-Im5hbWUiOiAiQ29t-cGFueSBOYW1lIn0s-ICJsaW1pdHMiOiB7-Im1heF9wcm94aWVz-X3Blcl90ZW5hbnQi-OiA1MCwgIm1heF9y-ZXBvc2l0b3JpZXNf-cGVyX3RlbmFudCI6-IDUsICJtYXhfc3Rv-cmFnZV9nYiI6IDEw-MDAwLCAibWF4X3Rl-bmFudHMiOiAxMCwg-Im1heF91c2Vyc19w-ZXJfdGVuYW50Ijog-MTAwfSwgIm1hY2hp-bmVfaWQiOiBudWxs-LCAicHJvZHVjdCI6-ICJIeXBlckZpbGVM-ZW5zIiwgInN0YXJ0-c19hdCI6ICIyMDI2-LTA0LTI5VDAxOjQ1-OjA0LjAzNTkxNCsw-MDowMCIsICJ2ZXJz-aW9uIjogIjEuMCJ9-LCAic2lnbmF0dXJl-IjogIk1qZ3habVl3-WWpJMU56Sm1Zek5t-TldabU1UZGxaRGRt-WkdZM09UVTVZakZr-TURJd05UQTJPVEJo-Wm1ZM05qSTVPR1F4-WXpJMlpUZGhNall3-TUROaU1RPT0ifQ==",
+  "data": {
+    "version": "1.0",
+    "license_key": "HFL-PRO-2026-FEA7CCC682322D3E",
+    "licensee": {
+      "name": "Company Name",
+      "email": "admin@company.com"
+    },
+    "product": "HyperFileLens",
+    "edition": "pro",
+    "limits": {
+      "max_tenants": 10,
+      "max_users_per_tenant": 100,
+      "max_proxies_per_tenant": 50,
+      "max_repositories_per_tenant": 5,
+      "max_storage_gb": 10000
+    },
+    "features": {
+      "ai_query": true,
+      "advanced_backup": true,
+      "advanced_recovery": true,
+      "policy_management": true,
+      "audit_log": true
+    },
+    "issued_at": "2026-04-29T01:45:04.035914+00:00",
+    "starts_at": "2026-04-29T01:45:04.035914+00:00",
+    "expires_at": "2027-04-29T01:45:04.035914+00:00",
+    "machine_id": null
+  },
+  "signature": "MjgxZmYwYjI1NzJmYzNmNWZmMTdlZDdmZGY3OTU5YjFkMDIwNTA2OTBhZmY3NjI5OGQxYzI2ZTdhMjYwMDNiMQ=="
+}

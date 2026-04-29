@@ -67,7 +67,9 @@ export default {
     hoursAgo: '小时前',
     daysAgo: '天前',
     createdAt: '创建时间',
-    updatedAt: '更新时间'
+    updatedAt: '更新时间',
+    viewDetails: '查看详情',
+    unlimited: '无限制'
   },
 
   // Auth
@@ -1298,6 +1300,19 @@ export default {
     import: '导入',
     importing: '导入中...',
     importSuccess: '许可证导入成功',
-    importFailed: '许可证导入失败'
+    importFailed: '许可证导入失败',
+    active: '激活',
+    inactive: '未激活',
+    undefined: '未知',
+    viewDetails: '查看详情',
+    edition: '版本',
+    community: '社区版',
+    pro: '专业版',
+    licensee: '授权方',
+    licenseeName: '授权方名称',
+    licenseeEmail: '授权方邮箱',
+    maxTenants: '最大租户数',
+    tamperDetected: '检测到篡改',
+    locked: '已锁定'
   }
 }

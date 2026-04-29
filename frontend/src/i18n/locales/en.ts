@@ -46,6 +46,8 @@ export default {
     disabled: 'Disabled',
     active: 'Active',
     inactive: 'Inactive',
+    undefined: 'Unknown',
+    viewDetails: 'View Details',
     pending: 'Pending',
     all: 'All',
     total: 'Total',
@@ -67,7 +69,8 @@ export default {
     hoursAgo: 'h ago',
     daysAgo: 'd ago',
     createdAt: 'Created At',
-    updatedAt: 'Updated At'
+    updatedAt: 'Updated At',
+    unlimited: 'Unlimited'
   },
 
   // Auth
@@ -1292,6 +1295,18 @@ export default {
     import: 'Import',
     importing: 'Importing...',
     importSuccess: 'License imported successfully',
-    importFailed: 'Failed to import license'
+    importFailed: 'Failed to import license',
+    active: 'Active',
+    inactive: 'Inactive',
+    viewDetails: 'View Details',
+    edition: 'Edition',
+    community: 'Community',
+    pro: 'Professional',
+    licensee: 'Licensee',
+    licenseeName: 'Licensee Name',
+    licenseeEmail: 'Licensee Email',
+    maxTenants: 'Max Tenants',
+    tamperDetected: 'Tamper Detected',
+    locked: 'Locked'
   }
 }
