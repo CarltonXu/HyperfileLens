@@ -587,7 +587,7 @@ class UserViewSet(viewsets.ModelViewSet):
         request={
             'type': 'object',
             'properties': {
-                'role': {'type': 'string', 'enum': ['owner', 'admin', 'member', 'viewer']},
+                'role': {'type': 'string', 'enum': ['admin', 'member']},
             },
             'required': ['role'],
         },
@@ -599,9 +599,9 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.get_object()
         new_role = request.data.get('role')
 
-        if new_role not in ['owner', 'admin', 'member', 'viewer']:
+        if new_role not in ['admin', 'member']:
             return Response(
-                {'error': 'Invalid role'},
+                {'error': 'Invalid role. Must be admin or member.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -612,14 +612,53 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Only owner can change to/from owner role
-        if new_role == 'owner' or user.tenant_role == 'owner':
-            if request.user.tenant_role != 'owner':
-                return Response(
-                    {'error': 'Only tenant owner can assign or remove owner role'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
         user.tenant_role = new_role
         user.save()
         return Response({'status': 'role_changed', 'role': new_role})
+
+    @extend_schema(
+        summary='Set superuser status',
+        description='Set or remove platform admin privileges. Only platform admins can do this.',
+        request={
+            'type': 'object',
+            'properties': {
+                'is_superuser': {'type': 'boolean'},
+            },
+            'required': ['is_superuser'],
+        },
+        responses={200: OpenApiResponse(description='Superuser status updated')}
+    )
+    @action(detail=True, methods=['post'])
+    def set_superuser(self, request, pk=None):
+        """Set or remove platform admin privileges. Only platform admins can do this."""
+        # Only platform admins can set superuser status
+        if not request.user.is_superuser:
+            return Response(
+                {'error': 'Only platform admins can set superuser status'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        user = self.get_object()
+        is_superuser = request.data.get('is_superuser')
+
+        if is_superuser is None:
+            return Response(
+                {'error': 'is_superuser is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Cannot change your own superuser status
+        if user == request.user:
+            return Response(
+                {'error': 'Cannot change your own superuser status'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.is_superuser = is_superuser
+        if is_superuser:
+            user.tenant_role = 'admin'
+        user.save()
+        return Response({
+            'status': 'superuser_updated',
+            'is_superuser': user.is_superuser
+        })

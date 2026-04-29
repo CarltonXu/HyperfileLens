@@ -172,6 +172,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     role = RoleSerializer(read_only=True)
     full_name = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    tenant_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -179,11 +180,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'id', 'email', 'username', 'first_name', 'last_name',
             'full_name', 'role', 'permissions', 'phone', 'avatar',
             'preferences', 'date_joined', 'last_login_at', 'is_active',
-            'is_superuser', 'tenant_role', 'tenant'
+            'is_superuser', 'tenant_role', 'tenant', 'tenant_name'
         ]
         read_only_fields = [
             'id', 'email', 'role', 'date_joined', 'last_login_at',
-            'is_superuser', 'tenant_role', 'tenant'
+            'is_superuser', 'tenant_role', 'tenant', 'tenant_name'
         ]
 
     def get_full_name(self, obj):
@@ -197,6 +198,18 @@ class UserProfileSerializer(serializers.ModelSerializer):
             User's full name
         """
         return obj.get_full_name()
+
+    def get_tenant_name(self, obj):
+        """
+        Get the tenant name.
+
+        Args:
+            obj: The user instance
+
+        Returns:
+            Tenant name or None
+        """
+        return obj.tenant.name if obj.tenant else None
 
     def get_permissions(self, obj):
         """

@@ -118,6 +118,11 @@
                       </button>
                     </MenuItem>
                     <MenuItem v-slot="{ active }">
+                      <button @click="openUsersDialog(tenant)" :class="[active ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300', 'block w-full px-4 py-2 text-left text-sm']">
+                        {{ t('tenants.manageUsers') }}
+                      </button>
+                    </MenuItem>
+                    <MenuItem v-slot="{ active }">
                       <button @click="viewTenantStats(tenant)" :class="[active ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300', 'block w-full px-4 py-2 text-left text-sm']">
                         {{ t('tenants.stats') }}
                       </button>
@@ -343,6 +348,101 @@
       </div>
     </Teleport>
 
+    <!-- Users Management Drawer -->
+    <Teleport to="body">
+      <div v-if="showUsersDrawer" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex min-h-screen items-center justify-center p-4">
+          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeUsersDrawer"></div>
+          
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] flex flex-col">
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t('tenants.manageUsers') }} - {{ usersTenant?.name }}
+              </h3>
+              <button @click="closeUsersDrawer" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <XMarkIcon class="h-5 w-5" />
+              </button>
+            </div>
+            
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto px-6 py-4">
+              <!-- Add User Form -->
+              <div class="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ t('tenants.addUser') }}</h4>
+                <div class="grid grid-cols-3 gap-3">
+                  <input v-model="newUserEmail" type="email" :placeholder="t('users.email')" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 text-sm" />
+                  <select v-model="newUserRole" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 text-sm">
+                    <option value="admin">{{ t('users.roles.admin') }}</option>
+                    <option value="member">{{ t('users.roles.member') }}</option>
+                  </select>
+                  <button @click="handleAddUser" :disabled="!newUserEmail" class="bg-blue-600 text-white rounded-md px-3 py-2 text-sm hover:bg-blue-500 disabled:opacity-50">
+                    {{ t('common.add') }}
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Users List -->
+              <div class="space-y-2">
+                <div v-if="loadingUsers" class="text-center py-4 text-gray-500">
+                  {{ t('common.loading') }}
+                </div>
+                <div v-else-if="tenantUsers.length === 0" class="text-center py-4 text-gray-500">
+                  {{ t('common.noData') }}
+                </div>
+                <div v-else v-for="user in tenantUsers" :key="user.id" class="flex items-center justify-between p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                  <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 font-medium">
+                      {{ (user.email || 'U').slice(0, 2).toUpperCase() }}
+                    </div>
+                    <div>
+                      <p class="font-medium text-gray-900 dark:text-white">{{ user.email }}</p>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ user.is_superuser ? t('users.roles.superAdmin') : t(`users.roles.${user.tenant_role}`) }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <select 
+                      :value="user.tenant_role" 
+                      @change="updateUserRole(user.id, ($event.target as HTMLSelectElement).value, user.is_superuser)"
+                      class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1 text-sm"
+                    >
+                      <option value="admin">{{ t('users.roles.admin') }}</option>
+                      <option value="member">{{ t('users.roles.member') }}</option>
+                    </select>
+                    <label class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                      <input 
+                        type="checkbox" 
+                        :checked="user.is_superuser" 
+                        @change="updateUserRole(user.id, user.tenant_role, ($event.target as HTMLInputElement).checked)"
+                        class="rounded border-gray-300 dark:border-gray-600"
+                      />
+                      {{ t('users.isSuperuser') }}
+                    </label>
+                    <button @click="removeUserFromTenant(user.id)" class="text-red-600 hover:text-red-500 text-sm">
+                      {{ t('common.remove') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                type="button"
+                class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                @click="closeUsersDrawer"
+              >
+                {{ t('common.close') || 'Close' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- Delete Confirmation -->
     <TransitionRoot appear :show="showDeleteConfirm" as="template">
       <Dialog as="div" class="relative z-10" @close="showDeleteConfirm = false">
@@ -406,11 +506,15 @@ const deleting = ref(false)
 const showDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const showStatsDrawer = ref(false)
+const showUsersDrawer = ref(false)
 const loadingStats = ref(false)
+const loadingUsers = ref(false)
 const editingTenant = ref<Tenant | null>(null)
 const deletingTenant = ref<Tenant | null>(null)
 const statsTenant = ref<Tenant | null>(null)
 const statsData = ref<any>(null)
+const usersTenant = ref<Tenant | null>(null)
+const tenantUsers = ref<any[]>([])
 const searchQuery = ref('')
 const statusFilter = ref('')
 const searchTimeout = ref<number | null>(null)
@@ -572,6 +676,74 @@ const closeStatsDrawer = () => {
   showStatsDrawer.value = false
   statsTenant.value = null
   statsData.value = null
+}
+
+const openUsersDialog = async (tenant: Tenant) => {
+  usersTenant.value = tenant
+  showUsersDrawer.value = true
+  await fetchTenantUsers(tenant.id)
+}
+
+const fetchTenantUsers = async (tenantId: string) => {
+  loadingUsers.value = true
+  try {
+    const response = await tenantsApi.users(tenantId)
+    tenantUsers.value = response.data.results || response.data
+  } catch (error) {
+    console.error('Failed to fetch tenant users:', error)
+    showToast(t('common.error'), 'error')
+  } finally {
+    loadingUsers.value = false
+  }
+}
+
+const closeUsersDrawer = () => {
+  showUsersDrawer.value = false
+  usersTenant.value = null
+  tenantUsers.value = []
+}
+
+const updateUserRole = async (userId: string, role: string, isSuperuser: boolean) => {
+  if (!usersTenant.value) return
+  try {
+    await tenantsApi.updateUser(usersTenant.value.id, userId, { role, is_superuser: isSuperuser })
+    showToast(t('common.saved'), 'success')
+    await fetchTenantUsers(usersTenant.value.id)
+  } catch (error: any) {
+    showToast(error.response?.data?.detail || t('common.error'), 'error')
+  }
+}
+
+const removeUserFromTenant = async (userId: string) => {
+  if (!usersTenant.value) return
+  try {
+    await tenantsApi.removeUser(usersTenant.value.id, userId)
+    showToast(t('common.deleted'), 'success')
+    await fetchTenantUsers(usersTenant.value.id)
+  } catch (error: any) {
+    showToast(error.response?.data?.detail || t('common.error'), 'error')
+  }
+}
+
+// New user form state
+const newUserEmail = ref('')
+const newUserRole = ref('member')
+
+const handleAddUser = async () => {
+  if (!newUserEmail.value || !usersTenant.value) return
+  try {
+    await tenantsApi.addUser(usersTenant.value.id, {
+      email: newUserEmail.value,
+      role: newUserRole.value,
+      is_superuser: false
+    })
+    showToast(t('common.success'), 'success')
+    newUserEmail.value = ''
+    newUserRole.value = 'member'
+    await fetchTenantUsers(usersTenant.value.id)
+  } catch (error: any) {
+    showToast(error.response?.data?.detail || t('common.error'), 'error')
+  }
 }
 
 const activateTenant = async (tenant: Tenant) => {

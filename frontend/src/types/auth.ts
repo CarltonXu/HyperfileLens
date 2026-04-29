@@ -7,8 +7,9 @@ export interface User {
   last_name?: string
   full_name?: string
   role?: Role
-  tenant_role?: 'owner' | 'admin' | 'member' | 'viewer'
+  tenant_role?: 'admin' | 'member'
   tenant?: string
+  tenant_name?: string
   phone?: string
   avatar?: string
   preferences?: Record<string, any>

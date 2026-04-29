@@ -452,11 +452,14 @@ export const tenantsApi = {
   users: (id: number | string, params?: { page?: number; page_size?: number }) =>
     api.get(`/api/v1/tenants/${id}/users/`, { params }),
   
-  addUser: (id: number | string, data: { user_id: number; role: string }) =>
+  addUser: (id: number | string, data: { email: string; role: string; is_superuser?: boolean }) =>
     api.post(`/api/v1/tenants/${id}/add-user/`, data),
   
-  removeUser: (id: number | string, userId: number) =>
-    api.post(`/api/v1/tenants/${id}/remove-user/`, { user_id: userId }),
+  updateUser: (id: number | string, userId: string, data: { role: string; is_superuser?: boolean }) =>
+    api.patch(`/api/v1/tenants/${id}/users/${userId}/`, data),
+  
+  removeUser: (id: number | string, userId: string) =>
+    api.delete(`/api/v1/tenants/${id}/users/${userId}/`),
   
   activate: (id: number | string) =>
     api.post(`/api/v1/tenants/${id}/activate/`),
@@ -510,9 +513,17 @@ export const usersApi = {
   create: (data: { email: string; password: string; first_name?: string; last_name?: string; tenant_role?: string }) =>
     api.post('/api/v1/accounts/users/', data),
 
+  // Update user
+  update: (id: string, data: { first_name?: string; last_name?: string; phone?: string }) =>
+    api.patch(`/api/v1/accounts/users/${id}/`, data),
+
   // Change user role
   changeRole: (id: string, role: string) =>
     api.post(`/api/v1/accounts/users/${id}/change_role/`, { role }),
+
+  // Set superuser status (platform admin only)
+  setSuperuser: (id: string, is_superuser: boolean) =>
+    api.post(`/api/v1/accounts/users/${id}/set_superuser/`, { is_superuser }),
 
   // Enable user
   enable: (id: string) =>

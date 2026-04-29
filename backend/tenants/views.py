@@ -149,6 +149,122 @@ class TenantViewSet(viewsets.ModelViewSet):
         serializer = TenantInvitationSerializer(invitations, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'])
+    def users(self, request, pk=None):
+        """List users in a tenant."""
+        tenant = self.get_object()
+        users = User.objects.filter(tenant=tenant).order_by('-date_joined')
+        
+        # Pagination
+        from django.core.paginator import Paginator
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
+        paginator = Paginator(users, page_size)
+        page_obj = paginator.get_page(page)
+        
+        from accounts.serializers import UserProfileSerializer
+        serializer = UserProfileSerializer(page_obj.object_list, many=True)
+        
+        return Response({
+            'results': serializer.data,
+            'count': paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page': page,
+        })
+
+    @action(detail=True, methods=['post'])
+    def add_user(self, request, pk=None):
+        """Add an existing user to a tenant (super admin only)."""
+        if not request.user.is_superuser:
+            return Response(
+                {'error': 'Only super admins can add users to tenants'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        tenant = self.get_object()
+        email = request.data.get('email')
+        role = request.data.get('role', 'member')
+        is_superuser = request.data.get('is_superuser', False)
+        
+        if role not in ['admin', 'member']:
+            return Response(
+                {'error': 'Invalid role. Must be admin or member.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        user.tenant = tenant
+        user.tenant_role = role
+        user.is_superuser = is_superuser
+        user.save()
+        
+        from accounts.serializers import UserProfileSerializer
+        return Response(UserProfileSerializer(user).data)
+
+    @action(detail=True, methods=['patch'], url_path='users/(?P<user_id>[^/.]+)')
+    def update_user(self, request, pk=None, user_id=None):
+        """Update a user's role and permissions in a tenant (super admin only)."""
+        if not request.user.is_superuser:
+            return Response(
+                {'error': 'Only super admins can update user permissions'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        tenant = self.get_object()
+        role = request.data.get('role')
+        is_superuser = request.data.get('is_superuser')
+        
+        try:
+            user = User.objects.get(id=user_id, tenant=tenant)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found in this tenant'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if role and role in ['admin', 'member']:
+            user.tenant_role = role
+        if is_superuser is not None:
+            user.is_superuser = is_superuser
+        user.save()
+        
+        from accounts.serializers import UserProfileSerializer
+        return Response(UserProfileSerializer(user).data)
+
+    @action(detail=True, methods=['delete'], url_path='users/(?P<user_id>[^/.]+)')
+    def remove_user(self, request, pk=None, user_id=None):
+        """Remove a user from a tenant (super admin only)."""
+        if not request.user.is_superuser:
+            return Response(
+                {'error': 'Only super admins can remove users from tenants'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        tenant = self.get_object()
+        
+        try:
+            user = User.objects.get(id=user_id, tenant=tenant)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found in this tenant'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        user.tenant = None
+        user.tenant_role = ''
+        user.is_superuser = False
+        user.save()
+        
+        return Response({'status': 'removed'})
+
 
 class TenantInvitationViewSet(viewsets.ModelViewSet):
     """
