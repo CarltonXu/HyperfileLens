@@ -256,6 +256,13 @@ class License(models.Model):
         return self.expires_at is None
     
     @property
+    def is_expired(self) -> bool:
+        """Check if license has expired."""
+        if not self.expires_at:
+            return False  # Perpetual licenses don't expire
+        return self.expires_at < timezone.now()
+    
+    @property
     def machine_bound(self) -> bool:
         """Check if this license is bound to a specific machine."""
         return bool(self.machine_fingerprint)

@@ -301,6 +301,133 @@ class LicenseViewSet(viewsets.ModelViewSet):
         
         return Response(LicenseSerializer(license).data)
     
+    @action(detail=True, methods=['get', 'post'])
+    def validate(self, request, pk=None):
+        """
+        Validate a specific license.
+        
+        Returns detailed validation status including:
+        - Signature validity
+        - Machine binding status
+        - Expiration status
+        - Quota limits
+        """
+        license = self.get_object()
+        
+        # Verify integrity
+        is_valid = license.verify_integrity()
+        license.refresh_from_db()
+        
+        # Check machine binding
+        current_machine_id = HardwareFingerprint.get_machine_id()
+        machine_match = license.machine_fingerprint == current_machine_id if license.machine_fingerprint else True
+        
+        return Response({
+            'license_key': license.license_key,
+            'is_valid': is_valid and license.is_valid,
+            'integrity_valid': is_valid,
+            'status': license.status,
+            'machine_bound': license.machine_bound,
+            'machine_match': machine_match,
+            'current_machine_id': current_machine_id,
+            'tamper_detected': license.tamper_detected,
+            'expires_at': license.expires_at,
+            'is_expired': license.is_expired,
+            'days_until_expiry': license.days_until_expiry,
+            'limits': {
+                'max_tenants': license.max_tenants,
+                'max_users_per_tenant': license.max_users_per_tenant,
+                'max_proxies_per_tenant': license.max_proxies_per_tenant,
+                'max_storage_gb': license.max_storage_gb,
+            },
+        })
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """
+        Get license statistics.
+        
+        Returns aggregated statistics about all licenses.
+        """
+        from django.db.models import Count, Sum
+        from django.utils import timezone
+        
+        total_licenses = License.objects.count()
+        active_licenses = License.objects.filter(status=License.LicenseStatus.ACTIVE).count()
+        inactive_licenses = License.objects.filter(status=License.LicenseStatus.INACTIVE).count()
+        expired_licenses = License.objects.filter(
+            status=License.LicenseStatus.ACTIVE,
+            expires_at__lt=timezone.now()
+        ).count()
+        revoked_licenses = License.objects.filter(status=License.LicenseStatus.REVOKED).count()
+        
+        # Total capacity
+        total_tenant_capacity = License.objects.aggregate(
+            total=Sum('max_tenants')
+        )['total'] or 0
+        
+        total_user_capacity = License.objects.aggregate(
+            total=Sum('max_users_per_tenant')
+        )['total'] or 0
+        
+        total_proxy_capacity = License.objects.aggregate(
+            total=Sum('max_proxies_per_tenant')
+        )['total'] or 0
+        
+        total_storage_capacity = License.objects.aggregate(
+            total=Sum('max_storage_gb')
+        )['total'] or 0
+        
+        # Machine bound licenses
+        machine_bound_count = License.objects.filter(
+            machine_fingerprint__isnull=False
+        ).exclude(machine_fingerprint='').count()
+        
+        return Response({
+            'total_licenses': total_licenses,
+            'active_licenses': active_licenses,
+            'inactive_licenses': inactive_licenses,
+            'expired_licenses': expired_licenses,
+            'revoked_licenses': revoked_licenses,
+            'machine_bound_count': machine_bound_count,
+            'capacity': {
+                'total_tenants': total_tenant_capacity,
+                'total_users_per_tenant': total_user_capacity,
+                'total_proxies_per_tenant': total_proxy_capacity,
+                'total_storage_gb': total_storage_capacity,
+            },
+        })
+    
+    @action(detail=False, methods=['post'])
+    def validate_all(self, request):
+        """
+        Validate all licenses.
+        
+        Returns validation status for all licenses.
+        """
+        licenses = License.objects.all()
+        results = []
+        
+        for license in licenses:
+            results.append({
+                'id': str(license.id),
+                'license_key': license.license_key,
+                'licensee_name': license.licensee_name,
+                'status': license.status,
+                'is_valid': license.is_valid,
+                'machine_bound': license.machine_bound,
+                'tamper_detected': license.tamper_detected,
+                'is_expired': license.is_expired,
+                'days_until_expiry': license.days_until_expiry,
+            })
+        
+        return Response({
+            'total': len(results),
+            'valid_count': sum(1 for r in results if r['is_valid']),
+            'invalid_count': sum(1 for r in results if not r['is_valid']),
+            'licenses': results,
+        })
+    
     @action(detail=False, methods=['get'])
     def machine_fingerprint(self, request):
         """
