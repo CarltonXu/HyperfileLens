@@ -140,7 +140,10 @@ class RepositoryViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         """Create a new repository."""
-        serializer.save(user=self.request.user)
+        serializer.save(
+            user=self.request.user,
+            tenant=self.request.user.tenant
+        )
     
     @action(detail=True, methods=['post'])
     def test_connection(self, request, pk=None):

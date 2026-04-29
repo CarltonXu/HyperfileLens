@@ -30,7 +30,7 @@ class RecoveryTaskViewSet(viewsets.ModelViewSet):
         return RecoveryTask.objects.filter(user=user)
     
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user, tenant=self.request.user.tenant)
     
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):

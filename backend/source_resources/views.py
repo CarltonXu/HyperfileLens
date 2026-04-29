@@ -65,7 +65,7 @@ class SourceResourceViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user, tenant=self.request.user.tenant)
     
     @action(detail=True, methods=['post'])
     def test_connection(self, request, pk=None):

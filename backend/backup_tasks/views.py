@@ -112,7 +112,7 @@ class BackupTaskViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         """Create a new backup task with the current user."""
-        serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user, tenant=self.request.user.tenant)
     
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):
