@@ -398,7 +398,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
             },
         })
     
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='validate-all')
     def validate_all(self, request):
         """
         Validate all licenses.
