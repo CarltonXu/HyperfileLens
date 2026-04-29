@@ -965,6 +965,8 @@ logging:
         
         return Response({
             'proxy_id': str(proxy.id),
+            'node_id': str(proxy.id),
+            'tenant_id': str(proxy.tenant_id) if proxy.tenant else None,
             'api_token': proxy.api_token,
             'name': proxy.name,
             'role': proxy.role,

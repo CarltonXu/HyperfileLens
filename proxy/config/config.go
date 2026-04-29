@@ -28,7 +28,8 @@ type Config struct {
 	Logging Logging `yaml:"logging"`
 	
 	// Runtime state
-	NodeID string `yaml:"-"`
+	NodeID   string `yaml:"-"`
+	TenantID string `yaml:"-"` // Assigned by control plane during registration
 }
 
 // Server holds server connection configuration

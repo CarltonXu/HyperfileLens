@@ -202,6 +202,14 @@ class Repository(models.Model):
         related_name='repositories',
         help_text="Repository owner"
     )
+    tenant = models.ForeignKey(
+        'tenants.Tenant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='repositories',
+        help_text='Tenant this repository belongs to'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

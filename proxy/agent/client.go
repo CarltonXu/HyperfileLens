@@ -28,10 +28,11 @@ type Registration struct {
 
 // RegistrationResponse represents registration response
 type RegistrationResponse struct {
-	NodeID string `json:"node_id"`
-	ID     string `json:"id"`
-	Status string `json:"status"`
-	Error  string `json:"error,omitempty"`
+	NodeID   string `json:"node_id"`
+	ID       string `json:"id"`
+	TenantID string `json:"tenant_id"`
+	Status   string `json:"status"`
+	Error    string `json:"error,omitempty"`
 }
 
 // HeartbeatPayload represents heartbeat data
@@ -86,10 +87,11 @@ type HeartbeatPayload struct {
 
 // Client handles agent operations
 type Client struct {
-	config  *config.Config
-	client  *http.Client
-	apiURL  string
-	nodeID  string
+	config    *config.Config
+	client    *http.Client
+	apiURL    string
+	nodeID    string
+	tenantID  string
 	collector *monitor.Collector
 }
 
@@ -176,6 +178,9 @@ func (c *Client) Register() (string, error) {
 	if c.nodeID == "" {
 		c.nodeID = result.ID
 	}
+
+	// Store tenant ID
+	c.tenantID = result.TenantID
 
 	// Save node ID to file for persistence
 	c.saveNodeID()
@@ -305,33 +310,56 @@ func (c *Client) SetNodeID(id string) {
 	c.nodeID = id
 }
 
+// GetTenantID returns the tenant ID
+func (c *Client) GetTenantID() string {
+	return c.tenantID
+}
+
+// SetTenantID sets the tenant ID
+func (c *Client) SetTenantID(id string) {
+	c.tenantID = id
+}
+
 // GetSystemInfo returns complete system information
 func (c *Client) GetSystemInfo() map[string]interface{} {
 	return map[string]interface{}{
-		"node_id":       c.nodeID,
-		"metrics":       c.collector.GetCurrent(),
-		"host_info":     monitor.GetHostInfo(),
+		"node_id":         c.nodeID,
+		"tenant_id":       c.tenantID,
+		"metrics":         c.collector.GetCurrent(),
+		"host_info":       monitor.GetHostInfo(),
 		"disk_partitions": monitor.GetDiskPartitions(),
-		"network_info":  monitor.GetNetworkInterfaces(),
-		"timestamp":     time.Now().Unix(),
+		"network_info":    monitor.GetNetworkInterfaces(),
+		"timestamp":       time.Now().Unix(),
 	}
 }
 
-// saveNodeID persists node ID to file
+// saveNodeID persists node ID and tenant ID to file
 func (c *Client) saveNodeID() {
 	nodeIDFile := "/var/lib/hyperfilelens/node_id"
 	os.MkdirAll("/var/lib/hyperfilelens", 0755)
-	os.WriteFile(nodeIDFile, []byte(c.nodeID), 0644)
+	
+	data := map[string]string{
+		"node_id":   c.nodeID,
+		"tenant_id": c.tenantID,
+	}
+	jsonData, _ := json.Marshal(data)
+	os.WriteFile(nodeIDFile, jsonData, 0644)
 }
 
-// loadNodeID loads node ID from file
-func (c *Client) loadNodeID() string {
+// loadNodeID loads node ID and tenant ID from file
+func (c *Client) loadNodeID() (string, string) {
 	nodeIDFile := "/var/lib/hyperfilelens/node_id"
 	data, err := os.ReadFile(nodeIDFile)
 	if err != nil {
-		return ""
+		return "", ""
 	}
-	return string(data)
+	
+	var result map[string]string
+	if err := json.Unmarshal(data, &result); err != nil {
+		return string(data), "" // Legacy format - just node_id
+	}
+	
+	return result["node_id"], result["tenant_id"]
 }
 
 // getIPAddress returns the primary IP address

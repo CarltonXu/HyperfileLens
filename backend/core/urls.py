@@ -17,6 +17,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # API v1 endpoints
+    path('api/v1/accounts/', include('accounts.urls')),
+    path('api/v1/tenants/', include('tenants.urls')),      # Multi-tenancy
+    path('api/v1/', include('licenses.urls')),             # License management
     path('api/v1/proxies/', include('nodes.urls')),
     path('api/v1/source-resources/', include('source_resources.urls')),
     path('api/v1/backup-tasks/', include('backup_tasks.urls')),
@@ -25,7 +28,6 @@ urlpatterns = [
     path('api/v1/policies/', include('policies.urls')),
     path('api/v1/ai-query/', include('ai_query.urls')),
     path('api/v1/audit/', include('audit_log.urls')),
-    path('api/v1/accounts/', include('accounts.urls')),
 
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

@@ -60,6 +60,8 @@ THIRD_PARTY_APPS = [
 PROJECT_APPS = [
     'core',
     'accounts',
+    'tenants',       # Multi-tenancy support
+    'licenses',      # License management
     'nodes',
     'source_resources',
     'backup_tasks',
@@ -79,6 +81,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'tenants.middleware.TenantMiddleware',  # Multi-tenancy support
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]

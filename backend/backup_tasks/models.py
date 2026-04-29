@@ -187,6 +187,14 @@ class BackupTask(models.Model):
         related_name='backup_tasks',
         help_text="User who created the task"
     )
+    tenant = models.ForeignKey(
+        'tenants.Tenant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='backup_tasks',
+        help_text='Tenant this task belongs to'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     started_at = models.DateTimeField(null=True, blank=True)

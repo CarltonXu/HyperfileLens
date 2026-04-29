@@ -429,6 +429,69 @@ export const auditLogApi = {
     api.get('/api/v1/audit/audit/export/', { params, responseType: 'blob' })
 }
 
+// ============== Tenant API ==============
+export const tenantsApi = {
+  list: (params?: { page?: number; page_size?: number; status?: string; search?: string }) =>
+    api.get('/api/v1/tenants/', { params }),
+  
+  detail: (id: number | string) =>
+    api.get(`/api/v1/tenants/${id}/`),
+  
+  create: (data: any) =>
+    api.post('/api/v1/tenants/', data),
+  
+  update: (id: number | string, data: any) =>
+    api.patch(`/api/v1/tenants/${id}/`, data),
+  
+  delete: (id: number | string) =>
+    api.delete(`/api/v1/tenants/${id}/`),
+  
+  stats: (id: number | string) =>
+    api.get(`/api/v1/tenants/${id}/stats/`),
+  
+  users: (id: number | string, params?: { page?: number; page_size?: number }) =>
+    api.get(`/api/v1/tenants/${id}/users/`, { params }),
+  
+  addUser: (id: number | string, data: { user_id: number; role: string }) =>
+    api.post(`/api/v1/tenants/${id}/add-user/`, data),
+  
+  removeUser: (id: number | string, userId: number) =>
+    api.post(`/api/v1/tenants/${id}/remove-user/`, { user_id: userId }),
+  
+  activate: (id: number | string) =>
+    api.post(`/api/v1/tenants/${id}/activate/`),
+  
+  deactivate: (id: number | string) =>
+    api.post(`/api/v1/tenants/${id}/deactivate/`)
+}
+
+// ============== License API ==============
+export const licensesApi = {
+  list: (params?: { page?: number; page_size?: number; status?: string; license_type?: string; search?: string }) =>
+    api.get('/api/v1/licenses/', { params }),
+  
+  detail: (id: number | string) =>
+    api.get(`/api/v1/licenses/${id}/`),
+  
+  create: (data: { name: string; license_key: string }) =>
+    api.post('/api/v1/licenses/', data),
+  
+  update: (id: number | string, data: any) =>
+    api.patch(`/api/v1/licenses/${id}/`, data),
+  
+  delete: (id: number | string) =>
+    api.delete(`/api/v1/licenses/${id}/`),
+  
+  validate: (id: number | string) =>
+    api.post(`/api/v1/licenses/${id}/validate/`),
+  
+  validateAll: () =>
+    api.post('/api/v1/licenses/validate-all/'),
+  
+  stats: () =>
+    api.get('/api/v1/licenses/stats/')
+}
+
 // Export api instance
 export default api
 

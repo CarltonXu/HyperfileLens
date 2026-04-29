@@ -248,8 +248,17 @@ class ProxyNode(models.Model):
         User,
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
         related_name='owned_proxies',
         help_text='User who owns this proxy'
+    )
+    tenant = models.ForeignKey(
+        'tenants.Tenant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='proxies',
+        help_text='Tenant this proxy belongs to'
     )
 
     class Meta:

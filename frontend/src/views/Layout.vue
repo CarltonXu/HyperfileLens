@@ -19,7 +19,9 @@ import {
   LanguageIcon,
   ComputerDesktopIcon,
   Bars3Icon,
-  UserCircleIcon
+  UserCircleIcon,
+  BuildingOffice2Icon,
+  KeyIcon
 } from '@heroicons/vue/24/outline'
 import {
   HomeIcon as HomeIconSolid,
@@ -30,7 +32,9 @@ import {
   ClockIcon as ClockIconSolid,
   SparklesIcon as SparklesIconSolid,
   ClipboardDocumentListIcon as ClipboardDocumentListIconSolid,
-  Cog6ToothIcon as Cog6ToothIconSolid
+  Cog6ToothIcon as Cog6ToothIconSolid,
+  BuildingOffice2Icon as BuildingOffice2IconSolid,
+  KeyIcon as KeyIconSolid
 } from '@heroicons/vue/24/solid'
 
 const router = useRouter()
@@ -108,6 +112,20 @@ const navigation = computed(() => [
     icon: ClipboardDocumentListIcon,
     iconSolid: ClipboardDocumentListIconSolid,
     current: route.path === '/audit-log'
+  },
+  {
+    name: t('nav.tenants'),
+    path: '/tenants',
+    icon: BuildingOffice2Icon,
+    iconSolid: BuildingOffice2IconSolid,
+    current: route.path === '/tenants'
+  },
+  {
+    name: t('nav.licenses'),
+    path: '/licenses',
+    icon: KeyIcon,
+    iconSolid: KeyIconSolid,
+    current: route.path === '/licenses'
   },
   {
     name: t('nav.settings'),

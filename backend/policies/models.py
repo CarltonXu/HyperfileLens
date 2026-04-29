@@ -121,6 +121,14 @@ class BackupPolicy(models.Model):
         related_name='backup_policies',
         help_text="Policy owner"
     )
+    tenant = models.ForeignKey(
+        'tenants.Tenant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='policies',
+        help_text='Tenant this policy belongs to'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

@@ -15,6 +15,8 @@ const AIQuery = () => import('@/views/AIQuery.vue')
 const AuditLog = () => import('@/views/AuditLog.vue')
 const Settings = () => import('@/views/Settings.vue')
 const Layout = () => import('@/views/Layout.vue')
+const Tenants = () => import('@/views/Tenants.vue')
+const Licenses = () => import('@/views/Licenses.vue')
 
 // Route types
 declare module 'vue-router' {
@@ -110,6 +112,18 @@ const routes: RouteRecordRaw[] = [
         name: 'Settings',
         component: Settings,
         meta: { title: 'Settings' }
+      },
+      {
+        path: 'tenants',
+        name: 'Tenants',
+        component: Tenants,
+        meta: { title: 'Tenant Management' }
+      },
+      {
+        path: 'licenses',
+        name: 'Licenses',
+        component: Licenses,
+        meta: { title: 'License Management' }
       },
 
       // Redirect old nodes path to proxies

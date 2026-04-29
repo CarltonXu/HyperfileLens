@@ -105,7 +105,11 @@ func main() {
 			utils.LogInfo("Continuing without registration...")
 		} else {
 			cfg.NodeID = agentClient.GetNodeID()
+			cfg.TenantID = agentClient.GetTenantID()
 			utils.LogInfo("Registered with node ID: %s", cfg.NodeID)
+			if cfg.TenantID != "" {
+				utils.LogInfo("Assigned to tenant: %s", cfg.TenantID)
+			}
 		}
 	}
 
@@ -157,6 +161,9 @@ func printBanner(cfg *config.Config) {
 	fmt.Printf("║  Version: %-30s ║\n", Version)
 	fmt.Printf("║  Role:    %-30s ║\n", cfg.Role)
 	fmt.Printf("║  Node ID: %-30s ║\n", cfg.NodeID)
+	if cfg.TenantID != "" {
+		fmt.Printf("║  Tenant:  %-30s ║\n", cfg.TenantID)
+	}
 	fmt.Printf("║  Server:  %-30s ║\n", cfg.Server.URL)
 	fmt.Println("╚══════════════════════════════════════════╝")
 	fmt.Println()

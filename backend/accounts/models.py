@@ -190,6 +190,30 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name='users',
         help_text='User role for RBAC'
     )
+    
+    # Multi-tenancy support
+    class TenantRole(models.TextChoices):
+        """Role within a tenant."""
+        OWNER = 'owner', 'Owner'
+        ADMIN = 'admin', 'Administrator'
+        MEMBER = 'member', 'Member'
+        VIEWER = 'viewer', 'Viewer'
+    
+    tenant = models.ForeignKey(
+        'tenants.Tenant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='users',
+        help_text='Tenant this user belongs to'
+    )
+    tenant_role = models.CharField(
+        max_length=20,
+        choices=TenantRole.choices,
+        default=TenantRole.MEMBER,
+        help_text='Role within the tenant'
+    )
+    
     groups = models.ManyToManyField(
         'auth.Group',
         verbose_name='groups',
