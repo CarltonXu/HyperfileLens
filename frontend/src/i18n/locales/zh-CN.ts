@@ -1291,6 +1291,13 @@ export default {
     activeFeatures: '已启用功能',
     daysRemaining: '剩余 {n} 天',
     expiresSoon: '许可证即将过期',
-    expiredMessage: '许可证已过期'
+    expiredMessage: '许可证已过期',
+    importLicense: '导入许可证',
+    importDescription: '粘贴从销售团队获得的许可证字符串',
+    importPlaceholder: 'HFL-LICENSE-...',
+    import: '导入',
+    importing: '导入中...',
+    importSuccess: '许可证导入成功',
+    importFailed: '许可证导入失败'
   }
 }

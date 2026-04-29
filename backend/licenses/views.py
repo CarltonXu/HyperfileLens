@@ -1,284 +1,354 @@
 """
-Views for Licenses API
+License Views for HyperFileLens
+
+API endpoints for license management with security enforcement.
 """
 
-from rest_framework import viewsets, status, permissions
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.utils import timezone
-from django.conf import settings
-import json
+from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError
 
-from .models import License, LicenseAuditLog
+from .models import License, LicenseAuditLog, QuotaUsage
 from .serializers import (
     LicenseSerializer,
-    LicenseListSerializer,
-    LicenseDetailSerializer,
-    LicenseCreateSerializer,
-    LicenseVerifySerializer,
+    LicenseImportSerializer,
     LicenseStatusSerializer,
-    LicenseAuditLogSerializer
+    QuotaUsageSerializer,
 )
+from .crypto import LicenseEncoder, HardwareFingerprint
 
 
-class IsSuperAdmin(permissions.BasePermission):
-    """
-    Permission class for super admin only.
-    """
-
+class IsSuperUser(IsAdminUser):
+    """Permission class for superuser only."""
+    
     def has_permission(self, request, view):
-        return request.user and request.user.is_superuser
+        return bool(request.user and request.user.is_superuser)
 
 
 class LicenseViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for license management.
-
-    Only super admins can manage licenses.
-    Regular users can view the current license status.
+    License Management API.
+    
+    Security Notes:
+    - Licenses can only be created via import (encoded license string)
+    - Direct modification of limit fields is prevented
+    - Signature verification is enforced on every operation
+    - Machine binding is verified on access
     """
-
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return License.objects.all()
-        # Regular users can only see active license
-        return License.objects.filter(status=License.LicenseStatus.ACTIVE)
-
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return LicenseListSerializer
-        if self.action == 'retrieve':
-            return LicenseDetailSerializer
-        if self.action == 'create':
-            return LicenseCreateSerializer
-        return LicenseSerializer
-
+    
+    queryset = License.objects.all()
+    serializer_class = LicenseSerializer
+    permission_classes = [IsAuthenticated]
+    
     def get_permissions(self):
-        """
-        Instantiates and returns the list of permissions that this view requires.
-        """
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [IsSuperAdmin]
-        else:
-            permission_classes = [permissions.IsAuthenticated]
-        return [permission() for permission in permission_classes]
-
+        """Only superusers can manage licenses."""
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_license']:
+            return [IsSuperUser()]
+        return [IsAuthenticated()]
+    
+    def get_queryset(self):
+        """Non-superusers can only see current license status."""
+        if not self.request.user.is_superuser:
+            return License.objects.filter(status=License.LicenseStatus.ACTIVE)
+        return License.objects.all()
+    
     def perform_create(self, serializer):
-        """Create a new license with audit log."""
-        license_obj = serializer.save()
-        LicenseAuditLog.objects.create(
-            license=license_obj,
-            event_type=LicenseAuditLog.EventType.CREATED,
-            message=f"License created for {license_obj.licensee_name}",
-            ip_address=self.request.META.get('REMOTE_ADDR')
+        """Prevent direct creation - use import instead."""
+        raise ValidationError(
+            _("Licenses must be imported using the import endpoint. "
+              "Direct creation is not allowed for security reasons.")
         )
-
-    @action(detail=False, methods=['get'])
-    def current(self, request):
-        """Get the current active license."""
-        license_obj = License.get_active_license()
-        if not license_obj:
-            return Response(
-                {'error': 'No active license found'},
-                status=status.HTTP_404_NOT_FOUND
+    
+    def perform_update(self, serializer):
+        """Prevent modification of protected fields."""
+        # Only status can be modified directly
+        allowed_fields = {'status'}
+        changed_fields = set(serializer.validated_data.keys())
+        
+        if changed_fields - allowed_fields:
+            raise ValidationError(
+                _("Cannot modify license limits directly. "
+                  "Please import a new license to change limits.")
             )
-        serializer = LicenseDetailSerializer(license_obj)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'])
-    def status(self, request):
-        """Get license status summary."""
-        license_obj = License.get_active_license()
-
-        if not license_obj:
-            return Response({
-                'is_valid': False,
-                'edition': None,
-                'licensee_name': None,
-                'expires_at': None,
-                'days_until_expiry': 0,
-                'features': {},
-                'limits': {},
-                'warnings': ['No active license found']
-            })
-
-        warnings = []
-        if license_obj.days_until_expiry <= 30:
-            warnings.append(f'License expires in {license_obj.days_until_expiry} days')
-        if license_obj.days_until_expiry <= 7:
-            warnings.append('License expiring soon! Please renew.')
-
-        data = {
-            'is_valid': license_obj.is_valid,
-            'edition': license_obj.edition,
-            'licensee_name': license_obj.licensee_name,
-            'expires_at': license_obj.expires_at,
-            'days_until_expiry': license_obj.days_until_expiry,
-            'features': license_obj.features,
-            'limits': license_obj.get_limits(),
-            'warnings': warnings
+        
+        serializer.save()
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsSuperUser])
+    def import_license(self, request):
+        """
+        Import a license from encoded string or JSON data.
+        
+        This is the ONLY way to create a valid license.
+        
+        Request body (option 1):
+        {
+            "encoded_license": "HFL-LICENSE-XXXX-XXXX-..."
         }
-
-        serializer = LicenseStatusSerializer(data)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['post'])
-    def verify(self, request):
-        """Verify a license key."""
-        serializer = LicenseVerifySerializer(data=request.data)
+        
+        Request body (option 2):
+        {
+            "license_data": {...},
+            "signature": "..."
+        }
+        
+        Returns:
+            Created license details
+        """
+        serializer = LicenseImportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        license_key = serializer.validated_data['license_key']
-        fingerprint = serializer.validated_data.get('fingerprint')
-
+        
         try:
-            license_obj = License.objects.get(license_key=license_key)
-        except License.DoesNotExist:
+            # Support both formats
+            if serializer.validated_data.get('encoded_license'):
+                encoded_license = serializer.validated_data['encoded_license']
+                license = License.import_license(encoded_license)
+            else:
+                license_data = serializer.validated_data['license_data']
+                signature = serializer.validated_data['signature']
+                license = License.import_from_data(license_data, signature)
+            
+            # Create quota usage tracker
+            QuotaUsage.objects.create(license=license)
+            
+            # Log the import
             LicenseAuditLog.objects.create(
-                license=None,
-                event_type=LicenseAuditLog.EventType.FAILED,
-                message=f"Verification failed: Invalid license key {license_key[:8]}...",
-                ip_address=request.META.get('REMOTE_ADDR')
+                license=license,
+                action='imported',
+                details={
+                    'licensee': license.licensee_name,
+                    'edition': license.edition,
+                },
+                ip_address=self.get_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')[:255]
             )
+            
             return Response(
-                {'valid': False, 'error': 'Invalid license key'},
+                LicenseSerializer(license).data,
+                status=status.HTTP_201_CREATED
+            )
+            
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        is_valid = license_obj.is_valid
-
-        # Check fingerprint binding if set
-        if fingerprint and license_obj.fingerprint and license_obj.fingerprint != fingerprint:
-            is_valid = False
-
-        LicenseAuditLog.objects.create(
-            license=license_obj,
-            event_type=LicenseAuditLog.EventType.VERIFIED if is_valid else LicenseAuditLog.EventType.FAILED,
-            message=f"License verification: {'success' if is_valid else 'failed'}",
-            details={'fingerprint': fingerprint} if fingerprint else {},
-            ip_address=request.META.get('REMOTE_ADDR')
-        )
-
-        return Response({
-            'valid': is_valid,
-            'license': LicenseDetailSerializer(license_obj).data if is_valid else None
-        })
-
-    @action(detail=True, methods=['post'])
-    def activate(self, request, pk=None):
-        """Activate a license (super admin only)."""
-        if not request.user.is_superuser:
-            return Response(
-                {'error': 'Only super admins can activate licenses'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        license_obj = self.get_object()
-        license_obj.status = License.LicenseStatus.ACTIVE
-        license_obj.save()
-
-        LicenseAuditLog.objects.create(
-            license=license_obj,
-            event_type=LicenseAuditLog.EventType.ACTIVATED,
-            message=f"License activated for {license_obj.licensee_name}",
-            ip_address=request.META.get('REMOTE_ADDR')
-        )
-
-        return Response({'status': 'activated'})
-
-    @action(detail=True, methods=['post'])
-    def revoke(self, request, pk=None):
-        """Revoke a license (super admin only)."""
-        if not request.user.is_superuser:
-            return Response(
-                {'error': 'Only super admins can revoke licenses'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        license_obj = self.get_object()
-        license_obj.status = License.LicenseStatus.REVOKED
-        license_obj.save()
-
-        LicenseAuditLog.objects.create(
-            license=license_obj,
-            event_type=LicenseAuditLog.EventType.REVOKED,
-            message=f"License revoked for {license_obj.licensee_name}",
-            ip_address=request.META.get('REMOTE_ADDR')
-        )
-
-        return Response({'status': 'revoked'})
-
-    @action(detail=True, methods=['post'])
-    def renew(self, request, pk=None):
-        """Renew a license (super admin only)."""
-        if not request.user.is_superuser:
-            return Response(
-                {'error': 'Only super admins can renew licenses'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        license_obj = self.get_object()
-
-        # Extend expiry by 1 year (or use provided duration)
-        duration_days = request.data.get('duration_days', 365)
-        if license_obj.expires_at:
-            license_obj.expires_at = license_obj.expires_at + timezone.timedelta(days=duration_days)
+    
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        """
+        Get the current active license.
+        
+        Returns:
+            Current license details or null if none
+        """
+        license = License.get_active_license()
+        
+        if not license:
+            return Response({
+                'is_valid': False,
+                'error': 'No active license found'
+            })
+        
+        return Response(LicenseSerializer(license).data)
+    
+    @action(detail=False, methods=['get'])
+    def status(self, request):
+        """
+        Get comprehensive license status.
+        
+        Returns:
+            License status with quota usage
+        """
+        license = License.get_active_license()
+        
+        if not license:
+            return Response({
+                'is_valid': False,
+                'error': 'No active license found',
+                'product': 'HyperFileLens',
+                'edition': 'unlicensed',
+            })
+        
+        # Get or create quota usage
+        quota_usage, _ = QuotaUsage.objects.get_or_create(license=license)
+        quota_usage.sync()  # Sync to latest
+        
+        return Response(LicenseStatusSerializer({
+            'license': license,
+            'quota': quota_usage,
+        }).data)
+    
+    @action(detail=False, methods=['post'])
+    def verify(self, request):
+        """
+        Verify license integrity.
+        
+        Request body:
+        {
+            "encoded_license": "HFL-LICENSE-XXXX..." (optional)
+        }
+        
+        Returns:
+            Verification result
+        """
+        encoded_license = request.data.get('encoded_license')
+        
+        if encoded_license:
+            # Verify a specific license string
+            try:
+                license_data, signature = LicenseEncoder.decode(encoded_license)
+                is_valid = LicenseSigner.verify_signature(license_data, signature)
+                
+                return Response({
+                    'is_valid': is_valid,
+                    'license_key': license_data.get('license_key', 'Unknown'),
+                    'edition': license_data.get('edition', 'Unknown'),
+                    'validity_period': {
+                        'starts': license_data.get('starts_at'),
+                        'expires': license_data.get('expires_at'),
+                    },
+                    'limits': license_data.get('limits', {}),
+                })
+            except ValueError as e:
+                return Response({
+                    'is_valid': False,
+                    'error': str(e)
+                })
         else:
-            license_obj.expires_at = timezone.now() + timezone.timedelta(days=duration_days)
-
-        license_obj.status = License.LicenseStatus.ACTIVE
-        license_obj.save()
-
+            # Verify current active license
+            license = License.get_active_license()
+            
+            if not license:
+                return Response({
+                    'is_valid': False,
+                    'error': 'No active license'
+                })
+            
+            return Response({
+                'is_valid': license.is_valid,
+                'license_key': license.license_key,
+                'edition': license.edition,
+                'integrity_ok': license.verify_integrity(),
+                'machine_bound': bool(license.machine_fingerprint),
+                'days_until_expiry': license.days_until_expiry,
+            })
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperUser])
+    def activate(self, request, pk=None):
+        """Activate a license."""
+        license = self.get_object()
+        
+        if license.status == License.LicenseStatus.REVOKED:
+            return Response(
+                {'error': 'Cannot activate a revoked license'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        license.status = License.LicenseStatus.ACTIVE
+        license.save()
+        
         LicenseAuditLog.objects.create(
-            license=license_obj,
-            event_type=LicenseAuditLog.EventType.RENEWED,
-            message=f"License renewed for {license_obj.licensee_name}",
-            details={'duration_days': duration_days},
-            ip_address=request.META.get('REMOTE_ADDR')
+            license=license,
+            action='activated',
+            ip_address=self.get_client_ip(request)
         )
-
+        
+        return Response(LicenseSerializer(license).data)
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperUser])
+    def deactivate(self, request, pk=None):
+        """Deactivate a license."""
+        license = self.get_object()
+        reason = request.data.get('reason', '')
+        
+        license.revoke(reason)
+        
+        return Response(LicenseSerializer(license).data)
+    
+    @action(detail=False, methods=['get'])
+    def machine_fingerprint(self, request):
+        """
+        Get current machine fingerprint.
+        
+        Used when generating licenses bound to specific hardware.
+        """
         return Response({
-            'status': 'renewed',
-            'new_expiry': license_obj.expires_at
+            'machine_id': HardwareFingerprint.get_machine_id(),
         })
+    
+    @action(detail=False, methods=['get'])
+    def usage(self, request):
+        """Get current quota usage."""
+        license = License.get_active_license()
+        
+        if not license:
+            return Response({'error': 'No active license'}, status=404)
+        
+        try:
+            quota_usage = license.quota_usage
+            quota_usage.sync()
+            return Response(QuotaUsageSerializer(quota_usage).data)
+        except QuotaUsage.DoesNotExist:
+            return Response({'error': 'Quota usage not found'}, status=404)
+    
+    def get_client_ip(self, request):
+        """Get client IP address."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0]
+        return request.META.get('REMOTE_ADDR')
 
-    @action(detail=True, methods=['get'])
-    def audit_logs(self, request, pk=None):
-        """Get audit logs for a license."""
-        license_obj = self.get_object()
-        logs = license_obj.audit_logs.all()[:100]
-        serializer = LicenseAuditLogSerializer(logs, many=True)
-        return Response(serializer.data)
 
-
-class LicenseAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+class QuotaViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    API endpoint for license audit logs (read-only).
+    Quota Usage API (Read-only).
+    
+    Provides real-time quota usage information.
     """
-
-    serializer_class = LicenseAuditLogSerializer
-    permission_classes = [IsSuperAdmin]
-
-    def get_queryset(self):
-        return LicenseAuditLog.objects.all()
-
-
-@api_view(['GET'])
-@permission_classes([permissions.AllowAny])
-def check_feature(request, feature_name):
-    """
-    Check if a feature is enabled in the current license.
-
-    This is a public endpoint that doesn't require authentication,
-    useful for frontend feature gating.
-    """
-    license_obj = License.get_active_license()
-
-    if not license_obj:
-        return Response({'enabled': False})
-
-    enabled = license_obj.has_feature(feature_name)
-    return Response({'enabled': enabled})
+    
+    queryset = QuotaUsage.objects.all()
+    serializer_class = QuotaUsageSerializer
+    permission_classes = [IsAuthenticated]
+    
+    @action(detail=False, methods=['get'])
+    def check(self, request):
+        """
+        Check if quota limits are exceeded.
+        
+        Query params:
+        - resource: Resource type to check (tenants, users, proxies, repositories, storage)
+        
+        Returns:
+            Quota check result
+        """
+        license = License.get_active_license()
+        
+        if not license:
+            return Response({
+                'allowed': False,
+                'error': 'No active license'
+            })
+        
+        quota_usage, _ = QuotaUsage.objects.get_or_create(license=license)
+        quota_usage.sync()
+        
+        resource_type = request.query_params.get('resource')
+        limits = quota_usage.check_limits()
+        
+        if resource_type:
+            limit_info = limits.get(resource_type)
+            if limit_info:
+                return Response({
+                    'resource': resource_type,
+                    **limit_info,
+                    'allowed': not limit_info['exceeded'],
+                })
+        
+        return Response({
+            'limits': limits,
+            'all_within_limits': all(not v['exceeded'] for v in limits.values()),
+        })

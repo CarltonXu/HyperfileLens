@@ -1285,6 +1285,13 @@ export default {
     activeFeatures: 'Active Features',
     daysRemaining: '{n} days remaining',
     expiresSoon: 'License expires soon',
-    expiredMessage: 'License has expired'
+    expiredMessage: 'License has expired',
+    importLicense: 'Import License',
+    importDescription: 'Paste the license string you received from sales team',
+    importPlaceholder: 'HFL-LICENSE-...',
+    import: 'Import',
+    importing: 'Importing...',
+    importSuccess: 'License imported successfully',
+    importFailed: 'Failed to import license'
   }
 }

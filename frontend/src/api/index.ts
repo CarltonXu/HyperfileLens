@@ -489,7 +489,10 @@ export const licensesApi = {
     api.post('/api/v1/licenses/validate-all/'),
   
   stats: () =>
-    api.get('/api/v1/licenses/stats/')
+    api.get('/api/v1/licenses/stats/'),
+  
+  importLicense: (data: { encoded_license: string }) =>
+    api.post('/api/v1/licenses/import_license/', data)
 }
 
 // Export api instance

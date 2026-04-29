@@ -19,11 +19,11 @@
         </button>
         <button
           type="button"
-          class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-          @click="openCreateDialog"
+          class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+          @click="openImportDialog"
         >
-          <PlusIcon class="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-          {{ t('licenses.createLicense') }}
+          <KeyIcon class="-ml-0.5 mr-1.5 h-5 w-5 text-gray-400" aria-hidden="true" />
+          {{ t('licenses.importLicense') || 'Import License' }}
         </button>
       </div>
     </div>
@@ -388,6 +388,59 @@
       </Dialog>
     </TransitionRoot>
 
+    <!-- Import License Dialog -->
+    <TransitionRoot appear :show="showImportDialog" as="template">
+      <Dialog as="div" class="relative z-10" @close="showImportDialog = false">
+        <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0" enter-to="opacity-100" leave="duration-200 ease-in" leave-from="opacity-100" leave-to="opacity-0">
+          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+        </TransitionChild>
+
+        <div class="fixed inset-0 z-10 overflow-y-auto">
+          <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" enter-to="opacity-100 translate-y-0 sm:scale-100" leave="duration-200 ease-in" leave-from="opacity-100 translate-y-0 sm:scale-100" leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+              <DialogPanel class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6 dark:bg-gray-800">
+                <div class="absolute right-0 top-0 pr-4 pt-4">
+                  <button type="button" class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none dark:bg-gray-800 dark:hover:text-gray-300" @click="showImportDialog = false">
+                    <span class="sr-only">Close</span>
+                    <XMarkIcon class="h-6 w-6" aria-hidden="true" />
+                  </button>
+                </div>
+                <div class="sm:flex sm:items-start">
+                  <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10 dark:bg-indigo-900">
+                    <KeyIcon class="h-6 w-6 text-indigo-600 dark:text-indigo-300" aria-hidden="true" />
+                  </div>
+                  <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
+                    <DialogTitle as="h3" class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
+                      {{ t('licenses.importLicense') || 'Import License' }}
+                    </DialogTitle>
+                    <div class="mt-4">
+                      <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                        {{ t('licenses.importDescription') || 'Paste the license string you received from sales team' }}
+                      </p>
+                      <textarea
+                        v-model="importLicenseString"
+                        rows="6"
+                        class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 dark:bg-gray-700 dark:text-white dark:ring-gray-600"
+                        :placeholder="t('licenses.importPlaceholder') || 'HFL-LICENSE-...'"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                  <button type="button" :disabled="importing || !importLicenseString.trim()" class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed" @click="importLicense">
+                    {{ importing ? (t('licenses.importing') || 'Importing...') : (t('licenses.import') || 'Import') }}
+                  </button>
+                  <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto dark:bg-gray-700 dark:text-white" @click="showImportDialog = false">
+                    {{ t('common.cancel') }}
+                  </button>
+                </div>
+              </DialogPanel>
+            </TransitionChild>
+          </div>
+        </div>
+      </Dialog>
+    </TransitionRoot>
+
     <!-- Delete Confirmation -->
     <TransitionRoot appear :show="showDeleteConfirm" as="template">
       <Dialog as="div" class="relative z-10" @close="showDeleteConfirm = false">
@@ -435,7 +488,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Dialog, DialogPanel, DialogTitle, Menu, MenuButton, MenuItem, MenuItems, TransitionChild, TransitionRoot } from '@headlessui/vue'
-import { CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, EllipsisVerticalIcon, ExclamationCircleIcon, ExclamationTriangleIcon, KeyIcon, PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, EllipsisVerticalIcon, ExclamationCircleIcon, ExclamationTriangleIcon, KeyIcon, SparklesIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { licensesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
 import type { License } from '@/types/license'
@@ -452,6 +505,9 @@ const deleting = ref(false)
 const showDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const showDetailDrawer = ref(false)
+const showImportDialog = ref(false)
+const importing = ref(false)
+const importLicenseString = ref('')
 const deletingLicense = ref<License | null>(null)
 const detailLicense = ref<License | null>(null)
 const statusFilter = ref('')
@@ -526,13 +582,32 @@ const goToPage = (page: number) => {
   fetchLicenses()
 }
 
-const openCreateDialog = () => {
-  formData.value = { name: '', license_key: '' }
-  showDialog.value = true
-}
-
 const closeDialog = () => {
   showDialog.value = false
+}
+
+const openImportDialog = () => {
+  importLicenseString.value = ''
+  showImportDialog.value = true
+}
+
+const importLicense = async () => {
+  if (!importLicenseString.value.trim()) return
+  
+  importing.value = true
+  try {
+    await licensesApi.importLicense({ encoded_license: importLicenseString.value.trim() })
+    showToast(t('licenses.importSuccess') || 'License imported successfully', 'success')
+    showImportDialog.value = false
+    importLicenseString.value = ''
+    fetchLicenses()
+    fetchStats()
+  } catch (error: any) {
+    console.error('Failed to import license:', error)
+    showToast(error.response?.data?.error || error.response?.data?.detail || t('licenses.importFailed') || 'Failed to import license', 'error')
+  } finally {
+    importing.value = false
+  }
 }
 
 const saveLicense = async () => {
