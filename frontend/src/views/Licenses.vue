@@ -162,29 +162,6 @@
       </div>
     </div>
 
-    <!-- Machine Code Info (Auto-generated, shown for reference) -->
-    <div v-if="machineCode" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-      <div class="flex items-start gap-3">
-        <InformationCircleIcon class="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-        <div>
-          <h4 class="text-sm font-medium text-blue-800 dark:text-blue-200">{{ t('licenses.machineCodeInfo') || 'Machine Code' }}</h4>
-          <p class="mt-1 text-xs text-blue-700 dark:text-blue-300">
-            {{ t('licenses.machineCodeHelp') || 'Send this code to the sales team to generate your activation code:' }}
-          </p>
-          <div class="mt-2 flex items-center gap-2">
-            <code class="bg-white dark:bg-gray-800 px-2 py-1 rounded text-xs font-mono text-gray-800 dark:text-gray-200 break-all max-w-lg">{{ machineCode }}</code>
-            <button
-              type="button"
-              class="text-blue-600 hover:text-blue-500 dark:text-blue-400"
-              @click="copyMachineCode"
-            >
-              <ClipboardDocumentIcon class="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Machine Code Dialog -->
     <Teleport to="body">
       <div v-if="showMachineCodeDialog" class="fixed inset-0 z-50 overflow-y-auto">
@@ -424,15 +401,6 @@ const fetchLicenseHistory = async () => {
     licenseHistory.value = response.data.results || []
   } catch (error) {
     console.log('No license history')
-  }
-}
-
-const copyMachineCode = async () => {
-  try {
-    await navigator.clipboard.writeText(machineCode.value)
-    showToast(t('common.copied') || 'Copied to clipboard', 'success')
-  } catch (error) {
-    showToast('Failed to copy', 'error')
   }
 }
 
