@@ -74,8 +74,23 @@ class TenantViewSet(viewsets.ModelViewSet):
         # Assign the creator as owner
         user = self.request.user
         user.tenant = tenant
-        user.tenant_role = User.TenantRole.OWNER
+        user.tenant_role = User.TenantRole.ADMIN
         user.save()
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete a tenant. Prevent deleting own tenant."""
+        tenant = self.get_object()
+        user = request.user
+        
+        # 不允许删除自己关联的租户
+        if user.tenant and user.tenant.id == tenant.id:
+            return Response(
+                {'detail': 'Cannot delete your own tenant.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        tenant.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['get'])
     def stats(self, request, pk=None):
