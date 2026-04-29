@@ -531,7 +531,15 @@ export const usersApi = {
 
   // Disable user
   disable: (id: string) =>
-    api.post(`/api/v1/accounts/users/${id}/disable/`)
+    api.post(`/api/v1/accounts/users/${id}/disable/`),
+
+  // Delete user
+  delete: (id: string) =>
+    api.delete(`/api/v1/accounts/users/${id}/`),
+
+  // Reset user password
+  resetPassword: (id: string, newPassword: string) =>
+    api.post(`/api/v1/accounts/users/${id}/reset_password/`, { new_password: newPassword })
 }
 
 // ============== Invitations API ==============

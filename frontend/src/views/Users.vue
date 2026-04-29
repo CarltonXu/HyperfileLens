@@ -80,10 +80,10 @@
         <thead class="bg-gray-50 dark:bg-gray-900">
           <tr>
             <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">{{ t('users.user') }}</th>
+            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('users.email') }}</th>
             <th v-if="isPlatformAdmin" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('users.tenant') }}</th>
             <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('users.role') }}</th>
             <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('users.status') }}</th>
-            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('users.phone') }}</th>
             <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('users.lastLogin') }}</th>
             <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
               <span class="sr-only">{{ t('common.actions') }}</span>
@@ -94,21 +94,24 @@
           <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
             <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
               <div class="flex items-center">
-                <div class="h-10 w-10 flex-shrink-0 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                  <span class="text-indigo-600 dark:text-indigo-400 font-medium text-sm">
+                <div class="h-10 w-10 flex-shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <span class="text-white font-medium text-sm">
                     {{ getInitials(user) }}
                   </span>
                 </div>
                 <div class="ml-4">
                   <div class="font-medium text-gray-900 dark:text-white">
-                    {{ user.full_name || user.email }}
+                    {{ user.full_name || user.email.split('@')[0] }}
                     <span v-if="user.is_superuser" class="ml-2 inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                       {{ t('users.platformAdmin') }}
                     </span>
                   </div>
-                  <div class="text-gray-500 dark:text-gray-400">{{ user.email }}</div>
+                  <div class="text-gray-500 dark:text-gray-400 text-xs">ID: {{ user.id }}</div>
                 </div>
               </div>
+            </td>
+            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+              {{ user.email }}
             </td>
             <td v-if="isPlatformAdmin" class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
               {{ user.tenant_name || '-' }}
@@ -124,9 +127,6 @@
               </span>
             </td>
             <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
-              {{ user.phone || '-' }}
-            </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
               {{ user.last_login_at ? formatDate(user.last_login_at) : '-' }}
             </td>
             <td class="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
@@ -140,6 +140,11 @@
                       <MenuItem v-slot="{ active }">
                         <button @click="openEditDialog(user)" :class="[active ? 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200', 'block w-full px-4 py-2 text-left text-sm']">
                           {{ t('users.editUser') }}
+                        </button>
+                      </MenuItem>
+                      <MenuItem v-slot="{ active }">
+                        <button @click="openResetPasswordDialog(user)" :class="[active ? 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200', 'block w-full px-4 py-2 text-left text-sm']">
+                          {{ t('users.resetPassword') }}
                         </button>
                       </MenuItem>
                       <MenuItem v-if="isPlatformAdmin && !user.is_superuser" v-slot="{ active }">
@@ -160,6 +165,12 @@
                       <MenuItem v-else v-slot="{ active }">
                         <button @click="toggleUserStatus(user, true)" :class="[active ? 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200', 'block w-full px-4 py-2 text-left text-sm']">
                           {{ t('users.enableUser') }}
+                        </button>
+                      </MenuItem>
+                      <div class="border-t border-gray-200 dark:border-gray-600 my-1"></div>
+                      <MenuItem v-if="user.id !== currentUserId" v-slot="{ active }">
+                        <button @click="openDeleteDialog(user)" :class="[active ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'text-red-600 dark:text-red-400', 'block w-full px-4 py-2 text-left text-sm']">
+                          {{ t('users.deleteUser') }}
                         </button>
                       </MenuItem>
                     </div>
@@ -459,6 +470,107 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Reset Password Dialog -->
+    <Teleport to="body">
+      <div v-if="showResetPasswordDialog" class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeResetPasswordDialog"></div>
+          <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+            <div>
+              <div class="mt-3 text-center sm:mt-5">
+                <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
+                  {{ t('users.resetPassword') }}
+                </h3>
+                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  {{ t('users.resetPasswordFor') }}: {{ resettingUser?.email }}
+                </p>
+                <div class="mt-4 space-y-4 text-left">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.newPassword') }} *</label>
+                    <input
+                      v-model="resetPasswordForm.new_password"
+                      type="password"
+                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      :placeholder="t('users.passwordPlaceholder')"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.confirmPassword') }} *</label>
+                    <input
+                      v-model="resetPasswordForm.confirm_password"
+                      type="password"
+                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      :placeholder="t('users.confirmPasswordPlaceholder')"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
+              <button
+                type="button"
+                class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 sm:col-start-2"
+                @click="resetPassword"
+                :disabled="resetting"
+              >
+                {{ resetting ? t('common.saving') : t('users.resetPassword') }}
+              </button>
+              <button
+                type="button"
+                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:ring-gray-600 dark:hover:bg-gray-600 sm:col-start-1 sm:mt-0"
+                @click="closeResetPasswordDialog"
+              >
+                {{ t('common.cancel') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Delete User Dialog -->
+    <Teleport to="body">
+      <div v-if="showDeleteDialog" class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeDeleteDialog"></div>
+          <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
+                <ExclamationTriangleIcon class="h-6 w-6 text-red-600 dark:text-red-400" aria-hidden="true" />
+              </div>
+              <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
+                  {{ t('users.deleteUser') }}
+                </h3>
+                <div class="mt-2">
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t('users.confirmDeleteDesc', { email: deletingUser?.email }) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+              <button
+                type="button"
+                class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
+                @click="deleteUser"
+                :disabled="deleting"
+              >
+                {{ deleting ? t('common.deleting') : t('users.deleteUser') }}
+              </button>
+              <button
+                type="button"
+                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:ring-gray-600 dark:hover:bg-gray-600 sm:mt-0 sm:w-auto"
+                @click="closeDeleteDialog"
+              >
+                {{ t('common.cancel') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -466,7 +578,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
-import { PlusIcon, EllipsisVerticalIcon, EnvelopeIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, EnvelopeIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon, EllipsisVerticalIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { usersApi, invitationsApi, tenantsApi } from '@/api'
@@ -545,6 +657,20 @@ const editForm = ref({
   tenant_role: '',
   is_superuser: false
 })
+
+// Reset password dialog
+const showResetPasswordDialog = ref(false)
+const resetting = ref(false)
+const resettingUser = ref<User | null>(null)
+const resetPasswordForm = ref({
+  new_password: '',
+  confirm_password: ''
+})
+
+// Delete dialog
+const showDeleteDialog = ref(false)
+const deleting = ref(false)
+const deletingUser = ref<User | null>(null)
 
 // Invite dialog
 const showInviteDialog = ref(false)
@@ -759,6 +885,77 @@ async function toggleUserStatus(user: User, active: boolean) {
   } catch (error: unknown) {
     const err = error as { response?: { data?: { error?: string } } }
     appStore.showToast({ type: 'error', title: err.response?.data?.error || t('common.error') })
+  }
+}
+
+// Reset password
+function openResetPasswordDialog(user: User) {
+  resettingUser.value = user
+  resetPasswordForm.value = { new_password: '', confirm_password: '' }
+  showResetPasswordDialog.value = true
+}
+
+function closeResetPasswordDialog() {
+  showResetPasswordDialog.value = false
+  resettingUser.value = null
+}
+
+async function resetPassword() {
+  if (!resettingUser.value) return
+  
+  if (!resetPasswordForm.value.new_password) {
+    appStore.showToast({ type: 'error', title: t('users.passwordRequired') })
+    return
+  }
+  
+  if (resetPasswordForm.value.new_password.length < 6) {
+    appStore.showToast({ type: 'error', title: t('users.passwordTooShort') })
+    return
+  }
+  
+  if (resetPasswordForm.value.new_password !== resetPasswordForm.value.confirm_password) {
+    appStore.showToast({ type: 'error', title: t('users.passwordMismatch') })
+    return
+  }
+  
+  resetting.value = true
+  try {
+    await usersApi.resetPassword(String(resettingUser.value.id), resetPasswordForm.value.new_password)
+    appStore.showToast({ type: 'success', title: t('users.resetPasswordSuccess') })
+    closeResetPasswordDialog()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { error?: string } } }
+    appStore.showToast({ type: 'error', title: err.response?.data?.error || t('users.resetPasswordFailed') })
+  } finally {
+    resetting.value = false
+  }
+}
+
+// Delete user
+function openDeleteDialog(user: User) {
+  deletingUser.value = user
+  showDeleteDialog.value = true
+}
+
+function closeDeleteDialog() {
+  showDeleteDialog.value = false
+  deletingUser.value = null
+}
+
+async function deleteUser() {
+  if (!deletingUser.value) return
+  
+  deleting.value = true
+  try {
+    await usersApi.delete(String(deletingUser.value.id))
+    appStore.showToast({ type: 'success', title: t('users.deleteSuccess') })
+    closeDeleteDialog()
+    fetchUsers()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { error?: string } } }
+    appStore.showToast({ type: 'error', title: err.response?.data?.error || t('users.deleteFailed') })
+  } finally {
+    deleting.value = false
   }
 }
 

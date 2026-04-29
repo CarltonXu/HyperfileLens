@@ -1340,7 +1340,21 @@ export default {
     roleChangeSuccess: '角色修改成功',
     roleChangeFailed: '角色修改失败',
     enableSuccess: '用户已启用',
-    disableSuccess: '用户已禁用'
+    disableSuccess: '用户已禁用',
+    resetPassword: '重置密码',
+    resetPasswordFor: '为以下用户重置密码',
+    newPassword: '新密码',
+    confirmPassword: '确认密码',
+    confirmPasswordPlaceholder: '请再次输入新密码',
+    passwordRequired: '请输入新密码',
+    passwordTooShort: '密码至少需要6个字符',
+    passwordMismatch: '两次输入的密码不一致',
+    resetPasswordSuccess: '密码重置成功',
+    resetPasswordFailed: '密码重置失败',
+    deleteUser: '删除用户',
+    confirmDeleteDesc: '确定要删除用户 {email} 吗？此操作不可撤销。',
+    deleteSuccess: '用户已删除',
+    deleteFailed: '删除用户失败'
   },
 
   // Licenses

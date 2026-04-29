@@ -691,3 +691,65 @@ class UserViewSet(viewsets.ModelViewSet):
             'status': 'superuser_updated',
             'is_superuser': user.is_superuser
         })
+
+    @extend_schema(
+        summary='Reset user password',
+        description='Reset a user\'s password. Only tenant admins and platform admins can do this.',
+        request={
+            'type': 'object',
+            'properties': {
+                'new_password': {'type': 'string'},
+            },
+            'required': ['new_password'],
+        },
+        responses={200: OpenApiResponse(description='Password reset successfully')}
+    )
+    @action(detail=True, methods=['post'])
+    def reset_password(self, request, pk=None):
+        """Reset a user's password."""
+        user = self.get_object()
+        new_password = request.data.get('new_password')
+
+        if not new_password:
+            return Response(
+                {'error': 'new_password is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if len(new_password) < 6:
+            return Response(
+                {'error': 'Password must be at least 6 characters'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.set_password(new_password)
+        user.save()
+        return Response({'status': 'password_reset', 'message': 'Password reset successfully'})
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete a user with validation."""
+        user = self.get_object()
+
+        # Cannot delete yourself
+        if user == request.user:
+            return Response(
+                {'error': 'Cannot delete your own account'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Cannot delete platform admin (only platform admin can delete platform admin)
+        if user.is_superuser and not request.user.is_superuser:
+            return Response(
+                {'error': 'Cannot delete platform admin'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Platform admin cannot delete themselves
+        if user.is_superuser and user == request.user:
+            return Response(
+                {'error': 'Cannot delete your own platform admin account'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.delete()
+        return Response({'status': 'deleted', 'message': 'User deleted successfully'})

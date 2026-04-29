@@ -1335,7 +1335,21 @@ export default {
     roleChangeSuccess: 'Role changed successfully',
     roleChangeFailed: 'Failed to change role',
     enableSuccess: 'User enabled',
-    disableSuccess: 'User disabled'
+    disableSuccess: 'User disabled',
+    resetPassword: 'Reset Password',
+    resetPasswordFor: 'Reset password for',
+    newPassword: 'New Password',
+    confirmPassword: 'Confirm Password',
+    confirmPasswordPlaceholder: 'Please enter the new password again',
+    passwordRequired: 'Please enter a new password',
+    passwordTooShort: 'Password must be at least 6 characters',
+    passwordMismatch: 'Passwords do not match',
+    resetPasswordSuccess: 'Password reset successfully',
+    resetPasswordFailed: 'Failed to reset password',
+    deleteUser: 'Delete User',
+    confirmDeleteDesc: 'Are you sure you want to delete user {email}? This action cannot be undone.',
+    deleteSuccess: 'User deleted',
+    deleteFailed: 'Failed to delete user'
   },
 
   // Licenses
