@@ -1344,5 +1344,22 @@ export default {
     changeUpgrade: 'Upgrade',
     changeDowngrade: 'Downgrade',
     changeExpired: 'Expired',
+    
+    // Quota errors
+    quotaExceeded: 'Quota Exceeded',
+    quotaExceededFor: '{resource} quota exceeded',
+    currentUsage: 'Current usage: {current}/{max}',
+    pleaseUpgrade: 'Please upgrade your license for more quota',
+    resourceProxies: 'Proxies',
+    resourceRepositories: 'Repositories',
+    resourceUsers: 'Users',
+    resourceBackupTasks: 'Backup Tasks',
+    resourceRecoveryTasks: 'Recovery Tasks',
+    resourceSourceResources: 'Source Resources',
+    resourcePolicies: 'Backup Policies',
+    resourceGateways: 'Gateways',
+    resourceTenants: 'Tenants',
+    resourceStorage: 'Storage',
+    resourceAiInsights: 'AI Insights',
   }
 }

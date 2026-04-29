@@ -28,6 +28,7 @@ from .serializers import (
     ConnectionTestResultSerializer
 )
 from nodes.models import Node
+from licenses.quota import QuotaCheckMixin
 
 
 # S3 Bucket name validation rules (AWS S3 naming rules)
@@ -80,7 +81,7 @@ def validate_bucket_name(bucket_name):
     return True, None
 
 
-class RepositoryViewSet(viewsets.ModelViewSet):
+class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing backup repositories.
     
@@ -88,6 +89,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
     It needs to be bound to a Node for operations and initialized
     with Kopia before use.
     """
+    quota_resource_type = 'repositories'
     queryset = Repository.objects.all()
     permission_classes = [IsAuthenticated]
     
@@ -140,6 +142,7 @@ class RepositoryViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         """Create a new repository."""
+        self.check_quota_before_create()
         serializer.save(
             user=self.request.user,
             tenant=self.request.user.tenant

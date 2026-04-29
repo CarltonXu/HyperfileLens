@@ -1351,5 +1351,22 @@ export default {
     changeUpgrade: '升级',
     changeDowngrade: '降级',
     changeExpired: '过期',
+    
+    // Quota errors
+    quotaExceeded: '配额超限',
+    quotaExceededFor: '{resource} 配额已超限',
+    currentUsage: '当前使用量: {current}/{max}',
+    pleaseUpgrade: '请升级许可证以获取更多配额',
+    resourceProxies: '代理',
+    resourceRepositories: '仓库',
+    resourceUsers: '用户',
+    resourceBackupTasks: '备份任务',
+    resourceRecoveryTasks: '恢复任务',
+    resourceSourceResources: '源端资源',
+    resourcePolicies: '备份策略',
+    resourceGateways: '网关',
+    resourceTenants: '租户',
+    resourceStorage: '存储空间',
+    resourceAiInsights: 'AI Insights',
   }
 }

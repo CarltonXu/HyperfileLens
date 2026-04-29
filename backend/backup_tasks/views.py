@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Sum, Count
 
 from core.permissions import IsAdminOrOperator
+from licenses.quota import QuotaCheckMixin
 from .models import BackupTask, BackupSnapshot
 from .serializers import (
     BackupTaskSerializer,
@@ -27,13 +28,14 @@ from .serializers import (
 )
 
 
-class BackupTaskViewSet(viewsets.ModelViewSet):
+class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing backup tasks.
     
     Provides CRUD operations and custom actions for backup task management.
     A backup task connects a SourceResource to a Repository.
     """
+    quota_resource_type = 'backup_tasks'
     queryset = BackupTask.objects.select_related(
         'source_resource', 'target_repository',
         'source_resource__bound_node', 'target_repository__bound_node',
@@ -112,6 +114,7 @@ class BackupTaskViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         """Create a new backup task with the current user."""
+        self.check_quota_before_create()
         serializer.save(user=self.request.user, tenant=self.request.user.tenant)
     
     @action(detail=True, methods=['post'])

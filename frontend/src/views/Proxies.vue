@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import api from '@/api'
 import type { ProxyNode, ProxyStats, ProxyTask } from '@/types/proxy'
 import Pagination from '@/components/Pagination.vue'
+import { useAppStore } from '@/stores/app'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -62,6 +63,7 @@ ChartJS.register(
 )
 
 const { t } = useI18n()
+const appStore = useAppStore()
 
 // State
 const isLoading = ref(true)
@@ -373,7 +375,12 @@ async function generateInstallCommand() {
     installStep.value = 3
   } catch (error: any) {
     console.error('Failed to generate install command:', error)
-    alert(error.response?.data?.error || 'Failed to generate install command')
+    const errorMessage = error.response?.data?.detail || error.response?.data?.error || 'Failed to generate install command'
+    appStore.showToast({
+      type: 'error',
+      title: t('common.error'),
+      message: errorMessage
+    })
   } finally {
     isGeneratingInstall.value = false
   }

@@ -181,7 +181,7 @@
                       <dd class="text-gray-500 dark:text-gray-400">{{ history.max_proxies || '-' }}</dd>
                     </div>
                     <div>
-                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxStorageGb') || 'Max Storage (GB)' }}</dt>
+                      <dt class="font-medium text-gray-900 dark:text-white">{{ t('licenses.maxStorage') || 'Max Storage (GB)' }}</dt>
                       <dd class="text-gray-500 dark:text-gray-400">{{ history.max_storage_gb || '-' }}</dd>
                     </div>
                     <div>

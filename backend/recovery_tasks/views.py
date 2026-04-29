@@ -11,12 +11,14 @@ from django.utils import timezone
 from .models import RecoveryTask
 from .serializers import RecoveryTaskSerializer, RecoveryTaskCreateSerializer
 from .tasks import execute_recovery_task
+from licenses.quota import QuotaCheckMixin
 
 
-class RecoveryTaskViewSet(viewsets.ModelViewSet):
+class RecoveryTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     """ViewSet for managing recovery tasks."""
     queryset = RecoveryTask.objects.all()
     permission_classes = [IsAuthenticated]
+    quota_resource_type = 'recovery_tasks'
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -30,6 +32,7 @@ class RecoveryTaskViewSet(viewsets.ModelViewSet):
         return RecoveryTask.objects.filter(user=user)
     
     def perform_create(self, serializer):
+        self.check_quota_before_create()
         serializer.save(user=self.request.user, tenant=self.request.user.tenant)
     
     @action(detail=True, methods=['post'])

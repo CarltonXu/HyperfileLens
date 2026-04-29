@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 
+from licenses.quota import QuotaCheckMixin
 from .models import SourceResource
 from .serializers import (
     SourceResourceSerializer,
@@ -19,11 +20,12 @@ from .serializers import (
 )
 
 
-class SourceResourceViewSet(viewsets.ModelViewSet):
+class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     """ViewSet for managing source resources."""
     
     queryset = SourceResource.objects.all()
     permission_classes = [IsAuthenticated]
+    quota_resource_type = 'source_resources'  # 配额类型
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -65,6 +67,7 @@ class SourceResourceViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
+        self.check_quota_before_create()
         serializer.save(user=self.request.user, tenant=self.request.user.tenant)
     
     @action(detail=True, methods=['post'])

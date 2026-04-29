@@ -292,6 +292,104 @@ class License(models.Model):
             pass
         
         return None
+    
+    def check_quota(self, resource_type: str, additional: int = 1) -> tuple[bool, str]:
+        """
+        Check if creating additional resources would exceed the license quota.
+        
+        Args:
+            resource_type: Type of resource to check (e.g., 'users', 'proxies', 'repositories')
+            additional: Number of additional resources to create
+            
+        Returns:
+            tuple: (is_allowed: bool, message: str)
+        """
+        from accounts.models import User
+        from nodes.models import ProxyNode
+        from repository.models import Repository
+        from backup_tasks.models import BackupTask
+        from recovery_tasks.models import RecoveryTask
+        from source_resources.models import SourceResource
+        from policies.models import BackupPolicy
+        from tenants.models import Tenant
+        from ai_query.models import AIQuery
+        
+        # Mapping of resource types to limit fields and query functions
+        quota_mapping = {
+            'tenants': {
+                'limit': 'max_tenants',
+                'current': lambda: Tenant.objects.count(),
+                'name': 'tenants'
+            },
+            'users': {
+                'limit': 'max_users',
+                'current': lambda: User.objects.filter(tenant=self.tenant).count(),
+                'name': 'users'
+            },
+            'proxies': {
+                'limit': 'max_proxies',
+                'current': lambda: ProxyNode.objects.filter(tenant=self.tenant).count(),
+                'name': 'proxies'
+            },
+            'storage': {
+                'limit': 'max_storage_gb',
+                'current': lambda: 0,  # TODO: Calculate actual storage
+                'name': 'storage (GB)'
+            },
+            'gateways': {
+                'limit': 'max_gateways',
+                'current': lambda: 0,  # No Gateway model yet
+                'name': 'gateways'
+            },
+            'ai_insights': {
+                'limit': 'ai_insights_quota',
+                'current': lambda: AIQuery.objects.filter(tenant=self.tenant).count(),
+                'name': 'AI insights'
+            },
+            'backup_tasks': {
+                'limit': 'max_backup_tasks',
+                'current': lambda: BackupTask.objects.filter(tenant=self.tenant).count(),
+                'name': 'backup tasks'
+            },
+            'recovery_tasks': {
+                'limit': 'max_recovery_tasks',
+                'current': lambda: RecoveryTask.objects.filter(tenant=self.tenant).count(),
+                'name': 'recovery tasks'
+            },
+            'source_resources': {
+                'limit': 'max_source_resources',
+                'current': lambda: SourceResource.objects.filter(tenant=self.tenant).count(),
+                'name': 'source resources'
+            },
+            'policies': {
+                'limit': 'max_policies',
+                'current': lambda: BackupPolicy.objects.filter(tenant=self.tenant).count(),
+                'name': 'backup policies'
+            },
+            'repositories': {
+                'limit': 'max_repositories',
+                'current': lambda: Repository.objects.filter(tenant=self.tenant).count(),
+                'name': 'repositories'
+            },
+        }
+        
+        if resource_type not in quota_mapping:
+            return True, ""
+        
+        mapping = quota_mapping[resource_type]
+        limit = getattr(self, mapping['limit'], 0)
+        
+        # Unlimited (-1 means unlimited)
+        if limit == -1:
+            return True, ""
+        
+        current = mapping['current']()
+        new_total = current + additional
+        
+        if new_total > limit:
+            return False, f"Quota exceeded for {mapping['name']}. Current: {current}/{limit}, Requested: +{additional}"
+        
+        return True, ""
 
 
 class LicenseHistory(models.Model):
