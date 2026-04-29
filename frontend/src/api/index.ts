@@ -467,38 +467,29 @@ export const tenantsApi = {
 
 // ============== License API ==============
 export const licensesApi = {
-  list: (params?: { page?: number; page_size?: number; status?: string; license_type?: string; search?: string }) =>
+  // Get current active license
+  current: () =>
+    api.get('/api/v1/licenses/current/'),
+  
+  // Generate machine code
+  machineCode: () =>
+    api.get('/api/v1/licenses/machine_code/'),
+  
+  // Activate license with activation code
+  activate: (data: { activation_code: string }) =>
+    api.post('/api/v1/licenses/activate/', data),
+  
+  // Get usage statistics
+  usage: () =>
+    api.get('/api/v1/licenses/usage/'),
+  
+  // List all licenses (admin)
+  list: (params?: { page?: number; page_size?: number; status?: string }) =>
     api.get('/api/v1/licenses/', { params }),
   
-  detail: (id: number | string) =>
-    api.get(`/api/v1/licenses/${id}/`),
-  
-  create: (data: { name: string; license_key: string }) =>
-    api.post('/api/v1/licenses/', data),
-  
-  update: (id: number | string, data: any) =>
-    api.patch(`/api/v1/licenses/${id}/`, data),
-  
-  delete: (id: number | string) =>
-    api.delete(`/api/v1/licenses/${id}/`),
-  
-  validate: (id: number | string) =>
-    api.post(`/api/v1/licenses/${id}/validate/`),
-  
-  validateAll: () =>
-    api.post('/api/v1/licenses/validate-all/'),
-  
-  stats: () =>
-    api.get('/api/v1/licenses/stats/'),
-  
-  importLicense: (data: { encoded_license: string }) =>
-    api.post('/api/v1/licenses/import_license/', data),
-
-  activate: (id: number | string) =>
-    api.post(`/api/v1/licenses/${id}/activate/`),
-
-  deactivate: (id: number | string) =>
-    api.post(`/api/v1/licenses/${id}/deactivate/`)
+  // Revoke license (superuser)
+  revoke: (id: string) =>
+    api.post(`/api/v1/licenses/${id}/revoke/`)
 }
 
 // Export api instance

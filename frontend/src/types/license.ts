@@ -1,78 +1,87 @@
 /**
- * License types for product authorization
+ * License types for HyperFileLens
+ * 
+ * Simplified License model - only quantity limits, no feature restrictions
  */
 
 export interface License {
   id: string;
   license_key: string;
-  name: string;
-  licensee_name: string;
-  licensee_email: string;
-  licensee_company?: string;
-  product: string;
-  edition: 'community' | 'pro' | 'enterprise';
-  license_type: 'trial' | 'standard' | 'professional' | 'enterprise';
-  version: string;
-  issued_at: string;
-  starts_at: string;
-  expires_at?: string;
+  machine_code: string;
+  
+  // Binding
+  tenant: string;
+  tenant_name: string;
+  activated_by: string;
+  activated_by_name: string;
+  
+  // Quantity limits
   max_tenants: number;
   max_users: number;
-  max_users_per_tenant: number;
   max_proxies: number;
-  max_proxies_per_tenant: number;
-  max_repositories: number;
-  max_repositories_per_tenant: number;
   max_storage_gb: number;
-  features: string[] | Record<string, boolean>;
-  modules: string[];
-  status: 'inactive' | 'active' | 'expired' | 'revoked' | 'trial' | 'valid' | 'invalid';
+  max_gateways: number;
+  ai_insights_quota: number;
+  max_backup_tasks: number;
+  max_recovery_tasks: number;
+  max_source_resources: number;
+  max_policies: number;
+  max_repositories: number;
+  
+  // Time
+  issued_at: string;
+  expires_at?: string;
+  activated_at: string;
+  
+  // Status
+  status: 'active' | 'expired' | 'revoked';
   is_valid: boolean;
-  days_until_expiry: number;
-  days_remaining?: number;
+  is_expired: boolean;
   is_perpetual: boolean;
-  tenant?: string;
-  tenant_name?: string;
-  created_at: string;
+  days_until_expiry: number;
+}
+
+export interface QuotaUsage {
+  users_count: number;
+  proxies_count: number;
+  storage_used_gb: number;
+  gateways_count: number;
+  backup_tasks_count: number;
+  recovery_tasks_count: number;
+  source_resources_count: number;
+  policies_count: number;
+  repositories_count: number;
+  ai_insights_used: number;
+  ai_insights_period: string;
+  ai_insights_reset_at?: string;
   updated_at: string;
 }
 
-export interface LicenseLimits {
-  max_tenants: number;
-  max_users: number;
-  max_users_per_tenant: number;
-  max_proxies: number;
-  max_proxies_per_tenant: number;
-  max_repositories: number;
-  max_repositories_per_tenant: number;
-  max_storage_gb: number;
+export interface MachineCodeResponse {
+  machine_code: string;
+  components: {
+    mac_address: string;
+    cpu_id: string;
+    hostname: string;
+    tenant_id: string;
+    tenant_name: string;
+  };
+  instructions: string;
 }
 
-export interface LicenseStatus {
-  is_valid: boolean;
-  edition: string;
-  licensee_name: string;
-  expires_at?: string;
-  days_until_expiry: number;
-  features: Record<string, boolean>;
-  limits: LicenseLimits;
-  warnings: string[];
+export interface ActivateRequest {
+  activation_code: string;
 }
 
-export interface LicenseAuditLog {
-  id: string;
-  license: string;
-  license_key: string;
-  event_type: 'created' | 'activated' | 'expired' | 'revoked' | 'renewed' | 'verified' | 'failed';
+export interface ActivateResponse {
+  success: boolean;
   message: string;
-  details: Record<string, unknown>;
-  ip_address?: string;
-  created_at: string;
+  license: License;
 }
 
-export interface CreateLicenseRequest {
-  name: string;
-  license_key: string;
+export interface LicenseUsageResponse {
+  license: License;
+  limits: Record<string, number>;
+  usage: QuotaUsage;
+  usage_percentage: Record<string, number>;
 }
-
-export type LicenseEdition = 'community' | 'pro' | 'enterprise';

@@ -1,29 +1,23 @@
 """
 License Cryptography Module for HyperFileLens
 
-This module provides cryptographic functions for license protection:
-- Digital signature generation and verification
-- Hardware fingerprint binding
-- License data encryption
+Simplified license activation with machine binding.
+Machine Code = MAC + CPU ID + Tenant ID + User ID
 """
 
 import hashlib
 import json
 import base64
 import secrets
+import subprocess
 import platform
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Tuple
+
 
 # RSA key pair for license signing
 # In production, these should be stored securely and the private key should NEVER be in the codebase
-# The private key is only used by the license generation tool (offline)
-# The public key is embedded in the application for verification
-
-# Example key pair (DO NOT USE IN PRODUCTION - generate your own!)
-# Generate with: openssl genrsa -out private.pem 2048
-#                openssl rsa -in private.pem -pubout -out public.pem
 
 LICENSE_PUBLIC_KEY = """
 -----BEGIN PUBLIC KEY-----
@@ -37,363 +31,331 @@ dE7fG0hJ3kL6mN9pO2rS5tU0vW4xY7zQIDAQAB
 """
 
 # Shared secret for signature verification
-# MUST match the value in generate_license.py
-LICENSE_PRIVATE_KEY = "SECRET_KEY_DO_NOT_SHARE"
-
-# This is just a placeholder - in production, use proper RSA keys
-# The private key should only exist in the license generation tool
+# MUST match the value in license_generator.py
+LICENSE_SECRET_KEY = "HFL_LICENSE_SECRET_2024_DO_NOT_SHARE"
 
 
-class HardwareFingerprint:
+class MachineCodeGenerator:
     """
-    Generate hardware fingerprint for machine binding.
+    Generate unique machine codes for license binding.
     
-    Combines multiple hardware identifiers to create a unique machine ID.
+    Machine Code = SHA256(MAC + CPU ID + Hostname + Tenant ID + User ID)
     """
     
     @staticmethod
-    def get_machine_id() -> str:
-        """
-        Get a unique machine identifier.
-        
-        Combines:
-        - MAC address
-        - Platform info
-        - Machine hostname
-        
-        Returns:
-            Unique machine ID string
-        """
-        components = []
-        
-        # Get MAC address
+    def get_mac_address() -> str:
+        """Get primary MAC address."""
         try:
-            mac = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff) 
+            # Get MAC address using uuid.getnode()
+            mac = uuid.getnode()
+            # Format as XX:XX:XX:XX:XX:XX
+            return ':'.join(['{:02X}'.format((mac >> elements) & 0xFF) 
                            for elements in range(0, 2*6, 2)][::-1])
-            components.append(mac)
         except Exception:
-            pass
-        
-        # Get platform info
+            return "UNKNOWN_MAC"
+    
+    @staticmethod
+    def get_cpu_id() -> str:
+        """Get CPU ID/Serial number."""
         try:
-            components.append(platform.node())  # Hostname
-            components.append(platform.system())  # OS
-            components.append(platform.machine())  # Architecture
+            system = platform.system()
+            
+            if system == "Linux":
+                # Try to get CPU info from /proc/cpuinfo
+                try:
+                    with open('/proc/cpuinfo', 'r') as f:
+                        for line in f:
+                            if 'Serial' in line or 'UUID' in line:
+                                return line.split(':')[1].strip()
+                        # Fallback to model name
+                        f.seek(0)
+                        for line in f:
+                            if 'model name' in line.lower():
+                                return line.split(':')[1].strip()[:50]
+                except Exception:
+                    pass
+                
+                # Try dmidecode (requires root)
+                try:
+                    result = subprocess.run(
+                        ['dmidecode', '-s', 'processor-id'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        return result.stdout.strip()[:50]
+                except Exception:
+                    pass
+                    
+            elif system == "Windows":
+                try:
+                    result = subprocess.run(
+                        ['wmic', 'cpu', 'get', 'ProcessorId'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if result.returncode == 0:
+                        lines = result.stdout.strip().split('\n')
+                        if len(lines) > 1:
+                            return lines[1].strip()[:50]
+                except Exception:
+                    pass
+                    
+            elif system == "Darwin":  # macOS
+                try:
+                    result = subprocess.run(
+                        ['sysctl', '-n', 'machdep.cpu.brand_string'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if result.returncode == 0:
+                        return result.stdout.strip()[:50]
+                except Exception:
+                    pass
+            
+            return "UNKNOWN_CPU"
+            
         except Exception:
-            pass
-        
-        # Generate hash
-        combined = '|'.join(components)
-        return hashlib.sha256(combined.encode()).hexdigest()[:32]
+            return "UNKNOWN_CPU"
     
     @staticmethod
-    def verify_machine_id(stored_fingerprint: str, tolerance: int = 0) -> bool:
+    def get_hostname() -> str:
+        """Get machine hostname."""
+        try:
+            return platform.node()[:50]
+        except Exception:
+            return "UNKNOWN_HOST"
+    
+    @staticmethod
+    def generate(tenant_id: str, user_id: str) -> Tuple[str, Dict[str, str]]:
         """
-        Verify if current machine matches stored fingerprint.
+        Generate a unique machine code.
         
         Args:
-            stored_fingerprint: Previously stored machine fingerprint
-            tolerance: Number of components that can differ (for hardware changes)
-        
+            tenant_id: Tenant UUID
+            user_id: User UUID
+            
         Returns:
-            True if machine matches
+            (machine_code, components_dict)
         """
-        current = HardwareFingerprint.get_machine_id()
-        return current == stored_fingerprint
-
-
-class LicenseSigner:
-    """
-    License signing and verification.
+        components = {
+            'mac': MachineCodeGenerator.get_mac_address(),
+            'cpu_id': MachineCodeGenerator.get_cpu_id(),
+            'hostname': MachineCodeGenerator.get_hostname(),
+            'tenant_id': str(tenant_id),
+            'user_id': str(user_id),
+        }
+        
+        # Create combined string
+        combined = "|".join([
+            components['mac'],
+            components['cpu_id'],
+            components['hostname'],
+            components['tenant_id'],
+            components['user_id'],
+        ])
+        
+        # Generate SHA256 hash
+        hash_value = hashlib.sha256(combined.encode()).hexdigest()[:32]
+        
+        # Format as HFL-MCH-XXXX-XXXX-XXXX-XXXX
+        chunks = [hash_value[i:i+4].upper() for i in range(0, 16, 4)]
+        machine_code = "HFL-MCH-" + "-".join(chunks)
+        
+        return machine_code, components
     
-    In production:
-    - Private key is kept offline (license generation tool only)
-    - Public key is embedded in application
+    @staticmethod
+    def verify(stored_code: str, tenant_id: str, user_id: str) -> bool:
+        """
+        Verify if current machine matches stored machine code.
+        
+        Args:
+            stored_code: Previously stored machine code
+            tenant_id: Current tenant ID
+            user_id: Current user ID
+            
+        Returns:
+            True if machine code matches
+        """
+        current_code, _ = MachineCodeGenerator.generate(tenant_id, user_id)
+        return current_code == stored_code
+
+
+class ActivationCode:
+    """
+    Activation code generation and verification.
+    
+    Activation Code Structure:
+    HFL-ACT-{base64_encoded_json}
+    
+    JSON contains:
+    - license_key: Unique license identifier
+    - machine_code: Bound machine code
+    - limits: Quantity limits
+    - expires_at: Expiration date
+    - signature: Digital signature
     """
     
     @staticmethod
-    def generate_license_data(
-        licensee_name: str,
-        licensee_email: str,
-        edition: str,
-        max_tenants: int = 1,
-        max_users_per_tenant: int = 10,
-        max_proxies_per_tenant: int = 5,
-        max_repositories_per_tenant: int = 5,
-        max_storage_gb: int = 100,
-        features: Dict[str, bool] = None,
+    def generate(
+        machine_code: str,
+        limits: Dict[str, int],
         valid_days: int = 365,
-        machine_id: str = None,
-    ) -> Dict[str, Any]:
+        license_key: str = None,
+    ) -> str:
         """
-        Generate license data structure.
+        Generate an activation code (used by license generator tool).
         
-        This function is used by the license generation tool (offline).
+        This is used OFFLINE by the sales team.
         
         Args:
-            licensee_name: Name of licensee
-            licensee_email: Email of licensee
-            edition: Edition type (community/pro/enterprise)
-            max_*: Resource limits
-            features: Feature flags
-            valid_days: License validity in days
-            machine_id: Hardware fingerprint (optional, for binding)
-        
+            machine_code: Target machine code
+            limits: Quantity limits dict
+            valid_days: Validity period (0 = perpetual)
+            license_key: Optional license key (auto-generated if not provided)
+            
         Returns:
-            License data dictionary ready for signing
+            Activation code string
         """
         now = datetime.now(timezone.utc)
         
-        license_data = {
-            "version": "1.0",
-            "license_key": f"HFL-{edition.upper()[:3]}-{now.year}-" + secrets.token_hex(8).upper(),
-            "licensee": {
-                "name": licensee_name,
-                "email": licensee_email,
-            },
-            "product": "HyperFileLens",
-            "edition": edition,
-            "limits": {
-                "max_tenants": max_tenants,
-                "max_users_per_tenant": max_users_per_tenant,
-                "max_proxies_per_tenant": max_proxies_per_tenant,
-                "max_repositories_per_tenant": max_repositories_per_tenant,
-                "max_storage_gb": max_storage_gb,
-            },
-            "features": features or {},
+        # Generate license key if not provided
+        if not license_key:
+            year = now.year
+            random_part = secrets.token_hex(8).upper()
+            license_key = f"HFL-PRO-{year}-{random_part}"
+        
+        # Calculate expiration
+        expires_at = None
+        if valid_days > 0:
+            expires_at = (now + timedelta(days=valid_days)).isoformat()
+        
+        # Build activation data
+        activation_data = {
+            "license_key": license_key,
+            "machine_code": machine_code,
+            "limits": limits,
             "issued_at": now.isoformat(),
-            "starts_at": now.isoformat(),
-            "expires_at": (now + __import__('datetime').timedelta(days=valid_days)).isoformat() if valid_days > 0 else None,
-            "machine_id": machine_id,
+            "expires_at": expires_at,
         }
         
-        return license_data
+        # Calculate signature
+        signature = ActivationCode._sign(activation_data)
+        activation_data["signature"] = signature
+        
+        # Encode
+        json_str = json.dumps(activation_data, sort_keys=True, separators=(',', ':'))
+        encoded = base64.b64encode(json_str.encode()).decode()
+        
+        # Format as HFL-ACT-XXXX
+        return f"HFL-ACT-{encoded}"
     
     @staticmethod
-    def calculate_checksum(license_data: Dict[str, Any]) -> str:
+    def decode(activation_code: str) -> Dict[str, Any]:
         """
-        Calculate checksum of license data.
-        
-        This checksum covers all critical fields and is signed.
+        Decode and validate an activation code.
         
         Args:
-            license_data: License data dictionary
-        
+            activation_code: Activation code string
+            
         Returns:
-            Checksum string
+            Decoded activation data
+            
+        Raises:
+            ValueError: If code is invalid
         """
-        # Extract critical fields in a deterministic order
-        # MUST match the fields in generate_license.py calculate_checksum()
-        critical_fields = {
-            "license_key": license_data.get("license_key"),
-            "edition": license_data.get("edition"),
-            "limits": license_data.get("limits"),
-            "starts_at": license_data.get("starts_at"),
-            "expires_at": license_data.get("expires_at"),
-            "machine_id": license_data.get("machine_id"),
-        }
-        
-        # Sort keys and serialize
-        serialized = json.dumps(critical_fields, sort_keys=True, separators=(',', ':'))
-        
-        # Calculate SHA256 hash
-        return hashlib.sha256(serialized.encode()).hexdigest()
+        try:
+            # Remove prefix
+            if activation_code.startswith("HFL-ACT-"):
+                encoded = activation_code[8:]
+            else:
+                raise ValueError("Invalid activation code format")
+            
+            # Decode base64
+            json_str = base64.b64decode(encoded).decode()
+            activation_data = json.loads(json_str)
+            
+            # Verify required fields
+            required = ['license_key', 'machine_code', 'limits', 'signature']
+            for field in required:
+                if field not in activation_data:
+                    raise ValueError(f"Missing required field: {field}")
+            
+            return activation_data
+            
+        except Exception as e:
+            raise ValueError(f"Invalid activation code: {str(e)}")
     
     @staticmethod
-    def sign_license(license_data: Dict[str, Any], private_key: str = None) -> str:
+    def verify(activation_data: Dict[str, Any]) -> bool:
         """
-        Sign license data with private key.
-        
-        This function is used by the license generation tool (offline).
+        Verify activation code signature.
         
         Args:
-            license_data: License data dictionary
-            private_key: RSA private key (PEM format)
-        
-        Returns:
-            Base64 encoded signature
-        """
-        checksum = LicenseSigner.calculate_checksum(license_data)
-        
-        # In production, use proper RSA signing:
-        # from cryptography.hazmat.primitives import hashes
-        # from cryptography.hazmat.primitives.asymmetric import padding
-        # from cryptography.hazmat.primitives.serialization import load_pem_private_key
-        # 
-        # key = load_pem_private_key(private_key.encode(), password=None)
-        # signature = key.sign(
-        #     checksum.encode(),
-        #     padding.PKCS1v15(),
-        #     hashes.SHA256()
-        # )
-        # return base64.b64encode(signature).decode()
-        
-        # For demo purposes, we use a simple HMAC-like approach
-        # DO NOT USE IN PRODUCTION
-        signature_input = checksum + (private_key or "secret_key")
-        signature = hashlib.sha256(signature_input.encode()).hexdigest()
-        return base64.b64encode(signature.encode()).decode()
-    
-    @staticmethod
-    def verify_signature(license_data: Dict[str, Any], signature: str) -> bool:
-        """
-        Verify license signature with embedded public key.
-        
-        Args:
-            license_data: License data dictionary
-            signature: Base64 encoded signature
-        
+            activation_data: Decoded activation data
+            
         Returns:
             True if signature is valid
         """
         try:
-            # Calculate checksum from current data
-            checksum = LicenseSigner.calculate_checksum(license_data)
-            
-            # Verify signature using shared secret
-            # In production, use proper RSA verification:
-            # from cryptography.hazmat.primitives import hashes
-            # from cryptography.hazmat.primitives.asymmetric import padding
-            # from cryptography.hazmat.primitives.serialization import load_pem_public_key
-            #
-            # key = load_pem_public_key(LICENSE_PUBLIC_KEY.encode())
-            # key.verify(
-            #     base64.b64decode(signature),
-            #     checksum.encode(),
-            #     padding.PKCS1v15(),
-            #     hashes.SHA256()
-            # )
-            # return True
-            
-            if not signature:
+            stored_signature = activation_data.get("signature")
+            if not stored_signature:
                 return False
             
-            # Decode signature
-            try:
-                decoded = base64.b64decode(signature).decode()
-            except Exception:
-                return False
+            # Recompute signature
+            expected_signature = ActivationCode._sign(activation_data)
             
-            # Recompute expected signature using same method as generate_license.py
-            signature_input = checksum + LICENSE_PRIVATE_KEY
-            expected_signature = hashlib.sha256(signature_input.encode()).hexdigest()
-            
-            # Compare signatures
-            return decoded == expected_signature
+            return stored_signature == expected_signature
             
         except Exception:
             return False
-
-
-class LicenseEncoder:
-    """
-    Encode and decode license for distribution.
-    """
     
     @staticmethod
-    def encode(license_data: Dict[str, Any], signature: str) -> str:
+    def _sign(data: Dict[str, Any]) -> str:
         """
-        Encode license data and signature into a distributable string.
+        Sign activation data.
         
-        Args:
-            license_data: License data dictionary
-            signature: License signature
-        
-        Returns:
-            Encoded license string
+        In production, this should use proper RSA signing with private key.
+        For now, we use HMAC-SHA256 with shared secret.
         """
-        combined = {
-            "data": license_data,
-            "signature": signature,
-        }
+        # Create canonical representation (without signature)
+        sign_data = {k: v for k, v in data.items() if k != 'signature'}
+        canonical = json.dumps(sign_data, sort_keys=True, separators=(',', ':'))
         
-        serialized = json.dumps(combined, sort_keys=True)
-        encoded = base64.b64encode(serialized.encode()).decode()
+        # Sign with HMAC-SHA256
+        signature = hashlib.sha256(
+            (canonical + LICENSE_SECRET_KEY).encode()
+        ).hexdigest()
         
-        # Format as readable license key
-        chunks = [encoded[i:i+16] for i in range(0, len(encoded), 16)]
-        return "HFL-LICENSE-" + "-".join(chunks[:8])  # Limit length for readability
-    
-    @staticmethod
-    def decode(encoded_license: str) -> Tuple[Dict[str, Any], str]:
-        """
-        Decode license string into data and signature.
-        
-        Args:
-            encoded_license: Encoded license string
-        
-        Returns:
-            Tuple of (license_data, signature)
-        
-        Raises:
-            ValueError: If license format is invalid
-        """
-        try:
-            # Remove prefix
-            if encoded_license.startswith("HFL-LICENSE-"):
-                encoded_license = encoded_license[12:]
-            
-            # Reconstruct full base64
-            encoded_license = encoded_license.replace("-", "")
-            
-            # Decode
-            decoded = base64.b64decode(encoded_license).decode()
-            combined = json.loads(decoded)
-            
-            return combined["data"], combined["signature"]
-            
-        except Exception as e:
-            raise ValueError(f"Invalid license format: {e}")
+        return signature
 
 
-def create_license_for_customer(
-    licensee_name: str,
-    licensee_email: str,
-    edition: str,
-    max_tenants: int = 1,
-    max_users_per_tenant: int = 10,
-    max_proxies_per_tenant: int = 5,
-    max_storage_gb: int = 100,
-    valid_days: int = 365,
-    bind_to_machine: bool = False,
-) -> str:
+def check_license_limit(limit_type: str, increment: int = 1, tenant=None) -> Tuple[bool, str]:
     """
-    Create a complete license for a customer.
+    Check if operation would exceed license limit.
     
-    This function is used by the license generation tool (offline).
+    This is a utility function to be called before creating resources.
     
     Args:
-        licensee_name: Customer name
-        licensee_email: Customer email
-        edition: License edition
-        max_*: Resource limits
-        valid_days: Validity period
-        bind_to_machine: Whether to bind to current machine
-    
+        limit_type: Type of limit to check
+        increment: Amount to increment
+        tenant: Tenant to check (default: first tenant)
+        
     Returns:
-        Encoded license string ready to send to customer
+        (allowed, error_message)
     """
-    # Optionally bind to machine
-    machine_id = None
-    if bind_to_machine:
-        machine_id = HardwareFingerprint.get_machine_id()
+    from .models import License
     
-    # Generate license data
-    license_data = LicenseSigner.generate_license_data(
-        licensee_name=licensee_name,
-        licensee_email=licensee_email,
-        edition=edition,
-        max_tenants=max_tenants,
-        max_users_per_tenant=max_users_per_tenant,
-        max_proxies_per_tenant=max_proxies_per_tenant,
-        max_storage_gb=max_storage_gb,
-        valid_days=valid_days,
-        machine_id=machine_id,
-    )
+    license = License.get_active_license(tenant)
     
-    # Sign license
-    # In production, load private key from secure storage
-    signature = LicenseSigner.sign_license(license_data)
+    if not license:
+        return False, "No valid license found"
     
-    # Encode for distribution
-    return LicenseEncoder.encode(license_data, signature)
+    if not license.is_valid:
+        return False, "License is not valid"
+    
+    try:
+        quota = license.quota_usage
+    except Exception:
+        # Create quota usage if not exists
+        from .models import QuotaUsage
+        quota = QuotaUsage.objects.create(license=license)
+    
+    return quota.check_limit(limit_type, increment)

@@ -3,7 +3,7 @@ License Admin Configuration
 """
 
 from django.contrib import admin
-from .models import License, LicenseAuditLog, QuotaUsage
+from .models import License, MachineCode, QuotaUsage, LicenseAuditLog
 
 
 @admin.register(License)
@@ -11,42 +11,39 @@ class LicenseAdmin(admin.ModelAdmin):
     """Admin interface for License management."""
     
     list_display = [
-        'license_key', 'licensee_name', 'edition', 
-        'status', 'expires_at', 'is_valid'
+        'license_key', 'tenant', 'status', 
+        'max_users', 'max_proxies', 'expires_at', 'is_valid'
     ]
-    list_filter = ['status', 'edition']
-    search_fields = ['license_key', 'licensee_name', 'licensee_email']
+    list_filter = ['status']
+    search_fields = ['license_key', 'tenant__name', 'machine_code']
     readonly_fields = [
-        'id', 'license_key', 'checksum', 'signature',
-        'issued_at', 'verify_integrity', 'days_until_expiry'
+        'id', 'license_key', 'machine_code', 'tenant', 'activated_by',
+        'issued_at', 'activated_at', 'signature'
     ]
     
     fieldsets = (
         ('License Information', {
             'fields': (
-                'id', 'license_key', 'licensee_name', 
-                'licensee_email', 'licensee_company'
+                'id', 'license_key', 'machine_code', 'status'
             )
         }),
-        ('Product', {
-            'fields': ('product', 'edition', 'version')
+        ('Binding', {
+            'fields': ('tenant', 'activated_by', 'activated_at')
         }),
         ('Validity', {
-            'fields': ('issued_at', 'starts_at', 'expires_at', 'status')
+            'fields': ('issued_at', 'expires_at')
         }),
-        ('Resource Limits', {
+        ('Quantity Limits', {
             'fields': (
-                'max_tenants', 'max_users_per_tenant', 
-                'max_proxies_per_tenant', 'max_repositories_per_tenant',
-                'max_storage_gb'
+                'max_tenants', 'max_users', 'max_proxies', 
+                'max_storage_gb', 'max_gateways',
+                'ai_insights_quota', 'max_backup_tasks',
+                'max_recovery_tasks', 'max_source_resources',
+                'max_policies', 'max_repositories'
             )
         }),
         ('Security', {
-            'fields': ('signature', 'checksum', 'machine_fingerprint', 'tamper_detected'),
-            'classes': ('collapse',)
-        }),
-        ('Features', {
-            'fields': ('features',),
+            'fields': ('signature',),
             'classes': ('collapse',)
         }),
     )
@@ -55,6 +52,19 @@ class LicenseAdmin(admin.ModelAdmin):
         return obj.is_valid
     is_valid.boolean = True
     is_valid.short_description = 'Valid'
+
+
+@admin.register(MachineCode)
+class MachineCodeAdmin(admin.ModelAdmin):
+    """Admin interface for Machine Code management."""
+    
+    list_display = ['code', 'tenant', 'user', 'created_at', 'used_at']
+    list_filter = ['created_at']
+    search_fields = ['code', 'tenant__name', 'user__username', 'mac_address']
+    readonly_fields = ['id', 'code', 'tenant', 'user', 'mac_address', 'cpu_id', 'hostname', 'created_at', 'used_at']
+    
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(LicenseAuditLog)
@@ -77,9 +87,12 @@ class LicenseAuditLogAdmin(admin.ModelAdmin):
 class QuotaUsageAdmin(admin.ModelAdmin):
     """Admin interface for quota usage tracking."""
     
-    list_display = ['license', 'tenants_count', 'total_users', 'total_proxies', 'last_synced']
-    readonly_fields = ['license', 'tenants_count', 'total_users', 'total_proxies', 
-                       'total_repositories', 'storage_used_gb', 'last_synced']
+    list_display = ['license', 'users_count', 'proxies_count', 'storage_used_gb', 'updated_at']
+    readonly_fields = ['license', 'users_count', 'proxies_count', 'storage_used_gb', 
+                       'gateways_count', 'backup_tasks_count', 'recovery_tasks_count',
+                       'source_resources_count', 'policies_count', 'repositories_count',
+                       'ai_insights_used', 'ai_insights_period', 'ai_insights_reset_at',
+                       'updated_at']
     
     def has_add_permission(self, request):
         return False
