@@ -457,7 +457,7 @@ import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
 import { PlusIcon, EllipsisVerticalIcon, EnvelopeIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import api from '@/api'
+import { usersApi, invitationsApi } from '@/api'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -547,14 +547,15 @@ const debouncedSearch = () => {
 async function fetchUsers() {
   loading.value = true
   try {
-    const params = new URLSearchParams()
-    params.append('page', currentPage.value.toString())
-    params.append('page_size', pageSize.toString())
-    if (searchQuery.value) params.append('search', searchQuery.value)
-    if (roleFilter.value) params.append('tenant_role', roleFilter.value)
-    if (statusFilter.value) params.append('is_active', statusFilter.value === 'active' ? 'true' : 'false')
+    const params: { page: number; page_size: number; search?: string; tenant_role?: string; is_active?: boolean } = {
+      page: currentPage.value,
+      page_size: pageSize
+    }
+    if (searchQuery.value) params.search = searchQuery.value
+    if (roleFilter.value) params.tenant_role = roleFilter.value
+    if (statusFilter.value) params.is_active = statusFilter.value === 'active'
 
-    const response = await api.get(`/accounts/users/?${params}`)
+    const response = await usersApi.list(params)
     users.value = response.data.results || response.data
     totalCount.value = response.data.count || users.value.length
   } catch (error: unknown) {
@@ -607,7 +608,7 @@ function closeCreateDialog() {
 async function createUser() {
   creating.value = true
   try {
-    await api.post('/accounts/users/', createForm.value)
+    await usersApi.create(createForm.value)
     appStore.showToast({ type: 'success', title: t('users.createSuccess') })
     closeCreateDialog()
     fetchUsers()
@@ -641,7 +642,23 @@ async function updateUser() {
   if (!editingUser.value) return
   updating.value = true
   try {
-    await api.patch(`/accounts/users/${editingUser.value.id}/`, editForm.value)
+    // Update basic info
+    await usersApi.update(String(editingUser.value.id), {
+      first_name: editForm.value.first_name,
+      last_name: editForm.value.last_name,
+      phone: editForm.value.phone
+    })
+
+    // Update role if changed
+    if (editForm.value.tenant_role !== editingUser.value.tenant_role) {
+      await usersApi.changeRole(String(editingUser.value.id), editForm.value.tenant_role)
+    }
+
+    // Update superuser status if changed (platform admin only)
+    if (isPlatformAdmin.value && editForm.value.is_superuser !== editingUser.value.is_superuser) {
+      await usersApi.setSuperuser(String(editingUser.value.id), editForm.value.is_superuser)
+    }
+
     appStore.showToast({ type: 'success', title: t('users.updateSuccess') })
     closeEditDialog()
     fetchUsers()
@@ -656,7 +673,7 @@ async function updateUser() {
 // Toggle superuser
 async function toggleSuperuser(user: User, isSuperuser: boolean) {
   try {
-    await api.patch(`/accounts/users/${user.id}/`, { is_superuser: isSuperuser })
+    await usersApi.setSuperuser(String(user.id), isSuperuser)
     appStore.showToast({ type: 'success', title: isSuperuser ? t('users.setPlatformAdmin') : t('users.removePlatformAdmin') })
     fetchUsers()
   } catch (error: unknown) {
@@ -678,7 +695,7 @@ function closeInviteDialog() {
 async function sendInvite() {
   inviting.value = true
   try {
-    await api.post('/tenants/invitations/', inviteForm.value)
+    await invitationsApi.create(inviteForm.value)
     appStore.showToast({ type: 'success', title: t('users.inviteSuccess') })
     closeInviteDialog()
   } catch (error: unknown) {
@@ -692,8 +709,11 @@ async function sendInvite() {
 // Toggle status
 async function toggleUserStatus(user: User, active: boolean) {
   try {
-    const action = active ? 'enable' : 'disable'
-    await api.post(`/accounts/users/${user.id}/${action}/`)
+    if (active) {
+      await usersApi.enable(String(user.id))
+    } else {
+      await usersApi.disable(String(user.id))
+    }
     appStore.showToast({ type: 'success', title: active ? t('users.enableSuccess') : t('users.disableSuccess') })
     fetchUsers()
   } catch (error: unknown) {
