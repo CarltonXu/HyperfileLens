@@ -67,7 +67,7 @@
     </div>
 
     <!-- Users Table -->
-    <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
       <div v-if="loading" class="p-8 text-center">
         <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
