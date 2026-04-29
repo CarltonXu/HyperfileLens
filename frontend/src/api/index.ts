@@ -417,18 +417,6 @@ export const aiQueryApi = {
     api.post(`/api/v1/ai-query/queries/${id}/cancel/`)
 }
 
-// ============== Audit Log API ==============
-export const auditLogApi = {
-  list: (params?: { page?: number; page_size?: number; action?: string; user?: number }) =>
-    api.get('/api/v1/audit/audit/', { params }),
-  
-  detail: (id: number) =>
-    api.get(`/api/v1/audit/audit/${id}/`),
-  
-  export: (params: { start_date?: string; end_date?: string; action?: string }) =>
-    api.get('/api/v1/audit/audit/export/', { params, responseType: 'blob' })
-}
-
 // ============== Tenant API ==============
 export const tenantsApi = {
   list: (params?: { page?: number; page_size?: number; status?: string; search?: string }) =>
@@ -562,3 +550,24 @@ export default api
 
 // Export types
 export type { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError }
+
+// ==================== Audit Log APIs ====================
+export const auditLogApi = {
+  list: (params?: Record<string, unknown>) => api.get('/audit-log/audit/', { params }),
+  retrieve: (id: string) => api.get(`/audit-log/audit/${id}/`),
+  statistics: () => api.get('/audit-log/audit/statistics/'),
+  export: (format: 'json' | 'csv' = 'json') => 
+    api.get('/audit-log/audit/export/', { params: { format }, responseType: 'blob' }),
+}
+
+// ==================== Event Log APIs ====================
+export const eventLogApi = {
+  list: (params?: Record<string, unknown>) => api.get('/audit-log/events/', { params }),
+  retrieve: (id: string) => api.get(`/audit-log/events/${id}/`),
+  statistics: () => api.get('/audit-log/events/statistics/'),
+  alerts: () => api.get('/audit-log/events/alerts/'),
+  handle: (id: string, note?: string) => 
+    api.post(`/audit-log/events/${id}/handle/`, { note }),
+  unhandle: (id: string) => 
+    api.post(`/audit-log/events/${id}/unhandle/`),
+}

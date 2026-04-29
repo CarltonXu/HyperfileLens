@@ -19,6 +19,7 @@ from .serializers import (
     TenantQuotaSerializer
 )
 from accounts.models import User
+from audit_log.services import AuditService
 
 
 class IsSuperAdmin(permissions.BasePermission):
@@ -166,6 +167,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         tenant = self.get_object()
         tenant.status = Tenant.TenantStatus.ACTIVE
         tenant.save()
+        AuditService.log_tenant_activate(request, tenant)
         return Response({'status': 'activated'})
 
     def deactivate(self, request, pk=None):
@@ -194,6 +196,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         
         tenant.status = Tenant.TenantStatus.SUSPENDED
         tenant.save()
+        AuditService.log_tenant_deactivate(request, tenant)
         return Response({'status': 'deactivated'})
 
     @action(detail=True, methods=['get'])
@@ -261,6 +264,8 @@ class TenantViewSet(viewsets.ModelViewSet):
         user.tenant_role = role
         user.is_superuser = is_superuser
         user.save()
+        
+        AuditService.log_tenant_add_user(request, tenant, user)
         
         from accounts.serializers import UserProfileSerializer
         return Response(UserProfileSerializer(user).data)
@@ -331,6 +336,8 @@ class TenantViewSet(viewsets.ModelViewSet):
         user.tenant_role = ''
         user.is_superuser = False
         user.save()
+        
+        AuditService.log_tenant_remove_user(request, tenant, user)
         
         return Response({'status': 'removed'})
 

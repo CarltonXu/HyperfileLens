@@ -1,298 +1,545 @@
-<script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { auditLogApi } from '@/api'
-import Pagination from '@/components/Pagination.vue'
-import {
-  ClipboardDocumentListIcon,
-  ArrowDownTrayIcon,
-  MagnifyingGlassIcon,
-  ArrowPathIcon,
-  UserCircleIcon,
-  ServerIcon,
-  CloudArrowUpIcon,
-  Cog6ToothIcon,
-  InformationCircleIcon,
-  ArrowUturnLeftIcon
-} from '@heroicons/vue/24/outline'
-
-const { t } = useI18n()
-
-interface AuditLog {
-  id: string | number
-  timestamp: string
-  user?: { email: string; name?: string }
-  action: string
-  resource_type: string
-  resource_id?: string
-  details?: string
-  ip_address?: string
-  status?: 'success' | 'failure' | 'warning'
-}
-
-const isLoading = ref(true)
-const logs = ref<AuditLog[]>([])
-const searchQuery = ref('')
-const selectedAction = ref('all')
-const selectedResourceType = ref('all')
-
-// Pagination
-const currentPage = ref(1)
-const pageSize = ref(10)
-
-const filteredLogs = computed(() => {
-  let result = logs.value
-  if (selectedAction.value !== 'all') {
-    result = result.filter(l => l.action === selectedAction.value)
-  }
-  if (selectedResourceType.value !== 'all') {
-    result = result.filter(l => l.resource_type === selectedResourceType.value)
-  }
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(l => 
-      l.action?.toLowerCase().includes(query) ||
-      l.details?.toLowerCase().includes(query) ||
-      l.user?.email?.toLowerCase().includes(query)
-    )
-  }
-  return result
-})
-
-// Paginated logs for display
-const paginatedLogs = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredLogs.value.slice(start, end)
-})
-
-// Reset page when filters change
-watch([searchQuery, selectedAction, selectedResourceType], () => {
-  currentPage.value = 1
-})
-
-const stats = computed(() => ({
-  total: logs.value.length,
-  success: logs.value.filter(l => l.status === 'success' || !l.status).length,
-  warning: logs.value.filter(l => l.status === 'warning').length,
-  failure: logs.value.filter(l => l.status === 'failure').length
-}))
-
-async function fetchLogs() {
-  isLoading.value = true
-  try {
-    const response = await auditLogApi.list()
-    logs.value = response.data.results || response.data
-  } catch (error) {
-    console.error('Failed to fetch audit logs:', error)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-async function exportLogs() {
-  try {
-    const response = await auditLogApi.export({})
-    // Handle download
-    const blob = new Blob([response.data], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
-  } catch (error) {
-    console.error('Failed to export logs:', error)
-  }
-}
-
-function getActionIcon(action: string) {
-  const icons: Record<string, any> = {
-    login: UserCircleIcon,
-    logout: UserCircleIcon,
-    backup_create: CloudArrowUpIcon,
-    backup_execute: CloudArrowUpIcon,
-    backup_delete: CloudArrowUpIcon,
-    recovery_create: ArrowUturnLeftIcon,
-    recovery_execute: ArrowUturnLeftIcon,
-    node_create: ServerIcon,
-    node_delete: ServerIcon,
-    config_change: Cog6ToothIcon,
-    user_create: UserCircleIcon,
-    user_delete: UserCircleIcon
-  }
-  return icons[action] || InformationCircleIcon
-}
-
-function getActionColor(action: string): string {
-  const colors: Record<string, string> = {
-    login: 'bg-blue-100 text-blue-600',
-    logout: 'bg-slate-100 text-slate-600',
-    backup_create: 'bg-indigo-100 text-indigo-600',
-    backup_execute: 'bg-indigo-100 text-indigo-600',
-    backup_delete: 'bg-red-100 text-red-600',
-    recovery_create: 'bg-emerald-100 text-emerald-600',
-    recovery_execute: 'bg-emerald-100 text-emerald-600',
-    node_create: 'bg-purple-100 text-purple-600',
-    node_delete: 'bg-red-100 text-red-600',
-    config_change: 'bg-amber-100 text-amber-600'
-  }
-  return colors[action] || 'bg-slate-100 text-slate-600'
-}
-
-function formatAction(action: string): string {
-  return action?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || action
-}
-
-onMounted(() => {
-  fetchLogs()
-})
-</script>
-
 <template>
   <div class="space-y-6">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
+    <!-- Page Header -->
+    <div class="flex justify-between items-center">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">{{ t('auditLog.title') }}</h1>
-        <p class="text-slate-500 mt-1">{{ t('auditLog.subtitle') }}</p>
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
+          {{ t('auditLog.title') }}
+        </h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          {{ t('auditLog.description') }}
+        </p>
       </div>
-      <button
-        @click="exportLogs"
-        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-      >
-        <ArrowDownTrayIcon class="w-4 h-4" />
-        {{ t('auditLog.actions.export') }}
-      </button>
-    </div>
-
-    <!-- Stats -->
-    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('common.total') }}</p>
-        <p class="text-xl font-bold text-slate-800 mt-1">{{ stats.total }}</p>
-      </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('auditLog.stats.success') }}</p>
-        <p class="text-xl font-bold text-emerald-600 mt-1">{{ stats.success }}</p>
-      </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('auditLog.stats.warning') }}</p>
-        <p class="text-xl font-bold text-amber-600 mt-1">{{ stats.warning }}</p>
-      </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('auditLog.stats.failure') }}</p>
-        <p class="text-xl font-bold text-red-600 mt-1">{{ stats.failure }}</p>
-      </div>
-    </div>
-
-    <!-- Filters -->
-    <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="relative flex-1 min-w-[200px]">
-          <MagnifyingGlassIcon class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            :placeholder="t('common.search')"
-            class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <select
-          v-model="selectedAction"
-          class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">{{ t('auditLog.columns.action') }}: {{ t('common.all') }}</option>
-          <option value="login">Login</option>
-          <option value="backup_create">{{ t('auditLog.actions.backupCreate') }}</option>
-          <option value="backup_execute">{{ t('auditLog.actions.backupExecute') }}</option>
-          <option value="recovery_create">{{ t('auditLog.actions.recoveryCreate') }}</option>
-        </select>
-        <select
-          v-model="selectedResourceType"
-          class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">{{ t('auditLog.columns.resourceType') }}: {{ t('common.all') }}</option>
-          <option value="backup_task">Backup Task</option>
-          <option value="recovery_task">Recovery Task</option>
-          <option value="node">Node</option>
-          <option value="user">User</option>
-        </select>
+      <div class="flex gap-2">
         <button
-          @click="fetchLogs"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+          @click="exportLogs('json')"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
         >
-          <ArrowPathIcon class="w-4 h-4" />
-          {{ t('common.refresh') }}
+          <ArrowDownTrayIcon class="h-4 w-4 mr-2" />
+          {{ t('auditLog.export') }}
         </button>
       </div>
     </div>
 
-    <!-- Logs List -->
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-    </div>
-
-    <div v-else-if="filteredLogs.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
-      <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <ClipboardDocumentListIcon class="w-8 h-8 text-slate-400" />
+    <!-- Filters -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- Date Range -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            {{ t('auditLog.startDate') }}
+          </label>
+          <input
+            v-model="filters.start_date"
+            type="date"
+            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            {{ t('auditLog.endDate') }}
+          </label>
+          <input
+            v-model="filters.end_date"
+            type="date"
+            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <!-- Action Filter -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            {{ t('auditLog.action') }}
+          </label>
+          <select
+            v-model="filters.action"
+            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="">{{ t('common.all') }}</option>
+            <option value="create">{{ t('auditLog.actions.create') }}</option>
+            <option value="update">{{ t('auditLog.actions.update') }}</option>
+            <option value="delete">{{ t('auditLog.actions.delete') }}</option>
+            <option value="login">{{ t('auditLog.actions.login') }}</option>
+            <option value="logout">{{ t('auditLog.actions.logout') }}</option>
+            <option value="enable">{{ t('auditLog.actions.enable') }}</option>
+            <option value="disable">{{ t('auditLog.actions.disable') }}</option>
+          </select>
+        </div>
+        <!-- Resource Type Filter -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            {{ t('auditLog.resourceType') }}
+          </label>
+          <select
+            v-model="filters.resource_type"
+            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="">{{ t('common.all') }}</option>
+            <option value="user">{{ t('auditLog.resourceTypes.user') }}</option>
+            <option value="tenant">{{ t('auditLog.resourceTypes.tenant') }}</option>
+            <option value="proxy">{{ t('auditLog.resourceTypes.proxy') }}</option>
+            <option value="license">{{ t('auditLog.resourceTypes.license') }}</option>
+            <option value="session">{{ t('auditLog.resourceTypes.session') }}</option>
+          </select>
+        </div>
       </div>
-      <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('auditLog.empty.title') }}</h3>
-      <p class="text-slate-500">{{ t('auditLog.empty.description') }}</p>
+      <div class="mt-4 flex justify-end">
+        <button
+          @click="fetchLogs"
+          class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+        >
+          {{ t('common.search') }}
+        </button>
+      </div>
     </div>
 
-    <div v-else class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-      <table class="w-full">
-        <thead class="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('auditLog.columns.timestamp') }}</th>
-            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('auditLog.columns.user') }}</th>
-            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('auditLog.columns.action') }}</th>
-            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('auditLog.columns.resourceType') }}</th>
-            <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('auditLog.columns.details') }}</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100">
-          <tr v-for="log in paginatedLogs" :key="log.id" class="hover:bg-slate-50 transition-colors">
-            <td class="px-6 py-4">
-              <span class="text-sm text-slate-600 font-mono">
-                {{ log.timestamp ? new Date(log.timestamp).toLocaleString() : '-' }}
-              </span>
-            </td>
-            <td class="px-6 py-4">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center">
-                  <UserCircleIcon class="w-4 h-4 text-slate-400" />
+    <!-- Statistics Cards -->
+    <div v-if="statistics" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('auditLog.totalLogs') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+          {{ statistics.total_count }}
+        </div>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('auditLog.todayLogs') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+          {{ statistics.today_count }}
+        </div>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('auditLog.successRate') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">
+          {{ successRate }}%
+        </div>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('auditLog.failureCount') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">
+          {{ statistics.result_stats?.failure || 0 }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-900">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ t('auditLog.timestamp') }}
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ t('auditLog.user') }}
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ t('auditLog.action') }}
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ t('auditLog.resource') }}
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ t('auditLog.result') }}
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ t('auditLog.ipAddress') }}
+              </th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ t('common.actions') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tr v-if="loading">
+              <td colspan="7" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                {{ t('common.loading') }}
+              </td>
+            </tr>
+            <tr v-else-if="logs.length === 0">
+              <td colspan="7" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                {{ t('common.noData') }}
+              </td>
+            </tr>
+            <tr v-for="log in logs" :key="log.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                {{ formatDateTime(log.timestamp) }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-gray-900 dark:text-white">
+                  {{ log.user_display || 'System' }}
                 </div>
-                <span class="text-sm text-slate-700">{{ log.user?.email || 'System' }}</span>
-              </div>
-            </td>
-            <td class="px-6 py-4">
-              <div class="flex items-center gap-2">
-                <div :class="['w-7 h-7 rounded-lg flex items-center justify-center', getActionColor(log.action)]">
-                  <component :is="getActionIcon(log.action)" class="w-4 h-4" />
+                <div class="text-sm text-gray-500 dark:text-gray-400">
+                  {{ log.user_email || '-' }}
                 </div>
-                <span class="text-sm text-slate-700">{{ formatAction(log.action) }}</span>
-              </div>
-            </td>
-            <td class="px-6 py-4">
-              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
-                {{ log.resource_type }}
-              </span>
-            </td>
-            <td class="px-6 py-4">
-              <p class="text-sm text-slate-500 truncate max-w-xs">{{ log.details || '-' }}</p>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span :class="getActionBadgeClass(log.action)" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                  {{ log.action_display || t(`auditLog.actions.${log.action}`) }}
+                </span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="text-sm text-gray-900 dark:text-white">
+                  {{ log.resource_name || log.resource_id || '-' }}
+                </div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">
+                  {{ log.resource_type_display || t(`auditLog.resourceTypes.${log.resource_type}`) }}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span :class="getResultBadgeClass(log.result)" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                  {{ log.result_display || t(`auditLog.results.${log.result}`) }}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                {{ log.ip_address || '-' }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                <button
+                  @click="showDetail(log)"
+                  class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                >
+                  {{ t('common.detail') }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <!-- Pagination -->
-      <Pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :total-items="filteredLogs.length"
-      />
+      <div v-if="pagination.count > 0" class="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
+        <div class="flex-1 flex justify-between sm:hidden">
+          <button
+            :disabled="pagination.page <= 1"
+            @click="changePage(pagination.page - 1)"
+            class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            {{ t('common.previous') }}
+          </button>
+          <button
+            :disabled="pagination.page >= totalPages"
+            @click="changePage(pagination.page + 1)"
+            class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            {{ t('common.next') }}
+          </button>
+        </div>
+        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm text-gray-700 dark:text-gray-300">
+              {{ t('common.showing') }} {{ (pagination.page - 1) * pageSize + 1 }}
+              {{ t('common.to') }} {{ Math.min(pagination.page * pageSize, pagination.count) }}
+              {{ t('common.of') }} {{ pagination.count }} {{ t('common.results') }}
+            </p>
+          </div>
+          <div>
+            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+              <button
+                :disabled="pagination.page <= 1"
+                @click="changePage(pagination.page - 1)"
+                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                {{ t('common.previous') }}
+              </button>
+              <button
+                v-for="page in visiblePages"
+                :key="page"
+                @click="changePage(page)"
+                :class="[
+                  page === pagination.page
+                    ? 'z-10 bg-indigo-50 dark:bg-indigo-900 border-indigo-500 text-indigo-600 dark:text-indigo-300'
+                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
+                  'relative inline-flex items-center px-4 py-2 border text-sm font-medium'
+                ]"
+              >
+                {{ page }}
+              </button>
+              <button
+                :disabled="pagination.page >= totalPages"
+                @click="changePage(pagination.page + 1)"
+                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                {{ t('common.next') }}
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div v-if="showDetailModal" class="fixed inset-0 z-50 overflow-y-auto">
+      <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black bg-opacity-50" @click="showDetailModal = false"></div>
+        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full p-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+              {{ t('auditLog.detail') }}
+            </h3>
+            <button @click="showDetailModal = false" class="text-gray-400 hover:text-gray-500">
+              <XMarkIcon class="h-6 w-6" />
+            </button>
+          </div>
+          <div v-if="selectedLog" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('auditLog.timestamp') }}
+                </label>
+                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                  {{ formatDateTime(selectedLog.timestamp) }}
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('auditLog.user') }}
+                </label>
+                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                  {{ selectedLog.user_display || 'System' }}
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('auditLog.action') }}
+                </label>
+                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                  {{ selectedLog.action_display }}
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('auditLog.resource') }}
+                </label>
+                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                  {{ selectedLog.resource_type_display }}: {{ selectedLog.resource_name || selectedLog.resource_id }}
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('auditLog.ipAddress') }}
+                </label>
+                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                  {{ selectedLog.ip_address || '-' }}
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('auditLog.result') }}
+                </label>
+                <div class="mt-1">
+                  <span :class="getResultBadgeClass(selectedLog.result)" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                    {{ selectedLog.result_display }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                {{ t('auditLog.description') }}
+              </label>
+              <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                {{ selectedLog.details || '-' }}
+              </div>
+            </div>
+            <div v-if="selectedLog.error_message">
+              <label class="block text-sm font-medium text-red-500">
+                {{ t('auditLog.errorMessage') }}
+              </label>
+              <div class="mt-1 text-sm text-red-600 dark:text-red-400">
+                {{ selectedLog.error_message }}
+              </div>
+            </div>
+            <div v-if="selectedLog.changes && Object.keys(selectedLog.changes).length > 0">
+              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                {{ t('auditLog.changes') }}
+              </label>
+              <pre class="bg-gray-50 dark:bg-gray-900 rounded p-3 text-xs overflow-auto max-h-60">{{ JSON.stringify(selectedLog.changes, null, 2) }}</pre>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                {{ t('auditLog.requestPath') }}
+              </label>
+              <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                {{ selectedLog.request_method }} {{ selectedLog.request_path }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { ArrowDownTrayIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { auditLogApi } from '@/api'
+import { useAppStore } from '@/stores/app'
+
+const { t } = useI18n()
+const appStore = useAppStore()
+
+interface AuditLogItem {
+  id: string
+  timestamp: string
+  user: string | null
+  user_display: string
+  user_email: string
+  action: string
+  action_display: string
+  resource_type: string
+  resource_type_display: string
+  resource_id: string
+  resource_name: string
+  result: string
+  result_display: string
+  ip_address: string
+  details: string
+  error_message: string
+  request_method: string
+  request_path: string
+  changes: Record<string, unknown>
+}
+
+interface Statistics {
+  total_count: number
+  today_count: number
+  action_stats: Record<string, number>
+  resource_stats: Record<string, number>
+  result_stats: Record<string, number>
+}
+
+const logs = ref<AuditLogItem[]>([])
+const loading = ref(false)
+const statistics = ref<Statistics | null>(null)
+const showDetailModal = ref(false)
+const selectedLog = ref<AuditLogItem | null>(null)
+
+const filters = ref({
+  start_date: '',
+  end_date: '',
+  action: '',
+  resource_type: '',
+})
+
+const pagination = ref({
+  page: 1,
+  count: 0,
+})
+
+const pageSize = 20
+
+const totalPages = computed(() => Math.ceil(pagination.value.count / pageSize))
+
+const visiblePages = computed(() => {
+  const pages: number[] = []
+  const start = Math.max(1, pagination.value.page - 2)
+  const end = Math.min(totalPages.value, pagination.value.page + 2)
+  for (let i = start; i <= end; i++) {
+    pages.push(i)
+  }
+  return pages
+})
+
+const successRate = computed(() => {
+  if (!statistics.value) return 0
+  const total = statistics.value.total_count
+  if (total === 0) return 0
+  const success = statistics.value.result_stats?.success || 0
+  return Math.round((success / total) * 100)
+})
+
+const fetchLogs = async () => {
+  loading.value = true
+  try {
+    const params: Record<string, unknown> = {
+      page: pagination.value.page,
+      page_size: pageSize,
+    }
+    if (filters.value.start_date) params.start_date = filters.value.start_date
+    if (filters.value.end_date) params.end_date = filters.value.end_date
+    if (filters.value.action) params.action = filters.value.action
+    if (filters.value.resource_type) params.resource_type = filters.value.resource_type
+
+    const response = await auditLogApi.list(params)
+    logs.value = response.data.results || response.data
+    pagination.value.count = response.data.count || logs.value.length
+  } catch (error) {
+    console.error('Failed to fetch audit logs:', error)
+    appStore.showToast({ type: 'error', title: t('common.fetchFailed') })
+  } finally {
+    loading.value = false
+  }
+}
+
+const fetchStatistics = async () => {
+  try {
+    const response = await auditLogApi.statistics()
+    statistics.value = response.data
+  } catch (error) {
+    console.error('Failed to fetch statistics:', error)
+  }
+}
+
+const changePage = (page: number) => {
+  pagination.value.page = page
+  fetchLogs()
+}
+
+const showDetail = (log: AuditLogItem) => {
+  selectedLog.value = log
+  showDetailModal.value = true
+}
+
+const exportLogs = async (format: 'json' | 'csv') => {
+  try {
+    const response = await auditLogApi.export(format)
+    const blob = new Blob([response.data], { 
+      type: format === 'csv' ? 'text/csv' : 'application/json' 
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `audit_logs.${format}`
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Failed to export logs:', error)
+    appStore.showToast({ type: 'error', title: t('common.exportFailed') })
+  }
+}
+
+const formatDateTime = (dateStr: string) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleString()
+}
+
+const getActionBadgeClass = (action: string) => {
+  const classes: Record<string, string> = {
+    create: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    update: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    delete: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    login: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+    logout: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+    enable: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    disable: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  }
+  return classes[action] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+}
+
+const getResultBadgeClass = (result: string) => {
+  const classes: Record<string, string> = {
+    success: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    failure: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    partial: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  }
+  return classes[result] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+}
+
+onMounted(() => {
+  fetchLogs()
+  fetchStatistics()
+})
+</script>

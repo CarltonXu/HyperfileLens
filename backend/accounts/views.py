@@ -26,6 +26,7 @@ from .serializers import (
     APITokenCreateResponseSerializer,
     UserSessionSerializer,
 )
+from audit_log.services import AuditService
 
 
 class IsTenantAdmin(permissions.BasePermission):
@@ -573,17 +574,20 @@ class UserViewSet(viewsets.ModelViewSet):
                 from tenants.models import Tenant
                 try:
                     tenant = Tenant.objects.get(id=tenant_id)
-                    serializer.save(tenant=tenant)
+                    new_user = serializer.save(tenant=tenant)
+                    AuditService.log_user_create(self.request, new_user)
                     return
                 except Tenant.DoesNotExist:
                     pass
             # Default to administrator tenant if not specified
-            serializer.save(tenant=user.tenant)
+            new_user = serializer.save(tenant=user.tenant)
         else:
             # Regular tenant admins can only create users in their own tenant
             if not user.tenant:
                 raise ValueError("User must belong to a tenant to create users")
-            serializer.save(tenant=user.tenant)
+            new_user = serializer.save(tenant=user.tenant)
+        
+        AuditService.log_user_create(self.request, new_user)
 
     @extend_schema(
         summary='Disable user',
@@ -731,6 +735,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         user.set_password(new_password)
         user.save()
+        AuditService.log_password_reset(request, user)
         return Response({'status': 'password_reset', 'message': 'Password reset successfully'})
 
     def destroy(self, request, *args, **kwargs):
@@ -758,5 +763,8 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Record audit log before deletion
+        AuditService.log_user_delete(request, user)
+        
         user.delete()
         return Response({'status': 'deleted', 'message': 'User deleted successfully'})
