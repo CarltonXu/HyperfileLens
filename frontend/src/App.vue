@@ -3,6 +3,7 @@ import { onMounted, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import Toast from '@/components/Toast.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -32,7 +33,7 @@ watch(
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
     <!-- Main Content -->
     <RouterView />
 
@@ -40,35 +41,25 @@ watch(
     <Transition name="fade">
       <div
         v-if="appStore.isLoading"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
       >
         <div class="text-center">
           <div class="spinner-lg mx-auto mb-4"></div>
-          <p class="text-gray-600">{{ appStore.loadingMessage }}</p>
+          <p class="text-gray-600 dark:text-gray-300">{{ appStore.loadingMessage }}</p>
         </div>
       </div>
     </Transition>
 
     <!-- Toast Notifications -->
     <Teleport to="body">
-      <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      <div class="fixed top-4 right-4 z-[100] flex flex-col gap-3 pointer-events-none">
         <TransitionGroup name="toast">
-          <div
+          <Toast
             v-for="toast in appStore.toasts"
             :key="toast.id"
-            :class="[
-              'px-4 py-3 rounded-lg shadow-lg max-w-sm',
-              {
-                'bg-success-500 text-white': toast.type === 'success',
-                'bg-danger-500 text-white': toast.type === 'error',
-                'bg-warning-500 text-white': toast.type === 'warning',
-                'bg-primary-500 text-white': toast.type === 'info',
-              }
-            ]"
-          >
-            <p class="font-medium">{{ toast.title }}</p>
-            <p v-if="toast.message" class="text-sm opacity-90">{{ toast.message }}</p>
-          </div>
+            v-bind="toast"
+            @close="appStore.removeToast"
+          />
         </TransitionGroup>
       </div>
     </Teleport>
@@ -86,18 +77,33 @@ watch(
   opacity: 0;
 }
 
-.toast-enter-active,
+.toast-enter-active {
+  animation: toast-in 0.3s ease-out;
+}
+
 .toast-leave-active {
-  transition: all 0.3s ease;
+  animation: toast-out 0.2s ease-in forwards;
 }
 
-.toast-enter-from {
-  opacity: 0;
-  transform: translateX(100%);
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
 }
 
-.toast-leave-to {
-  opacity: 0;
-  transform: translateY(100%);
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%) scale(0.9);
+  }
 }
 </style>
