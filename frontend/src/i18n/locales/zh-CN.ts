@@ -78,7 +78,11 @@ export default {
     info: '信息',
     confirmDelete: '确认删除',
     deleting: '删除中...',
-    saving: '保存中...'
+    saving: '保存中...',
+    showing: '显示',
+    to: '至',
+    of: '共',
+    results: '条结果'
   },
 
   // Auth

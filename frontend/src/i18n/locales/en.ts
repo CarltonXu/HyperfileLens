@@ -79,7 +79,11 @@ export default {
     info: 'Info',
     confirmDelete: 'Confirm Delete',
     deleting: 'Deleting...',
-    saving: 'Saving...'
+    saving: 'Saving...',
+    showing: 'Showing',
+    to: 'to',
+    of: 'of',
+    results: 'results'
   },
 
   // Auth
