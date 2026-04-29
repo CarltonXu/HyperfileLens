@@ -78,14 +78,29 @@ class TenantViewSet(viewsets.ModelViewSet):
         user.save()
 
     def destroy(self, request, *args, **kwargs):
-        """Delete a tenant. Prevent deleting own tenant."""
+        """Delete a tenant. Prevent deleting own tenant or administrator tenant."""
         tenant = self.get_object()
         user = request.user
+        
+        # 不允许删除 administrator 租户（系统保留租户）
+        if tenant.name == 'administrator':
+            return Response(
+                {'detail': 'Cannot delete the system administrator tenant.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # 不允许删除自己关联的租户
         if user.tenant and user.tenant.id == tenant.id:
             return Response(
                 {'detail': 'Cannot delete your own tenant.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 检查是否有用户关联到此租户
+        users_in_tenant = User.objects.filter(tenant=tenant).count()
+        if users_in_tenant > 0:
+            return Response(
+                {'detail': f'Cannot delete tenant with {users_in_tenant} associated user(s). Remove users first.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
