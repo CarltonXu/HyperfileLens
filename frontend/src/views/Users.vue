@@ -347,6 +347,14 @@
                   {{ t('users.editUserHint', { user: editingUser?.full_name || editingUser?.email }) }}
                 </p>
                 <div class="mt-4 space-y-4 text-left">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.email') }}</label>
+                    <input
+                      v-model="editForm.email"
+                      type="email"
+                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                    />
+                  </div>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
                       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.firstName') }}</label>
@@ -651,6 +659,7 @@ const showEditDialog = ref(false)
 const updating = ref(false)
 const editingUser = ref<User | null>(null)
 const editForm = ref({
+  email: '',
   first_name: '',
   last_name: '',
   phone: '',
@@ -790,6 +799,7 @@ async function createUser() {
 function openEditDialog(user: User) {
   editingUser.value = user
   editForm.value = {
+    email: user.email || '',
     first_name: user.first_name || '',
     last_name: user.last_name || '',
     phone: user.phone || '',
@@ -808,8 +818,9 @@ async function updateUser() {
   if (!editingUser.value) return
   updating.value = true
   try {
-    // Update basic info
+    // Update basic info (including email)
     await usersApi.update(String(editingUser.value.id), {
+      email: editForm.value.email,
       first_name: editForm.value.first_name,
       last_name: editForm.value.last_name,
       phone: editForm.value.phone

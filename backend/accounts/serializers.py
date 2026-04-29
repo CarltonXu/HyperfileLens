@@ -231,12 +231,21 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     Allows users to update their own profile information.
     """
 
+    email = serializers.EmailField(required=False)
+
     class Meta:
         model = User
         fields = [
-            'username', 'first_name', 'last_name',
+            'email', 'username', 'first_name', 'last_name',
             'phone', 'avatar', 'preferences'
         ]
+
+    def validate_email(self, value):
+        """Validate email uniqueness."""
+        user = self.instance
+        if User.objects.filter(email=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError('This email is already in use.')
+        return value
 
     def update(self, instance, validated_data):
         """

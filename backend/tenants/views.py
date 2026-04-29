@@ -279,8 +279,9 @@ class TenantViewSet(viewsets.ModelViewSet):
         is_superuser = request.data.get('is_superuser')
         
         try:
+            user_id = int(user_id)
             user = User.objects.get(id=user_id, tenant=tenant)
-        except User.DoesNotExist:
+        except (ValueError, User.DoesNotExist):
             return Response(
                 {'error': 'User not found in this tenant'},
                 status=status.HTTP_404_NOT_FOUND
@@ -313,8 +314,9 @@ class TenantViewSet(viewsets.ModelViewSet):
             )
         
         try:
+            user_id = int(user_id)
             user = User.objects.get(id=user_id, tenant=tenant)
-        except User.DoesNotExist:
+        except (ValueError, User.DoesNotExist):
             return Response(
                 {'error': 'User not found in this tenant'},
                 status=status.HTTP_404_NOT_FOUND

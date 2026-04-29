@@ -514,7 +514,7 @@ export const usersApi = {
     api.post('/api/v1/accounts/users/', data),
 
   // Update user
-  update: (id: string, data: { first_name?: string; last_name?: string; phone?: string; tenant_role?: string; is_superuser?: boolean }) =>
+  update: (id: string, data: { email?: string; first_name?: string; last_name?: string; phone?: string; tenant_role?: string; is_superuser?: boolean }) =>
     api.patch(`/api/v1/accounts/users/${id}/`, data),
 
   // Change user role
