@@ -12,18 +12,19 @@ class LicenseSerializer(serializers.ModelSerializer):
     is_valid = serializers.ReadOnlyField()
     days_until_expiry = serializers.ReadOnlyField()
     is_perpetual = serializers.ReadOnlyField()
+    machine_bound = serializers.ReadOnlyField()
     
     class Meta:
         model = License
         fields = [
             'id', 'license_key', 'licensee_name', 'licensee_email',
             'licensee_company', 'product', 'edition', 'version',
-            'issued_at', 'starts_at', 'expires_at',
+            'issued_at', 'starts_at', 'expires_at', 'activated_at',
             'max_tenants', 'max_users_per_tenant', 'max_proxies_per_tenant',
             'max_repositories_per_tenant', 'max_storage_gb',
             'features', 'status',
             'is_valid', 'days_until_expiry', 'is_perpetual',
-            'machine_fingerprint',
+            'machine_fingerprint', 'machine_bound',
         ]
         read_only_fields = [
             'id', 'license_key', 'issued_at',

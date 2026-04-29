@@ -239,7 +239,17 @@ class LicenseViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], permission_classes=[IsSuperUser])
     def activate(self, request, pk=None):
-        """Activate a license."""
+        """
+        Activate a license and bind to current machine.
+        
+        This is a one-time operation that binds the license to the 
+        current server's hardware fingerprint.
+        
+        Request body (optional):
+        {
+            "force": false,  // Force re-activation on different machine
+        }
+        """
         license = self.get_object()
         
         if license.status == License.LicenseStatus.REVOKED:
@@ -248,16 +258,38 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        license.status = License.LicenseStatus.ACTIVE
-        license.save()
+        # Get current machine fingerprint
+        current_machine_id = HardwareFingerprint.get_machine_id()
+        
+        # Check if already bound to a different machine
+        if license.machine_fingerprint and license.machine_fingerprint != current_machine_id:
+            force = request.data.get('force', False)
+            if not force:
+                return Response({
+                    'error': 'License is already bound to a different machine',
+                    'current_machine': current_machine_id[:16] + '...',
+                    'bound_machine': license.machine_fingerprint[:16] + '...',
+                    'hint': 'Use force=true to re-activate on this machine (will invalidate the other installation)',
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Activate and bind to machine
+        license.activate(current_machine_id)
         
         LicenseAuditLog.objects.create(
             license=license,
             action='activated',
+            details={
+                'machine_id': current_machine_id[:32],
+                'bound_at': str(license.activated_at),
+            },
             ip_address=self.get_client_ip(request)
         )
         
-        return Response(LicenseSerializer(license).data)
+        return Response({
+            **LicenseSerializer(license).data,
+            'machine_bound': True,
+            'message': 'License activated and bound to this machine',
+        })
     
     @action(detail=True, methods=['post'], permission_classes=[IsSuperUser])
     def deactivate(self, request, pk=None):

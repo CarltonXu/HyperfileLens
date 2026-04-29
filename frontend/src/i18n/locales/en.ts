@@ -1307,6 +1307,18 @@ export default {
     licenseeEmail: 'Licensee Email',
     maxTenants: 'Max Tenants',
     tamperDetected: 'Tamper Detected',
-    locked: 'Locked'
+    locked: 'Locked',
+    activate: 'Activate',
+    activateLicense: 'Activate License',
+    activateSuccess: 'License activated successfully',
+    activateFailed: 'Activation failed',
+    machineId: 'Machine ID',
+    activatedAt: 'Activated At',
+    notActivated: 'Not Activated',
+    alreadyActivated: 'This license has been activated on another machine',
+    activationInfo: 'Activation Info',
+    deactivate: 'Deactivate',
+    deactivateConfirm: 'Are you sure you want to deactivate this license?',
+    deactivateSuccess: 'License deactivated successfully'
   }
 }

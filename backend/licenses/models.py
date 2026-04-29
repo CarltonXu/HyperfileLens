@@ -41,7 +41,8 @@ class License(models.Model):
 
     class LicenseStatus(models.TextChoices):
         """License status options."""
-        ACTIVE = 'active', 'Active'
+        INACTIVE = 'inactive', 'Inactive'  # Imported but not activated
+        ACTIVE = 'active', 'Active'  # Activated and bound to machine
         EXPIRED = 'expired', 'Expired'
         REVOKED = 'revoked', 'Revoked'
         TRIAL = 'trial', 'Trial'
@@ -107,6 +108,11 @@ class License(models.Model):
         null=True,
         blank=True,
         help_text='When the license expires (null = perpetual)'
+    )
+    activated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the license was activated (bound to machine)'
     )
     
     # Resource limits - PROTECTED BY SIGNATURE
@@ -214,6 +220,10 @@ class License(models.Model):
         if self.status != self.LicenseStatus.ACTIVE:
             return False
         
+        # Check if activated
+        if not self.activated_at:
+            return False
+        
         # Check time validity
         now = timezone.now()
         if self.starts_at > now:
@@ -244,6 +254,11 @@ class License(models.Model):
     def is_perpetual(self) -> bool:
         """Check if this is a perpetual license."""
         return self.expires_at is None
+    
+    @property
+    def machine_bound(self) -> bool:
+        """Check if this license is bound to a specific machine."""
+        return bool(self.machine_fingerprint)
     
     def verify_integrity(self) -> bool:
         """
@@ -430,7 +445,7 @@ class License(models.Model):
         # Calculate checksum from original data
         checksum = LicenseSigner.calculate_checksum(license_data)
         
-        # Create license
+        # Create license (INACTIVE until activated)
         license = cls(
             license_key=license_key,
             licensee_name=license_data.get("licensee", {}).get("name", "Unknown"),
@@ -446,15 +461,91 @@ class License(models.Model):
             features=license_data.get("features", {}),
             signature=signature,
             checksum=checksum,
-            machine_fingerprint=license_data.get("machine_id"),
+            machine_fingerprint=license_data.get("machine_id"),  # Pre-bound machine ID (optional)
             original_data=license_data,
-            status=cls.LicenseStatus.ACTIVE,
+            status=cls.LicenseStatus.INACTIVE,  # Requires activation
         )
         
         # Save with integrity check
         license.save()
         
         return license
+    
+    def activate(self, machine_id: str = None) -> tuple[bool, str]:
+        """
+        Activate license and bind to current machine.
+        
+        This is the SECOND step after import_license().
+        Once activated, the license is bound to this machine and cannot be used elsewhere.
+        
+        Args:
+            machine_id: Optional machine fingerprint. If not provided, uses current machine.
+        
+        Returns:
+            (success, message) tuple
+        """
+        if self.status == self.LicenseStatus.ACTIVE:
+            # Already active, verify machine fingerprint
+            if self.machine_fingerprint:
+                from .crypto import HardwareFingerprint
+                current_machine = machine_id or HardwareFingerprint.get_machine_id()
+                if current_machine != self.machine_fingerprint:
+                    return False, "License is bound to a different machine"
+            return True, "License already active on this machine"
+        
+        if self.status == self.LicenseStatus.REVOKED:
+            return False, "License has been revoked"
+        
+        # Bind to machine
+        from .crypto import HardwareFingerprint
+        self.machine_fingerprint = machine_id or HardwareFingerprint.get_machine_id()
+        self.status = self.LicenseStatus.ACTIVE
+        self.activated_at = timezone.now()
+        
+        # Recalculate checksum to include machine binding
+        self.checksum = LicenseSigner.calculate_checksum({
+            **self.original_data,
+            "machine_id": self.machine_fingerprint,
+            "activated_at": self.activated_at.isoformat(),
+        })
+        
+        self.save()
+        
+        # Create audit log
+        LicenseAuditLog.objects.create(
+            license=self,
+            action="activated",
+            details={"machine_fingerprint": self.machine_fingerprint}
+        )
+        
+        return True, f"License activated successfully. Bound to machine: {self.machine_fingerprint[:16]}..."
+    
+    def deactivate(self) -> tuple[bool, str]:
+        """
+        Deactivate license (for migration to another machine).
+        
+        WARNING: This should be used carefully and may require
+        authorization from the license server in production.
+        
+        Returns:
+            (success, message) tuple
+        """
+        if self.status != self.LicenseStatus.ACTIVE:
+            return False, "License is not active"
+        
+        old_fingerprint = self.machine_fingerprint
+        self.status = self.LicenseStatus.INACTIVE
+        self.machine_fingerprint = None
+        self.save()
+        
+        # Create audit log
+        LicenseAuditLog.objects.create(
+            license=self,
+            action="deactivated",
+            details={"previous_machine": old_fingerprint}
+        )
+        
+        return True, "License deactivated. Can be activated on another machine."
     
     @classmethod
     def import_from_data(cls, license_data: dict, signature: str) -> 'License':

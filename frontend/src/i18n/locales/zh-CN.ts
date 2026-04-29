@@ -1313,6 +1313,21 @@ export default {
     licenseeEmail: '授权方邮箱',
     maxTenants: '最大租户数',
     tamperDetected: '检测到篡改',
-    locked: '已锁定'
+    locked: '已锁定',
+    machineBinding: '机器绑定',
+    machineId: '机器ID',
+    activatedAt: '激活时间',
+    activateLicense: '激活授权',
+    activateSuccess: 'License 激活成功',
+    activateFailed: 'License 激活失败',
+    notActivated: '未激活',
+    boundToMachine: '已绑定到此机器',
+    bindingInfo: '绑定信息',
+    currentMachineId: '当前机器ID',
+    licenseBoundTo: 'License 已绑定到',
+    activateWarning: '激活后 License 将绑定到当前机器，无法在其他机器使用。',
+    alreadyActivated: '已激活',
+    cannotActivate: '无法激活',
+    machineMismatch: '机器不匹配'
   }
 }

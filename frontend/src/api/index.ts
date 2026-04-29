@@ -492,7 +492,13 @@ export const licensesApi = {
     api.get('/api/v1/licenses/stats/'),
   
   importLicense: (data: { encoded_license: string }) =>
-    api.post('/api/v1/licenses/import_license/', data)
+    api.post('/api/v1/licenses/import_license/', data),
+
+  activate: (id: number | string) =>
+    api.post(`/api/v1/licenses/${id}/activate/`),
+
+  deactivate: (id: number | string) =>
+    api.post(`/api/v1/licenses/${id}/deactivate/`)
 }
 
 // Export api instance
