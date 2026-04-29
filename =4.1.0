@@ -1,0 +1,11 @@
+Looking in indexes: https://mirrors.aliyun.com/pypi/simple/
+Collecting channels-redis
+  Downloading https://mirrors.aliyun.com/pypi/packages/df/fe/b7224a401ad227b263e5ba84753ffb5a88df048f3b15efd2797903543ce4/channels_redis-4.3.0-py3-none-any.whl (20 kB)
+Requirement already satisfied: redis>=4.6 in /usr/local/lib/python3.12/dist-packages (from channels-redis) (7.4.0)
+Requirement already satisfied: msgpack~=1.0 in /usr/local/lib/python3.12/dist-packages (from channels-redis) (1.1.2)
+Requirement already satisfied: asgiref<4,>=3.9.1 in /usr/local/lib/python3.12/dist-packages (from channels-redis) (3.11.1)
+Requirement already satisfied: channels>=4.2.2 in /usr/local/lib/python3.12/dist-packages (from channels-redis) (4.3.2)
+Requirement already satisfied: Django>=4.2 in /usr/local/lib/python3.12/dist-packages (from channels>=4.2.2->channels-redis) (6.0.4)
+Requirement already satisfied: sqlparse>=0.5.0 in /usr/local/lib/python3.12/dist-packages (from Django>=4.2->channels>=4.2.2->channels-redis) (0.5.5)
+Installing collected packages: channels-redis
+Successfully installed channels-redis-4.3.0
