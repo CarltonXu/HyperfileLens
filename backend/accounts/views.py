@@ -542,6 +542,19 @@ class UserViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), IsTenantAdmin()]
         return super().get_permissions()
 
+    def create(self, request, *args, **kwargs):
+        """Create a user with validation."""
+        email = request.data.get('email', '').strip().lower()
+        
+        # Check if email already exists
+        if email and User.objects.filter(email=email).exists():
+            return Response(
+                {'error': 'A user with this email already exists', 'field': 'email'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         """Create a user within a tenant."""
         user = self.request.user

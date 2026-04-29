@@ -648,8 +648,13 @@ async function createUser() {
     closeCreateDialog()
     fetchUsers()
   } catch (error: unknown) {
-    const err = error as { response?: { data?: { error?: string } } }
-    appStore.showToast({ type: 'error', title: err.response?.data?.error || t('users.createFailed') })
+    const err = error as { response?: { data?: { error?: string; field?: string } } }
+    const errorMsg = err.response?.data?.error
+    if (errorMsg?.includes('email already exists') || err.response?.data?.field === 'email') {
+      appStore.showToast({ type: 'error', title: t('users.emailExists') })
+    } else {
+      appStore.showToast({ type: 'error', title: errorMsg || t('users.createFailed') })
+    }
   } finally {
     creating.value = false
   }

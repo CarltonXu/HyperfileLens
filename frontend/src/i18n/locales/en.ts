@@ -1322,6 +1322,7 @@ export default {
     updateUser: 'Update User',
     updateSuccess: 'User updated successfully',
     updateFailed: 'Failed to update user',
+    emailExists: 'This email is already in use',
     username: 'Username',
     phone: 'Phone',
     tenant: 'Tenant',

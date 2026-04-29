@@ -1327,6 +1327,7 @@ export default {
     updateUser: '更新用户',
     updateSuccess: '用户更新成功',
     updateFailed: '用户更新失败',
+    emailExists: '该邮箱已被使用',
     username: '用户名',
     phone: '电话',
     tenant: '所属租户',

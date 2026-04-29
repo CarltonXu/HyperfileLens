@@ -421,18 +421,14 @@
                 <div v-else v-for="user in tenantUsers" :key="user.id" class="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-sm transition-shadow">
                   <div class="flex items-center gap-3">
                     <div class="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-medium text-sm">
-                      {{ (user.email || 'U').slice(0, 2).toUpperCase() }}
+                      {{ getInitials(user) }}
                     </div>
                     <div>
-                      <p class="font-medium text-gray-900 dark:text-white">{{ user.email }}</p>
-                      <div class="flex items-center gap-2 mt-0.5">
-                        <span :class="[
-                          user.is_superuser ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' :
-                          user.tenant_role === 'admin' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                          'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300',
-                          'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium'
-                        ]">
-                          {{ user.is_superuser ? t('users.roles.superAdmin') : t(`users.roles.${user.tenant_role}`) }}
+                      <p class="font-medium text-gray-900 dark:text-white">{{ getDisplayName(user) }}</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">{{ user.email }} · ID: {{ user.id }}</p>
+                      <div v-if="user.tenant_role === 'admin' && !user.is_superuser" class="flex items-center gap-2 mt-1">
+                        <span class="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
+                          {{ t('users.roles.admin') }}
                         </span>
                       </div>
                     </div>
@@ -772,6 +768,27 @@ const fetchTenantUsers = async (tenantId: string) => {
   } finally {
     loadingUsers.value = false
   }
+}
+
+// Helper functions for user display
+const getInitials = (user: any): string => {
+  if (user.first_name && user.last_name) {
+    return (user.first_name[0] + user.last_name[0]).toUpperCase()
+  }
+  if (user.first_name) {
+    return user.first_name.slice(0, 2).toUpperCase()
+  }
+  return (user.email || 'U').slice(0, 2).toUpperCase()
+}
+
+const getDisplayName = (user: any): string => {
+  if (user.first_name && user.last_name) {
+    return `${user.first_name} ${user.last_name}`
+  }
+  if (user.first_name) {
+    return user.first_name
+  }
+  return user.email?.split('@')[0] || 'Unknown User'
 }
 
 const closeUsersDrawer = () => {
