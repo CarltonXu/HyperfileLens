@@ -1320,6 +1320,7 @@ export default {
     username: 'Username',
     phone: 'Phone',
     tenant: 'Tenant',
+    selectTenant: 'Select tenant',
     superuser: 'Superuser',
     createSuccess: 'User created successfully',
     createFailed: 'Failed to create user',

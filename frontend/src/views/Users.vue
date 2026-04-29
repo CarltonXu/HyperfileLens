@@ -267,6 +267,18 @@
                       class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
                     />
                   </div>
+                  <!-- Tenant selector for platform admin -->
+                  <div v-if="isPlatformAdmin">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.tenant') }}</label>
+                    <select
+                      v-model="createForm.tenant_id"
+                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      :disabled="loadingTenants"
+                    >
+                      <option value="">{{ loadingTenants ? t('common.loading') : t('users.selectTenant') }}</option>
+                      <option v-for="tenant in tenants" :key="tenant.id" :value="tenant.id">{{ tenant.name }}</option>
+                    </select>
+                  </div>
                   <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.role') }}</label>
                     <select
@@ -457,7 +469,7 @@ import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
 import { PlusIcon, EllipsisVerticalIcon, EnvelopeIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import { usersApi, invitationsApi } from '@/api'
+import { usersApi, invitationsApi, tenantsApi } from '@/api'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -514,8 +526,13 @@ const createForm = ref({
   last_name: '',
   phone: '',
   tenant_role: 'member',
-  is_superuser: false
+  is_superuser: false,
+  tenant_id: ''
 })
+
+// Tenant list for platform admin
+const tenants = ref<{ id: string; name: string }[]>([])
+const loadingTenants = ref(false)
 
 // Edit dialog
 const showEditDialog = ref(false)
@@ -596,9 +613,22 @@ function formatDate(date: string) {
 }
 
 // Create
-function openCreateDialog() {
-  createForm.value = { email: '', password: '', first_name: '', last_name: '', phone: '', tenant_role: 'member', is_superuser: false }
+async function openCreateDialog() {
+  createForm.value = { email: '', password: '', first_name: '', last_name: '', phone: '', tenant_role: 'member', is_superuser: false, tenant_id: '' }
   showCreateDialog.value = true
+  
+  // Fetch tenants for platform admin
+  if (isPlatformAdmin.value && tenants.value.length === 0) {
+    loadingTenants.value = true
+    try {
+      const response = await tenantsApi.list({ page_size: 100 })
+      tenants.value = response.data.results || response.data
+    } catch (error) {
+      console.error('Failed to fetch tenants:', error)
+    } finally {
+      loadingTenants.value = false
+    }
+  }
 }
 
 function closeCreateDialog() {
@@ -608,7 +638,12 @@ function closeCreateDialog() {
 async function createUser() {
   creating.value = true
   try {
-    await usersApi.create(createForm.value)
+    // Build payload - include tenant_id for platform admin
+    const payload: Record<string, unknown> = { ...createForm.value }
+    if (!isPlatformAdmin.value) {
+      delete payload.tenant_id
+    }
+    await usersApi.create(payload as Parameters<typeof usersApi.create>[0])
     appStore.showToast({ type: 'success', title: t('users.createSuccess') })
     closeCreateDialog()
     fetchUsers()

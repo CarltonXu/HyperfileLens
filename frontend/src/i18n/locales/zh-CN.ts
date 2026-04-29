@@ -1326,6 +1326,7 @@ export default {
     username: '用户名',
     phone: '电话',
     tenant: '所属租户',
+    selectTenant: '选择租户',
     superuser: '超级管理员',
     createSuccess: '用户创建成功',
     createFailed: '用户创建失败',

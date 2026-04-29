@@ -510,7 +510,7 @@ export const usersApi = {
     api.get('/api/v1/accounts/users/', { params }),
 
   // Create user in current tenant
-  create: (data: { email: string; password: string; first_name?: string; last_name?: string; phone?: string; tenant_role?: string; is_superuser?: boolean }) =>
+  create: (data: { email: string; password: string; first_name?: string; last_name?: string; phone?: string; tenant_role?: string; is_superuser?: boolean; tenant_id?: string }) =>
     api.post('/api/v1/accounts/users/', data),
 
   // Update user

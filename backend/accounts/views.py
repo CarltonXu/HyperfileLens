@@ -543,11 +543,27 @@ class UserViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def perform_create(self, serializer):
-        """Create a user within the same tenant."""
+        """Create a user within a tenant."""
         user = self.request.user
-        if not user.tenant:
-            raise ValueError("User must belong to a tenant to create users")
-        serializer.save(tenant=user.tenant)
+        
+        # Platform admins can specify which tenant to create user in
+        if user.is_superuser:
+            tenant_id = self.request.data.get('tenant_id')
+            if tenant_id:
+                from tenants.models import Tenant
+                try:
+                    tenant = Tenant.objects.get(id=tenant_id)
+                    serializer.save(tenant=tenant)
+                    return
+                except Tenant.DoesNotExist:
+                    pass
+            # Default to administrator tenant if not specified
+            serializer.save(tenant=user.tenant)
+        else:
+            # Regular tenant admins can only create users in their own tenant
+            if not user.tenant:
+                raise ValueError("User must belong to a tenant to create users")
+            serializer.save(tenant=user.tenant)
 
     @extend_schema(
         summary='Disable user',
