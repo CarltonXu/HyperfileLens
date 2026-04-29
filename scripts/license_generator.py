@@ -96,9 +96,20 @@ LICENSE_TIERS = {
 
 
 def sign(data: dict) -> str:
-    """Sign activation data with shared secret."""
+    """
+    Sign activation data with shared secret.
+    
+    IMPORTANT: Must match the verification logic in backend/licenses/crypto.py
+    - Use json.dumps with sort_keys=True (no compact separators)
+    - Signature = SHA256(json_string + secret_key)
+    """
+    # Remove signature if present (shouldn't be, but just in case)
     sign_data = {k: v for k, v in data.items() if k != 'signature'}
-    canonical = json.dumps(sign_data, sort_keys=True, separators=(',', ':'))
+    
+    # Use same serialization as backend
+    canonical = json.dumps(sign_data, sort_keys=True)
+    
+    # Generate signature
     signature = hashlib.sha256((canonical + LICENSE_SECRET_KEY).encode()).hexdigest()
     return signature
 
@@ -144,7 +155,7 @@ def generate_activation_code(
     if valid_days > 0:
         expires_at = (now + timedelta(days=valid_days)).isoformat()
     
-    # Build activation data
+    # Build activation data (order matches backend verification)
     activation_data = {
         "license_key": license_key,
         "machine_code": machine_code,
@@ -157,8 +168,8 @@ def generate_activation_code(
     signature = sign(activation_data)
     activation_data["signature"] = signature
     
-    # Encode
-    json_str = json.dumps(activation_data, sort_keys=True, separators=(',', ':'))
+    # Encode - use same format as backend (no compact separators)
+    json_str = json.dumps(activation_data)
     encoded = base64.b64encode(json_str.encode()).decode()
     activation_code = f"HFL-ACT-{encoded}"
     
@@ -173,6 +184,47 @@ def generate_activation_code(
         'limits': limits,
         'issued_at': now.isoformat(),
     }
+
+
+def verify_activation_code(activation_code: str) -> tuple:
+    """
+    Verify an activation code (for testing purposes).
+    
+    Returns:
+        (is_valid, decoded_data, error_message)
+    """
+    try:
+        if not activation_code.startswith("HFL-ACT-"):
+            return False, None, "Invalid activation code format"
+        
+        # Decode
+        encoded = activation_code[8:]  # Remove "HFL-ACT-"
+        json_str = base64.b64decode(encoded).decode()
+        data = json.loads(json_str)
+        
+        # Verify signature
+        stored_signature = data.pop('signature', None)
+        if not stored_signature:
+            return False, None, "Missing signature"
+        
+        data_str = json.dumps(data, sort_keys=True)
+        expected_signature = hashlib.sha256(
+            (data_str + LICENSE_SECRET_KEY).encode()
+        ).hexdigest()
+        
+        if stored_signature != expected_signature:
+            return False, None, "Invalid signature - activation code has been tampered"
+        
+        # Check expiration
+        if data.get('expires_at'):
+            expires_at = datetime.fromisoformat(data['expires_at'].replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) > expires_at:
+                return False, data, "License has expired"
+        
+        return True, data, ""
+        
+    except Exception as e:
+        return False, None, f"Failed to verify activation code: {str(e)}"
 
 
 def main():
@@ -195,12 +247,14 @@ Examples:
   
   # Custom limits
   python license_generator.py --machine-code HFL-MCH-1234-5678-9ABC-DEF0 --tier pro --max-users 500 --max-storage-gb 2000
+  
+  # Verify an activation code
+  python license_generator.py --verify "HFL-ACT-..."
 """
     )
     
     parser.add_argument(
         '--machine-code', '-m',
-        required=True,
         help='Machine code from customer (format: HFL-MCH-XXXX-XXXX-XXXX-XXXX)'
     )
     
@@ -240,7 +294,37 @@ Examples:
         help='Output file for activation code (default: print to console)'
     )
     
+    parser.add_argument(
+        '--verify', '-v',
+        help='Verify an activation code'
+    )
+    
     args = parser.parse_args()
+    
+    # Verify mode
+    if args.verify:
+        is_valid, data, error = verify_activation_code(args.verify)
+        if is_valid:
+            print("=" * 60)
+            print("Activation Code Verification: VALID")
+            print("=" * 60)
+            print(f"\nLicense Key:  {data.get('license_key')}")
+            print(f"Machine Code: {data.get('machine_code')}")
+            print(f"Issued At:    {data.get('issued_at')}")
+            print(f"Expires At:   {data.get('expires_at') or 'Never'}")
+            print("\nLimits:")
+            for key, value in data.get('limits', {}).items():
+                print(f"  {key}: {value}")
+        else:
+            print("=" * 60)
+            print("Activation Code Verification: INVALID")
+            print("=" * 60)
+            print(f"\nError: {error}")
+        return 0 if is_valid else 1
+    
+    # Generate mode
+    if not args.machine_code:
+        parser.error("--machine-code is required for generating activation codes")
     
     # Validate machine code format
     if not args.machine_code.startswith('HFL-MCH-'):
@@ -307,6 +391,14 @@ Examples:
             print(f"Activation code saved to: {args.output}")
         else:
             print(output_text)
+        
+        # Verify the generated code
+        print("\nVerifying generated code...")
+        is_valid, _, error = verify_activation_code(result['activation_code'])
+        if is_valid:
+            print("✓ Code verification: PASSED")
+        else:
+            print(f"✗ Code verification: FAILED - {error}")
         
         return 0
         

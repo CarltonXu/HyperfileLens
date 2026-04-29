@@ -410,11 +410,13 @@ class ActivationCodeGenerator:
             data = json.loads(json_str)
             
             # Verify signature
-            stored_signature = data.pop('signature', None)
+            stored_signature = data.get('signature')
             if not stored_signature:
                 return False, None, "Missing signature"
             
-            data_str = json.dumps(data, sort_keys=True)
+            # Create a copy without signature for verification
+            verification_data = {k: v for k, v in data.items() if k != 'signature'}
+            data_str = json.dumps(verification_data, sort_keys=True)
             expected_signature = hashlib.sha256(
                 (data_str + LICENSE_SECRET_KEY).encode()
             ).hexdigest()
@@ -423,10 +425,12 @@ class ActivationCodeGenerator:
                 return False, None, "Invalid signature - activation code has been tampered"
             
             # Check expiration
-            expires_at = datetime.fromisoformat(data['expires_at'].replace('Z', '+00:00'))
-            if datetime.now(timezone.utc) > expires_at:
-                return False, data, "License has expired"
+            if data.get('expires_at'):
+                expires_at = datetime.fromisoformat(data['expires_at'].replace('Z', '+00:00'))
+                if datetime.now(timezone.utc) > expires_at:
+                    return False, data, "License has expired"
             
+            # Return data WITH signature (needed for License creation)
             return True, data, ""
             
         except Exception as e:
