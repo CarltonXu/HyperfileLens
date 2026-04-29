@@ -435,3 +435,46 @@ class ActivationCodeGenerator:
             
         except Exception as e:
             return False, None, f"Failed to verify activation code: {str(e)}"
+
+
+class LicenseCrypto:
+    """
+    Wrapper class for license cryptographic operations.
+    Provides a simple interface for views.
+    """
+    
+    @staticmethod
+    def verify(activation_code: str) -> Dict[str, Any]:
+        """
+        Verify and decode an activation code.
+        
+        Args:
+            activation_code: The activation code string
+            
+        Returns:
+            Decoded data dictionary
+            
+        Raises:
+            ValueError: If verification fails
+        """
+        is_valid, data, error = ActivationCodeGenerator.verify(activation_code)
+        
+        if not is_valid:
+            raise ValueError(error)
+        
+        return data
+    
+    @staticmethod
+    def generate(license_key: str, machine_code: str, limits: Dict[str, int], 
+                 validity_days: int = 365) -> str:
+        """
+        Generate an activation code.
+        """
+        return ActivationCodeGenerator.generate(license_key, machine_code, limits, validity_days)
+    
+    @staticmethod
+    def generate_machine_code(tenant_id: str, force_regenerate: bool = False) -> Tuple[str, Dict[str, str]]:
+        """
+        Generate a machine code for a tenant.
+        """
+        return MachineCodeGenerator.generate(tenant_id, force_regenerate)

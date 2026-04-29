@@ -1,13 +1,15 @@
 """
 License Models for HyperFileLens
 
-Simplified License model that focuses on quantity limits only.
-Machine binding ensures license can only be used on specific machine + tenant + user.
+Design Principles:
+1. One tenant = One active license
+2. New activation code renews (extends expiry) or upgrades (increases limits)
+3. License history is preserved for audit
+4. Machine binding: MAC + CPU ID + Tenant ID + User ID
 """
 
 from django.db import models
 from django.utils import timezone
-from django.core.exceptions import ValidationError
 from django.conf import settings
 import uuid
 import json
@@ -16,17 +18,15 @@ import base64
 import subprocess
 import platform
 import secrets
+import os
 
 
 class License(models.Model):
     """
-    License model for product authorization.
+    Active License for a tenant.
     
-    Design Principles:
-    1. No feature restrictions - only quantity limits
-    2. Machine binding: MAC + CPU ID + Tenant ID + User ID
-    3. Activation code required for binding
-    4. One machine code can only activate one license
+    Only one active license per tenant.
+    New activation will archive the current license to history.
     """
     
     class LicenseStatus(models.TextChoices):
@@ -34,6 +34,12 @@ class License(models.Model):
         ACTIVE = 'active', 'Active'
         EXPIRED = 'expired', 'Expired'
         REVOKED = 'revoked', 'Revoked'
+    
+    class ChangeType(models.TextChoices):
+        """Type of license change."""
+        INITIAL = 'initial', 'Initial Activation'
+        RENEWAL = 'renewal', 'Renewal (Extended Expiry)'
+        UPGRADE = 'upgrade', 'Upgrade (Increased Limits)'
     
     # Primary key
     id = models.UUIDField(
@@ -50,17 +56,34 @@ class License(models.Model):
         help_text='License key from activation code'
     )
     
+    # Version tracking
+    version = models.PositiveIntegerField(
+        default=1,
+        help_text='License version (increments on each renewal/upgrade)'
+    )
+    change_type = models.CharField(
+        max_length=20,
+        choices=ChangeType.choices,
+        default=ChangeType.INITIAL,
+        help_text='Type of the latest change'
+    )
+    change_reason = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text='Reason for the latest change'
+    )
+    
     # Binding information
     machine_code = models.CharField(
         max_length=64,
         unique=True,
         help_text='Machine code: MAC + CPU + Tenant + User'
     )
-    tenant = models.ForeignKey(
+    tenant = models.OneToOneField(
         'tenants.Tenant',
         on_delete=models.CASCADE,
-        related_name='licenses',
-        help_text='Tenant this license is bound to'
+        related_name='license',
+        help_text='Tenant this license is bound to (one-to-one)'
     )
     activated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -76,7 +99,7 @@ class License(models.Model):
     )
     max_users = models.PositiveIntegerField(
         default=10,
-        help_text='Maximum number of users (total across all tenants)'
+        help_text='Maximum number of users'
     )
     max_proxies = models.PositiveIntegerField(
         default=5,
@@ -92,7 +115,7 @@ class License(models.Model):
     )
     ai_insights_quota = models.PositiveIntegerField(
         default=100,
-        help_text='Monthly AI insights quota (free tier)'
+        help_text='Monthly AI insights quota'
     )
     max_backup_tasks = models.PositiveIntegerField(
         default=10,
@@ -128,6 +151,10 @@ class License(models.Model):
         auto_now_add=True,
         help_text='When the license was activated'
     )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text='When the license was last updated'
+    )
     
     # Security
     signature = models.TextField(
@@ -146,7 +173,7 @@ class License(models.Model):
         verbose_name_plural = 'Licenses'
     
     def __str__(self):
-        return f'{self.license_key[:20]}... ({self.tenant.name})'
+        return f'{self.license_key[:20]}... ({self.tenant.name}, v{self.version})'
     
     @property
     def is_valid(self) -> bool:
@@ -180,31 +207,6 @@ class License(models.Model):
         """Check if license is perpetual (no expiration)."""
         return self.expires_at is None
     
-    @classmethod
-    def get_active_license(cls, tenant=None):
-        """Get the active license for a tenant."""
-        from tenants.models import Tenant as TenantModel
-        
-        if tenant is None:
-            # Get default tenant
-            tenant = TenantModel.objects.first()
-        
-        if not tenant:
-            return None
-        
-        try:
-            license = cls.objects.filter(
-                tenant=tenant,
-                status=cls.LicenseStatus.ACTIVE
-            ).first()
-            
-            if license and license.is_valid:
-                return license
-        except cls.DoesNotExist:
-            pass
-        
-        return None
-    
     def get_limits(self) -> dict:
         """Get all limit values as a dictionary."""
         return {
@@ -220,20 +222,171 @@ class License(models.Model):
             'max_policies': self.max_policies,
             'max_repositories': self.max_repositories,
         }
+    
+    def archive_to_history(self, change_type: str, reason: str = ''):
+        """
+        Archive current license to history before renewal/upgrade.
+        
+        Args:
+            change_type: Type of change (renewal/upgrade/revoke)
+            reason: Reason for archiving
+        """
+        from .models import LicenseHistory  # Avoid circular import
+        
+        LicenseHistory.objects.create(
+            # Original license info
+            license_key=self.license_key,
+            version=self.version,
+            
+            # Binding
+            machine_code=self.machine_code,
+            tenant=self.tenant,
+            activated_by=self.activated_by,
+            
+            # Limits (snapshot)
+            max_tenants=self.max_tenants,
+            max_users=self.max_users,
+            max_proxies=self.max_proxies,
+            max_storage_gb=self.max_storage_gb,
+            max_gateways=self.max_gateways,
+            ai_insights_quota=self.ai_insights_quota,
+            max_backup_tasks=self.max_backup_tasks,
+            max_recovery_tasks=self.max_recovery_tasks,
+            max_source_resources=self.max_source_resources,
+            max_policies=self.max_policies,
+            max_repositories=self.max_repositories,
+            
+            # Time
+            issued_at=self.issued_at,
+            expires_at=self.expires_at,
+            activated_at=self.activated_at,
+            archived_at=timezone.now(),
+            
+            # Status & change info
+            status=self.status,
+            signature=self.signature,
+            change_type=change_type,
+            change_reason=reason,
+        )
+    
+    @classmethod
+    def get_active_license(cls, tenant=None):
+        """Get the active license for a tenant."""
+        from tenants.models import Tenant as TenantModel
+        
+        if tenant is None:
+            # Get default tenant
+            tenant = TenantModel.objects.first()
+        
+        if not tenant:
+            return None
+        
+        try:
+            # Use the one-to-one relation
+            license = getattr(tenant, 'license', None)
+            if license and license.is_valid:
+                return license
+        except Exception:
+            pass
+        
+        return None
+
+
+class LicenseHistory(models.Model):
+    """
+    Historical record of licenses for audit purposes.
+    
+    Created when:
+    - License is renewed (new expiry date)
+    - License is upgraded (new limits)
+    - License is revoked
+    """
+    
+    class ChangeType(models.TextChoices):
+        INITIAL = 'initial', 'Initial Activation'
+        RENEWAL = 'renewal', 'Renewal'
+        UPGRADE = 'upgrade', 'Upgrade'
+        REVOKED = 'revoked', 'Revoked'
+    
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+    
+    # Original license info
+    license_key = models.CharField(max_length=64, db_index=True)
+    version = models.PositiveIntegerField(default=1)
+    
+    # Binding (tenant may be deleted, keep reference)
+    machine_code = models.CharField(max_length=64)
+    tenant = models.ForeignKey(
+        'tenants.Tenant',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='license_history'
+    )
+    activated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='license_history'
+    )
+    
+    # Limits snapshot
+    max_tenants = models.PositiveIntegerField()
+    max_users = models.PositiveIntegerField()
+    max_proxies = models.PositiveIntegerField()
+    max_storage_gb = models.PositiveIntegerField()
+    max_gateways = models.PositiveIntegerField()
+    ai_insights_quota = models.PositiveIntegerField()
+    max_backup_tasks = models.PositiveIntegerField()
+    max_recovery_tasks = models.PositiveIntegerField()
+    max_source_resources = models.PositiveIntegerField()
+    max_policies = models.PositiveIntegerField()
+    max_repositories = models.PositiveIntegerField()
+    
+    # Time snapshot
+    issued_at = models.DateTimeField()
+    expires_at = models.DateTimeField(null=True, blank=True)
+    activated_at = models.DateTimeField()
+    archived_at = models.DateTimeField(help_text='When this license was archived')
+    
+    # Status & change info
+    status = models.CharField(max_length=20)
+    signature = models.TextField()
+    change_type = models.CharField(max_length=20, choices=ChangeType.choices)
+    change_reason = models.CharField(max_length=200, blank=True)
+    
+    class Meta:
+        ordering = ['-archived_at']
+        verbose_name = 'License History'
+        verbose_name_plural = 'License History'
+    
+    def __str__(self):
+        return f'{self.license_key[:20]}... v{self.version} ({self.get_change_type_display()})'
 
 
 class MachineCode(models.Model):
     """
     Machine code generation record.
     
-    Stores the generated machine code for a tenant/user to track
-    which machines have requested activation codes.
+    Stores the generated machine code for a tenant/user.
+    One machine code per tenant (regenerated on request).
     """
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(max_length=64, unique=True, help_text='Generated machine code')
-    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='machine_codes')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='machine_codes')
+    tenant = models.OneToOneField(
+        'tenants.Tenant',
+        on_delete=models.CASCADE,
+        related_name='machine_code_record'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='machine_codes'
+    )
     
     # Machine components (for debugging/audit)
     mac_address = models.CharField(max_length=20, blank=True)
@@ -241,13 +394,12 @@ class MachineCode(models.Model):
     hostname = models.CharField(max_length=100, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
-    used_at = models.DateTimeField(null=True, blank=True, help_text='When this code was used to activate')
     
     class Meta:
         ordering = ['-created_at']
     
     def __str__(self):
-        return f'{self.code[:20]}... ({self.tenant.name})'
+        return f'{self.code} ({self.tenant.name if self.tenant else "N/A"})'
 
 
 class QuotaUsage(models.Model):
@@ -268,7 +420,6 @@ class QuotaUsage(models.Model):
     # Current usage counts
     users_count = models.PositiveIntegerField(default=0)
     proxies_count = models.PositiveIntegerField(default=0)
-    storage_used_gb = models.FloatField(default=0)
     gateways_count = models.PositiveIntegerField(default=0)
     backup_tasks_count = models.PositiveIntegerField(default=0)
     recovery_tasks_count = models.PositiveIntegerField(default=0)
@@ -276,118 +427,215 @@ class QuotaUsage(models.Model):
     policies_count = models.PositiveIntegerField(default=0)
     repositories_count = models.PositiveIntegerField(default=0)
     
-    # AI Insights usage (monthly reset)
-    ai_insights_used = models.PositiveIntegerField(default=0)
-    ai_insights_period = models.CharField(
-        max_length=10,
-        default=PeriodType.MONTHLY
-    )
-    ai_insights_reset_at = models.DateTimeField(null=True, blank=True)
+    # Storage usage
+    storage_used_gb = models.FloatField(default=0.0)
     
-    updated_at = models.DateTimeField(auto_now=True)
+    # AI usage (reset monthly)
+    ai_insights_used = models.PositiveIntegerField(default=0)
+    ai_reset_date = models.DateField(null=True, blank=True, help_text='Date when AI quota was last reset')
+    
+    # Metadata
+    last_updated = models.DateTimeField(auto_now=True)
     
     class Meta:
         verbose_name = 'Quota Usage'
-        verbose_name_plural = 'Quota Usages'
-    
-    def check_limit(self, limit_type: str, increment: int = 1) -> tuple[bool, str]:
-        """
-        Check if adding increment would exceed license limit.
-        
-        Returns:
-            (allowed, error_message)
-        """
-        limits = self.license.get_limits()
-        
-        limit_mapping = {
-            'users': ('users_count', 'max_users'),
-            'proxies': ('proxies_count', 'max_proxies'),
-            'storage_gb': ('storage_used_gb', 'max_storage_gb'),
-            'gateways': ('gateways_count', 'max_gateways'),
-            'backup_tasks': ('backup_tasks_count', 'max_backup_tasks'),
-            'recovery_tasks': ('recovery_tasks_count', 'max_recovery_tasks'),
-            'source_resources': ('source_resources_count', 'max_source_resources'),
-            'policies': ('policies_count', 'max_policies'),
-            'repositories': ('repositories_count', 'max_repositories'),
-            'ai_insights': ('ai_insights_used', 'ai_insights_quota'),
-        }
-        
-        if limit_type not in limit_mapping:
-            return False, f"Unknown limit type: {limit_type}"
-        
-        usage_field, limit_field = limit_mapping[limit_type]
-        current = getattr(self, usage_field)
-        limit = limits[limit_field]
-        
-        if current + increment > limit:
-            return False, f"License limit exceeded: {limit_type} (current: {current}, limit: {limit})"
-        
-        return True, ""
-    
-    def increment_usage(self, limit_type: str, amount: int = 1):
-        """Increment usage for a limit type."""
-        field_mapping = {
-            'users': 'users_count',
-            'proxies': 'proxies_count',
-            'storage_gb': 'storage_used_gb',
-            'gateways': 'gateways_count',
-            'backup_tasks': 'backup_tasks_count',
-            'recovery_tasks': 'recovery_tasks_count',
-            'source_resources': 'source_resources_count',
-            'policies': 'policies_count',
-            'repositories': 'repositories_count',
-            'ai_insights': 'ai_insights_used',
-        }
-        
-        if limit_type in field_mapping:
-            field = field_mapping[limit_type]
-            setattr(self, field, getattr(self, field) + amount)
-            self.save(update_fields=[field, 'updated_at'])
-    
-    def reset_monthly_usage(self):
-        """Reset monthly usage counters (AI insights)."""
-        from datetime import datetime
-        self.ai_insights_used = 0
-        self.ai_insights_reset_at = timezone.now()
-        self.save(update_fields=['ai_insights_used', 'ai_insights_reset_at', 'updated_at'])
-
-
-class LicenseAuditLog(models.Model):
-    """
-    Audit log for license operations.
-    """
-    
-    class ActionType(models.TextChoices):
-        GENERATED = 'generated', 'Machine Code Generated'
-        ACTIVATED = 'activated', 'License Activated'
-        EXPIRED = 'expired', 'License Expired'
-        REVOKED = 'revoked', 'License Revoked'
-        LIMIT_CHECKED = 'limit_checked', 'Limit Checked'
-        LIMIT_EXCEEDED = 'limit_exceeded', 'Limit Exceeded'
-    
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    license = models.ForeignKey(
-        License,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='audit_logs'
-    )
-    machine_code = models.ForeignKey(
-        MachineCode,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='audit_logs'
-    )
-    action = models.CharField(max_length=20, choices=ActionType.choices)
-    details = models.JSONField(default=dict, blank=True)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.CharField(max_length=255, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-created_at']
+        verbose_name_plural = 'Quota Usage'
     
     def __str__(self):
-        return f'{self.get_action_display()} - {self.created_at}'
+        return f'Usage for {self.license.license_key[:20]}...'
+    
+    def check_limit(self, limit_type: str, requested: int = 1) -> tuple:
+        """
+        Check if requested amount is within limit.
+        
+        Returns:
+            (is_within_limit, current_usage, limit)
+        """
+        limit_map = {
+            'users': (self.users_count, self.license.max_users),
+            'proxies': (self.proxies_count, self.license.max_proxies),
+            'gateways': (self.gateways_count, self.license.max_gateways),
+            'backup_tasks': (self.backup_tasks_count, self.license.max_backup_tasks),
+            'recovery_tasks': (self.recovery_tasks_count, self.license.max_recovery_tasks),
+            'source_resources': (self.source_resources_count, self.license.max_source_resources),
+            'policies': (self.policies_count, self.license.max_policies),
+            'repositories': (self.repositories_count, self.license.max_repositories),
+            'storage_gb': (self.storage_used_gb, self.license.max_storage_gb),
+            'ai_insights': (self.ai_insights_used, self.license.ai_insights_quota),
+        }
+        
+        if limit_type not in limit_map:
+            return (False, 0, 0)
+        
+        current, limit = limit_map[limit_type]
+        is_within = (current + requested) <= limit
+        
+        return (is_within, current, limit)
+    
+    def reset_monthly_quotas(self):
+        """Reset monthly quotas (AI insights)."""
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        if self.ai_reset_date.month != today.month or self.ai_reset_date.year != today.year:
+            self.ai_insights_used = 0
+            self.ai_reset_date = today
+            self.save()
+
+
+def generate_machine_code(tenant_id: str, user_id: str) -> tuple:
+    """
+    Generate a unique machine code based on hardware + tenant + user.
+    
+    Returns:
+        (machine_code, components_dict)
+    """
+    components = {}
+    
+    # 1. Try to get cloud instance ID (AWS/GCP/Azure)
+    cloud_id = _get_cloud_instance_id()
+    if cloud_id:
+        components['source'] = 'cloud'
+        components['cloud_id'] = cloud_id
+    else:
+        # 2. Try motherboard UUID
+        board_uuid = _get_board_uuid()
+        if board_uuid:
+            components['source'] = 'board_uuid'
+            components['board_uuid'] = board_uuid
+        else:
+            # 3. Try disk serial
+            disk_serial = _get_disk_serial()
+            if disk_serial:
+                components['source'] = 'disk_serial'
+                components['disk_serial'] = disk_serial
+            else:
+                # 4. Fallback: MAC + hostname
+                components['source'] = 'fallback'
+                components['mac'] = _get_mac_address()
+                components['hostname'] = platform.node()
+    
+    # Build unique identifier string
+    if components['source'] == 'cloud':
+        unique_str = f"cloud:{components['cloud_id']}"
+    elif components['source'] == 'board_uuid':
+        unique_str = f"board:{components['board_uuid']}"
+    elif components['source'] == 'disk_serial':
+        unique_str = f"disk:{components['disk_serial']}"
+    else:
+        unique_str = f"mac:{components['mac']}:host:{components['hostname']}"
+    
+    # Add tenant and user binding
+    unique_str += f":tenant:{tenant_id}:user:{user_id}"
+    
+    # Generate hash
+    hash_bytes = hashlib.sha256(unique_str.encode()).digest()
+    code_hex = hash_bytes[:16].hex().upper()
+    
+    # Format: HFL-MCH-XXXX-XXXX-XXXX-XXXX
+    machine_code = f"HFL-MCH-{code_hex[0:4]}-{code_hex[4:8]}-{code_hex[8:12]}-{code_hex[12:16]}"
+    
+    return machine_code, components
+
+
+def _get_cloud_instance_id() -> str:
+    """Try to get cloud provider instance ID."""
+    # AWS
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '--max-time', '2', 'http://169.254.169.254/latest/meta-data/instance-id'],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0 and result.stdout.startswith('i-'):
+            return f"aws:{result.stdout}"
+    except Exception:
+        pass
+    
+    # GCP
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '--max-time', '2', '-H', 'Metadata-Flavor: Google',
+             'http://metadata.google.internal/computeMetadata/v1/instance/id'],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0 and result.stdout.isdigit():
+            return f"gcp:{result.stdout}"
+    except Exception:
+        pass
+    
+    # Azure
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '--max-time', '2', '-H', 'Metadata: true',
+             'http://169.254.169.254/metadata/instance/compute/vmId?api-version=2021-02-01&format=text'],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0 and result.stdout:
+            return f"azure:{result.stdout}"
+    except Exception:
+        pass
+    
+    return ""
+
+
+def _get_board_uuid() -> str:
+    """Get motherboard UUID (Linux only)."""
+    try:
+        if os.path.exists('/sys/class/dmi/id/board_uuid'):
+            with open('/sys/class/dmi/id/board_uuid', 'r') as f:
+                return f.read().strip()
+    except Exception:
+        pass
+    
+    # Try dmidecode
+    try:
+        result = subprocess.run(
+            ['dmidecode', '-s', 'board-uuid'],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    
+    return ""
+
+
+def _get_disk_serial() -> str:
+    """Get boot disk serial number."""
+    try:
+        # Linux
+        if os.path.exists('/dev/sda'):
+            result = subprocess.run(
+                ['hdparm', '-I', '/dev/sda'],
+                capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'Serial Number:' in line:
+                        return line.split(':')[1].strip()
+    except Exception:
+        pass
+    
+    return ""
+
+
+def _get_mac_address() -> str:
+    """Get primary MAC address."""
+    try:
+        # Linux
+        if os.path.exists('/sys/class/net'):
+            for iface in os.listdir('/sys/class/net'):
+                if iface == 'lo':
+                    continue
+                addr_file = f'/sys/class/net/{iface}/address'
+                if os.path.exists(addr_file):
+                    with open(addr_file, 'r') as f:
+                        mac = f.read().strip()
+                        if mac and mac != '00:00:00:00:00:00':
+                            return mac
+    except Exception:
+        pass
+    
+    # Fallback: use a random value (will change each time)
+    return f"random:{secrets.token_hex(6)}"
