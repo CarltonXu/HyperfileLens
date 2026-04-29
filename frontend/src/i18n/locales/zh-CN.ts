@@ -1271,15 +1271,19 @@ export default {
     machineCodeGenerated: '机器码已生成',
     generateMachineCode: '生成机器码',
     clickToGenerate: '点击下方按钮生成机器码',
+    machineCodeInfo: '机器码',
+    machineCodeHelp: '将此码发送给销售团队以生成激活码：',
     
     // Activation
     activateLicense: '激活许可证',
     activateDescription: '输入从销售团队获得的激活码。',
     activationCode: '激活码',
+    activationCodePlaceholder: 'HFL-ACT-...',
     activating: '激活中...',
     activate: '激活',
     activateSuccess: '许可证激活成功',
     activateFailed: '许可证激活失败',
+    enterActivationCode: '输入销售团队提供的激活码',
     
     // Current License
     currentLicense: '当前许可证',
@@ -1308,16 +1312,31 @@ export default {
     expiresAt: '过期时间',
     daysRemaining: '剩余 {n} 天',
     machineId: '机器码',
+    licenseKey: '许可证密钥',
     
-    // Limits
+    // Limits - all quota types
+    maxTenants: '最大租户数',
     maxUsers: '最大用户数',
     maxProxies: '最大代理数',
-    maxStorage: '最大存储(GB)',
+    maxStorage: '存储容量(GB)',
     maxGateways: '最大网关数',
-    maxBackupTasks: '最大备份任务数',
-    maxRecoveryTasks: '最大恢复任务数',
-    maxSourceResources: '最大源端资源数',
-    maxPolicies: '最大策略数',
-    maxRepositories: '最大仓库数',
+    aiInsightsQuota: 'AI Insights',
+    maxBackupTasks: '备份任务数',
+    maxRecoveryTasks: '恢复任务数',
+    maxSourceResources: '源端资源数',
+    maxPolicies: '策略数',
+    maxRepositories: '仓库数',
+    
+    // History
+    history: '许可证历史',
+    changeType: '变更类型',
+    changedAt: '变更时间',
+    previousExpiry: '原过期时间',
+    reason: '原因',
+    changeInitial: '初始激活',
+    changeRenewal: '续期',
+    changeUpgrade: '升级',
+    changeDowngrade: '降级',
+    changeExpired: '过期',
   }
 }

@@ -467,21 +467,29 @@ export const tenantsApi = {
 
 // ============== License API ==============
 export const licensesApi = {
-  // Get current active license
+  // Get current active license with usage stats
   current: () =>
     api.get('/api/v1/licenses/current/'),
   
-  // Generate machine code
+  // Get machine code (auto-generated)
   machineCode: () =>
     api.get('/api/v1/licenses/machine_code/'),
+  
+  // Force regenerate machine code
+  regenerateMachineCode: () =>
+    api.post('/api/v1/licenses/machine_code/'),
   
   // Activate license with activation code
   activate: (data: { activation_code: string }) =>
     api.post('/api/v1/licenses/activate/', data),
   
-  // Get usage statistics
-  usage: () =>
-    api.get('/api/v1/licenses/usage/'),
+  // Get license history for audit
+  history: (params?: { page?: number; page_size?: number }) =>
+    api.get('/api/v1/licenses/history/', { params }),
+  
+  // Validate quota for specific operation
+  validate: (quotaType: string, amount: number = 1) =>
+    api.get('/api/v1/licenses/validate/', { params: { quota_type: quotaType, amount } }),
   
   // List all licenses (admin)
   list: (params?: { page?: number; page_size?: number; status?: string }) =>

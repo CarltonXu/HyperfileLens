@@ -223,13 +223,14 @@ class License(models.Model):
             'max_repositories': self.max_repositories,
         }
     
-    def archive_to_history(self, change_type: str, reason: str = ''):
+    def archive_to_history(self, change_type: str, reason: str = '', changed_by=None):
         """
         Archive current license to history before renewal/upgrade.
         
         Args:
             change_type: Type of change (renewal/upgrade/revoke)
             reason: Reason for archiving
+            changed_by: User who made the change (optional)
         """
         from .models import LicenseHistory  # Avoid circular import
         
@@ -242,6 +243,7 @@ class License(models.Model):
             machine_code=self.machine_code,
             tenant=self.tenant,
             activated_by=self.activated_by,
+            changed_by=changed_by,
             
             # Limits (snapshot)
             max_tenants=self.max_tenants,
@@ -331,6 +333,13 @@ class LicenseHistory(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         related_name='license_history'
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='license_changes'
     )
     
     # Limits snapshot
@@ -515,7 +524,7 @@ def generate_machine_code(tenant_id: str, user_id: str) -> tuple:
                 components['mac'] = _get_mac_address()
                 components['hostname'] = platform.node()
     
-    # Build unique identifier string
+    # Build unique identifier string with more entropy
     if components['source'] == 'cloud':
         unique_str = f"cloud:{components['cloud_id']}"
     elif components['source'] == 'board_uuid':
@@ -528,12 +537,19 @@ def generate_machine_code(tenant_id: str, user_id: str) -> tuple:
     # Add tenant and user binding
     unique_str += f":tenant:{tenant_id}:user:{user_id}"
     
-    # Generate hash
-    hash_bytes = hashlib.sha256(unique_str.encode()).digest()
+    # Add timestamp for uniqueness (but stable within same day)
+    from datetime import datetime
+    date_str = datetime.now().strftime('%Y%m%d')
+    unique_str += f":date:{date_str}"
+    
+    # Generate 128-bit (16 bytes) hash
+    hash_bytes = hashlib.sha512(unique_str.encode()).digest()
+    # Take first 16 bytes (128 bits)
     code_hex = hash_bytes[:16].hex().upper()
     
-    # Format: HFL-MCH-XXXX-XXXX-XXXX-XXXX
-    machine_code = f"HFL-MCH-{code_hex[0:4]}-{code_hex[4:8]}-{code_hex[8:12]}-{code_hex[12:16]}"
+    # Format: HFL-MCH-XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX (128 bits = 32 hex chars)
+    # Total: HFL-MCH- + 32 hex chars + 3 dashes = 39 chars
+    machine_code = f"HFL-MCH-{code_hex[0:8]}-{code_hex[8:16]}-{code_hex[16:24]}-{code_hex[24:32]}"
     
     return machine_code, components
 

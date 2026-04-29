@@ -107,9 +107,17 @@ def generate_activation_code(
     Returns:
         dict with license_key, activation_code, and other details
     """
-    # Validate machine code format
+    # Validate machine code format (supports various lengths)
+    # Old format: HFL-MCH-XXXX-XXXX-XXXX-XXXX (19 chars after prefix with dashes)
+    # New format: HFL-MCH-XXXXXXXXXXXX... (128 hex chars after prefix, no dashes)
     if not machine_code.startswith('HFL-MCH-'):
         raise ValueError("Invalid machine code format. Must start with HFL-MCH-")
+    
+    code_part = machine_code[8:]  # Remove 'HFL-MCH-' prefix
+    # Remove dashes for length check
+    code_part_clean = code_part.replace('-', '')
+    if len(code_part_clean) < 16:
+        raise ValueError(f"Machine code too short. Expected at least 16 hex chars, got {len(code_part_clean)}")
     
     # Generate license key
     license_key = generate_license_key(tier)

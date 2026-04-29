@@ -1266,15 +1266,19 @@ export default {
     machineCodeGenerated: 'Machine code generated',
     generateMachineCode: 'Generate Machine Code',
     clickToGenerate: 'Click the button below to generate machine code',
+    machineCodeInfo: 'Machine Code',
+    machineCodeHelp: 'Send this code to the sales team to generate your activation code:',
     
     // Activation
     activateLicense: 'Activate License',
     activateDescription: 'Enter the activation code you received from the sales team.',
     activationCode: 'Activation Code',
+    activationCodePlaceholder: 'HFL-ACT-...',
     activating: 'Activating...',
     activate: 'Activate',
     activateSuccess: 'License activated successfully',
     activateFailed: 'License activation failed',
+    enterActivationCode: 'Enter the activation code provided by the sales team',
     
     // Current License
     currentLicense: 'Current License',
@@ -1303,16 +1307,31 @@ export default {
     expiresAt: 'Expires At',
     daysRemaining: '{n} days remaining',
     machineId: 'Machine Code',
+    licenseKey: 'License Key',
     
-    // Limits
+    // Limits - all quota types
+    maxTenants: 'Max Tenants',
     maxUsers: 'Max Users',
     maxProxies: 'Max Proxies',
-    maxStorage: 'Max Storage (GB)',
+    maxStorage: 'Storage (GB)',
     maxGateways: 'Max Gateways',
-    maxBackupTasks: 'Max Backup Tasks',
-    maxRecoveryTasks: 'Max Recovery Tasks',
-    maxSourceResources: 'Max Source Resources',
-    maxPolicies: 'Max Policies',
-    maxRepositories: 'Max Repositories',
+    aiInsightsQuota: 'AI Insights',
+    maxBackupTasks: 'Backup Tasks',
+    maxRecoveryTasks: 'Recovery Tasks',
+    maxSourceResources: 'Source Resources',
+    maxPolicies: 'Policies',
+    maxRepositories: 'Repositories',
+    
+    // History
+    history: 'License History',
+    changeType: 'Change Type',
+    changedAt: 'Changed At',
+    previousExpiry: 'Previous Expiry',
+    reason: 'Reason',
+    changeInitial: 'Initial',
+    changeRenewal: 'Renewal',
+    changeUpgrade: 'Upgrade',
+    changeDowngrade: 'Downgrade',
+    changeExpired: 'Expired',
   }
 }

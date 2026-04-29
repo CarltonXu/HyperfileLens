@@ -2,9 +2,10 @@
 License Views for HyperFileLens
 
 Provides API endpoints for:
-- Machine code generation
+- Machine code generation (auto-generated on first access)
 - License activation (initial/renewal/upgrade)
-- License status checking
+- License status checking with usage statistics
+- License history for audit
 """
 
 from rest_framework import viewsets, status
@@ -26,10 +27,10 @@ class LicenseViewSet(viewsets.ModelViewSet):
     API endpoints for license management.
     
     Endpoints:
-    - GET /api/v1/licenses/current/ - Get current active license
+    - GET /api/v1/licenses/current/ - Get current active license with usage stats
     - GET/POST /api/v1/licenses/machine_code/ - Generate machine code
     - POST /api/v1/licenses/activate/ - Activate/Renew/Upgrade license
-    - GET /api/v1/licenses/history/ - View license history (admin)
+    - GET /api/v1/licenses/history/ - View license history
     """
     
     serializer_class = LicenseSerializer
@@ -46,30 +47,159 @@ class LicenseViewSet(viewsets.ModelViewSet):
             return x_forwarded_for.split(',')[0]
         return request.META.get('REMOTE_ADDR', '')
     
+    def _get_or_create_machine_code(self, request):
+        """Get existing machine code or create a new one (auto-generated)."""
+        tenant = request.user.tenant
+        
+        # Check if machine code already exists
+        existing = MachineCode.objects.filter(tenant=tenant).first()
+        if existing:
+            return existing.code
+        
+        # Auto-generate new machine code
+        machine_code, components = generate_machine_code(
+            tenant_id=str(tenant.id),
+            user_id=str(request.user.id)
+        )
+        
+        # Store new machine code
+        MachineCode.objects.create(
+            code=machine_code,
+            tenant=tenant,
+            user=request.user,
+            mac_address=components.get('mac', ''),
+            cpu_id=components.get('cpu_id', ''),
+            hostname=components.get('hostname', ''),
+        )
+        
+        return machine_code
+    
+    def _get_usage_stats(self, tenant) -> dict:
+        """Get current usage statistics for the tenant."""
+        from django.apps import apps
+        
+        stats = {}
+        
+        try:
+            # Tenants count (for super admin)
+            Tenant = apps.get_model('tenants', 'Tenant')
+            stats['tenants_count'] = Tenant.objects.filter(status='active').count()
+        except Exception:
+            stats['tenants_count'] = 0
+        
+        try:
+            # Users count
+            User = apps.get_model('accounts', 'User')
+            stats['users_count'] = User.objects.filter(tenant=tenant, is_active=True).count()
+        except Exception:
+            stats['users_count'] = 0
+        
+        try:
+            # Proxies count
+            Proxy = apps.get_model('nodes', 'Proxy')
+            stats['proxies_count'] = Proxy.objects.filter(tenant=tenant, status='online').count()
+        except Exception:
+            stats['proxies_count'] = 0
+        
+        try:
+            # Storage used (GB) - from repositories
+            Repository = apps.get_model('repository', 'Repository')
+            repos = Repository.objects.filter(tenant=tenant)
+            stats['storage_used_gb'] = sum(r.storage_used_gb or 0 for r in repos)
+        except Exception:
+            stats['storage_used_gb'] = 0
+        
+        try:
+            # Gateways count
+            Gateway = apps.get_model('nodes', 'Gateway')
+            stats['gateways_count'] = Gateway.objects.filter(tenant=tenant, status='online').count()
+        except Exception:
+            stats['gateways_count'] = 0
+        
+        try:
+            # AI Insights used this month
+            stats['ai_insights_used'] = QuotaUsage.get_monthly_usage(
+                tenant=tenant, 
+                quota_type='ai_insights'
+            )
+        except Exception:
+            stats['ai_insights_used'] = 0
+        
+        try:
+            # Backup tasks count
+            BackupTask = apps.get_model('backup_tasks', 'BackupTask')
+            stats['backup_tasks_count'] = BackupTask.objects.filter(tenant=tenant).count()
+        except Exception:
+            stats['backup_tasks_count'] = 0
+        
+        try:
+            # Recovery tasks count
+            RecoveryTask = apps.get_model('recovery_tasks', 'RecoveryTask')
+            stats['recovery_tasks_count'] = RecoveryTask.objects.filter(tenant=tenant).count()
+        except Exception:
+            stats['recovery_tasks_count'] = 0
+        
+        try:
+            # Source resources count
+            SourceResource = apps.get_model('source_resources', 'SourceResource')
+            stats['source_resources_count'] = SourceResource.objects.filter(tenant=tenant).count()
+        except Exception:
+            stats['source_resources_count'] = 0
+        
+        try:
+            # Policies count
+            Policy = apps.get_model('policies', 'Policy')
+            stats['policies_count'] = Policy.objects.filter(tenant=tenant).count()
+        except Exception:
+            stats['policies_count'] = 0
+        
+        try:
+            # Repositories count
+            Repository = apps.get_model('repository', 'Repository')
+            stats['repositories_count'] = Repository.objects.filter(tenant=tenant).count()
+        except Exception:
+            stats['repositories_count'] = 0
+        
+        return stats
+    
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def current(self, request):
         """
-        Get the current active license for the tenant.
+        Get the current active license for the tenant with usage statistics.
         
-        Returns license details including:
-        - Limits (users, storage, etc.)
-        - Expiry date
-        - Status
+        Returns:
+        - is_valid: Whether license is valid
+        - license: License details with limits
+        - usage: Current usage statistics
+        - machine_code: Auto-generated machine code for activation
         """
         try:
-            license = License.get_active_license(tenant=request.user.tenant)
+            tenant = request.user.tenant
+            
+            # Auto-generate machine code if not exists
+            machine_code = self._get_or_create_machine_code(request)
+            
+            # Get active license
+            license = License.get_active_license(tenant=tenant)
             
             if not license:
                 return Response({
                     'is_valid': False,
                     'message': _('No active license found'),
+                    'machine_code': machine_code,
+                    'usage': self._get_usage_stats(tenant),
                 })
+            
+            # Get usage statistics
+            usage_stats = self._get_usage_stats(tenant)
             
             return Response({
                 'is_valid': license.is_valid,
                 'license': LicenseSerializer(license).data,
                 'limits': license.get_limits(),
                 'days_until_expiry': license.days_until_expiry,
+                'usage': usage_stats,
+                'machine_code': machine_code,
             })
         except Exception as e:
             return Response({
@@ -80,16 +210,12 @@ class LicenseViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get', 'post'], permission_classes=[IsAuthenticated])
     def machine_code(self, request):
         """
-        Generate machine code for license activation.
+        Get existing machine code or force regenerate.
         
-        GET: Get existing or generate new machine code
+        GET: Get existing machine code (auto-generated if not exists)
         POST: Force regenerate machine code (when hardware changed)
         
-        Flow:
-        1. User exports machine code from platform
-        2. User sends code to sales team
-        3. Sales generates activation code using this machine code
-        4. User inputs activation code in platform
+        Note: Machine code is auto-generated on first access to /current/ endpoint.
         """
         force_regenerate = request.method == 'POST'
         
@@ -105,7 +231,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
                     'machine_code': existing.code,
                     'tenant_name': tenant.name,
                     'created_at': existing.created_at.isoformat(),
-                    'message': _('Use this machine code to request an activation code'),
+                    'message': _('Machine code for activation'),
                 })
             
             # Generate new machine code
@@ -134,7 +260,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 'components': {
                     'source': components.get('source', 'unknown'),
                 },
-                'message': _('Machine code generated. Send this to sales team to get activation code.'),
+                'message': _('Machine code generated'),
             })
             
         except Exception as e:
@@ -182,7 +308,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
             if not current_machine_code_record:
                 return Response({
                     'error': 'machine_code_not_found',
-                    'message': _('Please generate a machine code first'),
+                    'message': _('Please refresh the page to generate a machine code'),
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             current_machine_code = current_machine_code_record.code
@@ -217,46 +343,40 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 # Archive current license to history
                 existing_license.archive_to_history(
                     change_type=change_type,
-                    reason=reason
+                    reason=reason,
+                    changed_by=request.user,
                 )
                 
                 # Update existing license
                 existing_license.license_key = license_key
-                existing_license.version += 1
-                existing_license.change_type = change_type
-                existing_license.change_reason = reason
-                existing_license.signature = activation_data['signature']
+                existing_license.machine_code = machine_code
                 existing_license.issued_at = issued_at
                 existing_license.expires_at = expires_at
-                existing_license.activated_by = request.user
-                existing_license.status = License.LicenseStatus.ACTIVE
                 
-                # Update limits (for upgrade)
-                existing_license.max_tenants = limits.get('max_tenants', existing_license.max_tenants)
-                existing_license.max_users = limits.get('max_users', existing_license.max_users)
-                existing_license.max_proxies = limits.get('max_proxies', existing_license.max_proxies)
-                existing_license.max_storage_gb = limits.get('max_storage_gb', existing_license.max_storage_gb)
-                existing_license.max_gateways = limits.get('max_gateways', existing_license.max_gateways)
-                existing_license.ai_insights_quota = limits.get('ai_insights_quota', existing_license.ai_insights_quota)
-                existing_license.max_backup_tasks = limits.get('max_backup_tasks', existing_license.max_backup_tasks)
-                existing_license.max_recovery_tasks = limits.get('max_recovery_tasks', existing_license.max_recovery_tasks)
-                existing_license.max_source_resources = limits.get('max_source_resources', existing_license.max_source_resources)
-                existing_license.max_policies = limits.get('max_policies', existing_license.max_policies)
-                existing_license.max_repositories = limits.get('max_repositories', existing_license.max_repositories)
+                # Update limits
+                existing_license.max_tenants = limits.get('max_tenants', 1)
+                existing_license.max_users = limits.get('max_users', 10)
+                existing_license.max_proxies = limits.get('max_proxies', 5)
+                existing_license.max_storage_gb = limits.get('max_storage_gb', 100)
+                existing_license.max_gateways = limits.get('max_gateways', 1)
+                existing_license.ai_insights_quota = limits.get('ai_insights_quota', 100)
+                existing_license.max_backup_tasks = limits.get('max_backup_tasks', 10)
+                existing_license.max_recovery_tasks = limits.get('max_recovery_tasks', 10)
+                existing_license.max_source_resources = limits.get('max_source_resources', 10)
+                existing_license.max_policies = limits.get('max_policies', 10)
+                existing_license.max_repositories = limits.get('max_repositories', 5)
                 
                 existing_license.save()
                 
-                license = existing_license
-                
+                license_obj = existing_license
             else:
-                # Initial activation
-                license = License.objects.create(
-                    license_key=license_key,
-                    version=1,
-                    change_type=License.ChangeType.INITIAL,
-                    machine_code=current_machine_code,
+                # Create new license
+                license_obj = License.objects.create(
                     tenant=tenant,
-                    activated_by=request.user,
+                    license_key=license_key,
+                    machine_code=machine_code,
+                    issued_at=issued_at,
+                    expires_at=expires_at,
                     max_tenants=limits.get('max_tenants', 1),
                     max_users=limits.get('max_users', 10),
                     max_proxies=limits.get('max_proxies', 5),
@@ -265,23 +385,23 @@ class LicenseViewSet(viewsets.ModelViewSet):
                     ai_insights_quota=limits.get('ai_insights_quota', 100),
                     max_backup_tasks=limits.get('max_backup_tasks', 10),
                     max_recovery_tasks=limits.get('max_recovery_tasks', 10),
-                    max_source_resources=limits.get('max_source_resources', 20),
-                    max_policies=limits.get('max_policies', 50),
+                    max_source_resources=limits.get('max_source_resources', 10),
+                    max_policies=limits.get('max_policies', 10),
                     max_repositories=limits.get('max_repositories', 5),
-                    issued_at=issued_at,
-                    expires_at=expires_at,
-                    signature=activation_data['signature'],
-                    status=License.LicenseStatus.ACTIVE,
                 )
                 
-                # Create quota usage tracker
-                QuotaUsage.objects.create(license=license)
+                # Archive to history
+                license_obj.archive_to_history(
+                    change_type='initial',
+                    reason='Initial license activation',
+                    changed_by=request.user,
+                )
             
             return Response({
                 'success': True,
-                'message': self._get_success_message(license.change_type),
-                'change_type': license.change_type,
-                'license': LicenseSerializer(license).data,
+                'message': _('License activated successfully'),
+                'license': LicenseSerializer(license_obj).data,
+                'change_type': 'initial' if not existing_license else change_type,
             })
             
         except ValueError as e:
@@ -296,70 +416,140 @@ class LicenseViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _determine_change_type(self, existing_license, new_limits, new_expires_at):
-        """
-        Determine if this is a renewal or upgrade.
+        """Determine if this is a renewal, upgrade, or downgrade."""
+        reason_parts = []
         
-        Renewal: Same limits, extended expiry
-        Upgrade: Increased limits (may also extend expiry)
-        """
-        # Check if limits changed
-        limits_changed = (
-            new_limits.get('max_users', existing_license.max_users) > existing_license.max_users or
-            new_limits.get('max_proxies', existing_license.max_proxies) > existing_license.max_proxies or
-            new_limits.get('max_storage_gb', existing_license.max_storage_gb) > existing_license.max_storage_gb or
-            new_limits.get('max_gateways', existing_license.max_gateways) > existing_license.max_gateways or
-            new_limits.get('ai_insights_quota', existing_license.ai_insights_quota) > existing_license.ai_insights_quota or
-            new_limits.get('max_tenants', existing_license.max_tenants) > existing_license.max_tenants or
-            new_limits.get('max_backup_tasks', existing_license.max_backup_tasks) > existing_license.max_backup_tasks or
-            new_limits.get('max_recovery_tasks', existing_license.max_recovery_tasks) > existing_license.max_recovery_tasks or
-            new_limits.get('max_source_resources', existing_license.max_source_resources) > existing_license.max_source_resources or
-            new_limits.get('max_policies', existing_license.max_policies) > existing_license.max_policies or
-            new_limits.get('max_repositories', existing_license.max_repositories) > existing_license.max_repositories
-        )
-        
-        if limits_changed:
-            reason = f"Upgraded limits"
-            return License.ChangeType.UPGRADE, reason
-        
-        # Check if expiry extended
+        # Check expiry change
         if new_expires_at and existing_license.expires_at:
             if new_expires_at > existing_license.expires_at:
-                reason = f"Extended from {existing_license.expires_at.date()} to {new_expires_at.date()}"
-                return License.ChangeType.RENEWAL, reason
+                reason_parts.append('expiry extended')
+            elif new_expires_at < existing_license.expires_at:
+                reason_parts.append('expiry shortened')
         
-        # Default to renewal
-        reason = "License renewed"
-        return License.ChangeType.RENEWAL, reason
-    
-    def _get_success_message(self, change_type):
-        """Get appropriate success message."""
-        messages = {
-            License.ChangeType.INITIAL: _('License activated successfully'),
-            License.ChangeType.RENEWAL: _('License renewed successfully'),
-            License.ChangeType.UPGRADE: _('License upgraded successfully'),
-        }
-        return messages.get(change_type, _('License updated successfully'))
+        # Check limits change
+        limit_fields = [
+            'max_tenants', 'max_users', 'max_proxies', 'max_storage_gb',
+            'max_gateways', 'ai_insights_quota', 'max_backup_tasks',
+            'max_recovery_tasks', 'max_source_resources', 'max_policies', 'max_repositories'
+        ]
+        
+        upgrades = 0
+        downgrades = 0
+        
+        for field in limit_fields:
+            old_val = getattr(existing_license, field, 0)
+            new_val = new_limits.get(field, 0)
+            if new_val > old_val:
+                upgrades += 1
+            elif new_val < old_val:
+                downgrades += 1
+        
+        # Determine change type
+        if upgrades > 0 and downgrades == 0:
+            change_type = 'upgrade'
+            reason = f"Limits upgraded ({upgrades} items increased)"
+        elif downgrades > 0 and upgrades == 0:
+            change_type = 'downgrade'
+            reason = f"Limits downgraded ({downgrades} items decreased)"
+        elif new_expires_at and existing_license.expires_at and new_expires_at > existing_license.expires_at:
+            change_type = 'renewal'
+            reason = 'License renewed'
+        else:
+            change_type = 'upgrade' if upgrades >= downgrades else 'downgrade'
+            reason = f"Mixed change: {upgrades} upgrades, {downgrades} downgrades"
+        
+        return change_type, reason
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def history(self, request):
         """
-        Get license history for current tenant.
+        Get license history for audit.
         
-        Shows all previous versions of the license for audit.
+        Returns all license changes for the current tenant.
         """
+        tenant = request.user.tenant
+        
         history = LicenseHistory.objects.filter(
-            tenant=request.user.tenant
+            tenant=tenant
         ).order_by('-archived_at')
         
+        page = self.paginate_queryset(history)
+        if page is not None:
+            serializer = LicenseHistorySerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = LicenseHistorySerializer(history, many=True)
         return Response({
+            'results': serializer.data,
             'count': history.count(),
-            'results': LicenseHistorySerializer(history, many=True).data,
         })
-
-
-class LicenseHistoryViewSet(viewsets.ReadOnlyModelViewSet):
-    """Admin view for all license history."""
     
-    queryset = LicenseHistory.objects.all()
-    serializer_class = LicenseHistorySerializer
-    permission_classes = [IsAdminUser]
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def validate(self, request):
+        """
+        Validate if the current license is valid for a specific operation.
+        
+        Query params:
+        - quota_type: Type of quota to check (users, storage, etc.)
+        - amount: Amount to check (default 1)
+        """
+        quota_type = request.query_params.get('quota_type')
+        amount = int(request.query_params.get('amount', 1))
+        
+        if not quota_type:
+            return Response({
+                'error': 'missing_quota_type',
+                'message': _('quota_type parameter is required'),
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            license = License.get_active_license(tenant=request.user.tenant)
+            
+            if not license:
+                return Response({
+                    'is_valid': False,
+                    'message': _('No active license'),
+                })
+            
+            # Map quota_type to license field
+            quota_map = {
+                'users': ('max_users', 'users_count'),
+                'proxies': ('max_proxies', 'proxies_count'),
+                'storage_gb': ('max_storage_gb', 'storage_used_gb'),
+                'gateways': ('max_gateways', 'gateways_count'),
+                'ai_insights': ('ai_insights_quota', 'ai_insights_used'),
+                'backup_tasks': ('max_backup_tasks', 'backup_tasks_count'),
+                'recovery_tasks': ('max_recovery_tasks', 'recovery_tasks_count'),
+                'source_resources': ('max_source_resources', 'source_resources_count'),
+                'policies': ('max_policies', 'policies_count'),
+                'repositories': ('max_repositories', 'repositories_count'),
+                'tenants': ('max_tenants', 'tenants_count'),
+            }
+            
+            if quota_type not in quota_map:
+                return Response({
+                    'is_valid': False,
+                    'message': f'Unknown quota type: {quota_type}',
+                })
+            
+            limit_field, usage_field = quota_map[quota_type]
+            limit = getattr(license, limit_field, 0)
+            current_usage = self._get_usage_stats(request.user.tenant).get(usage_field, 0)
+            
+            is_within_limit = (current_usage + amount) <= limit
+            
+            return Response({
+                'is_valid': is_within_limit,
+                'quota_type': quota_type,
+                'limit': limit,
+                'current_usage': current_usage,
+                'requested': amount,
+                'remaining': max(0, limit - current_usage),
+                'message': _('Within limit') if is_within_limit else _('Quota exceeded'),
+            })
+            
+        except Exception as e:
+            return Response({
+                'is_valid': False,
+                'error': str(e),
+            })

@@ -1,87 +1,92 @@
 /**
- * License types for HyperFileLens
- * 
- * Simplified License model - only quantity limits, no feature restrictions
+ * License type definitions
  */
 
 export interface License {
-  id: string;
-  license_key: string;
-  machine_code: string;
+  id: number
+  tenant: number
+  tenant_name?: string
+  license_key: string
+  machine_code: string
+  issued_at: string
+  expires_at: string | null
+  is_perpetual: boolean
+  is_valid: boolean
+  days_until_expiry: number
   
-  // Binding
-  tenant: string;
-  tenant_name: string;
-  activated_by: string;
-  activated_by_name: string;
+  // Quota limits
+  max_tenants: number
+  max_users: number
+  max_proxies: number
+  max_storage_gb: number
+  max_gateways: number
+  ai_insights_quota: number
+  max_backup_tasks: number
+  max_recovery_tasks: number
+  max_source_resources: number
+  max_policies: number
+  max_repositories: number
   
-  // Quantity limits
-  max_tenants: number;
-  max_users: number;
-  max_proxies: number;
-  max_storage_gb: number;
-  max_gateways: number;
-  ai_insights_quota: number;
-  max_backup_tasks: number;
-  max_recovery_tasks: number;
-  max_source_resources: number;
-  max_policies: number;
-  max_repositories: number;
-  
-  // Time
-  issued_at: string;
-  expires_at?: string;
-  activated_at: string;
-  
-  // Status
-  status: 'active' | 'expired' | 'revoked';
-  is_valid: boolean;
-  is_expired: boolean;
-  is_perpetual: boolean;
-  days_until_expiry: number;
+  created_at: string
+  updated_at: string
 }
 
-export interface QuotaUsage {
-  users_count: number;
-  proxies_count: number;
-  storage_used_gb: number;
-  gateways_count: number;
-  backup_tasks_count: number;
-  recovery_tasks_count: number;
-  source_resources_count: number;
-  policies_count: number;
-  repositories_count: number;
-  ai_insights_used: number;
-  ai_insights_period: string;
-  ai_insights_reset_at?: string;
-  updated_at: string;
+export interface LicenseHistory {
+  id: number
+  tenant: number
+  license_key: string
+  change_type: 'initial' | 'renewal' | 'upgrade' | 'downgrade' | 'expired'
+  changed_at: string
+  previous_expires_at: string | null
+  previous_limits: Record<string, number> | null
+  reason: string | null
+  changed_by: number | null
+  ip_address: string | null
 }
 
-export interface MachineCodeResponse {
-  machine_code: string;
-  components: {
-    mac_address: string;
-    cpu_id: string;
-    hostname: string;
-    tenant_id: string;
-    tenant_name: string;
-  };
-  instructions: string;
+export interface MachineCode {
+  machine_code: string
+  tenant_name: string
+  created_at?: string
+  message?: string
 }
 
-export interface ActivateRequest {
-  activation_code: string;
+export interface LicenseUsage {
+  tenants_count: number
+  users_count: number
+  proxies_count: number
+  storage_used_gb: number
+  gateways_count: number
+  ai_insights_used: number
+  backup_tasks_count: number
+  recovery_tasks_count: number
+  source_resources_count: number
+  policies_count: number
+  repositories_count: number
 }
 
-export interface ActivateResponse {
-  success: boolean;
-  message: string;
-  license: License;
+export interface LicenseCurrentResponse {
+  is_valid: boolean
+  license?: License
+  limits?: Record<string, number>
+  usage: LicenseUsage
+  machine_code: string
+  message?: string
+  days_until_expiry?: number
 }
 
-export interface LicenseUsageResponse {
-  license: License;
-  limits: Record<string, number>;
-  usage: QuotaUsage;
-  usage_percentage: Record<string, number>;
+export interface ActivateLicenseRequest {
+  activation_code: string
+}
+
+export interface ActivateLicenseResponse {
+  success: boolean
+  message: string
+  license: License
+  change_type: string
+}
+
+export interface LicenseHistoryResponse {
+  results: LicenseHistory[]
+  count: number
 }
