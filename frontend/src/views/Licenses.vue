@@ -161,8 +161,8 @@
               </div>
             </td>
             <td class="whitespace-nowrap px-3 py-4 text-sm">
-              <span :class="getTypeClass(license.license_type)" class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
-                {{ t(`licenses.${license.license_type}`) }}
+              <span :class="getTypeClass(license.edition)" class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
+                {{ t(`licenses.${license.edition}`) }}
               </span>
             </td>
             <td class="whitespace-nowrap px-3 py-4 text-sm">
