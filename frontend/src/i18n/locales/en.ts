@@ -149,6 +149,12 @@ export default {
     or: 'or',
     haveAccount: 'Already have an account?',
     loginNow: 'Login now',
+    registerNow: 'Register now',
+    
+    // Features
+    feature1: 'Smart Backup & Recovery Management',
+    feature2: 'AI-Powered File Analysis',
+    feature3: 'Enterprise-Grade Security',
     
     // Messages
     registerFailed: 'Registration failed, please try again',

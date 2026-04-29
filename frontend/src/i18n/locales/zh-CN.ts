@@ -148,9 +148,12 @@ export default {
     or: '或',
     haveAccount: '已有账户？',
     loginNow: '立即登录',
+    registerNow: '立即注册',
     
-    // Messages
-    registerFailed: '注册失败，请重试',
+    // Features
+    feature1: '智能备份与恢复管理',
+    feature2: 'AI驱动的文件分析',
+    feature3: '企业级安全保障',
     registerSuccess: '注册成功，请登录',
     sendResetFailed: '发送重置码失败',
     resetCodeSent: '重置码已发送到您的邮箱',
@@ -162,11 +165,6 @@ export default {
     passwordResetSuccess: '密码重置成功',
     canNowLogin: '您现在可以使用新密码登录',
     resetPasswordFailed: '重置密码失败',
-    
-    // Features
-    registerFeature1: '智能备份与恢复管理',
-    registerFeature2: 'AI驱动的文件分析',
-    registerFeature3: '企业级安全保障',
     
     // MFA
     mfaEnabled: 'MFA 已启用',
