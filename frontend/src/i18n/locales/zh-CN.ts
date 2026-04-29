@@ -1247,7 +1247,6 @@ export default {
     inactive: '已停用',
     suspended: '已暂停',
     undefined: '未知',
-    owner: '所有者',
     maxUsers: '最大用户数',
     maxProxies: '最大代理数',
     maxRepositories: '最大仓库数',
@@ -1264,7 +1263,6 @@ export default {
     role: '角色',
     admin: '管理员',
     member: '成员',
-    viewer: '只读用户',
     activate: '激活',
     deactivate: '停用',
     confirmDelete: '确定要删除租户"{name}"吗？此操作不可恢复。',
@@ -1303,10 +1301,8 @@ export default {
     emailPlaceholder: '请输入邮箱地址',
     passwordPlaceholder: '请输入密码',
     roles: {
-      owner: '所有者',
       admin: '管理员',
-      member: '成员',
-      viewer: '只读'
+      member: '成员'
     },
     createSuccess: '用户创建成功',
     createFailed: '用户创建失败',

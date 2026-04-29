@@ -1242,7 +1242,6 @@ export default {
     inactive: 'Inactive',
     suspended: 'Suspended',
     undefined: 'Unknown',
-    owner: 'Owner',
     maxUsers: 'Max Users',
     maxProxies: 'Max Proxies',
     maxRepositories: 'Max Repositories',
@@ -1259,7 +1258,6 @@ export default {
     role: 'Role',
     admin: 'Admin',
     member: 'Member',
-    viewer: 'Viewer',
     activate: 'Activate',
     deactivate: 'Deactivate',
     confirmDelete: 'Are you sure you want to delete tenant "{name}"? This action cannot be undone.',
@@ -1298,10 +1296,8 @@ export default {
     emailPlaceholder: 'Enter email address',
     passwordPlaceholder: 'Enter password',
     roles: {
-      owner: 'Owner',
       admin: 'Admin',
-      member: 'Member',
-      viewer: 'Viewer'
+      member: 'Member'
     },
     createSuccess: 'User created successfully',
     createFailed: 'Failed to create user',

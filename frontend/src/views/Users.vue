@@ -50,10 +50,8 @@
             @change="fetchUsers"
           >
             <option value="">{{ t('common.all') }}</option>
-            <option value="owner">{{ t('users.roles.owner') }}</option>
             <option value="admin">{{ t('users.roles.admin') }}</option>
             <option value="member">{{ t('users.roles.member') }}</option>
-            <option value="viewer">{{ t('users.roles.viewer') }}</option>
           </select>
           <select
             v-model="statusFilter"
@@ -216,7 +214,6 @@
                     >
                       <option value="admin">{{ t('users.roles.admin') }}</option>
                       <option value="member">{{ t('users.roles.member') }}</option>
-                      <option value="viewer">{{ t('users.roles.viewer') }}</option>
                     </select>
                   </div>
                 </div>
@@ -273,7 +270,6 @@
                     >
                       <option value="admin">{{ t('users.roles.admin') }}</option>
                       <option value="member">{{ t('users.roles.member') }}</option>
-                      <option value="viewer">{{ t('users.roles.viewer') }}</option>
                     </select>
                   </div>
                 </div>
@@ -321,10 +317,8 @@
                     v-model="selectedRole"
                     class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
                   >
-                    <option value="owner">{{ t('users.roles.owner') }}</option>
                     <option value="admin">{{ t('users.roles.admin') }}</option>
                     <option value="member">{{ t('users.roles.member') }}</option>
-                    <option value="viewer">{{ t('users.roles.viewer') }}</option>
                   </select>
                 </div>
               </div>
@@ -444,12 +438,10 @@ function getInitials(user: User) {
 
 function getRoleClass(role: string) {
   const classes: Record<string, string> = {
-    owner: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
     admin: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
-    member: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    viewer: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+    member: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
   }
-  return classes[role] || classes.viewer
+  return classes[role] || classes.member
 }
 
 function formatDate(date: string) {

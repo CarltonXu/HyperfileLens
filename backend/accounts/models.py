@@ -194,10 +194,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     # Multi-tenancy support
     class TenantRole(models.TextChoices):
         """Role within a tenant."""
-        OWNER = 'owner', 'Owner'
-        ADMIN = 'admin', 'Administrator'
-        MEMBER = 'member', 'Member'
-        VIEWER = 'viewer', 'Viewer'
+        ADMIN = 'admin', 'Administrator'  # 租户管理员
+        MEMBER = 'member', 'Member'  # 租户用户
     
     tenant = models.ForeignKey(
         'tenants.Tenant',

@@ -155,10 +155,10 @@ const navigation = computed(() => {
       return false
     }
     if (item.requiresTenantAdmin) {
-      // 超级管理员或租户 owner/admin 可见
+      // 超级管理员或租户管理员可见
       const isSuperuser = authStore.user?.is_superuser
       const role = authStore.user?.tenant_role
-      if (!isSuperuser && !['owner', 'admin'].includes(role || '')) {
+      if (!isSuperuser && role !== 'admin') {
         return false
       }
     }

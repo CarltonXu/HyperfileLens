@@ -198,11 +198,11 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  // Check tenant admin permission (superuser or tenant owner/admin)
+  // Check tenant admin permission (superuser or tenant admin)
   if (to.meta.requiresTenantAdmin) {
     const isSuperuser = authStore.user?.is_superuser
     const role = authStore.user?.tenant_role
-    if (!isSuperuser && !['owner', 'admin'].includes(role || '')) {
+    if (!isSuperuser && role !== 'admin') {
       next({ name: 'Dashboard' })
       return
     }
