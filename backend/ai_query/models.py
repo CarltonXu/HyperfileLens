@@ -8,6 +8,7 @@ import uuid
 from django.db import models
 from django.utils import timezone
 from accounts.models import User
+from tenants.models import Tenant
 
 
 class AIQuery(models.Model):
@@ -92,6 +93,14 @@ class AIQuery(models.Model):
     )
     
     # Metadata
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name='ai_queries',
+        null=True,
+        blank=True,
+        help_text="Tenant who owns this query"
+    )
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,

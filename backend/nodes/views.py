@@ -81,9 +81,11 @@ class ProxyViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         proxy = serializer.save()
 
-        # Set owner to current user
+        # Set owner and tenant to current user
         proxy.owner = request.user
-        proxy.save(update_fields=['owner'])
+        if request.user.tenant:
+            proxy.tenant = request.user.tenant
+        proxy.save(update_fields=['owner', 'tenant'])
 
         # Generate installation command
         self._generate_install_command(proxy, request)

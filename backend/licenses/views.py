@@ -96,8 +96,8 @@ class LicenseViewSet(viewsets.ModelViewSet):
         
         try:
             # Proxies count
-            Proxy = apps.get_model('nodes', 'Proxy')
-            stats['proxies_count'] = Proxy.objects.filter(tenant=tenant, status='online').count()
+            ProxyNode = apps.get_model('nodes', 'ProxyNode')
+            stats['proxies_count'] = ProxyNode.objects.filter(tenant=tenant).count()
         except Exception:
             stats['proxies_count'] = 0
         
@@ -110,9 +110,9 @@ class LicenseViewSet(viewsets.ModelViewSet):
             stats['storage_used_gb'] = 0
         
         try:
-            # Gateways count
+            # Gateways count (if Gateway model exists)
             Gateway = apps.get_model('nodes', 'Gateway')
-            stats['gateways_count'] = Gateway.objects.filter(tenant=tenant, status='online').count()
+            stats['gateways_count'] = Gateway.objects.filter(tenant=tenant).count()
         except Exception:
             stats['gateways_count'] = 0
         
@@ -148,8 +148,8 @@ class LicenseViewSet(viewsets.ModelViewSet):
         
         try:
             # Policies count
-            Policy = apps.get_model('policies', 'Policy')
-            stats['policies_count'] = Policy.objects.filter(tenant=tenant).count()
+            BackupPolicy = apps.get_model('policies', 'BackupPolicy')
+            stats['policies_count'] = BackupPolicy.objects.filter(tenant=tenant).count()
         except Exception:
             stats['policies_count'] = 0
         

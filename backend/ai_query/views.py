@@ -36,6 +36,7 @@ class AIQueryViewSet(viewsets.ModelViewSet):
         # Create query instance
         query = AIQuery.objects.create(
             user=request.user,
+            tenant=request.user.tenant,
             **serializer.validated_data
         )
         
