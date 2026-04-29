@@ -168,6 +168,35 @@ class TenantViewSet(viewsets.ModelViewSet):
         tenant.save()
         return Response({'status': 'activated'})
 
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        """Deactivate a tenant (super admin only)."""
+        if not request.user.is_superuser:
+            return Response(
+                {'error': 'Only super admins can deactivate tenants'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        tenant = self.get_object()
+        
+        # 不允许停用 administrator 租户
+        if tenant.name == 'administrator':
+            return Response(
+                {'error': 'Cannot deactivate the system administrator tenant'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 不允许停用自己所在的租户
+        if request.user.tenant and request.user.tenant.id == tenant.id:
+            return Response(
+                {'error': 'Cannot deactivate your own tenant'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        tenant.status = Tenant.TenantStatus.SUSPENDED
+        tenant.save()
+        return Response({'status': 'deactivated'})
+
     @action(detail=True, methods=['get'])
     def invitations(self, request, pk=None):
         """List pending invitations for a tenant."""
