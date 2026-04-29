@@ -49,7 +49,6 @@ DJANGO_APPS = [
 # Third-party apps
 THIRD_PARTY_APPS = [
     'rest_framework',
-    'rest_framework.authtoken',
     'corsheaders',
     'django_celery_beat',
     'django_celery_results',

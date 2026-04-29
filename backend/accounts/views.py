@@ -229,9 +229,10 @@ class LoginView(APIView):
                 'error': 'User account is disabled.'
             }, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Update last login time
-        user.last_login_at = timezone.now()
-        user.save(update_fields=['last_login_at'])
+        # Update last login time - use update() to avoid model save issues with UUID
+        from django.utils import timezone
+        from accounts.models import User
+        User.objects.filter(pk=user.pk).update(last_login_at=timezone.now())
 
         # Get or create API token - ensure user is a proper User instance
         from accounts.models import User
