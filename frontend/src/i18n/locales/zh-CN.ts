@@ -1264,15 +1264,23 @@ export default {
     description: '管理产品许可证和授权',
     
     // Machine Code
+    getMachineCode: '获取机器码',
     exportMachineCode: '导出机器码',
     machineCodeTitle: '机器码',
-    machineCodeDescription: '将此码发送给销售团队以获取激活码。',
+    machineCodeDescription: '当前环境的唯一标识',
     machineCodeInstructions: '此码对您的环境唯一。从此码生成的激活码只能在此使用。',
     machineCodeGenerated: '机器码已生成',
     generateMachineCode: '生成机器码',
     clickToGenerate: '点击下方按钮生成机器码',
     machineCodeInfo: '机器码',
     machineCodeHelp: '将此码发送给销售团队以生成激活码：',
+    yourMachineCode: '您的机器码',
+    machineCodeNote: '此码是根据您的环境和租户唯一生成的，除非重新安装系统，否则不会改变。',
+    howToActivate: '激活步骤：',
+    step1CopyCode: '复制下方的机器码',
+    step2SendToSales: '发送给销售团队',
+    step3ReceiveActivation: '接收您的激活码',
+    step4Activate: '点击"激活许可证"输入激活码',
     
     // Activation
     activateLicense: '激活许可证',

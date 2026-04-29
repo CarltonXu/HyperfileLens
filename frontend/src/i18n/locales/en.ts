@@ -1259,15 +1259,23 @@ export default {
     description: 'Manage product licenses and authorization',
     
     // Machine Code
+    getMachineCode: 'Get Machine Code',
     exportMachineCode: 'Export Machine Code',
     machineCodeTitle: 'Machine Code',
-    machineCodeDescription: 'Send this code to the sales team to get your activation code.',
+    machineCodeDescription: 'Unique identifier for this environment',
     machineCodeInstructions: 'This code is unique to your environment. The activation code generated from this code can only be used here.',
     machineCodeGenerated: 'Machine code generated',
     generateMachineCode: 'Generate Machine Code',
     clickToGenerate: 'Click the button below to generate machine code',
     machineCodeInfo: 'Machine Code',
     machineCodeHelp: 'Send this code to the sales team to generate your activation code:',
+    yourMachineCode: 'Your Machine Code',
+    machineCodeNote: 'This code is uniquely generated for your environment and tenant. It will not change unless you reinstall the system.',
+    howToActivate: 'How to activate:',
+    step1CopyCode: 'Copy the machine code below',
+    step2SendToSales: 'Send it to our sales team',
+    step3ReceiveActivation: 'Receive your activation code',
+    step4Activate: 'Click "Activate License" to enter the code',
     
     // Activation
     activateLicense: 'Activate License',

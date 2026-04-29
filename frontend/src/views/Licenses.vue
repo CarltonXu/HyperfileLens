@@ -11,6 +11,14 @@
       <div class="mt-4 sm:mt-0 flex gap-2">
         <button
           type="button"
+          class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+          @click="showMachineCodeDialog = true"
+        >
+          <ComputerDesktopIcon class="-ml-0.5 mr-1.5 h-5 w-5 text-gray-400" aria-hidden="true" />
+          {{ t('licenses.getMachineCode') || 'Get Machine Code' }}
+        </button>
+        <button
+          type="button"
           class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
           @click="showActivateDialog = true"
         >
@@ -177,6 +185,87 @@
       </div>
     </div>
 
+    <!-- Machine Code Dialog -->
+    <Teleport to="body">
+      <div v-if="showMachineCodeDialog" class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4">
+          <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="showMachineCodeDialog = false"></div>
+          
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full">
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                {{ t('licenses.machineCodeTitle') || 'Machine Code' }}
+              </h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t('licenses.machineCodeDescription') || 'Unique identifier for this environment' }}
+              </p>
+            </div>
+            
+            <!-- Content -->
+            <div class="px-6 py-4 space-y-4">
+              <!-- Info Box -->
+              <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                <div class="flex items-start gap-3">
+                  <InformationCircleIcon class="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div class="text-sm text-blue-700 dark:text-blue-300">
+                    <p class="font-medium">{{ t('licenses.howToActivate') || 'How to activate:' }}</p>
+                    <ol class="mt-2 list-decimal list-inside space-y-1">
+                      <li>{{ t('licenses.step1CopyCode') || 'Copy the machine code below' }}</li>
+                      <li>{{ t('licenses.step2SendToSales') || 'Send it to our sales team' }}</li>
+                      <li>{{ t('licenses.step3ReceiveActivation') || 'Receive your activation code' }}</li>
+                      <li>{{ t('licenses.step4Activate') || 'Click "Activate License" to enter the code' }}</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Machine Code Display -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {{ t('licenses.yourMachineCode') || 'Your Machine Code' }}
+                </label>
+                <div class="relative">
+                  <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                    <code class="text-sm font-mono text-gray-900 dark:text-white break-all">{{ machineCode }}</code>
+                  </div>
+                  <button
+                    type="button"
+                    class="absolute top-2 right-2 p-2 rounded-md bg-white dark:bg-gray-600 shadow-sm border border-gray-200 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500"
+                    @click="copyMachineCodeFromDialog"
+                  >
+                    <ClipboardDocumentCheckIcon v-if="copied" class="h-5 w-5 text-green-500" />
+                    <ClipboardDocumentIcon v-else class="h-5 w-5 text-gray-400" />
+                  </button>
+                </div>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('licenses.machineCodeNote') || 'This code is uniquely generated for your environment and tenant. It will not change unless you reinstall the system.' }}
+                </p>
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+              <button
+                type="button"
+                class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                @click="showMachineCodeDialog = false"
+              >
+                {{ t('common.close') || 'Close' }}
+              </button>
+              <button
+                type="button"
+                class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                @click="copyMachineCodeFromDialog"
+              >
+                {{ t('common.copy') || 'Copy Code' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- Activate Dialog -->
     <Teleport to="body">
       <div v-if="showActivateDialog" class="fixed inset-0 z-50 overflow-y-auto">
@@ -246,7 +335,9 @@ import { useI18n } from 'vue-i18n'
 import { 
   KeyIcon,
   ClipboardDocumentIcon,
+  ClipboardDocumentCheckIcon,
   InformationCircleIcon,
+  ComputerDesktopIcon,
 } from '@heroicons/vue/24/outline'
 import { licensesApi } from '@/api'
 import { useToast } from '@/composables/useToast'
@@ -268,12 +359,14 @@ const { showToast } = useToast()
 const currentLicense = ref<License | null>(null)
 const usage = ref<Record<string, number>>({})
 const loading = ref(true)
+const showMachineCodeDialog = ref(false)
 const showActivateDialog = ref(false)
 const machineCode = ref('')
 const activationCode = ref('')
 const activating = ref(false)
 const activateError = ref('')
 const licenseHistory = ref<LicenseHistory[]>([])
+const copied = ref(false)
 
 // Limit items for display - 完整的配额列表
 const limitItems = computed(() => [
@@ -338,6 +431,19 @@ const copyMachineCode = async () => {
   try {
     await navigator.clipboard.writeText(machineCode.value)
     showToast(t('common.copied') || 'Copied to clipboard', 'success')
+  } catch (error) {
+    showToast('Failed to copy', 'error')
+  }
+}
+
+const copyMachineCodeFromDialog = async () => {
+  try {
+    await navigator.clipboard.writeText(machineCode.value)
+    copied.value = true
+    showToast(t('common.copied') || 'Copied to clipboard', 'success')
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
   } catch (error) {
     showToast('Failed to copy', 'error')
   }
