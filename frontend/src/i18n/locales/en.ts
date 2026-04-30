@@ -83,7 +83,19 @@ export default {
     showing: 'Showing',
     to: 'to',
     of: 'of',
-    results: 'results'
+    results: 'results',
+    // Welcome messages
+    welcomeBack: 'Welcome back',
+    goodMorning: 'Good morning',
+    goodAfternoon: 'Good afternoon',
+    goodEvening: 'Good evening',
+    goodNight: 'Good night',
+    lastLogin: 'Last login',
+    todayTip: 'Today\'s tip',
+    tip1: 'Data backup is essential for protecting information assets',
+    tip2: 'Check backup task status regularly to ensure data safety',
+    tip3: 'Multi-factor authentication effectively protects account security',
+    tip4: 'It is recommended to change passwords regularly'
   },
 
   // Theme

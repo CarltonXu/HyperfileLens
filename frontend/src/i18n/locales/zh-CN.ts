@@ -82,7 +82,19 @@ export default {
     showing: '显示',
     to: '至',
     of: '共',
-    results: '条结果'
+    results: '条结果',
+    // 欢迎消息
+    welcomeBack: '欢迎回来',
+    goodMorning: '早上好',
+    goodAfternoon: '下午好',
+    goodEvening: '晚上好',
+    goodNight: '夜深了',
+    lastLogin: '上次登录',
+    todayTip: '今日提示',
+    tip1: '数据备份是保护信息资产的重要手段',
+    tip2: '定期检查备份任务状态，确保数据安全',
+    tip3: '多因素认证可以有效保护账户安全',
+    tip4: '建议定期更换密码，提高账户安全性'
   },
 
   // Theme

@@ -52,6 +52,8 @@ export const useAuthStore = defineStore('auth', () => {
         token.value = authToken
         user.value = userData as User
         localStorage.setItem('token', authToken)
+        // Set flag for welcome toast
+        sessionStorage.setItem('showWelcome', 'true')
       }
 
       return { token: authToken, user: userData, mfa_required: false }
@@ -79,6 +81,8 @@ export const useAuthStore = defineStore('auth', () => {
         token.value = authToken
         user.value = userData as User
         localStorage.setItem('token', authToken)
+        // Set flag for welcome toast
+        sessionStorage.setItem('showWelcome', 'true')
       }
 
       return { token: authToken, user: userData, mfa_required: false }

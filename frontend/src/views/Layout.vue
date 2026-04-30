@@ -23,7 +23,9 @@ import {
   UserCircleIcon,
   BuildingOffice2Icon,
   KeyIcon,
-  UsersIcon
+  UsersIcon,
+  SunIcon,
+  MoonIcon
 } from '@heroicons/vue/24/outline'
 import {
   HomeIcon as HomeIconSolid,
@@ -50,6 +52,42 @@ const isUserMenuOpen = ref(false)
 const isLangMenuOpen = ref(false)
 const hoverItem = ref<string | null>(null)
 const tooltipPosition = ref({ top: 0, show: false, text: '' })
+
+// 欢迎弹窗
+const showWelcome = ref(false)
+const welcomeVisible = ref(false)
+
+// 获取时间段问候语
+const getGreeting = () => {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) {
+    return { text: t('welcome.goodMorning'), icon: SunIcon, color: 'text-amber-500' }
+  } else if (hour >= 12 && hour < 18) {
+    return { text: t('welcome.goodAfternoon'), icon: SunIcon, color: 'text-orange-500' }
+  } else {
+    return { text: t('welcome.goodEvening'), icon: MoonIcon, color: 'text-indigo-400' }
+  }
+}
+
+// 显示欢迎弹窗
+const showWelcomeToast = () => {
+  showWelcome.value = true
+  setTimeout(() => {
+    welcomeVisible.value = true
+  }, 50)
+  // 5秒后自动关闭
+  setTimeout(() => {
+    closeWelcome()
+  }, 5000)
+}
+
+// 关闭欢迎弹窗
+const closeWelcome = () => {
+  welcomeVisible.value = false
+  setTimeout(() => {
+    showWelcome.value = false
+  }, 300)
+}
 
 // Navigation items with icons
 const navigation = computed(() => {
@@ -227,6 +265,16 @@ onMounted(() => {
     isCollapsed.value = savedCollapsed === 'true'
   }
   document.addEventListener('click', handleClickOutside)
+  
+  // 检查是否需要显示欢迎弹窗（登录后首次进入）
+  const showWelcomeFlag = sessionStorage.getItem('showWelcome')
+  if (showWelcomeFlag === 'true') {
+    sessionStorage.removeItem('showWelcome')
+    // 延迟显示，让页面完全加载
+    setTimeout(() => {
+      showWelcomeToast()
+    }, 500)
+  }
 })
 
 onUnmounted(() => {
@@ -429,6 +477,55 @@ onUnmounted(() => {
       </main>
     </div>
 
+    <!-- Welcome Toast -->
+    <Transition name="welcome">
+      <div
+        v-if="showWelcome"
+        :class="[
+          'fixed top-20 right-6 z-[9999] transition-all duration-300',
+          welcomeVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
+        ]"
+      >
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 max-w-sm">
+          <div class="flex items-start gap-3">
+            <!-- Avatar -->
+            <div class="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
+              <span class="text-sm font-semibold text-white">
+                {{ authStore.user?.email?.[0]?.toUpperCase() || 'U' }}
+              </span>
+            </div>
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-slate-800 dark:text-white">
+                {{ authStore.userFullName }}
+              </p>
+              <div class="flex items-center gap-1.5 mt-1">
+                <component
+                  :is="getGreeting().icon"
+                  :class="['w-4 h-4', getGreeting().color]"
+                />
+                <span class="text-sm text-slate-500 dark:text-slate-400">
+                  {{ getGreeting().text }}
+                </span>
+              </div>
+              <p class="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                {{ t('welcome.subtitle') }}
+              </p>
+            </div>
+            <!-- Close Button -->
+            <button
+              @click="closeWelcome"
+              class="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Global Tooltip for collapsed sidebar -->
     <Transition name="tooltip">
       <div
@@ -445,6 +542,17 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Welcome toast transition */
+.welcome-enter-active,
+.welcome-leave-active {
+  transition: all 0.3s ease;
+}
+.welcome-enter-from,
+.welcome-leave-to {
+  opacity: 0;
+  transform: translateX(16px);
+}
+
 /* Fade transition */
 .fade-enter-active,
 .fade-leave-active {
