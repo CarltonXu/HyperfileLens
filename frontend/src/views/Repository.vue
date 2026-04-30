@@ -1941,8 +1941,8 @@ onMounted(() => {
           </div>
           
           <!-- Fixed Footer -->
-          <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-700 dark:border-slate-700 flex justify-end gap-3 flex-shrink-0 bg-white dark:bg-slate-800">
-            <button @click="showCreateModal = false; resetForm()" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
+          <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3 flex-shrink-0 bg-white dark:bg-slate-800">
+            <button @click="showCreateModal = false; resetForm()" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
               {{ t('common.cancel') }}
             </button>
             <button 
@@ -1951,8 +1951,8 @@ onMounted(() => {
               :class="[
                 'px-4 py-2 text-sm rounded-lg transition-colors',
                 isFormValid 
-                  ? 'text-white bg-blue-600 hover:bg-blue-700' 
-                  : 'text-white bg-slate-300 cursor-not-allowed'
+                  ? 'text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600' 
+                  : 'text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700 cursor-not-allowed'
               ]"
             >
               {{ isEditMode ? t('common.save') : t('common.create') }}
