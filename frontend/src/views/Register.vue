@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import api from '@/api'
+import { authApi, captchaApi } from '@/api'
 
 const router = useRouter()
 const { t, locale } = useI18n()
@@ -69,7 +69,7 @@ const isValid = computed(() => {
 async function refreshCaptcha() {
   captchaLoading.value = true
   try {
-    const response = await api.get('/api/v1/accounts/captcha/')
+    const response = await captchaApi.get()
     captchaUrl.value = response.data.image
     captchaKey.value = response.data.key
   } catch (err) {
@@ -85,7 +85,7 @@ async function handleRegister() {
   error.value = ''
 
   try {
-    await api.post('/api/v1/accounts/register-v2/', {
+    await authApi.register({
       email: email.value,
       password: password.value,
       first_name: firstName.value,

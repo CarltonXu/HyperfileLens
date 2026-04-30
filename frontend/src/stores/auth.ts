@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User, LoginCredentials, LoginResponse } from '@/types/auth'
-import api from '@/api'
+import { authApi, mfaApi } from '@/api'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -30,9 +30,11 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
 
     try {
-      const response = await api.post<LoginResponse>(
-        '/accounts/login/',
-        credentials
+      const response = await authApi.login(
+        credentials.email,
+        credentials.password,
+        credentials.captcha_key,
+        credentials.captcha_code
       )
 
       const data = response.data
@@ -58,15 +60,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function verifyMfa(userId: string, code: string, loginToken?: string): Promise<LoginResponse> {
+  async function verifyMfa(email: string, code: string, loginToken?: string): Promise<LoginResponse> {
     loading.value = true
     error.value = null
 
     try {
-      const response = await api.post<LoginResponse>(
-        '/accounts/mfa/verify/',
-        { user_id: userId, code, login_token: loginToken }
-      )
+      const response = await mfaApi.verify(email, loginToken || '', code)
 
       const data = response.data
 
@@ -88,7 +87,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     try {
       if (token.value) {
-        await api.post('/api/v1/accounts/logout/')
+        await authApi.logout()
       }
     } catch {
       // Ignore logout errors
@@ -107,7 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
-      const response = await api.get<User>('/api/v1/accounts/profile/')
+      const response = await authApi.profile()
       user.value = response.data
       return response.data
     } catch (err: any) {
@@ -134,12 +133,13 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
-      const response = await api.post<{ token: string; [key: string]: any }>(
-        '/api/v1/accounts/register/',
-        data
-      )
+      const response = await authApi.register({
+        email: data.email,
+        password: data.password,
+        first_name: data.first_name,
+        last_name: data.last_name
+      })
 
-      // Backend returns user fields + token directly (not nested under 'user')
       const { token: authToken, ...userData } = response.data
       
       token.value = authToken
@@ -162,10 +162,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
-      const response = await api.patch<User>(
-        '/api/v1/accounts/profile/',
-        data
-      )
+      const response = await authApi.updateProfile(data as { full_name?: string; phone?: string })
       user.value = response.data
       return response.data
     } catch (err: any) {
@@ -181,11 +178,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
-      await api.post('/api/v1/accounts/password/', {
-        old_password: oldPassword,
-        new_password: newPassword,
-        new_password_confirm: newPassword
-      })
+      await authApi.changePassword({ old_password: oldPassword, new_password: newPassword })
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to change password'
       throw err

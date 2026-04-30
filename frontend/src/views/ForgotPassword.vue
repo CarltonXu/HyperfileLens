@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import api from '@/api'
+import { authApi, captchaApi } from '@/api'
 
 const { t, locale } = useI18n()
 
@@ -42,7 +42,7 @@ const isValidStep3 = computed(() => newPassword.value.length >= 8 && newPassword
 async function refreshCaptcha() {
   captchaLoading.value = true
   try {
-    const response = await api.get('/api/v1/accounts/captcha/')
+    const response = await captchaApi.get()
     captchaUrl.value = response.data.image
     captchaKey.value = response.data.key
   } catch (err) {
@@ -60,11 +60,7 @@ async function sendResetEmail() {
   success.value = ''
   
   try {
-    const response = await api.post('/api/v1/accounts/forgot-password/', {
-      email: email.value,
-      captcha_code: captcha.value,
-      captcha_key: captchaKey.value
-    })
+    const response = await authApi.forgotPassword(email.value, captchaKey.value, captcha.value)
     resetToken.value = response.data.reset_token
     currentStep.value = 2
     success.value = t('auth.resetCodeSent')
@@ -84,10 +80,7 @@ async function verifyCode() {
   error.value = ''
   
   try {
-    await api.post('/api/v1/accounts/verify-reset-code/', {
-      email: email.value,
-      code: verificationCode.value
-    })
+    await authApi.verifyResetCode(email.value, verificationCode.value)
     currentStep.value = 3
     success.value = t('auth.codeVerified')
   } catch (err: any) {
@@ -110,10 +103,7 @@ async function resetPassword() {
   error.value = ''
   
   try {
-    await api.post('/api/v1/accounts/reset-password/', {
-      token: resetToken.value,
-      new_password: newPassword.value
-    })
+    await authApi.resetPassword(resetToken.value, newPassword.value)
     currentStep.value = 4
     success.value = t('auth.passwordResetSuccess')
   } catch (err: any) {

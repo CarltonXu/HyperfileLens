@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
-import api from '@/api'
+import { captchaApi, mfaApi } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -41,7 +41,7 @@ const isValid = computed(() => {
 async function refreshCaptcha() {
   captchaLoading.value = true
   try {
-    const response = await api.get('/api/v1/accounts/captcha/')
+    const response = await captchaApi.get()
     captchaUrl.value = response.data.image
     captchaKey.value = response.data.key
   } catch (err) {
@@ -70,7 +70,7 @@ async function handleLogin() {
       loginToken.value = response.login_token || ''
       showMfaDialog.value = true
       if (mfaMethod.value === 'email') {
-        await api.post('/api/v1/accounts/mfa/send/', { user_id: pendingUserId.value, login_token: loginToken.value })
+        await mfaApi.requestCode(email.value, loginToken.value)
       }
     } else {
       router.push(route.query.redirect as string || '/')
@@ -88,7 +88,7 @@ async function handleVerifyMfa() {
   if (!mfaCode.value) return
   try {
     isLoading.value = true
-    await authStore.verifyMfa(pendingUserId.value, mfaCode.value, loginToken.value)
+    await authStore.verifyMfa(email.value, mfaCode.value, loginToken.value)
     router.push(route.query.redirect as string || '/')
   } catch (err: any) {
     error.value = err.response?.data?.error || t('auth.invalidMfaCode')
