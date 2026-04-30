@@ -213,6 +213,16 @@
                         <input v-model="formData.slug" type="text" required pattern="[a-z0-9-]+" :placeholder="t('tenants.tenantSlugPlaceholder') || '例如: my-company'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ t('tenants.tenantSlugHelp') || '只能使用小写字母、数字和连字符' }}</p>
                       </div>
+                      <div class="grid grid-cols-2 gap-4">
+                        <div>
+                          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.contactEmail') }} *</label>
+                          <input v-model="formData.contact_email" type="email" required :placeholder="t('tenants.contactEmailPlaceholder') || 'contact@company.com'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.contactPhone') }}</label>
+                          <input v-model="formData.contact_phone" type="tel" :placeholder="t('tenants.contactPhonePlaceholder') || '+86 138-0000-0000'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
+                        </div>
+                      </div>
                       <div>
                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.description') }}</label>
                         <textarea v-model="formData.description" rows="2" :placeholder="t('tenants.descriptionPlaceholder') || '请输入租户描述（可选）'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
@@ -602,6 +612,8 @@ const formData = ref({
   name: '',
   slug: '',
   description: '',
+  contact_email: '',
+  contact_phone: '',
   max_users: null as number | null,
   max_proxies: null as number | null,
   max_repositories: null as number | null,
@@ -667,7 +679,7 @@ const goToPage = (page: number) => {
 
 const openCreateDialog = () => {
   editingTenant.value = null
-  formData.value = { name: '', slug: '', description: '', max_users: null, max_proxies: null, max_repositories: null, max_storage_gb: null }
+  formData.value = { name: '', slug: '', description: '', contact_email: '', contact_phone: '', max_users: null, max_proxies: null, max_repositories: null, max_storage_gb: null }
   showDialog.value = true
 }
 
@@ -677,6 +689,8 @@ const openEditDialog = (tenant: Tenant) => {
     name: tenant.name,
     slug: tenant.slug,
     description: tenant.description || '',
+    contact_email: tenant.contact_email || '',
+    contact_phone: tenant.contact_phone || '',
     max_users: tenant.max_users,
     max_proxies: tenant.max_proxies,
     max_repositories: tenant.max_repositories,
