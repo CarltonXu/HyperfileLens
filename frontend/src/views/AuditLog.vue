@@ -127,7 +127,7 @@
             ]"
           >
             <FunnelIcon class="w-4 h-4" />
-            <span>{{ filters.action ? safeT(`auditLog.actions.${filters.action}`, filters.action) : t('auditLog.action') }}</span>
+            <span>{{ filters.action ? t(`auditLog.actions.${filters.action}`) : t('auditLog.action') }}</span>
             <ChevronDownIcon class="w-4 h-4" />
           </button>
           <Transition name="dropdown">
@@ -153,7 +153,7 @@
                   filters.action === action ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-700 dark:text-slate-300'
                 ]"
               >
-                {{ safeT(`auditLog.actions.${action}`, action) }}
+                {{ t(`auditLog.actions.${action}`) }}
               </button>
             </div>
           </Transition>
@@ -171,7 +171,7 @@
             ]"
           >
             <CubeIcon class="w-4 h-4" />
-            <span>{{ filters.resource_type ? safeT(`auditLog.resourceTypes.${filters.resource_type}`, filters.resource_type) : t('auditLog.resourceType') }}</span>
+            <span>{{ filters.resource_type ? t(`auditLog.resourceTypes.${filters.resource_type}`) : t('auditLog.resourceType') }}</span>
             <ChevronDownIcon class="w-4 h-4" />
           </button>
           <Transition name="dropdown">
@@ -197,7 +197,7 @@
                   filters.resource_type === type ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-700 dark:text-slate-300'
                 ]"
               >
-                {{ safeT(`auditLog.resourceTypes.${type}`, type) }}
+                {{ t(`auditLog.resourceTypes.${type}`) }}
               </button>
             </div>
           </Transition>
@@ -312,7 +312,7 @@
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <span :class="getActionBadgeClass(log.action)" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                  {{ log.action_display || safeT(`auditLog.actions.${log.action}`, log.action) }}
+                  {{ log.action_display || t(`auditLog.actions.${log.action}`) }}
                 </span>
               </td>
               <td class="px-4 py-3">
@@ -320,12 +320,12 @@
                   {{ log.resource_name || log.resource_id || '-' }}
                 </div>
                 <div class="text-xs text-slate-500 dark:text-slate-400">
-                  {{ log.resource_type_display || safeT(`auditLog.resourceTypes.${log.resource_type}`, log.resource_type) }}
+                  {{ log.resource_type_display || t(`auditLog.resourceTypes.${log.resource_type}`) }}
                 </div>
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <span :class="getResultBadgeClass(log.result)" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                  {{ log.result_display || safeT(`auditLog.results.${log.result}`, log.result) }}
+                  {{ log.result_display || t(`auditLog.results.${log.result}`) }}
                 </span>
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
@@ -534,13 +534,8 @@ import {
 import { auditLogApi } from '@/api'
 import { useAppStore } from '@/stores/app'
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const appStore = useAppStore()
-
-// Safe translation helper - returns original value if key doesn't exist
-const safeT = (key: string, fallback: string): string => {
-  return te(key) ? t(key) : fallback
-}
 
 interface AuditLogItem {
   id: string

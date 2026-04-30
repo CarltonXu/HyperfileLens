@@ -29,14 +29,9 @@ import {
   DocumentTextIcon
 } from '@heroicons/vue/24/outline'
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-
-// Safe translation helper
-const safeT = (key: string, fallback: string): string => {
-  return te(key) ? t(key) : fallback
-}
 
 const proxyId = computed(() => route.params.id as string)
 const proxy = ref<ProxyNode | null>(null)
@@ -247,7 +242,7 @@ onUnmounted(() => {
               <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ proxy.name }}</h1>
               <div class="flex items-center gap-2 mt-1">
                 <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
-                  {{ safeT(`proxies.roles.${proxy.role}`, proxy.role) }}
+                  {{ t(`proxies.roles.${proxy.role}`) }}
                 </span>
                 <span :class="[
                   'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
@@ -256,7 +251,7 @@ onUnmounted(() => {
                   proxy.status === 'pending' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
                   'bg-slate-100 dark:bg-slate-700 text-slate-600'
                 ]">
-                  {{ safeT(`proxies.status.${proxy.status}`, proxy.status) }}
+                  {{ t(`proxies.status.${proxy.status}`) }}
                 </span>
               </div>
             </div>
@@ -323,7 +318,7 @@ onUnmounted(() => {
         />
         <div class="flex-1">
           <p class="font-medium" :class="proxy.status === 'active' ? 'text-emerald-800 dark:text-emerald-200' : proxy.status === 'error' ? 'text-red-800 dark:text-red-200' : proxy.status === 'pending' ? 'text-blue-800 dark:text-blue-200' : 'text-amber-800 dark:text-amber-200'">
-            {{ safeT(`proxies.status.${proxy.status}`, proxy.status) }}
+            {{ t(`proxies.status.${proxy.status}`) }}
             <span v-if="proxy.status === 'pending'">- {{ t('proxies.detail.pendingHint') }}</span>
           </p>
           <p class="text-sm" :class="proxy.status === 'active' ? 'text-emerald-600 dark:text-emerald-400' : proxy.status === 'error' ? 'text-red-600 dark:text-red-400' : proxy.status === 'pending' ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'">
@@ -363,7 +358,7 @@ onUnmounted(() => {
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             ]"
           >
-            {{ safeT(`proxies.detail.tabs.${tab}`, tab) }}
+            {{ t(`proxies.detail.tabs.${tab}`) }}
           </button>
         </nav>
       </div>
@@ -482,7 +477,7 @@ onUnmounted(() => {
             <div>
               <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.role') }}</p>
               <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
-                {{ safeT(`proxies.roles.${proxy.role}`, proxy.role) }}
+                {{ t(`proxies.roles.${proxy.role}`) }}
               </span>
             </div>
             <div>
@@ -493,7 +488,7 @@ onUnmounted(() => {
                 proxy.status === 'error' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
                 'bg-slate-100 dark:bg-slate-700 text-slate-600'
               ]">
-                {{ safeT(`proxies.status.${proxy.status}`, proxy.status) }}
+                {{ t(`proxies.status.${proxy.status}`) }}
               </span>
             </div>
             <div>

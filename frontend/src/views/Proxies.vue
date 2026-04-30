@@ -62,13 +62,8 @@ ChartJS.register(
   Filler
 )
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const appStore = useAppStore()
-
-// Safe translation helper
-const safeT = (key: string, fallback: string): string => {
-  return te(key) ? t(key) : fallback
-}
 
 // State
 const isLoading = ref(true)
@@ -1392,7 +1387,7 @@ onUnmounted(() => {
             <div>
               <h3 class="font-semibold text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors">{{ proxy.name }}</h3>
               <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mt-1', getRoleColor(proxy.role)]">
-                {{ safeT(`proxies.roles.${proxy.role}`, proxy.role) }}
+                {{ t(`proxies.roles.${proxy.role}`) }}
               </span>
             </div>
           </div>
@@ -1506,7 +1501,7 @@ onUnmounted(() => {
               ]"
             />
             <span :class="['text-xs font-medium', getStatusColor(proxy.status).split(' ').slice(1).join(' ')]">
-              {{ safeT(`proxies.status.${proxy.status}`, proxy.status) }}
+              {{ t(`proxies.status.${proxy.status}`) }}
             </span>
           </div>
           <div class="flex items-center gap-2">
@@ -1594,12 +1589,12 @@ onUnmounted(() => {
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap">
                   <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
-                    {{ safeT(`proxies.roles.${proxy.role}`, proxy.role) }}
+                    {{ t(`proxies.roles.${proxy.role}`) }}
                   </span>
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap">
                   <span :class="['inline-flex items-center px-2 py-1 rounded-full text-xs font-medium', getStatusColor(proxy.status)]">
-                    {{ safeT(`proxies.status.${proxy.status}`, proxy.status) }}
+                    {{ t(`proxies.status.${proxy.status}`) }}
                   </span>
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
@@ -1878,7 +1873,7 @@ onUnmounted(() => {
                       : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                   ]"
                 >
-                  {{ safeT(`proxies.install.os.${os}`, os) }}
+                  {{ t(`proxies.install.os.${os}`) }}
                 </button>
               </div>
             </div>
@@ -2056,7 +2051,7 @@ onUnmounted(() => {
         <div class="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700">
           <div>
             <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ t('proxies.installInfo.title') }}</h2>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ selectedProxy.name }} - {{ safeT(`proxies.roles.${selectedProxy.role}`, selectedProxy.role) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ selectedProxy.name }} - {{ t(`proxies.roles.${selectedProxy.role}`) }}</p>
           </div>
           <button @click="showInstallInfoModal = false" class="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
             <XMarkIcon class="w-5 h-5" />
@@ -2211,10 +2206,10 @@ onUnmounted(() => {
                 <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedProxy?.name }}</h2>
                 <div class="flex items-center gap-2 mt-1">
                   <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(selectedProxy?.role || 'agent')]">
-                    {{ safeT(`proxies.roles.${selectedProxy?.role}`, selectedProxy?.role || '') }}
+                    {{ t(`proxies.roles.${selectedProxy?.role}`) }}
                   </span>
                   <span :class="['px-2 py-0.5 rounded-full text-xs font-medium', getStatusColor(selectedProxy?.status || 'pending')]">
-                    {{ safeT(`proxies.status.${selectedProxy?.status}`, selectedProxy?.status || '') }}
+                    {{ t(`proxies.status.${selectedProxy?.status}`) }}
                   </span>
                   <span v-if="selectedProxy?.is_online" class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
                     {{ t('proxies.online') }}
@@ -2323,12 +2318,12 @@ onUnmounted(() => {
                       </div>
                       <div>
                         <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ t('proxies.detail.role') }}</p>
-                        <p class="text-sm font-medium text-slate-800 dark:text-white">{{ safeT(`proxies.roles.${tabData.overview.data.role}`, tabData.overview.data.role) }}</p>
+                        <p class="text-sm font-medium text-slate-800 dark:text-white">{{ t(`proxies.roles.${tabData.overview.data.role}`) }}</p>
                       </div>
                       <div>
                         <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ t('proxies.detail.status') }}</p>
                         <span :class="['px-2 py-0.5 rounded text-xs font-medium', getStatusColor(tabData.overview.data.status)]">
-                          {{ safeT(`proxies.status.${tabData.overview.data.status}`, tabData.overview.data.status) }}
+                          {{ t(`proxies.status.${tabData.overview.data.status}`) }}
                         </span>
                       </div>
                       <div>
@@ -2851,7 +2846,7 @@ onUnmounted(() => {
                         task.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
                         'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
                       ]">
-                        {{ safeT(`proxies.detail.taskStatus.${task.status}`, task.status) }}
+                        {{ t(`proxies.detail.taskStatus.${task.status}`) || task.status }}
                       </span>
                       <span class="text-sm font-medium text-slate-800 dark:text-white">{{ task.task_type }}</span>
                     </div>
