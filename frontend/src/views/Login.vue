@@ -168,17 +168,17 @@ onMounted(() => {
     </div>
 
     <!-- Right Side - Login Form -->
-    <div class="w-full lg:w-1/2 flex flex-col bg-gray-50">
+    <div class="w-full lg:w-1/2 flex flex-col bg-gray-50 relative">
       <!-- Language Switch Button -->
-      <div class="flex justify-end p-4">
+      <div class="absolute top-4 right-4 z-10">
         <button
           @click="toggleLanguage"
-          class="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
+          class="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg shadow-sm text-gray-700 hover:text-primary-600 hover:border-primary-300 hover:shadow-md transition-all duration-200"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
           </svg>
-          <span>{{ currentLocale === 'zh-CN' ? 'English' : '中文' }}
+          <span class="font-medium">{{ currentLocale === 'zh-CN' ? 'English' : '中文' }}
           </span>
         </button>
       </div>
