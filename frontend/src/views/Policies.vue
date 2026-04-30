@@ -170,9 +170,9 @@ function getScheduleTypeColor(type: string): string {
     daily: 'bg-blue-100 text-blue-600',
     weekly: 'bg-purple-100 text-purple-600',
     monthly: 'bg-indigo-100 text-indigo-600',
-    manual: 'bg-slate-100 text-slate-600'
+    manual: 'bg-slate-100 dark:bg-slate-700 text-slate-600'
   }
-  return colors[type] || 'bg-slate-100 text-slate-600'
+  return colors[type] || 'bg-slate-100 dark:bg-slate-700 text-slate-600'
 }
 
 onMounted(() => {
@@ -186,7 +186,7 @@ onMounted(() => {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">{{ t('policies.title') }}</h1>
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ t('policies.title') }}</h1>
         <p class="text-slate-500 mt-1">{{ t('policies.subtitle') }}</p>
       </div>
       <button
@@ -201,15 +201,15 @@ onMounted(() => {
     <!-- Stats -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('policies.stats.total') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('policies.stats.total') }}</p>
         <p class="text-xl font-bold text-slate-800 mt-1">{{ policies.length }}</p>
       </div>
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('policies.stats.enabled') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('policies.stats.enabled') }}</p>
         <p class="text-xl font-bold text-emerald-600 mt-1">{{ policies.filter(p => p.enabled).length }}</p>
       </div>
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('policies.stats.disabled') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('policies.stats.disabled') }}</p>
         <p class="text-xl font-bold text-slate-400 mt-1">{{ policies.filter(p => !p.enabled).length }}</p>
       </div>
     </div>
@@ -228,7 +228,7 @@ onMounted(() => {
         </div>
         <button
           @click="fetchPolicies"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
         >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
@@ -242,16 +242,16 @@ onMounted(() => {
     </div>
 
     <div v-else-if="filteredPolicies.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
-      <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
         <DocumentTextIcon class="w-8 h-8 text-slate-400" />
       </div>
       <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('policies.empty.title') }}</h3>
-      <p class="text-slate-500">{{ t('policies.empty.description') }}</p>
+      <p class="text-slate-500 dark:text-slate-400">{{ t('policies.empty.description') }}</p>
     </div>
 
     <div v-else class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <table class="w-full">
-        <thead class="bg-slate-50 border-b border-slate-200">
+        <thead class="bg-slate-50 border-b border-slate-200 dark:border-slate-700">
           <tr>
             <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.name') }}</th>
             <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('policies.form.scheduleType') }}</th>
@@ -268,13 +268,13 @@ onMounted(() => {
                   <component :is="getScheduleTypeIcon(policy.schedule_type)" class="w-5 h-5" />
                 </div>
                 <div>
-                  <p class="text-sm font-medium text-slate-800">{{ policy.name }}</p>
-                  <p class="text-xs text-slate-500">{{ policy.backup_task_name || 'Task' }}</p>
+                  <p class="text-sm font-medium text-slate-800 dark:text-white">{{ policy.name }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ policy.backup_task_name || 'Task' }}</p>
                 </div>
               </div>
             </td>
             <td class="px-6 py-4">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
                 {{ getScheduleTypeLabel(policy.schedule_type) }}
               </span>
             </td>
@@ -283,7 +283,7 @@ onMounted(() => {
                 @click="togglePolicy(policy)"
                 :class="[
                   'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors',
-                  policy.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                  policy.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
                 ]"
               >
                 <CheckCircleIcon v-if="policy.enabled" class="w-3.5 h-3.5" />
@@ -291,13 +291,13 @@ onMounted(() => {
                 {{ policy.enabled ? t('common.enabled') : t('common.disabled') }}
               </button>
             </td>
-            <td class="px-6 py-4 text-sm text-slate-500">
+            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
               {{ policy.next_run ? new Date(policy.next_run).toLocaleString() : '-' }}
             </td>
             <td class="px-6 py-4 text-right">
               <div class="flex items-center justify-end gap-2">
                 <button
-                  class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:bg-slate-700 rounded-lg transition-colors"
                   :title="t('common.settings')"
                 >
                   <Cog6ToothIcon class="w-4 h-4" />
@@ -329,8 +329,8 @@ onMounted(() => {
         <div class="absolute inset-0 bg-black/50" @click="showCreateModal = false" />
         <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg">
           <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-slate-800">{{ t('policies.form.addPolicy') }}</h2>
-            <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ t('policies.form.addPolicy') }}</h2>
+            <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -369,7 +369,7 @@ onMounted(() => {
             </div>
           </div>
           <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
               {{ t('common.cancel') }}
             </button>
             <button @click="createPolicy" class="px-4 py-2 text-sm text-white bg-violet-600 rounded-lg hover:bg-violet-700">

@@ -917,7 +917,7 @@ function getRepoTypeColor(type: string): string {
     azure: 'bg-sky-100 text-sky-600',
     gcs: 'bg-red-100 text-red-600'
   }
-  return colors[type] || 'bg-slate-100 text-slate-600'
+  return colors[type] || 'bg-slate-100 dark:bg-slate-700 text-slate-600'
 }
 
 function getRepoTypeLabel(type: string | undefined | null): string {
@@ -960,7 +960,7 @@ onMounted(() => {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">{{ t('repository.title') }}</h1>
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ t('repository.title') }}</h1>
         <p class="text-slate-500 mt-1">{{ t('repository.subtitle') }}</p>
       </div>
       <button
@@ -975,19 +975,19 @@ onMounted(() => {
     <!-- Stats -->
     <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('repository.stats.total') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.stats.total') }}</p>
         <p class="text-xl font-bold text-slate-800 mt-1">{{ stats.total }}</p>
       </div>
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('repository.stats.active') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.stats.active') }}</p>
         <p class="text-xl font-bold text-emerald-600 mt-1">{{ stats.active }}</p>
       </div>
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('repository.stats.totalCapacity') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.stats.totalCapacity') }}</p>
         <p class="text-xl font-bold text-slate-800 mt-1">{{ formatBytes(stats.totalCapacity) }}</p>
       </div>
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('repository.stats.usedSpace') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.stats.usedSpace') }}</p>
         <p class="text-xl font-bold text-blue-600 mt-1">{{ formatBytes(stats.totalUsed) }}</p>
       </div>
     </div>
@@ -1015,7 +1015,7 @@ onMounted(() => {
         </select>
         <button
           @click="fetchRepositories"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
         >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
@@ -1053,11 +1053,11 @@ onMounted(() => {
       </div>
 
       <div v-else-if="filteredRepos.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
-        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
           <CircleStackIcon class="w-8 h-8 text-slate-400" />
         </div>
         <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('repository.empty.title') }}</h3>
-        <p class="text-slate-500">{{ t('repository.empty.description') }}</p>
+        <p class="text-slate-500 dark:text-slate-400">{{ t('repository.empty.description') }}</p>
       </div>
 
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1077,7 +1077,7 @@ onMounted(() => {
             </span>
             <span :class="[
               'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
-              repo.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+              repo.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-700 text-slate-600'
             ]">
               {{ repo.status === 'active' ? t('common.active') : t('common.inactive') }}
             </span>
@@ -1097,7 +1097,7 @@ onMounted(() => {
             </div>
             <div class="flex items-center gap-2 text-sm">
               <FolderIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
-              <span class="text-slate-600">{{ repo.config?.bucket || '-' }}</span>
+              <span class="text-slate-600 dark:text-slate-300">{{ repo.config?.bucket || '-' }}</span>
               <span v-if="repo.config?.prefix" class="text-slate-400">/{{ repo.config?.prefix }}</span>
             </div>
           </template>
@@ -1106,11 +1106,11 @@ onMounted(() => {
           <template v-else-if="repo.repo_type === 'nas'">
             <div class="flex items-center gap-2 text-sm">
               <ServerIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
-              <span class="text-slate-600">{{ repo.config?.server || '-' }}</span>
+              <span class="text-slate-600 dark:text-slate-300">{{ repo.config?.server || '-' }}</span>
             </div>
             <div class="flex items-center gap-2 text-sm">
               <FolderIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
-              <span class="text-slate-600">{{ repo.config?.export_path || '-' }}</span>
+              <span class="text-slate-600 dark:text-slate-300">{{ repo.config?.export_path || '-' }}</span>
             </div>
             <div class="flex items-center gap-2 text-sm">
               <span class="text-xs text-slate-400 uppercase px-1.5 py-0.5 bg-slate-200 rounded">{{ repo.config?.nas_type?.toUpperCase() || 'NFS' }}</span>
@@ -1126,9 +1126,9 @@ onMounted(() => {
           </template>
           
           <!-- Bound Node -->
-          <div class="flex items-center gap-2 text-sm pt-2 border-t border-slate-200">
+          <div class="flex items-center gap-2 text-sm pt-2 border-t border-slate-200 dark:border-slate-700">
             <LinkIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
-            <span class="text-slate-600">{{ getNodeName(repo.bound_node) }}</span>
+            <span class="text-slate-600 dark:text-slate-300">{{ getNodeName(repo.bound_node) }}</span>
           </div>
         </div>
         
@@ -1138,7 +1138,7 @@ onMounted(() => {
             <span>{{ t('repository.stats.usedSpace') }}</span>
             <span>{{ formatBytes(repo.used_space || 0) }} / {{ formatBytes(repo.capacity || 0) }}</span>
           </div>
-          <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
             <div
               class="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all"
               :style="{ width: `${repo.capacity ? ((repo.used_space || 0) / repo.capacity) * 100 : 0}%` }"
@@ -1146,7 +1146,7 @@ onMounted(() => {
           </div>
         </div>
         
-        <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+        <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700">
           <span class="text-xs text-slate-400 uppercase">{{ getRepoTypeLabel(repo.repo_type) }}</span>
           <div class="flex items-center gap-1">
             <button
@@ -1183,7 +1183,7 @@ onMounted(() => {
             </button>
             <button
               @click="selectedRepo = repo; showDetailModal = true"
-              class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:bg-slate-700 rounded-lg transition-colors"
               :title="t('common.details')"
             >
               <Cog6ToothIcon class="w-4 h-4" />
@@ -1208,17 +1208,17 @@ onMounted(() => {
       </div>
 
       <div v-else-if="filteredRepos.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
-        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
           <CircleStackIcon class="w-8 h-8 text-slate-400" />
         </div>
         <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('repository.empty.title') }}</h3>
-        <p class="text-slate-500">{{ t('repository.empty.description') }}</p>
+        <p class="text-slate-500 dark:text-slate-400">{{ t('repository.empty.description') }}</p>
       </div>
 
       <div v-else class="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="min-w-[1000px] w-full divide-y divide-slate-200">
-            <thead class="bg-slate-50">
+            <thead class="bg-slate-50 dark:bg-slate-700/50">
               <tr>
                 <th class="sticky left-0 bg-slate-50 px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider z-10">{{ t('repository.list.name') }}</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.type') }}</th>
@@ -1264,7 +1264,7 @@ onMounted(() => {
                 <td class="px-4 py-3 whitespace-nowrap">
                   <span :class="[
                     'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
-                    repo.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                    repo.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-700 text-slate-600'
                   ]">
                     {{ repo.status === 'active' ? t('common.active') : t('common.inactive') }}
                   </span>
@@ -1282,7 +1282,7 @@ onMounted(() => {
                   </template>
                 </td>
                 <!-- Bound Node -->
-                <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
                   {{ getNodeName(repo.bound_node) }}
                 </td>
                 <!-- Capacity -->
@@ -1294,7 +1294,7 @@ onMounted(() => {
                         :style="{ width: `${Math.min(((repo.used_space || 0) / repo.capacity) * 100, 100)}%` }"
                       />
                     </div>
-                    <span class="text-xs text-slate-500">{{ formatBytes(repo.used_space || 0) }}/{{ formatBytes(repo.capacity) }}</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ formatBytes(repo.used_space || 0) }}/{{ formatBytes(repo.capacity) }}</span>
                   </div>
                   <span v-else class="text-slate-400 text-sm">-</span>
                 </td>
@@ -1343,7 +1343,7 @@ onMounted(() => {
                     </button>
                     <button
                       @click="selectedRepo = repo; showDetailModal = true"
-                      class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                      class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:bg-slate-700 rounded-lg transition-colors"
                       :title="t('common.details')"
                     >
                       <InformationCircleIcon class="w-4 h-4" />
@@ -1377,10 +1377,10 @@ onMounted(() => {
         <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
           <!-- Fixed Header -->
           <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-            <h2 class="text-lg font-semibold text-slate-800">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">
               {{ isEditMode ? t('repository.form.editRepository') : t('repository.form.addRepository') }}
             </h2>
-            <button @click="showCreateModal = false; resetForm()" class="p-1 hover:bg-slate-100 rounded-lg">
+            <button @click="showCreateModal = false; resetForm()" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -1412,7 +1412,7 @@ onMounted(() => {
                 ]">
                   <component :is="type.icon" class="w-5 h-5" />
                 </div>
-                <span class="text-xs font-medium text-slate-700">{{ type.label }}</span>
+                <span class="text-xs font-medium text-slate-700 dark:text-slate-200">{{ type.label }}</span>
               </button>
             </div>
           </div>
@@ -1502,8 +1502,8 @@ onMounted(() => {
                   <!-- Use TLS Toggle -->
                   <div class="flex items-center justify-between py-2">
                     <div>
-                      <label class="block text-sm font-medium text-slate-700">{{ t('repository.s3.useTLS') }}</label>
-                      <p class="text-xs text-slate-500">{{ t('repository.s3.useTLSHint') }}</p>
+                      <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('repository.s3.useTLS') }}</label>
+                      <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.s3.useTLSHint') }}</p>
                     </div>
                     <button 
                       type="button"
@@ -1549,7 +1549,7 @@ onMounted(() => {
                         formErrors.secret_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
                       @input="clearError('secret_key')"
                     />
-                    <p v-if="isEditMode && !formErrors.secret_key" class="mt-1 text-xs text-slate-500">
+                    <p v-if="isEditMode && !formErrors.secret_key" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       {{ t('repository.s3.secretKeyEditHint') }}
                     </p>
                     <p v-if="formErrors.secret_key" class="mt-1 text-xs text-red-500">{{ formErrors.secret_key }}</p>
@@ -1609,7 +1609,7 @@ onMounted(() => {
                     :class="[
                       'w-full px-4 py-2 rounded-lg text-sm font-medium transition-all mb-3',
                       (!newRepo.s3_config.endpoint || !newRepo.s3_config.access_key || !newRepo.s3_config.secret_key)
-                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
                         : 'bg-orange-500 text-white hover:bg-orange-600'
                     ]"
                   >
@@ -1650,10 +1650,10 @@ onMounted(() => {
                 <!-- New Bucket Creation -->
                 <div v-if="newRepo.s3_config.bucket_mode === 'new'">
                   <!-- Bucket name rules info -->
-                  <div class="flex items-start gap-2 text-sm text-slate-600 bg-slate-50 rounded-lg p-3 mb-4 border border-slate-200">
+                  <div class="flex items-start gap-2 text-sm text-slate-600 bg-slate-50 rounded-lg p-3 mb-4 border border-slate-200 dark:border-slate-700">
                     <InformationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5 text-slate-400" />
                     <div class="text-xs space-y-1">
-                      <p class="font-medium text-slate-700">{{ t('repository.s3.bucketNameRules') }}:</p>
+                      <p class="font-medium text-slate-700 dark:text-slate-200">{{ t('repository.s3.bucketNameRules') }}:</p>
                       <ul class="list-disc list-inside text-slate-600 space-y-0.5">
                         <li>{{ t('repository.s3.bucketNameRule1') }}</li>
                         <li>{{ t('repository.s3.bucketNameRule2') }}</li>
@@ -1684,7 +1684,7 @@ onMounted(() => {
                         :class="[
                           'absolute right-1 top-1 bottom-1 px-3 rounded text-xs font-medium transition-all',
                           (!newRepo.s3_config.bucket || checkingBucketName)
-                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
                             : 'bg-blue-500 text-white hover:bg-blue-600'
                         ]"
                       >
@@ -1812,7 +1812,7 @@ onMounted(() => {
                       formErrors.password ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
                     @input="clearError('password')"
                   />
-                  <p v-if="isEditMode && !formErrors.password" class="mt-1 text-xs text-slate-500">
+                  <p v-if="isEditMode && !formErrors.password" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {{ t('repository.s3.secretKeyEditHint') }}
                   </p>
                   <p v-if="formErrors.password" class="mt-1 text-xs text-red-500">{{ formErrors.password }}</p>
@@ -1867,11 +1867,11 @@ onMounted(() => {
               </div>
 
               <!-- Directory Browser -->
-              <div v-if="newRepo.bound_node" class="bg-white rounded-lg border border-slate-200">
+              <div v-if="newRepo.bound_node" class="bg-white rounded-lg border border-slate-200 dark:border-slate-700">
                 <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
                   <div class="flex items-center gap-2 text-sm">
                     <FolderIcon class="w-4 h-4 text-slate-400" />
-                    <span class="text-slate-600">{{ t('repository.local.selectDirectory') }}</span>
+                    <span class="text-slate-600 dark:text-slate-300">{{ t('repository.local.selectDirectory') }}</span>
                   </div>
                   <button
                     v-if="currentPath !== '/'"
@@ -1883,8 +1883,8 @@ onMounted(() => {
                 </div>
                 
                 <!-- Current Path -->
-                <div class="px-3 py-2 bg-slate-50 border-b border-slate-100">
-                  <code class="text-sm text-slate-700">{{ currentPath || '/' }}</code>
+                <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 dark:border-slate-700">
+                  <code class="text-sm text-slate-700 dark:text-slate-200">{{ currentPath || '/' }}</code>
                 </div>
 
                 <!-- Loading -->
@@ -1894,7 +1894,7 @@ onMounted(() => {
 
                 <!-- Directory List -->
                 <div v-else class="max-h-48 overflow-y-auto">
-                  <div v-if="proxyDirectories.length === 0" class="py-6 text-center text-sm text-slate-500">
+                  <div v-if="proxyDirectories.length === 0" class="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
                     {{ t('repository.local.noSubdirectories') }}
                   </div>
                   <button
@@ -1904,13 +1904,13 @@ onMounted(() => {
                     class="w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-50 text-left text-sm"
                   >
                     <FolderIcon class="w-4 h-4 text-yellow-500" />
-                    <span class="text-slate-700">{{ dir }}</span>
+                    <span class="text-slate-700 dark:text-slate-200">{{ dir }}</span>
                     <ChevronRightIcon class="w-4 h-4 text-slate-400 ml-auto" />
                   </button>
                 </div>
 
                 <!-- Select Current Path -->
-                <div class="px-3 py-2 border-t border-slate-100">
+                <div class="px-3 py-2 border-t border-slate-100 dark:border-slate-700">
                   <button
                     @click="selectCurrentPath"
                     class="w-full py-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -1941,8 +1941,8 @@ onMounted(() => {
           </div>
           
           <!-- Fixed Footer -->
-          <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 flex-shrink-0 bg-white">
-            <button @click="showCreateModal = false; resetForm()" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+          <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 flex-shrink-0 bg-white dark:bg-slate-800">
+            <button @click="showCreateModal = false; resetForm()" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
               {{ t('common.cancel') }}
             </button>
             <button 
@@ -1968,8 +1968,8 @@ onMounted(() => {
         <div class="absolute inset-0 bg-black/50" @click="showDetailModal = false" />
         <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
           <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
-            <h2 class="text-lg font-semibold text-slate-800">{{ selectedRepo.name }}</h2>
-            <button @click="showDetailModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedRepo.name }}</h2>
+            <button @click="showDetailModal = false" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -1982,8 +1982,8 @@ onMounted(() => {
                 <component :is="getRepoTypeIcon(selectedRepo.repo_type)" class="w-6 h-6" />
               </div>
               <div class="flex-1">
-                <p class="font-medium text-slate-800">{{ getRepoTypeLabel(selectedRepo.repo_type) }}</p>
-                <p class="text-sm text-slate-500">{{ selectedRepo.status === 'active' ? t('common.active') : t('common.inactive') }}</p>
+                <p class="font-medium text-slate-800 dark:text-white">{{ getRepoTypeLabel(selectedRepo.repo_type) }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">{{ selectedRepo.status === 'active' ? t('common.active') : t('common.inactive') }}</p>
               </div>
               <span v-if="selectedRepo.kopia_initialized" class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
                 <CheckCircleIcon class="w-4 h-4" />
@@ -1994,17 +1994,17 @@ onMounted(() => {
             <!-- Description -->
             <div v-if="selectedRepo.description" class="bg-slate-50 rounded-lg p-4">
               <p class="text-xs text-slate-500 mb-1">{{ t('common.description') }}</p>
-              <p class="text-sm text-slate-700">{{ selectedRepo.description }}</p>
+              <p class="text-sm text-slate-700 dark:text-slate-200">{{ selectedRepo.description }}</p>
             </div>
             
             <!-- Storage Stats -->
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-slate-50 rounded-lg p-4">
-                <p class="text-xs text-slate-500">{{ t('repository.stats.totalCapacity') }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.stats.totalCapacity') }}</p>
                 <p class="font-semibold text-slate-800 text-lg">{{ formatBytes(selectedRepo.capacity || 0) }}</p>
               </div>
               <div class="bg-slate-50 rounded-lg p-4">
-                <p class="text-xs text-slate-500">{{ t('repository.stats.usedSpace') }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.stats.usedSpace') }}</p>
                 <p class="font-semibold text-slate-800 text-lg">{{ formatBytes(selectedRepo.used_space || 0) }}</p>
               </div>
             </div>
@@ -2017,28 +2017,28 @@ onMounted(() => {
               </h4>
               <div class="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.s3.endpoint') }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.s3.endpoint') }}</p>
                   <p class="text-slate-700 font-mono">{{ selectedRepo.config?.endpoint || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.s3.bucket') }}</p>
-                  <p class="text-slate-700">{{ selectedRepo.config?.bucket || '-' }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.s3.bucket') }}</p>
+                  <p class="text-slate-700 dark:text-slate-200">{{ selectedRepo.config?.bucket || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.s3.region') }}</p>
-                  <p class="text-slate-700">{{ selectedRepo.config?.region || '-' }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.s3.region') }}</p>
+                  <p class="text-slate-700 dark:text-slate-200">{{ selectedRepo.config?.region || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.s3.prefix') }}</p>
-                  <p class="text-slate-700">{{ selectedRepo.config?.prefix || '-' }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.s3.prefix') }}</p>
+                  <p class="text-slate-700 dark:text-slate-200">{{ selectedRepo.config?.prefix || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.s3.accessKey') }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.s3.accessKey') }}</p>
                   <p class="text-slate-700 font-mono">{{ selectedRepo.credentials_masked?.access_key || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.s3.useTLS') }}</p>
-                  <p class="text-slate-700">{{ selectedRepo.config?.use_tls !== false ? t('common.yes') : t('common.no') }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.s3.useTLS') }}</p>
+                  <p class="text-slate-700 dark:text-slate-200">{{ selectedRepo.config?.use_tls !== false ? t('common.yes') : t('common.no') }}</p>
                 </div>
               </div>
             </div>
@@ -2051,24 +2051,24 @@ onMounted(() => {
               </h4>
               <div class="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.nas.server') }}</p>
-                  <p class="text-slate-700">{{ selectedRepo.config?.server || '-' }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.nas.server') }}</p>
+                  <p class="text-slate-700 dark:text-slate-200">{{ selectedRepo.config?.server || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.nas.exportPath') }}</p>
-                  <p class="text-slate-700">{{ selectedRepo.config?.export_path || '-' }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.nas.exportPath') }}</p>
+                  <p class="text-slate-700 dark:text-slate-200">{{ selectedRepo.config?.export_path || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.nas.nasType') }}</p>
-                  <p class="text-slate-700">{{ selectedRepo.config?.nas_type?.toUpperCase() || 'NFS' }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.nas.nasType') }}</p>
+                  <p class="text-slate-700 dark:text-slate-200">{{ selectedRepo.config?.nas_type?.toUpperCase() || 'NFS' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-slate-500">{{ t('repository.nas.mountOptions') }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.nas.mountOptions') }}</p>
                   <p class="text-slate-700 font-mono text-xs">{{ selectedRepo.config?.mount_options || '-' }}</p>
                 </div>
                 <div v-if="selectedRepo.config?.nas_type === 'cifs'">
-                  <p class="text-xs text-slate-500">{{ t('repository.nas.username') }}</p>
-                  <p class="text-slate-700">{{ selectedRepo.config?.username || '-' }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.nas.username') }}</p>
+                  <p class="text-slate-700 dark:text-slate-200">{{ selectedRepo.config?.username || '-' }}</p>
                 </div>
               </div>
             </div>
@@ -2080,7 +2080,7 @@ onMounted(() => {
                 {{ t('repository.types.local') }} {{ t('repository.configInfo') }}
               </h4>
               <div class="text-sm">
-                <p class="text-xs text-slate-500">{{ t('repository.local.path') }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.local.path') }}</p>
                 <p class="text-slate-700 font-mono">{{ selectedRepo.config?.path || '-' }}</p>
               </div>
             </div>
@@ -2090,7 +2090,7 @@ onMounted(() => {
               <p class="text-xs text-slate-500 mb-1">{{ t('sourceResources.boundNode') }}</p>
               <div class="flex items-center gap-2">
                 <div :class="['w-2 h-2 rounded-full', getNodeStatus(selectedRepo.bound_node) === 'active' ? 'bg-emerald-500' : 'bg-slate-300']" />
-                <span class="text-sm text-slate-700">{{ getNodeName(selectedRepo.bound_node) }}</span>
+                <span class="text-sm text-slate-700 dark:text-slate-200">{{ getNodeName(selectedRepo.bound_node) }}</span>
                 <span v-if="getNode(selectedRepo.bound_node)?.role" class="text-xs text-slate-400">({{ getNode(selectedRepo.bound_node)?.role }})</span>
               </div>
             </div>
@@ -2098,17 +2098,17 @@ onMounted(() => {
             <!-- Timestamps -->
             <div class="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p class="text-xs text-slate-500">{{ t('common.createdAt') }}</p>
-                <p class="text-slate-700">{{ new Date(selectedRepo.created_at).toLocaleString() }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('common.createdAt') }}</p>
+                <p class="text-slate-700 dark:text-slate-200">{{ new Date(selectedRepo.created_at).toLocaleString() }}</p>
               </div>
               <div>
-                <p class="text-xs text-slate-500">{{ t('common.updatedAt') }}</p>
-                <p class="text-slate-700">{{ selectedRepo.updated_at ? new Date(selectedRepo.updated_at).toLocaleString() : '-' }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('common.updatedAt') }}</p>
+                <p class="text-slate-700 dark:text-slate-200">{{ selectedRepo.updated_at ? new Date(selectedRepo.updated_at).toLocaleString() : '-' }}</p>
               </div>
             </div>
           </div>
-          <div class="px-6 py-4 border-t border-slate-100 flex justify-end sticky bottom-0 bg-white">
-            <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+          <div class="px-6 py-4 border-t border-slate-100 flex justify-end sticky bottom-0 bg-white dark:bg-slate-800">
+            <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
               {{ t('common.cancel') }}
             </button>
           </div>

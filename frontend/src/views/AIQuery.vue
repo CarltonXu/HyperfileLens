@@ -155,14 +155,14 @@ function clearConversation() {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">{{ t('aiQuery.title') }}</h1>
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ t('aiQuery.title') }}</h1>
         <p class="text-slate-500 mt-1">{{ t('aiQuery.subtitle') }}</p>
       </div>
       <div class="flex items-center gap-4">
         <!-- Gateway Status -->
         <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
           <ServerIcon class="w-4 h-4 text-slate-400" />
-          <span class="text-sm text-slate-600">Gateway:</span>
+          <span class="text-sm text-slate-600 dark:text-slate-300">Gateway:</span>
           <span 
             :class="[
               'text-sm font-medium',
@@ -184,7 +184,7 @@ function clearConversation() {
         <button
           v-if="hasSearched"
           @click="clearConversation"
-          class="px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+          class="px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
         >
           {{ t('aiQuery.clearConversation') }}
         </button>
@@ -209,10 +209,10 @@ function clearConversation() {
               v-for="(suggestion, i) in suggestions"
               :key="i"
               @click="useSuggestion(suggestion.text)"
-              class="inline-flex items-center gap-2 px-3 py-2 text-sm bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+              class="inline-flex items-center gap-2 px-3 py-2 text-sm bg-slate-50 hover:bg-slate-100 dark:bg-slate-700 border border-slate-200 rounded-lg transition-colors"
             >
               <component :is="suggestion.icon" :class="['w-4 h-4', suggestion.color]" />
-              <span class="text-slate-600">{{ suggestion.text }}</span>
+              <span class="text-slate-600 dark:text-slate-300">{{ suggestion.text }}</span>
             </button>
           </div>
         </div>
@@ -232,7 +232,7 @@ function clearConversation() {
                 'max-w-[80%] px-4 py-3 rounded-2xl',
                 msg.role === 'user'
                   ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-br-md'
-                  : 'bg-slate-100 text-slate-800 rounded-bl-md'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-800 rounded-bl-md'
               ]"
             >
               <p class="text-sm">{{ msg.content }}</p>
@@ -241,14 +241,14 @@ function clearConversation() {
 
           <!-- Loading State -->
           <div v-if="isSearching" class="flex justify-start">
-            <div class="bg-slate-100 px-4 py-3 rounded-2xl rounded-bl-md">
+            <div class="bg-slate-100 dark:bg-slate-700 px-4 py-3 rounded-2xl rounded-bl-md">
               <div class="flex items-center gap-2">
                 <div class="flex gap-1">
                   <div class="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0s" />
                   <div class="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0.1s" />
                   <div class="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0.2s" />
                 </div>
-                <span class="text-sm text-slate-500">{{ t('aiQuery.analyzing') }}</span>
+                <span class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiQuery.analyzing') }}</span>
               </div>
             </div>
           </div>
@@ -258,7 +258,7 @@ function clearConversation() {
             <div
               v-for="result in results"
               :key="result.id"
-              class="bg-slate-50 border border-slate-200 rounded-lg p-4 hover:bg-slate-100 transition-colors cursor-pointer"
+              class="bg-slate-50 border border-slate-200 rounded-lg p-4 hover:bg-slate-100 dark:bg-slate-700 transition-colors cursor-pointer"
             >
               <div class="flex items-start gap-3">
                 <div class="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
@@ -279,14 +279,14 @@ function clearConversation() {
       </div>
 
       <!-- Input Area -->
-      <div class="border-t border-slate-200 p-4 bg-slate-50">
+      <div class="border-t border-slate-200 p-4 bg-slate-50 dark:bg-slate-700/50">
         <form @submit.prevent="handleSearch" class="flex items-end gap-3">
           <div class="flex-1">
             <textarea
               v-model="query"
               rows="1"
               :placeholder="t('aiQuery.search.placeholder')"
-              class="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none bg-white"
+              class="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none bg-white dark:bg-slate-800"
               @keydown.enter.exact.prevent="handleSearch"
             />
           </div>

@@ -184,9 +184,9 @@ function getStatusColor(status: string): string {
     paused: 'bg-purple-100 text-purple-700',
     completed: 'bg-emerald-100 text-emerald-700',
     failed: 'bg-red-100 text-red-700',
-    cancelled: 'bg-slate-100 text-slate-600'
+    cancelled: 'bg-slate-100 dark:bg-slate-700 text-slate-600'
   }
-  return colors[status] || 'bg-slate-100 text-slate-600'
+  return colors[status] || 'bg-slate-100 dark:bg-slate-700 text-slate-600'
 }
 
 function getStatusIcon(status: string) {
@@ -213,7 +213,7 @@ onMounted(() => {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">{{ t('backupTasks.title') }}</h1>
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ t('backupTasks.title') }}</h1>
         <p class="text-slate-500 mt-1">{{ t('backupTasks.subtitle') }}</p>
       </div>
       <button
@@ -228,23 +228,23 @@ onMounted(() => {
     <!-- Stats -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('common.total') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('common.total') }}</p>
         <p class="text-xl font-bold text-slate-800 mt-1">{{ taskStats.total_tasks }}</p>
       </div>
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('backupTasks.status.running') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('backupTasks.status.running') }}</p>
         <p class="text-xl font-bold text-indigo-600 mt-1">{{ taskStats.running_tasks }}</p>
       </div>
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('backupTasks.status.completed') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('backupTasks.status.completed') }}</p>
         <p class="text-xl font-bold text-emerald-600 mt-1">{{ taskStats.completed_tasks }}</p>
       </div>
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('backupTasks.status.failed') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('backupTasks.status.failed') }}</p>
         <p class="text-xl font-bold text-red-600 mt-1">{{ taskStats.failed_tasks }}</p>
       </div>
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <p class="text-xs text-slate-500">{{ t('backupTasks.progress.size') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('backupTasks.progress.size') }}</p>
         <p class="text-xl font-bold text-slate-800 mt-1">{{ formatBytes(taskStats.total_size_bytes) }}</p>
       </div>
     </div>
@@ -273,7 +273,7 @@ onMounted(() => {
         </select>
         <button
           @click="fetchTasks"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
         >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
@@ -287,16 +287,16 @@ onMounted(() => {
     </div>
 
     <div v-else-if="filteredTasks.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
-      <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
         <CloudArrowUpIcon class="w-8 h-8 text-slate-400" />
       </div>
       <h3 class="text-lg font-medium text-slate-800 mb-1">{{ t('backupTasks.empty.title') }}</h3>
-      <p class="text-slate-500">{{ t('backupTasks.empty.description') }}</p>
+      <p class="text-slate-500 dark:text-slate-400">{{ t('backupTasks.empty.description') }}</p>
     </div>
 
     <div v-else class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <table class="w-full">
-        <thead class="bg-slate-50 border-b border-slate-200">
+        <thead class="bg-slate-50 border-b border-slate-200 dark:border-slate-700">
           <tr>
             <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.name') }}</th>
             <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.type') }}</th>
@@ -324,13 +324,13 @@ onMounted(() => {
                   ]" />
                 </div>
                 <div>
-                  <p class="text-sm font-medium text-slate-800">{{ task.name }}</p>
-                  <p class="text-xs text-slate-500">{{ task.node_name || 'Node' }}</p>
+                  <p class="text-sm font-medium text-slate-800 dark:text-white">{{ task.name }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ task.node_name || 'Node' }}</p>
                 </div>
               </div>
             </td>
             <td class="px-6 py-4">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
                 {{ t(`backupTasks.types.${task.task_type || 'full'}`) }}
               </span>
             </td>
@@ -345,7 +345,7 @@ onMounted(() => {
                 <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
                   <span>{{ task.progress_percent || 0 }}%</span>
                 </div>
-                <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div
                     class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300"
                     :style="{ width: `${task.progress_percent || 0}%` }"
@@ -354,7 +354,7 @@ onMounted(() => {
               </div>
               <span v-else class="text-sm text-slate-400">-</span>
             </td>
-            <td class="px-6 py-4 text-sm text-slate-500">
+            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
               {{ task.created_at ? new Date(task.created_at).toLocaleDateString() : '-' }}
             </td>
             <td class="px-6 py-4 text-right">
@@ -377,7 +377,7 @@ onMounted(() => {
                 </button>
                 <button
                   @click="selectedTask = task; showDetailModal = true"
-                  class="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+                  class="p-1.5 text-slate-500 hover:bg-slate-100 dark:bg-slate-700 rounded-lg transition-colors"
                   :title="t('common.details')"
                 >
                   <EyeIcon class="w-4 h-4" />
@@ -402,8 +402,8 @@ onMounted(() => {
         <div class="absolute inset-0 bg-black/50" @click="showCreateModal = false" />
         <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
           <div class="sticky top-0 bg-white px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-slate-800">{{ t('backupTasks.createTask') }}</h2>
-            <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ t('backupTasks.createTask') }}</h2>
+            <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
           </div>
@@ -437,7 +437,7 @@ onMounted(() => {
             </div>
           </div>
           <div class="sticky bottom-0 bg-white px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
               {{ t('common.cancel') }}
             </button>
             <button @click="createTask" class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
@@ -454,8 +454,8 @@ onMounted(() => {
         <div class="absolute inset-0 bg-black/50" @click="showDetailModal = false" />
         <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg">
           <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-slate-800">{{ selectedTask.name }}</h2>
-            <button @click="showDetailModal = false" class="p-1 hover:bg-slate-100 rounded-lg">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedTask.name }}</h2>
+            <button @click="showDetailModal = false" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
           </div>
@@ -465,15 +465,15 @@ onMounted(() => {
                 <component :is="getStatusIcon(selectedTask.status)" class="w-4 h-4" />
                 {{ t(`backupTasks.status.${selectedTask.status}`) }}
               </span>
-              <span class="text-sm text-slate-500">{{ t(`backupTasks.types.${selectedTask.task_type || 'full'}`) }}</span>
+              <span class="text-sm text-slate-500 dark:text-slate-400">{{ t(`backupTasks.types.${selectedTask.task_type || 'full'}`) }}</span>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
               <div class="bg-slate-50 rounded-lg p-3">
-                <p class="text-slate-500">{{ t('backupTasks.form.sourceNode') }}</p>
+                <p class="text-slate-500 dark:text-slate-400">{{ t('backupTasks.form.sourceNode') }}</p>
                 <p class="font-medium text-slate-800 mt-1">{{ selectedTask.node_name || 'N/A' }}</p>
               </div>
               <div class="bg-slate-50 rounded-lg p-3">
-                <p class="text-slate-500">{{ t('backupTasks.form.repository') }}</p>
+                <p class="text-slate-500 dark:text-slate-400">{{ t('backupTasks.form.repository') }}</p>
                 <p class="font-medium text-slate-800 mt-1">{{ selectedTask.repository_name || 'N/A' }}</p>
               </div>
             </div>
@@ -485,7 +485,7 @@ onMounted(() => {
             </div>
           </div>
           <div class="px-6 py-4 border-t border-slate-100 flex justify-end">
-            <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+            <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
               {{ t('common.cancel') }}
             </button>
           </div>
