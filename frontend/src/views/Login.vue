@@ -104,11 +104,36 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+  <div class="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+    <!-- Animated Background -->
+    <div class="absolute inset-0 overflow-hidden">
+      <!-- Grid Pattern -->
+      <div class="absolute inset-0 opacity-20" style="background-image: linear-gradient(rgba(59, 130, 246, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(59, 130, 246, 0.3) 1px, transparent 1px); background-size: 50px 50px;"></div>
+      
+      <!-- Floating Particles -->
+      <div class="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
+      <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
+      <div class="absolute top-1/2 right-1/3 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" style="animation-delay: 2s;"></div>
+      
+      <!-- Data Stream Lines -->
+      <svg class="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0" />
+            <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0" />
+          </linearGradient>
+        </defs>
+        <line x1="0" y1="20%" x2="100%" y2="25%" stroke="url(#lineGradient)" stroke-width="1" class="animate-pulse" />
+        <line x1="0" y1="60%" x2="100%" y2="55%" stroke="url(#lineGradient)" stroke-width="1" class="animate-pulse" style="animation-delay: 0.5s;" />
+        <line x1="0" y1="80%" x2="100%" y2="85%" stroke="url(#lineGradient)" stroke-width="1" class="animate-pulse" style="animation-delay: 1s;" />
+      </svg>
+    </div>
+
     <!-- Language Switch -->
     <button
       @click="toggleLanguage"
-      class="fixed top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+      class="fixed top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-400 hover:text-white transition-colors bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700/50"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
@@ -116,54 +141,66 @@ onMounted(() => {
       {{ locale === 'zh-CN' ? 'EN' : '中文' }}
     </button>
 
-    <div class="w-full max-w-sm">
+    <div class="w-full max-w-sm relative z-10">
       <!-- Logo & Title -->
       <div class="text-center mb-6">
-        <div class="inline-flex items-center justify-center w-10 h-10 bg-indigo-600 rounded-lg mb-3">
-          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+        <div class="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl mb-3 shadow-lg shadow-blue-500/25">
+          <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
           </svg>
         </div>
-        <h1 class="text-xl font-semibold text-slate-900">HyperFileLens</h1>
-        <p class="text-sm text-slate-500 mt-1">{{ t('auth.loginSubtitle') }}</p>
+        <h1 class="text-xl font-bold text-white tracking-tight">HyperFileLens</h1>
+        <p class="text-sm text-slate-400 mt-1">{{ t('auth.loginSubtitle') }}</p>
       </div>
 
       <!-- Login Card -->
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <div class="bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-700/50 p-5">
         <form @submit.prevent="handleLogin" class="space-y-4">
           <!-- Error -->
-          <div v-if="error" class="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg">
+          <div v-if="error" class="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-3 py-2 rounded-lg">
             {{ error }}
           </div>
 
           <!-- Email -->
           <div>
-            <label class="block text-sm text-slate-600 mb-1">{{ t('auth.email') }}</label>
-            <input
-              v-model="email"
-              type="email"
-              class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              :placeholder="t('auth.emailPlaceholder')"
-              required
-              autofocus
-            />
+            <label class="block text-sm text-slate-400 mb-1">{{ t('auth.email') }}</label>
+            <div class="relative">
+              <div class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <input
+                v-model="email"
+                type="email"
+                class="w-full pl-9 pr-3 py-2 text-sm bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                :placeholder="t('auth.emailPlaceholder')"
+                required
+                autofocus
+              />
+            </div>
           </div>
 
           <!-- Password -->
           <div>
-            <label class="block text-sm text-slate-600 mb-1">{{ t('auth.password') }}</label>
+            <label class="block text-sm text-slate-400 mb-1">{{ t('auth.password') }}</label>
             <div class="relative">
+              <div class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
               <input
                 v-model="password"
                 :type="showPassword ? 'text' : 'password'"
-                class="w-full px-3 py-2 pr-9 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                class="w-full pl-9 pr-9 py-2 text-sm bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
                 :placeholder="t('auth.passwordPlaceholder')"
                 required
               />
               <button
                 type="button"
                 @click="showPassword = !showPassword"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
               >
                 <svg v-if="!showPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -178,30 +215,37 @@ onMounted(() => {
 
           <!-- Captcha -->
           <div>
-            <label class="block text-sm text-slate-600 mb-1">{{ t('auth.captcha') }}</label>
+            <label class="block text-sm text-slate-400 mb-1">{{ t('auth.captcha') }}</label>
             <div class="flex gap-2">
-              <input
-                v-model="captcha"
-                type="text"
-                maxlength="6"
-                class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent uppercase tracking-wider text-center"
-                :placeholder="t('auth.captchaPlaceholder')"
-                required
-              />
-              <div class="relative h-9 w-24 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer overflow-hidden" @click="refreshCaptcha" :title="t('auth.refreshCaptcha')">
+              <div class="relative flex-1">
+                <div class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <input
+                  v-model="captcha"
+                  type="text"
+                  maxlength="6"
+                  class="w-full pl-9 pr-3 py-2 text-sm bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 uppercase tracking-wider text-center"
+                  :placeholder="t('auth.captchaPlaceholder')"
+                  required
+                />
+              </div>
+              <div class="relative h-9 w-24 rounded-lg border border-slate-700 bg-slate-900/50 cursor-pointer overflow-hidden hover:border-blue-500/50 transition-colors" @click="refreshCaptcha" :title="t('auth.refreshCaptcha')">
                 <img
                   v-if="captchaUrl"
                   :src="captchaUrl"
                   alt="Captcha"
                   class="h-full w-full object-cover"
                 />
-                <div v-if="captchaLoading" class="absolute inset-0 bg-slate-100/80 flex items-center justify-center">
-                  <svg class="w-4 h-4 text-slate-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                <div v-if="captchaLoading" class="absolute inset-0 bg-slate-900/80 flex items-center justify-center">
+                  <svg class="w-4 h-4 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 </div>
-                <div v-if="!captchaUrl && !captchaLoading" class="h-full w-full flex items-center justify-center text-slate-400">
+                <div v-if="!captchaUrl && !captchaLoading" class="h-full w-full flex items-center justify-center text-slate-500">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
@@ -213,10 +257,10 @@ onMounted(() => {
           <!-- Remember & Forgot -->
           <div class="flex items-center justify-between text-sm">
             <label class="flex items-center gap-1.5 cursor-pointer">
-              <input v-model="rememberMe" type="checkbox" class="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600" />
-              <span class="text-slate-600">{{ t('auth.rememberMe') }}</span>
+              <input v-model="rememberMe" type="checkbox" class="w-3.5 h-3.5 rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500/50" />
+              <span class="text-slate-400">{{ t('auth.rememberMe') }}</span>
             </label>
-            <router-link to="/forgot-password" class="text-indigo-600 hover:text-indigo-700">
+            <router-link to="/forgot-password" class="text-blue-400 hover:text-blue-300 transition-colors">
               {{ t('auth.forgotPassword') }}
             </router-link>
           </div>
@@ -224,63 +268,77 @@ onMounted(() => {
           <!-- Submit -->
           <button
             type="submit"
-            class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-sm font-medium rounded-lg transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="!isValid || isLoading"
           >
-            {{ isLoading ? t('auth.loggingIn') : t('auth.login') }}
+            <span v-if="isLoading" class="flex items-center justify-center gap-2">
+              <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ t('auth.loggingIn') }}
+            </span>
+            <span v-else>{{ t('auth.login') }}</span>
           </button>
         </form>
 
         <!-- Divider -->
         <div class="relative my-4">
           <div class="absolute inset-0 flex items-center">
-            <div class="w-full border-t border-slate-200"></div>
+            <div class="w-full border-t border-slate-700"></div>
           </div>
           <div class="relative flex justify-center text-xs">
-            <span class="px-2 bg-white text-slate-400">{{ t('auth.or') }}</span>
+            <span class="px-2 bg-slate-800/60 text-slate-500">{{ t('auth.or') }}</span>
           </div>
         </div>
 
         <!-- Register Link -->
-        <p class="text-center text-sm text-slate-500">
+        <p class="text-center text-sm text-slate-400">
           {{ t('auth.noAccount') }}
-          <router-link to="/register" class="text-indigo-600 hover:text-indigo-700 font-medium">
+          <router-link to="/register" class="text-blue-400 hover:text-blue-300 font-medium transition-colors">
             {{ t('auth.registerNow') }}
           </router-link>
         </p>
       </div>
 
       <!-- Footer -->
-      <p class="text-center text-xs text-slate-400 mt-4">
-        &copy; 2024 HyperFileLens
+      <p class="text-center text-xs text-slate-500 mt-4">
+        &copy; 2024 HyperFileLens · AI-Powered Backup Intelligence
       </p>
     </div>
 
     <!-- MFA Dialog -->
-    <div v-if="showMfaDialog" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-xl shadow-xl p-5 w-full max-w-xs">
-        <h3 class="text-lg font-medium text-slate-900 text-center mb-1">{{ t('auth.mfaRequired') }}</h3>
-        <p class="text-sm text-slate-500 text-center mb-4">{{ t('auth.mfaCodeSent') }}</p>
+    <div v-if="showMfaDialog" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-5 w-full max-w-xs">
+        <div class="text-center mb-4">
+          <div class="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl mb-3">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-medium text-white">{{ t('auth.mfaRequired') }}</h3>
+          <p class="text-sm text-slate-400 mt-1">{{ t('auth.mfaCodeSent') }}</p>
+        </div>
         
         <input
           v-model="mfaCode"
           type="text"
           maxlength="6"
-          class="w-full px-3 py-2 text-center text-xl tracking-widest border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
+          class="w-full px-3 py-3 text-center text-xl tracking-widest bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 mb-4"
           :placeholder="t('auth.mfaCodePlaceholder')"
         />
         
         <div class="flex gap-2">
           <button
             @click="showMfaDialog = false"
-            class="flex-1 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50"
+            class="flex-1 py-2 border border-slate-700 text-slate-400 text-sm rounded-lg hover:bg-slate-700/50 transition-colors"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             @click="handleVerifyMfa"
             :disabled="!mfaCode || isLoading"
-            class="flex-1 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            class="flex-1 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm rounded-lg hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 transition-all"
           >
             {{ t('auth.verify') }}
           </button>
