@@ -1292,27 +1292,27 @@ onUnmounted(() => {
             v-model="searchQuery"
             type="text"
             :placeholder="t('common.search')"
-            class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
         </div>
         <select
           v-model="selectedRole"
-          class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="all">{{ t('common.role') }}: {{ t('common.all') }}</option>
-          <option value="agent">{{ t('proxies.roles.agent') }}</option>
-          <option value="sync">{{ t('proxies.roles.sync') }}</option>
+          <option value="all" class="bg-white dark:bg-slate-700">{{ t('common.role') }}: {{ t('common.all') }}</option>
+          <option value="agent" class="bg-white dark:bg-slate-700">{{ t('proxies.roles.agent') }}</option>
+          <option value="sync" class="bg-white dark:bg-slate-700">{{ t('proxies.roles.sync') }}</option>
         </select>
         <select
           v-model="selectedStatus"
-          class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="all">{{ t('common.status') }}: {{ t('common.all') }}</option>
-          <option value="active">{{ t('proxies.status.active') }}</option>
-          <option value="pending">{{ t('proxies.status.pending') }}</option>
-          <option value="offline">{{ t('proxies.status.offline') }}</option>
-          <option value="error">{{ t('proxies.status.error') }}</option>
-          <option value="maintenance">{{ t('proxies.status.maintenance') }}</option>
+          <option value="all" class="bg-white dark:bg-slate-700">{{ t('common.status') }}: {{ t('common.all') }}</option>
+          <option value="active" class="bg-white dark:bg-slate-700">{{ t('proxies.status.active') }}</option>
+          <option value="pending" class="bg-white dark:bg-slate-700">{{ t('proxies.status.pending') }}</option>
+          <option value="offline" class="bg-white dark:bg-slate-700">{{ t('proxies.status.offline') }}</option>
+          <option value="error" class="bg-white dark:bg-slate-700">{{ t('proxies.status.error') }}</option>
+          <option value="maintenance" class="bg-white dark:bg-slate-700">{{ t('proxies.status.maintenance') }}</option>
         </select>
         <button
           @click="fetchProxies"
@@ -1852,7 +1852,7 @@ onUnmounted(() => {
                 type="text"
                 required
                 :placeholder="t('proxies.install.namePlaceholder')"
-                class="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                class="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
 
@@ -1869,8 +1869,8 @@ onUnmounted(() => {
                   :class="[
                     'px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all',
                     installData.os === os
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400'
+                      : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                   ]"
                 >
                   {{ t(`proxies.install.os.${os}`) }}
@@ -1900,12 +1900,12 @@ onUnmounted(() => {
                   v-model="installData.newLabel"
                   type="text"
                   :placeholder="t('proxies.install.labelPlaceholder')"
-                  class="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  class="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   @keyup.enter="addLabel"
                 />
                 <button
                   @click="addLabel"
-                  class="px-4 py-2 text-sm font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50"
+                  class="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
                 >
                   {{ t('common.add') }}
                 </button>
@@ -1927,7 +1927,7 @@ onUnmounted(() => {
             <div class="flex justify-between pt-4">
               <button
                 @click="installStep = 1"
-                class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
               >
                 {{ t('common.back') }}
               </button>
@@ -2028,7 +2028,7 @@ onUnmounted(() => {
             <div class="flex justify-between pt-4">
               <button
                 @click="installStep = 2"
-                class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
               >
                 {{ t('common.back') }}
               </button>
