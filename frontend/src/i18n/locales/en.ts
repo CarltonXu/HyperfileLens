@@ -47,7 +47,7 @@ export default {
     disabled: 'Disabled',
     active: 'Active',
     inactive: 'Inactive',
-    undefined: 'Unknown',
+    unknown: 'Unknown',
     viewDetails: 'View Details',
     pending: 'Pending',
     all: 'All',
@@ -1499,7 +1499,7 @@ export default {
     active: 'Active',
     inactive: 'Inactive',
     suspended: 'Suspended',
-    undefined: 'Unknown',
+    unknown: 'Unknown',
     maxUsers: 'Max Users',
     maxProxies: 'Max Proxies',
     maxRepositories: 'Max Repositories',
@@ -1569,7 +1569,7 @@ export default {
       admin: 'Tenant Admin',
       member: 'Tenant User',
       superAdmin: 'Platform Admin',
-      undefined: 'Not Set'
+      notSet: 'Not Set'
     },
     isSuperuser: 'Platform Admin Privilege',
     platformAdmin: 'Platform Admin',

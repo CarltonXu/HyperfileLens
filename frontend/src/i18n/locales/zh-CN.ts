@@ -1499,7 +1499,7 @@ export default {
     active: '活跃',
     inactive: '已停用',
     suspended: '已暂停',
-    undefined: '未知',
+    unknown: '未知',
     maxUsers: '最大用户数',
     maxProxies: '最大代理数',
     maxRepositories: '最大仓库数',
@@ -1569,7 +1569,7 @@ export default {
       admin: '租户管理员',
       member: '租户用户',
       superAdmin: '平台管理员',
-      undefined: '未设置'
+      notSet: '未设置'
     },
     isSuperuser: '平台管理员权限',
     platformAdmin: '平台管理员',
