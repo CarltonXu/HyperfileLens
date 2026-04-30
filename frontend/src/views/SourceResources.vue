@@ -272,7 +272,7 @@ onMounted(fetchData)
         </select>
         <button
           @click="fetchData"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
         >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
