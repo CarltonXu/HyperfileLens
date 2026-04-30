@@ -1174,19 +1174,46 @@ export default {
   // Audit Log
   auditLog: {
     title: '审计日志',
-    subtitle: '跟踪系统活动',
+    description: '查看系统操作记录，追踪用户活动和系统变更',
+    export: '导出',
+    startDate: '开始日期',
+    endDate: '结束日期',
+    action: '操作',
+    resourceType: '资源类型',
+    totalLogs: '总日志数',
+    todayLogs: '今日日志',
+    successRate: '成功率',
+    failureCount: '失败数',
+    timestamp: '时间',
+    user: '用户',
+    system: '系统',
+    resource: '资源',
+    result: '结果',
+    ipAddress: 'IP 地址',
+    errorMessage: '错误信息',
+    changes: '变更',
+    requestPath: '请求路径',
+    noChanges: '无变更记录',
+    loading: '加载中...',
 
     stats: {
       success: '成功',
       warning: '警告',
-      failure: '失败'
+      failure: '失败',
+      total: '总计',
+      today: '今日'
     },
 
     filters: {
       user: '用户',
       action: '操作',
       resource: '资源',
-      dateRange: '日期范围'
+      dateRange: '日期范围',
+      allUsers: '所有用户',
+      allActions: '所有操作',
+      allResources: '所有资源',
+      clear: '清除筛选',
+      apply: '应用筛选'
     },
 
     columns: {
@@ -1196,20 +1223,72 @@ export default {
       resourceType: '资源类型',
       resourceId: '资源 ID',
       details: '详情',
-      ipAddress: 'IP 地址'
+      ipAddress: 'IP 地址',
+      result: '结果'
     },
 
     actions: {
       export: '导出',
       filter: '筛选',
+      refresh: '刷新',
       backupCreate: '创建备份',
       backupExecute: '执行备份',
-      recoveryCreate: '创建恢复'
+      recoveryCreate: '创建恢复',
+      userLogin: '用户登录',
+      userLogout: '用户登出',
+      userCreate: '创建用户',
+      userUpdate: '更新用户',
+      userDelete: '删除用户',
+      tenantCreate: '创建租户',
+      tenantUpdate: '更新租户',
+      tenantDelete: '删除租户',
+      proxyRegister: '注册代理',
+      proxyUpdate: '更新代理',
+      proxyDelete: '删除代理',
+      policyCreate: '创建策略',
+      policyUpdate: '更新策略',
+      policyDelete: '删除策略',
+      repositoryCreate: '创建仓库',
+      repositoryUpdate: '更新仓库',
+      repositoryDelete: '删除仓库',
+      sourceCreate: '创建源资源',
+      sourceUpdate: '更新源资源',
+      sourceDelete: '删除源资源'
+    },
+
+    resourceTypes: {
+      user: '用户',
+      tenant: '租户',
+      proxy: '代理',
+      backup_task: '备份任务',
+      recovery_task: '恢复任务',
+      policy: '策略',
+      repository: '存储库',
+      source_resource: '源资源',
+      license: '许可证'
+    },
+
+    results: {
+      success: '成功',
+      failure: '失败',
+      partial: '部分成功'
     },
 
     empty: {
       title: '暂无审计日志',
-      description: '系统活动将显示在这里'
+      description: '系统活动将显示在这里',
+      noResults: '没有找到匹配的记录'
+    },
+
+    detail: {
+      title: '操作详情',
+      basicInfo: '基本信息',
+      requestInfo: '请求信息',
+      responseInfo: '响应信息',
+      changes: '变更详情',
+      before: '变更前',
+      after: '变更后',
+      close: '关闭'
     }
   },
 

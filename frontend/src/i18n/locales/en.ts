@@ -1174,19 +1174,46 @@ export default {
   // Audit Log
   auditLog: {
     title: 'Audit Log',
-    subtitle: 'Track system activities',
+    description: 'View system operation records, track user activities and system changes',
+    export: 'Export',
+    startDate: 'Start Date',
+    endDate: 'End Date',
+    action: 'Action',
+    resourceType: 'Resource Type',
+    totalLogs: 'Total Logs',
+    todayLogs: "Today's Logs",
+    successRate: 'Success Rate',
+    failureCount: 'Failure Count',
+    timestamp: 'Timestamp',
+    user: 'User',
+    system: 'System',
+    resource: 'Resource',
+    result: 'Result',
+    ipAddress: 'IP Address',
+    errorMessage: 'Error Message',
+    changes: 'Changes',
+    requestPath: 'Request Path',
+    noChanges: 'No changes recorded',
+    loading: 'Loading...',
 
     stats: {
       success: 'Success',
       warning: 'Warning',
-      failure: 'Failure'
+      failure: 'Failure',
+      total: 'Total',
+      today: 'Today'
     },
 
     filters: {
       user: 'User',
       action: 'Action',
       resource: 'Resource',
-      dateRange: 'Date Range'
+      dateRange: 'Date Range',
+      allUsers: 'All Users',
+      allActions: 'All Actions',
+      allResources: 'All Resources',
+      clear: 'Clear Filters',
+      apply: 'Apply Filters'
     },
 
     columns: {
@@ -1196,20 +1223,72 @@ export default {
       resourceType: 'Resource Type',
       resourceId: 'Resource ID',
       details: 'Details',
-      ipAddress: 'IP Address'
+      ipAddress: 'IP Address',
+      result: 'Result'
     },
 
     actions: {
       export: 'Export',
       filter: 'Filter',
+      refresh: 'Refresh',
       backupCreate: 'Backup Created',
       backupExecute: 'Backup Executed',
-      recoveryCreate: 'Recovery Created'
+      recoveryCreate: 'Recovery Created',
+      userLogin: 'User Login',
+      userLogout: 'User Logout',
+      userCreate: 'User Created',
+      userUpdate: 'User Updated',
+      userDelete: 'User Deleted',
+      tenantCreate: 'Tenant Created',
+      tenantUpdate: 'Tenant Updated',
+      tenantDelete: 'Tenant Deleted',
+      proxyRegister: 'Proxy Registered',
+      proxyUpdate: 'Proxy Updated',
+      proxyDelete: 'Proxy Deleted',
+      policyCreate: 'Policy Created',
+      policyUpdate: 'Policy Updated',
+      policyDelete: 'Policy Deleted',
+      repositoryCreate: 'Repository Created',
+      repositoryUpdate: 'Repository Updated',
+      repositoryDelete: 'Repository Deleted',
+      sourceCreate: 'Source Created',
+      sourceUpdate: 'Source Updated',
+      sourceDelete: 'Source Deleted'
+    },
+
+    resourceTypes: {
+      user: 'User',
+      tenant: 'Tenant',
+      proxy: 'Proxy',
+      backup_task: 'Backup Task',
+      recovery_task: 'Recovery Task',
+      policy: 'Policy',
+      repository: 'Repository',
+      source_resource: 'Source Resource',
+      license: 'License'
+    },
+
+    results: {
+      success: 'Success',
+      failure: 'Failure',
+      partial: 'Partial Success'
     },
 
     empty: {
       title: 'No audit logs',
-      description: 'System activities will appear here'
+      description: 'System activities will appear here',
+      noResults: 'No matching records found'
+    },
+
+    detail: {
+      title: 'Operation Details',
+      basicInfo: 'Basic Information',
+      requestInfo: 'Request Information',
+      responseInfo: 'Response Information',
+      changes: 'Change Details',
+      before: 'Before',
+      after: 'After',
+      close: 'Close'
     }
   },
 

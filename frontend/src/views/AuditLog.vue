@@ -166,7 +166,7 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-gray-900 dark:text-white">
-                  {{ log.user_display || 'System' }}
+                  {{ log.user_display || t('auditLog.user') }}
                 </div>
                 <div class="text-sm text-gray-500 dark:text-gray-400">
                   {{ log.user_email || '-' }}
