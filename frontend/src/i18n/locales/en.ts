@@ -86,6 +86,13 @@ export default {
     results: 'results'
   },
 
+  // Theme
+  theme: {
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System'
+  },
+
   // Auth
   auth: {
     login: 'Login',

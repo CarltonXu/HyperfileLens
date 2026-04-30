@@ -85,6 +85,13 @@ export default {
     results: '条结果'
   },
 
+  // Theme
+  theme: {
+    light: '浅色',
+    dark: '深色',
+    system: '跟随系统'
+  },
+
   // Auth
   auth: {
     login: '登录',

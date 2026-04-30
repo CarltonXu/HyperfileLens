@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
+import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 import {
   HomeIcon,
   ServerIcon,
@@ -130,7 +131,7 @@ const navigation = computed(() => {
       icon: UsersIcon,
       iconSolid: UsersIconSolid,
       current: route.path === '/users',
-      requiresTenantAdmin: true  // 超级管理员或租户管理员可见
+      requiresTenantAdmin: true
     },
     {
       name: t('nav.licenses'),
@@ -148,14 +149,11 @@ const navigation = computed(() => {
     }
   ]
 
-  // Filter out items that require superuser if user is not superuser
-  // Filter out items that require tenant admin if user is not tenant admin or superuser
   return items.filter(item => {
     if (item.requiresSuperuser && !authStore.user?.is_superuser) {
       return false
     }
     if (item.requiresTenantAdmin) {
-      // 超级管理员或租户管理员可见
       const isSuperuser = authStore.user?.is_superuser
       const role = authStore.user?.tenant_role
       if (!isSuperuser && role !== 'admin') {
@@ -237,14 +235,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 flex flex-col">
+  <div class="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
     <!-- Top Header Bar -->
-    <header class="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 shadow-sm z-40 flex items-center justify-between px-4">
+    <header class="fixed top-0 left-0 right-0 h-14 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm z-40 flex items-center justify-between px-4">
       <!-- Left: Logo & Toggle -->
       <div class="flex items-center gap-3">
         <button
           @click="toggleSidebar"
-          class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors lg:hidden"
+          class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors lg:hidden"
         >
           <Bars3Icon class="w-5 h-5" />
         </button>
@@ -252,17 +250,20 @@ onUnmounted(() => {
           <div class="w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
             <ComputerDesktopIcon class="w-4 h-4 text-white" />
           </div>
-          <span class="font-semibold text-slate-800 text-sm hidden sm:block">HyperFileLens</span>
+          <span class="font-semibold text-slate-800 dark:text-white text-sm hidden sm:block">HyperFileLens</span>
         </div>
       </div>
 
-      <!-- Right: Language Switcher & User Menu -->
-      <div class="flex items-center gap-2">
+      <!-- Right: Theme, Language Switcher & User Menu -->
+      <div class="flex items-center gap-1">
+        <!-- Theme Switcher -->
+        <ThemeSwitcher />
+
         <!-- Language Switcher -->
         <div class="relative lang-menu">
           <button
             @click="toggleLangMenu"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <LanguageIcon class="w-4 h-4" />
             <span class="text-sm font-medium">
@@ -274,13 +275,13 @@ onUnmounted(() => {
           <Transition name="dropdown">
             <div
               v-if="isLangMenuOpen"
-              class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-50 w-32"
+              class="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-50 w-32"
             >
               <button
                 @click="setLocale('en')"
                 :class="[
-                  'flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 first:rounded-t-lg',
-                  locale === 'en' ? 'bg-indigo-50 text-indigo-600' : ''
+                  'flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 first:rounded-t-lg',
+                  locale === 'en' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : ''
                 ]"
               >
                 <span class="w-6 text-center">EN</span>
@@ -289,8 +290,8 @@ onUnmounted(() => {
               <button
                 @click="setLocale('zh-CN')"
                 :class="[
-                  'flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 last:rounded-b-lg',
-                  locale === 'zh-CN' ? 'bg-indigo-50 text-indigo-600' : ''
+                  'flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 last:rounded-b-lg',
+                  locale === 'zh-CN' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : ''
                 ]"
               >
                 <span class="w-6 text-center">中</span>
@@ -306,7 +307,7 @@ onUnmounted(() => {
             @click="toggleUserMenu"
             :class="[
               'flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors',
-              isUserMenuOpen ? 'bg-slate-100' : 'hover:bg-slate-50'
+              isUserMenuOpen ? 'bg-slate-100 dark:bg-slate-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700'
             ]"
           >
             <div class="w-7 h-7 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center shadow-sm">
@@ -315,7 +316,7 @@ onUnmounted(() => {
               </span>
             </div>
             <div class="text-left hidden sm:block">
-              <p class="text-sm font-medium text-slate-800">
+              <p class="text-sm font-medium text-slate-800 dark:text-white">
                 {{ authStore.userFullName }}
               </p>
             </div>
@@ -325,17 +326,17 @@ onUnmounted(() => {
           <Transition name="dropdown">
             <div
               v-if="isUserMenuOpen"
-              class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 z-50 w-56"
+              class="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-50 w-56"
             >
-              <div class="px-3 py-2 border-b border-slate-100">
-                <p class="text-sm font-medium text-slate-800 truncate">{{ authStore.userFullName }}</p>
+              <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-700">
+                <p class="text-sm font-medium text-slate-800 dark:text-white truncate">{{ authStore.userFullName }}</p>
                 <p class="text-xs text-slate-400 truncate">{{ authStore.user?.email }}</p>
                 <p class="text-xs text-slate-400 truncate">{{ authStore.user?.role?.name || 'User' }}</p>
               </div>
-              <div class="py-1 border-b border-slate-100">
+              <div class="py-1 border-b border-slate-100 dark:border-slate-700">
                 <button
                   @click="openProfile"
-                  class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
                   <UserCircleIcon class="w-4 h-4" />
                   <span>{{ t('settings.profile.title') }}</span>
@@ -343,7 +344,7 @@ onUnmounted(() => {
               </div>
               <button
                 @click="handleLogout"
-                class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
+                class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-b-lg"
               >
                 <ArrowRightStartOnRectangleIcon class="w-4 h-4" />
                 <span>{{ t('nav.logout') }}</span>
@@ -359,7 +360,7 @@ onUnmounted(() => {
       <!-- Left Sidebar -->
       <aside
         :class="[
-          'fixed left-0 top-14 h-[calc(100vh-3.5rem)] bg-white border-r border-slate-200 shadow-lg z-30 transition-all duration-300 ease-in-out flex flex-col',
+          'fixed left-0 top-14 h-[calc(100vh-3.5rem)] bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 shadow-lg z-30 transition-all duration-300 ease-in-out flex flex-col',
           isCollapsed ? 'w-16' : 'w-64'
         ]"
       >
@@ -372,8 +373,8 @@ onUnmounted(() => {
                 :class="[
                   'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative group',
                   item.current
-                    ? 'bg-indigo-50 text-indigo-600'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
                 ]"
                 @mouseenter="(e) => handleMouseEnter(item, e)"
                 @mouseleave="handleMouseLeave"
@@ -382,7 +383,7 @@ onUnmounted(() => {
                   :is="item.current ? item.iconSolid : item.icon"
                   :class="[
                     'w-5 h-5 flex-shrink-0 transition-colors',
-                    item.current ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'
+                    item.current ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
                   ]"
                 />
                 <Transition name="fade">
@@ -394,7 +395,7 @@ onUnmounted(() => {
                 <!-- Active indicator -->
                 <div
                   v-if="item.current"
-                  class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"
+                  class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 dark:bg-indigo-400 rounded-r-full"
                 />
               </router-link>
             </li>
@@ -402,10 +403,10 @@ onUnmounted(() => {
         </nav>
 
         <!-- Collapse Button -->
-        <div class="border-t border-slate-100 p-2">
+        <div class="border-t border-slate-100 dark:border-slate-700 p-2">
           <button
             @click="toggleSidebar"
-            class="flex items-center justify-center w-full px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"
+            class="flex items-center justify-center w-full px-3 py-2.5 rounded-lg text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
           >
             <component
               :is="isCollapsed ? ChevronRightIcon : ChevronLeftIcon"
@@ -432,11 +433,11 @@ onUnmounted(() => {
     <Transition name="tooltip">
       <div
         v-if="tooltipPosition.show"
-        class="fixed bg-slate-800 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap shadow-xl z-[9999] pointer-events-none"
+        class="fixed bg-slate-800 dark:bg-slate-700 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap shadow-xl z-[9999] pointer-events-none"
         :style="{ left: '68px', top: `${tooltipPosition.top}px`, transform: 'translateY(-50%)' }"
       >
         {{ tooltipPosition.text }}
-        <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
+        <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 dark:bg-slate-700 rotate-45" />
       </div>
     </Transition>
 
@@ -491,7 +492,13 @@ aside::-webkit-scrollbar-thumb {
   background: #e2e8f0;
   border-radius: 2px;
 }
+.dark aside::-webkit-scrollbar-thumb {
+  background: #475569;
+}
 aside::-webkit-scrollbar-thumb:hover {
   background: #cbd5e1;
+}
+.dark aside::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 </style>
