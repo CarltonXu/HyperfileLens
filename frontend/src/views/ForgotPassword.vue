@@ -19,6 +19,7 @@ const email = ref('')
 const captcha = ref('')
 const captchaUrl = ref('')
 const captchaKey = ref('')
+const captchaLoading = ref(false)
 
 // Step 2: Verification code
 const verificationCode = ref('')
@@ -39,12 +40,15 @@ const isValidStep2 = computed(() => verificationCode.value.length >= 6)
 const isValidStep3 = computed(() => newPassword.value.length >= 8 && newPassword.value === confirmPassword.value)
 
 async function refreshCaptcha() {
+  captchaLoading.value = true
   try {
     const response = await api.get('/api/v1/accounts/captcha/')
     captchaUrl.value = response.data.image
     captchaKey.value = response.data.key
   } catch (err) {
     console.error('Failed to fetch captcha:', err)
+  } finally {
+    captchaLoading.value = false
   }
 }
 
@@ -200,12 +204,25 @@ onMounted(() => {
                 :placeholder="t('auth.captchaPlaceholder')"
                 required
               />
-              <img
-                :src="captchaUrl"
-                alt="Captcha"
-                class="h-9 w-24 rounded-lg border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity bg-slate-50"
-                @click="refreshCaptcha"
-              />
+              <div class="relative h-9 w-24 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer overflow-hidden" @click="refreshCaptcha" :title="t('auth.refreshCaptcha')">
+                <img
+                  v-if="captchaUrl"
+                  :src="captchaUrl"
+                  alt="Captcha"
+                  class="h-full w-full object-cover"
+                />
+                <div v-if="captchaLoading" class="absolute inset-0 bg-slate-100/80 flex items-center justify-center">
+                  <svg class="w-4 h-4 text-slate-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+                <div v-if="!captchaUrl && !captchaLoading" class="h-full w-full flex items-center justify-center text-slate-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
 
