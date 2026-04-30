@@ -1499,6 +1499,7 @@ export default {
     active: '活跃',
     inactive: '已停用',
     suspended: '已暂停',
+    trial: '试用',
     unknown: '未知',
     maxUsers: '最大用户数',
     maxProxies: '最大代理数',

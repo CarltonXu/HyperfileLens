@@ -1499,6 +1499,7 @@ export default {
     active: 'Active',
     inactive: 'Inactive',
     suspended: 'Suspended',
+    trial: 'Trial',
     unknown: 'Unknown',
     maxUsers: 'Max Users',
     maxProxies: 'Max Proxies',
