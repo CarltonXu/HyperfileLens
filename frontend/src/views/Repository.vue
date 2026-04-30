@@ -1455,8 +1455,8 @@ onMounted(() => {
             </div>
 
             <!-- S3 Configuration -->
-            <div v-if="newRepo.repo_type === 's3'" class="space-y-4 p-4 bg-orange-50 dark:bg-orange-900/30 rounded-xl border border-orange-100 dark:border-orange-800">
-              <div class="flex items-start gap-2 text-sm text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-800/50 rounded-lg p-3">
+            <div v-if="newRepo.repo_type === 's3'" class="space-y-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div class="flex items-start gap-2 text-sm text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-slate-700/50 rounded-lg p-3 border-l-4 border-orange-400">
                 <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
                   <p class="font-medium">{{ t('repository.s3.hint') }}</p>
@@ -1465,8 +1465,8 @@ onMounted(() => {
               </div>
               
               <!-- Credentials Section (must be filled first) -->
-              <div class="p-3 bg-white dark:bg-slate-700 rounded-lg border border-orange-200 dark:border-orange-800">
-                <h4 class="text-sm font-medium text-slate-700 mb-3">{{ t('repository.s3.credentials') }}</h4>
+              <div class="p-3 bg-white dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">{{ t('repository.s3.credentials') }}</h4>
                 <div class="grid grid-cols-2 gap-4">
                   <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('repository.s3.endpoint') }} *</label>
@@ -1558,8 +1558,8 @@ onMounted(() => {
               </div>
               
               <!-- Bucket Selection Mode -->
-              <div class="p-3 bg-white dark:bg-slate-700 rounded-lg border border-orange-200 dark:border-orange-800">
-                <h4 class="text-sm font-medium text-slate-700 mb-3">{{ t('repository.s3.bucketSelection') }}</h4>
+              <div class="p-3 bg-white dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">{{ t('repository.s3.bucketSelection') }}</h4>
                 
                 <!-- Bucket Mode Selection -->
                 <div class="mb-4">
@@ -1569,7 +1569,7 @@ onMounted(() => {
                       :class="[
                         'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
                         newRepo.s3_config.bucket_mode === 'existing' 
-                          ? 'border-orange-500 dark:border-orange-400 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' 
+                          ? 'border-orange-500 dark:border-orange-500 bg-orange-50 dark:bg-slate-700 text-orange-700 dark:text-orange-400' 
                           : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                       ]"
                     >
@@ -1581,7 +1581,7 @@ onMounted(() => {
                       :class="[
                         'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
                         newRepo.s3_config.bucket_mode === 'new' 
-                          ? 'border-orange-500 dark:border-orange-400 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' 
+                          ? 'border-orange-500 dark:border-orange-500 bg-orange-50 dark:bg-slate-700 text-orange-700 dark:text-orange-400' 
                           : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                       ]"
                     >
@@ -1594,11 +1594,11 @@ onMounted(() => {
                 <!-- Existing Bucket Selection -->
                 <div v-if="newRepo.s3_config.bucket_mode === 'existing'">
                   <!-- Warning for existing bucket -->
-                  <div class="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 dark:bg-amber-900/30 rounded-lg p-3 mb-4 border border-amber-200 dark:border-amber-800">
+                  <div class="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 dark:bg-slate-700/50 rounded-lg p-3 mb-4 border border-amber-300 dark:border-amber-700 border-l-4">
                     <ExclamationTriangleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
                     <div>
                       <p class="font-medium">{{ t('repository.s3.existingBucketWarning') }}</p>
-                      <p class="mt-1 text-xs text-amber-600">{{ t('repository.s3.existingBucketWarningDetail') }}</p>
+                      <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t('repository.s3.existingBucketWarningDetail') }}</p>
                     </div>
                   </div>
                   
@@ -1715,8 +1715,8 @@ onMounted(() => {
             </div>
 
             <!-- NAS Configuration -->
-            <div v-if="newRepo.repo_type === 'nas'" class="space-y-4 p-4 bg-purple-50 dark:bg-purple-900/30 rounded-xl border border-purple-100 dark:border-purple-800">
-              <div class="flex items-start gap-2 text-sm text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-800/50 rounded-lg p-3">
+            <div v-if="newRepo.repo_type === 'nas'" class="space-y-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div class="flex items-start gap-2 text-sm text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-slate-700/50 rounded-lg p-3 border-l-4 border-purple-400">
                 <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
                   <p class="font-medium">{{ t('repository.nas.hint') }}</p>
@@ -1732,7 +1732,7 @@ onMounted(() => {
                     :class="[
                       'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
                       newRepo.nas_config.mount_type === 'nfs' 
-                        ? 'border-purple-500 dark:border-purple-400 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' 
+                        ? 'border-purple-500 dark:border-purple-500 bg-purple-50 dark:bg-slate-700 text-purple-700 dark:text-purple-400' 
                         : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                     ]"
                   >
@@ -1743,7 +1743,7 @@ onMounted(() => {
                     :class="[
                       'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
                       newRepo.nas_config.mount_type === 'cifs' 
-                        ? 'border-purple-500 dark:border-purple-400 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' 
+                        ? 'border-purple-500 dark:border-purple-500 bg-purple-50 dark:bg-slate-700 text-purple-700 dark:text-purple-400' 
                         : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                     ]"
                   >
@@ -1839,8 +1839,8 @@ onMounted(() => {
             </div>
 
             <!-- Local Filesystem Configuration -->
-            <div v-if="newRepo.repo_type === 'local'" class="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-100 dark:border-blue-800">
-              <div class="flex items-start gap-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-800/50 rounded-lg p-3">
+            <div v-if="newRepo.repo_type === 'local'" class="space-y-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div class="flex items-start gap-2 text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-slate-700/50 rounded-lg p-3 border-l-4 border-blue-400">
                 <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
                   <p class="font-medium">{{ t('repository.local.hint') }}</p>
@@ -1931,10 +1931,10 @@ onMounted(() => {
 
               <!-- No Sync Proxy Available Warning -->
               <div v-if="availableSyncProxies.length === 0" class="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
-                <ExclamationCircleIcon class="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <ExclamationCircleIcon class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                 <div>
                   <p class="text-sm font-medium text-amber-700">{{ t('repository.local.noSyncProxy') }}</p>
-                  <p class="text-xs text-amber-600 mt-1">{{ t('repository.local.noSyncProxyHint') }}</p>
+                  <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">{{ t('repository.local.noSyncProxyHint') }}</p>
                 </div>
               </div>
             </div>
