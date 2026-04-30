@@ -156,18 +156,18 @@ function clearConversation() {
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ t('aiQuery.title') }}</h1>
-        <p class="text-slate-500 mt-1">{{ t('aiQuery.subtitle') }}</p>
+        <p class="text-slate-500 dark:text-slate-400 mt-1">{{ t('aiQuery.subtitle') }}</p>
       </div>
       <div class="flex items-center gap-4">
         <!-- Gateway Status -->
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg">
           <ServerIcon class="w-4 h-4 text-slate-400" />
           <span class="text-sm text-slate-600 dark:text-slate-300">Gateway:</span>
           <span 
             :class="[
               'text-sm font-medium',
-              gatewayStatus === 'online' ? 'text-emerald-600' : 
-              gatewayStatus === 'offline' ? 'text-red-600' : 'text-slate-400'
+              gatewayStatus === 'online' ? 'text-emerald-600 dark:text-emerald-400' : 
+              gatewayStatus === 'offline' ? 'text-red-600 dark:text-red-400' : 'text-slate-400'
             ]"
           >
             {{ gatewayStatus === 'online' ? t('common.online') : 
@@ -184,7 +184,7 @@ function clearConversation() {
         <button
           v-if="hasSearched"
           @click="clearConversation"
-          class="px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
+          class="px-3 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
         >
           {{ t('aiQuery.clearConversation') }}
         </button>
@@ -192,7 +192,7 @@ function clearConversation() {
     </div>
 
     <!-- Chat Interface -->
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
       <!-- Chat Messages -->
       <div class="h-[400px] overflow-y-auto p-6 space-y-4">
         <!-- Welcome State -->
@@ -200,8 +200,8 @@ function clearConversation() {
           <div class="w-16 h-16 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
             <SparklesIcon class="w-8 h-8 text-white" />
           </div>
-          <h3 class="text-lg font-semibold text-slate-800 mb-2">{{ t('aiQuery.empty.title') }}</h3>
-          <p class="text-slate-500 max-w-md mb-6">{{ t('aiQuery.empty.description') }}</p>
+          <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">{{ t('aiQuery.empty.title') }}</h3>
+          <p class="text-slate-500 dark:text-slate-400 max-w-md mb-6">{{ t('aiQuery.empty.description') }}</p>
           
           <!-- Suggestions -->
           <div class="flex flex-wrap justify-center gap-2">
@@ -209,7 +209,7 @@ function clearConversation() {
               v-for="(suggestion, i) in suggestions"
               :key="i"
               @click="useSuggestion(suggestion.text)"
-              class="inline-flex items-center gap-2 px-3 py-2 text-sm bg-slate-50 hover:bg-slate-100 dark:bg-slate-700 border border-slate-200 rounded-lg transition-colors"
+              class="inline-flex items-center gap-2 px-3 py-2 text-sm bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors"
             >
               <component :is="suggestion.icon" :class="['w-4 h-4', suggestion.color]" />
               <span class="text-slate-600 dark:text-slate-300">{{ suggestion.text }}</span>
@@ -232,7 +232,7 @@ function clearConversation() {
                 'max-w-[80%] px-4 py-3 rounded-2xl',
                 msg.role === 'user'
                   ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-br-md'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-800 rounded-bl-md'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white rounded-bl-md'
               ]"
             >
               <p class="text-sm">{{ msg.content }}</p>
@@ -258,18 +258,18 @@ function clearConversation() {
             <div
               v-for="result in results"
               :key="result.id"
-              class="bg-slate-50 border border-slate-200 rounded-lg p-4 hover:bg-slate-100 dark:bg-slate-700 transition-colors cursor-pointer"
+              class="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors cursor-pointer"
             >
               <div class="flex items-start gap-3">
-                <div class="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
-                  <DocumentMagnifyingGlassIcon class="w-5 h-5 text-slate-400" />
+                <div class="w-10 h-10 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg flex items-center justify-center">
+                  <DocumentMagnifyingGlassIcon class="w-5 h-5 text-slate-400 dark:text-slate-300" />
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-slate-800 truncate">{{ result.title }}</p>
-                  <p class="text-xs text-slate-500 truncate">{{ result.path }}</p>
+                  <p class="text-sm font-medium text-slate-800 dark:text-white truncate">{{ result.title }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ result.path }}</p>
                   <div class="flex items-center gap-3 mt-1">
-                    <span v-if="result.size" class="text-xs text-slate-400">{{ formatBytes(result.size) }}</span>
-                    <span v-if="result.snapshot" class="text-xs text-violet-500">{{ result.snapshot }}</span>
+                    <span v-if="result.size" class="text-xs text-slate-400 dark:text-slate-500">{{ formatBytes(result.size) }}</span>
+                    <span v-if="result.snapshot" class="text-xs text-violet-500 dark:text-violet-400">{{ result.snapshot }}</span>
                   </div>
                 </div>
               </div>
@@ -279,14 +279,14 @@ function clearConversation() {
       </div>
 
       <!-- Input Area -->
-      <div class="border-t border-slate-200 p-4 bg-slate-50 dark:bg-slate-700/50">
+      <div class="border-t border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-700/50">
         <form @submit.prevent="handleSearch" class="flex items-end gap-3">
           <div class="flex-1">
             <textarea
               v-model="query"
               rows="1"
               :placeholder="t('aiQuery.search.placeholder')"
-              class="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none bg-white dark:bg-slate-800"
+              class="w-full px-4 py-3 text-sm border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none bg-white dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400"
               @keydown.enter.exact.prevent="handleSearch"
             />
           </div>
@@ -303,12 +303,12 @@ function clearConversation() {
     </div>
 
     <!-- Tips -->
-    <div class="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl border border-violet-200 p-5">
+    <div class="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 rounded-xl border border-violet-200 dark:border-violet-800 p-5">
       <div class="flex items-start gap-3">
-        <LightBulbIcon class="w-5 h-5 text-violet-500 flex-shrink-0 mt-0.5" />
+        <LightBulbIcon class="w-5 h-5 text-violet-500 dark:text-violet-400 flex-shrink-0 mt-0.5" />
         <div>
-          <h4 class="text-sm font-medium text-violet-800 mb-1">{{ t('aiQuery.tips.title') }}</h4>
-          <ul class="text-sm text-violet-600 space-y-1">
+          <h4 class="text-sm font-medium text-violet-800 dark:text-violet-300 mb-1">{{ t('aiQuery.tips.title') }}</h4>
+          <ul class="text-sm text-violet-600 dark:text-violet-400 space-y-1">
             <li>{{ t('aiQuery.tips.tip1') }}</li>
             <li>{{ t('aiQuery.tips.tip2') }}</li>
             <li>{{ t('aiQuery.tips.tip3') }}</li>

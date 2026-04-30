@@ -197,12 +197,12 @@ function formatBytes(bytes: number): string {
 
 function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    pending: 'bg-amber-100 text-amber-700',
-    queued: 'bg-blue-100 text-blue-700',
-    running: 'bg-indigo-100 text-indigo-700',
-    paused: 'bg-purple-100 text-purple-700',
-    completed: 'bg-emerald-100 text-emerald-700',
-    failed: 'bg-red-100 text-red-700',
+    pending: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+    queued: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+    running: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400',
+    paused: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+    completed: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
+    failed: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
     cancelled: 'bg-slate-100 dark:bg-slate-700 text-slate-600'
   }
   return colors[status] || 'bg-slate-100 dark:bg-slate-700 text-slate-600'
@@ -246,30 +246,30 @@ onMounted(() => {
 
     <!-- Stats -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('common.total') }}</p>
         <p class="text-xl font-bold text-slate-800 mt-1">{{ recoveryStats.total_tasks }}</p>
       </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('recoveryTasks.status.running') }}</p>
         <p class="text-xl font-bold text-indigo-600 mt-1">{{ recoveryStats.running_tasks }}</p>
       </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('recoveryTasks.status.completed') }}</p>
         <p class="text-xl font-bold text-emerald-600 mt-1">{{ recoveryStats.completed_tasks }}</p>
       </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('recoveryTasks.status.failed') }}</p>
         <p class="text-xl font-bold text-red-600 mt-1">{{ recoveryStats.failed_tasks }}</p>
       </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('recoveryTasks.progress.files') }}</p>
         <p class="text-xl font-bold text-slate-800 mt-1">{{ recoveryStats.total_files }}</p>
       </div>
     </div>
 
     <!-- Filters -->
-    <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
       <div class="flex flex-wrap items-center gap-3">
         <div class="relative flex-1 min-w-[200px]">
           <MagnifyingGlassIcon class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -282,7 +282,7 @@ onMounted(() => {
         </div>
         <select
           v-model="selectedStatus"
-          class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
           <option value="all">{{ t('common.status') }}: {{ t('common.all') }}</option>
           <option value="pending">{{ t('recoveryTasks.status.pending') }}</option>
@@ -305,7 +305,7 @@ onMounted(() => {
       <div class="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
     </div>
 
-    <div v-else-if="filteredTasks.length === 0" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+    <div v-else-if="filteredTasks.length === 0" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
       <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
         <ArrowDownTrayIcon class="w-8 h-8 text-slate-400" />
       </div>
@@ -313,7 +313,7 @@ onMounted(() => {
       <p class="text-slate-500 dark:text-slate-400">{{ t('recoveryTasks.empty.description') }}</p>
     </div>
 
-    <div v-else class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div v-else class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
       <table class="w-full">
         <thead class="bg-slate-50 border-b border-slate-200 dark:border-slate-700">
           <tr>
@@ -325,8 +325,8 @@ onMounted(() => {
             <th class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.actions') }}</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100">
-          <tr v-for="task in paginatedTasks" :key="task.id" class="hover:bg-slate-50 transition-colors">
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+          <tr v-for="task in paginatedTasks" :key="task.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
             <td class="px-6 py-4">
               <div class="flex items-center gap-3">
                 <div :class="[
@@ -419,8 +419,8 @@ onMounted(() => {
     <Teleport to="body">
       <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="showCreateModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-          <div class="sticky top-0 bg-white px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div class="sticky top-0 bg-white dark:bg-slate-800 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
             <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ t('recoveryTasks.createTask') }}</h2>
             <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
               <XCircleIcon class="w-5 h-5 text-slate-400" />
@@ -428,19 +428,19 @@ onMounted(() => {
           </div>
           <div class="p-6 space-y-4">
             <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('common.name') }}</label>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('common.name') }}</label>
               <input v-model="newRecovery.name" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('recoveryTasks.form.targetNode') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.targetNode') }}</label>
                 <select v-model="newRecovery.node" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
                   <option :value="0">Select</option>
                   <option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
                 </select>
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('recoveryTasks.form.repository') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.repository') }}</label>
                 <select v-model="newRecovery.repository" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
                   <option :value="0">Select</option>
                   <option v-for="repo in repositories" :key="repo.id" :value="repo.id">{{ repo.name }}</option>
@@ -448,25 +448,25 @@ onMounted(() => {
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('recoveryTasks.form.snapshot') }}</label>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.snapshot') }}</label>
               <select v-model="newRecovery.snapshot_id" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
                 <option value="">Select Snapshot</option>
                 <option v-for="snap in snapshots" :key="snap.id" :value="snap.id">{{ snap.name }}</option>
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('recoveryTasks.form.type') }}</label>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.type') }}</label>
               <select v-model="newRecovery.recovery_type" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
                 <option value="original_location">{{ t('recoveryTasks.types.original_location') }}</option>
                 <option value="new_location">{{ t('recoveryTasks.types.new_location') }}</option>
               </select>
             </div>
             <div v-if="newRecovery.recovery_type === 'new_location'">
-              <label class="block text-sm font-medium text-slate-700 mb-1">{{ t('recoveryTasks.form.targetPath') }}</label>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.targetPath') }}</label>
               <input v-model="newRecovery.target_path" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
           </div>
-          <div class="sticky bottom-0 bg-white px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+          <div class="sticky bottom-0 bg-white dark:bg-slate-800 px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
             <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
               {{ t('common.cancel') }}
             </button>
@@ -482,7 +482,7 @@ onMounted(() => {
     <Teleport to="body">
       <div v-if="showDetailModal && selectedTask" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="showDetailModal = false" />
-        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg">
+        <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg">
           <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedTask.name }}</h2>
             <button @click="showDetailModal = false" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
