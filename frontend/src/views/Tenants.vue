@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="sm:flex sm:items-center sm:justify-between">
       <div>
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('tenants.title') }}</h1>
-        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
+        <h1 class="text-2xl font-semibold text-slate-800 dark:text-white">{{ t('tenants.title') }}</h1>
+        <p class="mt-2 text-sm text-slate-700 dark:text-slate-300">
           {{ t('tenants.description') || 'Manage tenants and resource isolation' }}
         </p>
       </div>
@@ -21,7 +21,7 @@
     </div>
 
     <!-- Filters -->
-    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+    <div class="bg-white dark:bg-slate-800 shadow rounded-xl border border-slate-200 dark:border-slate-700 p-4">
       <div class="flex flex-wrap gap-4">
         <div class="flex-1 min-w-0">
           <div class="relative">
@@ -30,7 +30,7 @@
               v-model="searchQuery"
               type="text"
               :placeholder="t('common.search')"
-              class="block w-full rounded-md border-0 py-1.5 pl-10 pr-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+              class="block w-full rounded-lg border border-slate-200 dark:border-slate-600 py-2 pl-10 pr-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
               @input="debouncedSearch"
             />
           </div>
@@ -38,7 +38,7 @@
         <div class="flex items-center gap-2">
           <select
             v-model="statusFilter"
-            class="rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+            class="rounded-lg border border-slate-200 dark:border-slate-600 py-2 pl-3 pr-8 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
             @change="fetchTenants"
           >
             <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') || 'All Status' }}</option>
@@ -51,39 +51,39 @@
     </div>
 
     <!-- Tenants Table -->
-    <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-visible mb-4">
+    <div class="bg-white dark:bg-slate-800 shadow rounded-xl border border-slate-200 dark:border-slate-700 overflow-visible mb-4">
       <div v-if="loading" class="p-8 text-center">
         <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t('common.loading') }}</p>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ t('common.loading') }}</p>
       </div>
 
-      <table v-else class="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
-        <thead class="bg-gray-50 dark:bg-gray-900">
+      <table v-else class="min-w-full divide-y divide-gray-300 dark:divide-slate-700">
+        <thead class="bg-gray-50 dark:bg-slate-900">
           <tr>
-            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">{{ t('tenants.tenantName') }}</th>
-            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('tenants.status') }}</th>
-            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('tenants.owner') }}</th>
-            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('tenants.userCount') }}</th>
-            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('tenants.proxyCount') }}</th>
-            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('tenants.createdAt') }}</th>
+            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-800 dark:text-white sm:pl-6">{{ t('tenants.tenantName') }}</th>
+            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-800 dark:text-white">{{ t('tenants.status') }}</th>
+            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-800 dark:text-white">{{ t('tenants.owner') }}</th>
+            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-800 dark:text-white">{{ t('tenants.userCount') }}</th>
+            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-800 dark:text-white">{{ t('tenants.proxyCount') }}</th>
+            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-800 dark:text-white">{{ t('tenants.createdAt') }}</th>
             <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
               <span class="sr-only">{{ t('common.actions') }}</span>
             </th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-          <tr v-for="tenant in tenants" :key="tenant.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+        <tbody class="divide-y divide-gray-200 dark:divide-slate-700">
+          <tr v-for="tenant in tenants" :key="tenant.id" class="hover:bg-gray-50 dark:hover:bg-slate-700/50">
             <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
               <div class="flex items-center">
                 <div class="h-10 w-10 flex-shrink-0 rounded-lg bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
                   <BuildingOffice2Icon class="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div class="ml-4">
-                  <div class="font-medium text-gray-900 dark:text-white">{{ tenant.name }}</div>
-                  <div class="text-gray-500 dark:text-gray-400">{{ tenant.slug }}</div>
+                  <div class="font-medium text-slate-800 dark:text-white">{{ tenant.name }}</div>
+                  <div class="text-slate-500 dark:text-slate-400">{{ tenant.slug }}</div>
                 </div>
               </div>
             </td>
@@ -92,48 +92,48 @@
                 {{ t(`tenants.${tenant.status}`) }}
               </span>
             </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
               {{ tenant.owner_name || tenant.owner_email || '-' }}
             </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
               {{ tenant.user_count || 0 }} / {{ tenant.max_users || '∞' }}
             </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
               {{ tenant.proxy_count || 0 }} / {{ tenant.max_proxies || '∞' }}
             </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
               {{ formatDate(tenant.created_at) }}
             </td>
             <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
               <Menu as="div" class="relative inline-block text-left">
-                <MenuButton class="flex items-center rounded-full text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-100">
+                <MenuButton class="flex items-center rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <span class="sr-only">Open options</span>
                   <EllipsisVerticalIcon class="h-5 w-5" aria-hidden="true" />
                 </MenuButton>
                 <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
-                  <MenuItems class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                  <MenuItems class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-md bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                     <MenuItem v-slot="{ active }">
-                      <button @click="openEditDialog(tenant)" :class="[active ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300', 'block w-full px-4 py-2 text-left text-sm']">
+                      <button @click="openEditDialog(tenant)" :class="[active ? 'bg-gray-100 dark:bg-slate-700 text-slate-800 dark:text-white' : 'text-slate-700 dark:text-slate-300', 'block w-full px-4 py-2 text-left text-sm']">
                         {{ t('common.edit') }}
                       </button>
                     </MenuItem>
                     <MenuItem v-slot="{ active }">
-                      <button @click="openUsersDialog(tenant)" :class="[active ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300', 'block w-full px-4 py-2 text-left text-sm']">
+                      <button @click="openUsersDialog(tenant)" :class="[active ? 'bg-gray-100 dark:bg-slate-700 text-slate-800 dark:text-white' : 'text-slate-700 dark:text-slate-300', 'block w-full px-4 py-2 text-left text-sm']">
                         {{ t('tenants.manageUsers') }}
                       </button>
                     </MenuItem>
                     <MenuItem v-slot="{ active }">
-                      <button @click="viewTenantStats(tenant)" :class="[active ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300', 'block w-full px-4 py-2 text-left text-sm']">
+                      <button @click="viewTenantStats(tenant)" :class="[active ? 'bg-gray-100 dark:bg-slate-700 text-slate-800 dark:text-white' : 'text-slate-700 dark:text-slate-300', 'block w-full px-4 py-2 text-left text-sm']">
                         {{ t('tenants.stats') }}
                       </button>
                     </MenuItem>
                     <MenuItem v-if="tenant.status === 'active'" v-slot="{ active }">
-                      <button @click="deactivateTenant(tenant)" :class="[active ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300', 'block w-full px-4 py-2 text-left text-sm']">
+                      <button @click="deactivateTenant(tenant)" :class="[active ? 'bg-gray-100 dark:bg-slate-700 text-slate-800 dark:text-white' : 'text-slate-700 dark:text-slate-300', 'block w-full px-4 py-2 text-left text-sm']">
                         {{ t('tenants.deactivate') }}
                       </button>
                     </MenuItem>
                     <MenuItem v-else v-slot="{ active }">
-                      <button @click="activateTenant(tenant)" :class="[active ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300', 'block w-full px-4 py-2 text-left text-sm']">
+                      <button @click="activateTenant(tenant)" :class="[active ? 'bg-gray-100 dark:bg-slate-700 text-slate-800 dark:text-white' : 'text-slate-700 dark:text-slate-300', 'block w-full px-4 py-2 text-left text-sm']">
                         {{ t('tenants.activate') }}
                       </button>
                     </MenuItem>
@@ -148,7 +148,7 @@
             </td>
           </tr>
           <tr v-if="tenants.length === 0">
-            <td colspan="7" class="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+            <td colspan="7" class="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
               {{ t('common.noData') || 'No tenants found' }}
             </td>
           </tr>
@@ -156,24 +156,24 @@
       </table>
 
       <!-- Pagination -->
-      <div v-if="pagination.total > pagination.pageSize" class="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 sm:px-6">
+      <div v-if="pagination.total > pagination.pageSize" class="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 sm:px-6">
         <div class="flex flex-1 justify-between sm:hidden">
-          <button @click="prevPage" :disabled="pagination.page === 1" class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Previous</button>
-          <button @click="nextPage" :disabled="pagination.page >= totalPages" class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Next</button>
+          <button @click="prevPage" :disabled="pagination.page === 1" class="relative inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600">Previous</button>
+          <button @click="nextPage" :disabled="pagination.page >= totalPages" class="relative ml-3 inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600">Next</button>
         </div>
         <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
           <div>
-            <p class="text-sm text-gray-700 dark:text-gray-300">
+            <p class="text-sm text-slate-700 dark:text-slate-300">
               {{ t('pagination.showing') }} {{ (pagination.page - 1) * pagination.pageSize + 1 }} {{ t('pagination.to') }} {{ Math.min(pagination.page * pagination.pageSize, pagination.total) }} {{ t('pagination.of') }} {{ pagination.total }} {{ t('pagination.items') }}
             </p>
           </div>
           <div>
             <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-              <button @click="prevPage" :disabled="pagination.page === 1" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
+              <button @click="prevPage" :disabled="pagination.page === 1" class="relative inline-flex items-center rounded-l-lg border border-slate-200 dark:border-slate-600 px-2 py-2 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
                 <ChevronLeftIcon class="h-5 w-5" aria-hidden="true" />
               </button>
-              <button v-for="page in displayedPages" :key="page" @click="goToPage(page)" :class="[page === pagination.page ? 'bg-indigo-600 text-white' : 'text-gray-900 dark:text-white ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700', 'relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0']">{{ page }}</button>
-              <button @click="nextPage" :disabled="pagination.page >= totalPages" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
+              <button v-for="page in displayedPages" :key="page" @click="goToPage(page)" :class="[page === pagination.page ? 'bg-indigo-600 text-white' : 'text-slate-800 dark:text-white ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700', 'relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0']">{{ page }}</button>
+              <button @click="nextPage" :disabled="pagination.page >= totalPages" class="relative inline-flex items-center rounded-r-lg border border-slate-200 dark:border-slate-600 px-2 py-2 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
                 <ChevronRightIcon class="h-5 w-5" aria-hidden="true" />
               </button>
             </nav>
@@ -186,62 +186,62 @@
     <TransitionRoot appear :show="showDialog" as="template">
       <Dialog as="div" class="relative z-10" @close="closeDialog">
         <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0" enter-to="opacity-100" leave="duration-200 ease-in" leave-from="opacity-100" leave-to="opacity-0">
-          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          <div class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity" />
         </TransitionChild>
 
         <div class="fixed inset-0 z-10 overflow-y-auto">
           <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
             <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" enter-to="opacity-100 translate-y-0 sm:scale-100" leave="duration-200 ease-in" leave-from="opacity-100 translate-y-0 sm:scale-100" leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-              <DialogPanel class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+              <DialogPanel class="relative transform overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
                 <div class="absolute right-0 top-0 pr-4 pt-4">
-                  <button type="button" class="rounded-md text-gray-400 hover:text-gray-500 focus:outline-none" @click="closeDialog">
+                  <button type="button" class="rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-500 dark:hover:text-slate-400 focus:outline-none" @click="closeDialog">
                     <XMarkIcon class="h-6 w-6" aria-hidden="true" />
                   </button>
                 </div>
                 <div class="sm:flex sm:items-start">
                   <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                    <DialogTitle as="h3" class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
+                    <DialogTitle as="h3" class="text-base font-semibold leading-6 text-slate-800 dark:text-white">
                       {{ editingTenant ? t('tenants.editTenant') : t('tenants.createTenant') }}
                     </DialogTitle>
                     <form @submit.prevent="saveTenant" class="mt-4 space-y-4">
                       <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.tenantName') }} *</label>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.tenantName') }} *</label>
                         <input v-model="formData.name" type="text" required :placeholder="t('tenants.tenantNamePlaceholder') || '请输入租户名称'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                       </div>
                       <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.tenantSlug') }} *</label>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.tenantSlug') }} *</label>
                         <input v-model="formData.slug" type="text" required pattern="[a-z0-9-]+" :placeholder="t('tenants.tenantSlugPlaceholder') || '例如: my-company'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
-                        <p class="mt-1 text-xs text-gray-500">{{ t('tenants.tenantSlugHelp') || '只能使用小写字母、数字和连字符' }}</p>
+                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ t('tenants.tenantSlugHelp') || '只能使用小写字母、数字和连字符' }}</p>
                       </div>
                       <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.description') }}</label>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.description') }}</label>
                         <textarea v-model="formData.description" rows="2" :placeholder="t('tenants.descriptionPlaceholder') || '请输入租户描述（可选）'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                       </div>
                       <div class="grid grid-cols-2 gap-4">
                         <div>
-                          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxUsers') }}</label>
+                          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.maxUsers') }}</label>
                           <input v-model.number="formData.max_users" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         </div>
                         <div>
-                          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxProxies') }}</label>
+                          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.maxProxies') }}</label>
                           <input v-model.number="formData.max_proxies" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         </div>
                       </div>
                       <div class="grid grid-cols-2 gap-4">
                         <div>
-                          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxRepositories') }}</label>
+                          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.maxRepositories') }}</label>
                           <input v-model.number="formData.max_repositories" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         </div>
                         <div>
-                          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxStorageGb') }}</label>
+                          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('tenants.maxStorageGb') }}</label>
                           <input v-model.number="formData.max_storage_gb" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         </div>
                       </div>
                       <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                        <button type="submit" :disabled="saving" class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto disabled:opacity-50">
+                        <button type="submit" :disabled="saving" class="inline-flex w-full justify-center rounded-lg bg-indigo-600 dark:bg-indigo-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 dark:hover:bg-indigo-600 sm:ml-3 sm:w-auto disabled:opacity-50 transition-colors">
                           {{ saving ? t('common.saving') : t('common.save') }}
                         </button>
-                        <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600" @click="closeDialog">
+                        <button type="button" class="mt-3 inline-flex w-full justify-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 sm:mt-0 sm:w-auto transition-colors" @click="closeDialog">
                           {{ t('common.cancel') }}
                         </button>
                       </div>
@@ -261,18 +261,18 @@
         <div class="flex min-h-full items-center justify-center p-4">
           <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="closeStatsDrawer"></div>
           
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full">
+          <div class="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl w-full">
             <!-- Header -->
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <div>
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                <h3 class="text-lg font-medium text-slate-800 dark:text-white">
                   {{ t('tenants.stats') }}
                 </h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   {{ statsTenant?.name }}
                 </p>
               </div>
-              <button type="button" class="rounded-md text-gray-400 hover:text-gray-500" @click="closeStatsDrawer">
+              <button type="button" class="rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-500 dark:hover:text-slate-400" @click="closeStatsDrawer">
                 <XMarkIcon class="h-6 w-6" aria-hidden="true" />
               </button>
             </div>
@@ -294,50 +294,50 @@
                       <UsersIcon class="h-8 w-8 text-blue-600" />
                       <div class="ml-3">
                         <p class="text-sm text-blue-600 dark:text-blue-400">{{ t('tenants.userCount') }}</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ statsData?.user_count || 0 }}</p>
+                        <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ statsData?.user_count || 0 }}</p>
                       </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_users || '∞' }}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_users || '∞' }}</p>
                   </div>
                   <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                     <div class="flex items-center">
                       <ServerIcon class="h-8 w-8 text-green-600" />
                       <div class="ml-3">
                         <p class="text-sm text-green-600 dark:text-green-400">{{ t('tenants.proxyCount') }}</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ statsData?.proxy_count || 0 }}</p>
+                        <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ statsData?.proxy_count || 0 }}</p>
                       </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_proxies || '∞' }}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_proxies || '∞' }}</p>
                   </div>
                   <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
                     <div class="flex items-center">
                       <CircleStackIcon class="h-8 w-8 text-purple-600" />
                       <div class="ml-3">
                         <p class="text-sm text-purple-600 dark:text-purple-400">{{ t('tenants.repositoryCount') }}</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ statsData?.repository_count || 0 }}</p>
+                        <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ statsData?.repository_count || 0 }}</p>
                       </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_repositories || '∞' }}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_repositories || '∞' }}</p>
                   </div>
                   <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
                     <div class="flex items-center">
                       <CircleStackIcon class="h-8 w-8 text-orange-600" />
                       <div class="ml-3">
                         <p class="text-sm text-orange-600 dark:text-orange-400">{{ t('tenants.storageUsed') }}</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ formatBytes(statsData?.storage_used || 0) }}</p>
+                        <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ formatBytes(statsData?.storage_used || 0) }}</p>
                       </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_storage_gb ? `${statsData.max_storage_gb} GB` : '∞' }}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">{{ t('tenants.limit') || 'Limit' }}: {{ statsData?.max_storage_gb ? `${statsData.max_storage_gb} GB` : '∞' }}</p>
                   </div>
                 </div>
               </div>
             </div>
             
             <!-- Footer -->
-            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+            <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end">
               <button
                 type="button"
-                class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-slate-700 dark:text-white dark:hover:bg-gray-600"
                 @click="closeStatsDrawer"
               >
                 {{ t('common.close') || 'Close' }}
@@ -352,20 +352,20 @@
     <Teleport to="body">
       <div v-if="showUsersDrawer" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="flex min-h-screen items-center justify-center p-4">
-          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeUsersDrawer"></div>
+          <div class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity" @click="closeUsersDrawer"></div>
           
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+          <div class="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
             <!-- Header -->
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <div>
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 class="text-lg font-semibold text-slate-800 dark:text-white">
                   {{ usersTenant?.name }} - {{ t('tenants.manageUsers') }}
                 </h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
+                <p class="text-sm text-slate-500 dark:text-slate-400">
                   {{ t('tenants.userCount') }}: {{ tenantUsers.length }}
                 </p>
               </div>
-              <button @click="closeUsersDrawer" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+              <button @click="closeUsersDrawer" class="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
                 <XMarkIcon class="h-5 w-5" />
               </button>
             </div>
@@ -382,14 +382,14 @@
                   {{ t('tenants.addUser') }}
                 </button>
                 
-                <div v-if="showAddUserForm" class="mt-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg space-y-3">
+                <div v-if="showAddUserForm" class="mt-3 p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg space-y-3">
                   <div class="grid grid-cols-2 gap-3">
                     <div>
-                      <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('users.email') }}</label>
+                      <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ t('users.email') }}</label>
                       <input v-model="newUserEmail" type="email" :placeholder="t('users.emailPlaceholder')" class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white px-3 py-2 text-sm" />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('users.role') }}</label>
+                      <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ t('users.role') }}</label>
                       <select v-model="newUserRole" class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white px-3 py-2 text-sm">
                         <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.admin') }}</option>
                         <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
@@ -397,7 +397,7 @@
                     </div>
                   </div>
                   <div class="flex justify-end gap-2">
-                    <button @click="showAddUserForm = false" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400">
+                    <button @click="showAddUserForm = false" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 dark:text-slate-400">
                       {{ t('common.cancel') }}
                     </button>
                     <button @click="handleAddUser" :disabled="!newUserEmail" class="bg-indigo-600 text-white rounded-md px-3 py-1.5 text-sm hover:bg-indigo-500 disabled:opacity-50">
@@ -415,17 +415,17 @@
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 </div>
-                <div v-else-if="tenantUsers.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+                <div v-else-if="tenantUsers.length === 0" class="text-center py-8 text-slate-500 dark:text-slate-400">
                   {{ t('common.noData') }}
                 </div>
-                <div v-else v-for="user in tenantUsers" :key="user.id" class="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-sm transition-shadow">
+                <div v-else v-for="user in tenantUsers" :key="user.id" class="flex items-center justify-between p-4 bg-white dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-sm transition-shadow">
                   <div class="flex items-center gap-3">
                     <div class="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-medium text-sm">
                       {{ getInitials(user) }}
                     </div>
                     <div>
-                      <p class="font-medium text-gray-900 dark:text-white">{{ getDisplayName(user) }}</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">{{ user.email }} · ID: {{ user.id }}</p>
+                      <p class="font-medium text-slate-800 dark:text-white">{{ getDisplayName(user) }}</p>
+                      <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ user.email }} · ID: {{ user.id }}</p>
                       <div v-if="user.tenant_role === 'admin' && !user.is_superuser" class="flex items-center gap-2 mt-1">
                         <span class="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
                           {{ t('users.roles.admin') }}
@@ -439,7 +439,7 @@
                       :value="user.tenant_role" 
                       @change="updateUserRole(user.id, ($event.target as HTMLSelectElement).value, user.is_superuser)"
                       :disabled="user.is_superuser"
-                      class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1.5 text-sm disabled:opacity-50"
+                      class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-slate-700 dark:text-white px-2 py-1.5 text-sm disabled:opacity-50"
                     >
                       <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.admin') }}</option>
                       <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
@@ -448,7 +448,7 @@
                     <button 
                       @click="confirmRemoveUser(user)"
                       :disabled="user.is_superuser || user.id === currentUserId"
-                      class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md disabled:opacity-30 disabled:cursor-not-allowed"
+                      class="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
                       :title="user.is_superuser ? t('tenants.cannotRemoveSuperuser') : user.id === currentUserId ? t('tenants.cannotRemoveSelf') : t('common.remove')"
                     >
                       <UserMinusIcon class="h-5 w-5" />
@@ -459,10 +459,10 @@
             </div>
             
             <!-- Footer -->
-            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+            <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end">
               <button
                 type="button"
-                class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-slate-700 dark:text-white dark:hover:bg-gray-600"
                 @click="closeUsersDrawer"
               >
                 {{ t('common.close') || 'Close' }}
@@ -477,30 +477,30 @@
     <TransitionRoot appear :show="showRemoveUserConfirm" as="template">
       <Dialog as="div" class="relative z-[60]" @close="showRemoveUserConfirm = false">
         <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0" enter-to="opacity-100" leave="duration-200 ease-in" leave-from="opacity-100" leave-to="opacity-0">
-          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          <div class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity" />
         </TransitionChild>
 
         <div class="fixed inset-0 z-[60] overflow-y-auto">
           <div class="flex min-h-full items-center justify-center p-4">
             <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" enter-to="opacity-100 translate-y-0 sm:scale-100" leave="duration-200 ease-in" leave-from="opacity-100 translate-y-0 sm:scale-100" leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-              <DialogPanel class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-sm sm:p-6">
+              <DialogPanel class="relative transform overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-sm sm:p-6">
                 <div>
                   <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
                     <ExclamationTriangleIcon class="h-6 w-6 text-red-600" aria-hidden="true" />
                   </div>
                   <div class="mt-3 text-center sm:mt-5">
-                    <DialogTitle as="h3" class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
+                    <DialogTitle as="h3" class="text-base font-semibold leading-6 text-slate-800 dark:text-white">
                       {{ t('tenants.confirmRemoveUser') }}
                     </DialogTitle>
                     <div class="mt-2">
-                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                      <p class="text-sm text-slate-500 dark:text-slate-400">
                         {{ t('tenants.confirmRemoveUserDesc', { email: removingUser?.email }) }}
                       </p>
                     </div>
                   </div>
                 </div>
                 <div class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
-                  <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600" @click="showRemoveUserConfirm = false">
+                  <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 dark:bg-slate-700 dark:text-white dark:hover:bg-gray-600" @click="showRemoveUserConfirm = false">
                     {{ t('common.cancel') }}
                   </button>
                   <button type="button" class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500" @click="executeRemoveUser">
@@ -518,23 +518,23 @@
     <TransitionRoot appear :show="showDeleteConfirm" as="template">
       <Dialog as="div" class="relative z-10" @close="showDeleteConfirm = false">
         <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0" enter-to="opacity-100" leave="duration-200 ease-in" leave-from="opacity-100" leave-to="opacity-0">
-          <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          <div class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity" />
         </TransitionChild>
 
         <div class="fixed inset-0 z-10 overflow-y-auto">
           <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
             <TransitionChild as="template" enter="duration-300 ease-out" enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" enter-to="opacity-100 translate-y-0 sm:scale-100" leave="duration-200 ease-in" leave-from="opacity-100 translate-y-0 sm:scale-100" leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-              <DialogPanel class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+              <DialogPanel class="relative transform overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
                 <div class="sm:flex sm:items-start">
                   <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
                     <ExclamationTriangleIcon class="h-6 w-6 text-red-600" aria-hidden="true" />
                   </div>
                   <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                    <DialogTitle as="h3" class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
+                    <DialogTitle as="h3" class="text-base font-semibold leading-6 text-slate-800 dark:text-white">
                       {{ t('common.confirmDelete') }}
                     </DialogTitle>
                     <div class="mt-2">
-                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                      <p class="text-sm text-slate-500 dark:text-slate-400">
                         {{ t('tenants.confirmDelete', { name: deletingTenant?.name }) }}
                       </p>
                     </div>
@@ -544,7 +544,7 @@
                   <button type="button" :disabled="deleting" class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto disabled:opacity-50" @click="deleteTenant">
                     {{ deleting ? t('common.deleting') : t('common.delete') }}
                   </button>
-                  <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto dark:bg-gray-700 dark:text-white" @click="showDeleteConfirm = false">
+                  <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto dark:bg-slate-700 dark:text-white" @click="showDeleteConfirm = false">
                     {{ t('common.cancel') }}
                   </button>
                 </div>
@@ -877,9 +877,9 @@ const deactivateTenant = async (tenant: Tenant) => {
 const getStatusClass = (status: string) => {
   switch (status) {
     case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-    case 'inactive': return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+    case 'inactive': return 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-300'
     case 'suspended': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-    default: return 'bg-gray-100 text-gray-800'
+    default: return 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white'
   }
 }
 
