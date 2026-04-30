@@ -117,10 +117,12 @@ export default {
     confirmPasswordPlaceholder: '请再次输入密码',
     
     // Password strength
+    veryWeak: '非常弱',
     weak: '弱',
     fair: '一般',
     good: '良好',
     strong: '强',
+    veryStrong: '非常强',
     passwordMismatch: '两次输入的密码不一致',
     passwordRequirements: '密码至少8位，包含大小写字母和数字',
     
@@ -155,6 +157,17 @@ export default {
     feature1: '智能备份与恢复管理',
     feature2: 'AI驱动的文件分析',
     feature3: '企业级安全保障',
+    
+    // Benefits
+    benefit1: '快速部署，即开即用',
+    benefit2: '数据安全，多层加密',
+    benefit3: '团队协作，权限管理',
+    
+    // Register
+    getStarted: '开始使用',
+    alreadyHaveAccount: '已有账户？',
+    agreeToTerms: '我已阅读并同意',
+    creatingAccount: '创建账户中...',
     registerSuccess: '注册成功，请登录',
     sendResetFailed: '发送重置码失败',
     resetCodeSent: '重置码已发送到您的邮箱',
@@ -172,15 +185,20 @@ export default {
     mfaDisabled: 'MFA 未启用',
     mfaSetup: '设置 MFA',
     mfaVerify: '验证 MFA',
+    mfaRequired: '双因素认证',
+    mfaCodeSent: '验证码已发送至您的邮箱',
     mfaCode: 'MFA 验证码',
     mfaCodePlaceholder: '请输入6位验证码',
     mfaSetupDesc: '使用身份验证器应用扫描二维码',
     mfaSetupSuccess: 'MFA 设置成功',
     mfaSetupFailed: 'MFA 设置失败',
     mfaVerifyFailed: 'MFA 验证失败',
+    mfaInvalidCode: '验证码无效',
     enableMfa: '启用 MFA',
     disableMfa: '禁用 MFA',
-    mfaSecret: 'MFA 密钥'
+    mfaSecret: 'MFA 密钥',
+    verify: '验证',
+    loggingIn: '登录中...',
   },
 
   // Dashboard

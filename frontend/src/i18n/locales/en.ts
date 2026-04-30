@@ -118,10 +118,12 @@ export default {
     confirmPasswordPlaceholder: 'Confirm your password',
     
     // Password strength
+    veryWeak: 'Very Weak',
     weak: 'Weak',
     fair: 'Fair',
     good: 'Good',
     strong: 'Strong',
+    veryStrong: 'Very Strong',
     passwordMismatch: 'Passwords do not match',
     passwordRequirements: 'At least 8 characters with uppercase, lowercase and numbers',
     
@@ -157,8 +159,16 @@ export default {
     feature2: 'AI-Powered File Analysis',
     feature3: 'Enterprise-Grade Security',
     
-    // Messages
-    registerFailed: 'Registration failed, please try again',
+    // Benefits
+    benefit1: 'Quick deployment, ready to use',
+    benefit2: 'Data security, multi-layer encryption',
+    benefit3: 'Team collaboration, permission management',
+    
+    // Register
+    getStarted: 'Get Started',
+    alreadyHaveAccount: 'Already have an account?',
+    agreeToTerms: 'I agree to the',
+    creatingAccount: 'Creating account...',
     registerSuccess: 'Registration successful, please login',
     sendResetFailed: 'Failed to send reset code',
     resetCodeSent: 'Reset code sent to your email',
@@ -181,15 +191,20 @@ export default {
     mfaDisabled: 'MFA Disabled',
     mfaSetup: 'Setup MFA',
     mfaVerify: 'Verify MFA',
+    mfaRequired: 'Two-Factor Authentication',
+    mfaCodeSent: 'Verification code sent to your email',
     mfaCode: 'MFA Code',
     mfaCodePlaceholder: 'Enter 6-digit code',
     mfaSetupDesc: 'Scan QR code with authenticator app',
     mfaSetupSuccess: 'MFA setup successful',
     mfaSetupFailed: 'MFA setup failed',
     mfaVerifyFailed: 'MFA verification failed',
+    mfaInvalidCode: 'Invalid verification code',
     enableMfa: 'Enable MFA',
     disableMfa: 'Disable MFA',
-    mfaSecret: 'MFA Secret'
+    mfaSecret: 'MFA Secret',
+    verify: 'Verify',
+    loggingIn: 'Logging in...',
   },
 
   // Dashboard
