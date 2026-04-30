@@ -39,9 +39,9 @@ const isValid = computed(() => {
 
 async function refreshCaptcha() {
   try {
-    const response = await api.get('/api/v1/accounts/captcha/', { responseType: 'blob' })
-    captchaUrl.value = URL.createObjectURL(response.data)
-    captchaKey.value = response.headers['x-captcha-key'] || ''
+    const response = await api.get('/api/v1/accounts/captcha/')
+    captchaUrl.value = response.data.image
+    captchaKey.value = response.data.key
   } catch (err) {
     console.error('Failed to fetch captcha:', err)
   }
