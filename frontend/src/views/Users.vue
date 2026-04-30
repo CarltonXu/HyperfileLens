@@ -280,7 +280,7 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.tenant') }}</label>
                     <select
                       v-model="createForm.tenant_id"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-slate-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
                       :disabled="loadingTenants"
                     >
                       <option class="bg-white dark:bg-slate-700" value="">{{ loadingTenants ? t('common.loading') : t('users.selectTenant') }}</option>
@@ -292,7 +292,7 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.role') }}</label>
                     <select
                       v-model="createForm.role"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-slate-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
                     >
                       <option class="bg-white dark:bg-slate-700" v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
                       <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.tenantAdmin') }}</option>
@@ -378,7 +378,7 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.role') }}</label>
                     <select
                       v-model="editForm.role"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-slate-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
                     >
                       <option class="bg-white dark:bg-slate-700" v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
                       <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.tenantAdmin') }}</option>
@@ -435,7 +435,7 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.role') }}</label>
                     <select
                       v-model="inviteForm.role"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-slate-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
                     >
                       <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.admin') }}</option>
                       <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>

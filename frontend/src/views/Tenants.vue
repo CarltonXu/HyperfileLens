@@ -337,7 +337,7 @@
             <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end">
               <button
                 type="button"
-                class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-slate-700 dark:text-white dark:hover:bg-gray-600"
+                class="rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
                 @click="closeStatsDrawer"
               >
                 {{ t('common.close') || 'Close' }}
@@ -462,7 +462,7 @@
             <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end">
               <button
                 type="button"
-                class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-slate-700 dark:text-white dark:hover:bg-gray-600"
+                class="rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
                 @click="closeUsersDrawer"
               >
                 {{ t('common.close') || 'Close' }}
@@ -500,7 +500,7 @@
                   </div>
                 </div>
                 <div class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
-                  <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 dark:bg-slate-700 dark:text-white dark:hover:bg-gray-600" @click="showRemoveUserConfirm = false">
+                  <button type="button" class="mt-3 inline-flex w-full justify-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 sm:mt-0 transition-colors" @click="showRemoveUserConfirm = false">
                     {{ t('common.cancel') }}
                   </button>
                   <button type="button" class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500" @click="executeRemoveUser">
