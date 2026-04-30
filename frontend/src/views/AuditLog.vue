@@ -127,7 +127,7 @@
             ]"
           >
             <FunnelIcon class="w-4 h-4" />
-            <span>{{ filters.action ? t(`auditLog.actions.${filters.action}`) : t('auditLog.action') }}</span>
+            <span>{{ filters.action ? safeT(`auditLog.actions.${filters.action}`, filters.action) : t('auditLog.action') }}</span>
             <ChevronDownIcon class="w-4 h-4" />
           </button>
           <Transition name="dropdown">
@@ -153,7 +153,7 @@
                   filters.action === action ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-700 dark:text-slate-300'
                 ]"
               >
-                {{ t(`auditLog.actions.${action}`) }}
+                {{ safeT(`auditLog.actions.${action}`, action) }}
               </button>
             </div>
           </Transition>
@@ -171,7 +171,7 @@
             ]"
           >
             <CubeIcon class="w-4 h-4" />
-            <span>{{ filters.resource_type ? t(`auditLog.resourceTypes.${filters.resource_type}`) : t('auditLog.resourceType') }}</span>
+            <span>{{ filters.resource_type ? safeT(`auditLog.resourceTypes.${filters.resource_type}`, filters.resource_type) : t('auditLog.resourceType') }}</span>
             <ChevronDownIcon class="w-4 h-4" />
           </button>
           <Transition name="dropdown">
@@ -197,7 +197,7 @@
                   filters.resource_type === type ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-700 dark:text-slate-300'
                 ]"
               >
-                {{ t(`auditLog.resourceTypes.${type}`) }}
+                {{ safeT(`auditLog.resourceTypes.${type}`, type) }}
               </button>
             </div>
           </Transition>

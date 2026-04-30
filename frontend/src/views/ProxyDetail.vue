@@ -363,7 +363,7 @@ onUnmounted(() => {
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             ]"
           >
-            {{ t(`proxies.detail.tabs.${tab}`) }}
+            {{ safeT(`proxies.detail.tabs.${tab}`, tab) }}
           </button>
         </nav>
       </div>

@@ -468,7 +468,7 @@ onMounted(() => {
             <div class="flex items-center gap-4">
               <span :class="['inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium', getStatusColor(selectedTask.status)]">
                 <component :is="getStatusIcon(selectedTask.status)" class="w-4 h-4" />
-                {{ t(`backupTasks.status.${selectedTask.status}`) }}
+                {{ safeT(`backupTasks.status.${selectedTask.status}`, selectedTask.status) }}
               </span>
               <span class="text-sm text-slate-500 dark:text-slate-400">{{ safeT(`backupTasks.types.${selectedTask.task_type || 'full'}`, selectedTask.task_type || 'full') }}</span>
             </div>

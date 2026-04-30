@@ -498,7 +498,7 @@ onMounted(() => {
             <div class="flex items-center gap-4">
               <span :class="['inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium', getStatusColor(selectedTask.status)]">
                 <component :is="getStatusIcon(selectedTask.status)" class="w-4 h-4" />
-                {{ t(`recoveryTasks.status.${selectedTask.status}`) }}
+                {{ safeT(`recoveryTasks.status.${selectedTask.status}`, selectedTask.status) }}
               </span>
               <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ safeT(`recoveryTasks.types.${selectedTask.recovery_type || 'original_location'}`, selectedTask.recovery_type || 'original_location') }}</span>
             </div>
