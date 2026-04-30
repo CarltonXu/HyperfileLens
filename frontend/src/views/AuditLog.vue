@@ -21,6 +21,34 @@
       </div>
     </div>
 
+    <!-- Statistics Cards -->
+    <div v-if="statistics" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
+        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.totalLogs') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-slate-800 dark:text-white">
+          {{ statistics.total_count }}
+        </div>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
+        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.todayLogs') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-slate-800 dark:text-white">
+          {{ statistics.today_count }}
+        </div>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
+        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.successRate') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">
+          {{ successRate }}%
+        </div>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
+        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.failureCount') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">
+          {{ statistics.result_stats?.failure || 0 }}
+        </div>
+      </div>
+    </div>
+
     <!-- Filters -->
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -85,46 +113,18 @@
       <div class="mt-4 flex justify-end">
         <button
           @click="fetchLogs"
-          class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+          class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-colors"
         >
           {{ t('common.search') }}
         </button>
       </div>
     </div>
 
-    <!-- Statistics Cards -->
-    <div v-if="statistics" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
-        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.totalLogs') }}</div>
-        <div class="mt-1 text-2xl font-semibold text-slate-800 dark:text-white">
-          {{ statistics.total_count }}
-        </div>
-      </div>
-      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
-        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.todayLogs') }}</div>
-        <div class="mt-1 text-2xl font-semibold text-slate-800 dark:text-white">
-          {{ statistics.today_count }}
-        </div>
-      </div>
-      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
-        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.successRate') }}</div>
-        <div class="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">
-          {{ successRate }}%
-        </div>
-      </div>
-      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
-        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.failureCount') }}</div>
-        <div class="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">
-          {{ statistics.result_stats?.failure || 0 }}
-        </div>
-      </div>
-    </div>
-
     <!-- Logs Table -->
     <div class="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
-          <thead class="bg-gray-50 dark:bg-gray-900">
+        <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+          <thead class="bg-slate-50 dark:bg-slate-700/50">
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {{ t('auditLog.timestamp') }}
@@ -149,7 +149,7 @@
               </th>
             </tr>
           </thead>
-          <tbody class="bg-white dark:bg-slate-800 dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
+          <tbody class="bg-white dark:bg-slate-800 dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
             <tr v-if="loading">
               <td colspan="7" class="px-6 py-4 text-center text-slate-500 dark:text-slate-400">
                 {{ t('common.loading') }}
@@ -353,7 +353,7 @@
               <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
                 {{ t('auditLog.changes') }}
               </label>
-              <pre class="bg-gray-50 dark:bg-gray-900 rounded p-3 text-xs overflow-auto max-h-60">{{ JSON.stringify(selectedLog.changes, null, 2) }}</pre>
+              <pre class="bg-slate-50 dark:bg-slate-700/50 rounded p-3 text-xs overflow-auto max-h-60">{{ JSON.stringify(selectedLog.changes, null, 2) }}</pre>
             </div>
             <div>
               <label class="block text-sm font-medium text-slate-500 dark:text-slate-400">
