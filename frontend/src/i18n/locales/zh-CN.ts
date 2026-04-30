@@ -83,6 +83,8 @@ export default {
     to: '至',
     of: '共',
     results: '条结果',
+    rowsPerPage: '每页行数',
+    apply: '应用',
     // 欢迎消息
     welcomeBack: '欢迎回来',
     goodMorning: '早上好',
@@ -94,7 +96,10 @@ export default {
     tip1: '数据备份是保护信息资产的重要手段',
     tip2: '定期检查备份任务状态，确保数据安全',
     tip3: '多因素认证可以有效保护账户安全',
-    tip4: '建议定期更换密码，提高账户安全性'
+    tip4: '建议定期更换密码，提高账户安全性',
+    // 欢迎弹窗
+    welcomeTitle: '欢迎回来',
+    welcomeSubtitle: '系统概览一览'
   },
 
   // Theme
@@ -102,6 +107,14 @@ export default {
     light: '浅色',
     dark: '深色',
     system: '跟随系统'
+  },
+
+  // Welcome
+  welcome: {
+    goodMorning: '早上好',
+    goodAfternoon: '下午好',
+    goodEvening: '晚上好',
+    subtitle: '系统概览一览'
   },
 
   // Auth
@@ -1207,6 +1220,17 @@ export default {
     requestPath: '请求路径',
     noChanges: '无变更记录',
     loading: '加载中...',
+    detail: '详情',
+    // Search
+    searchPlaceholder: '搜索日志...',
+    searchUser: '按用户搜索...',
+    searchResource: '按资源搜索...',
+    searchIp: '按 IP 搜索...',
+    // Date presets
+    today: '今天',
+    last7Days: '近7天',
+    last30Days: '近30天',
+    custom: '自定义',
 
     stats: {
       success: '成功',
@@ -1240,6 +1264,13 @@ export default {
     },
 
     actions: {
+      create: '创建',
+      update: '更新',
+      delete: '删除',
+      login: '登录',
+      logout: '登出',
+      enable: '启用',
+      disable: '禁用',
       export: '导出',
       filter: '筛选',
       refresh: '刷新',
@@ -1272,6 +1303,7 @@ export default {
       user: '用户',
       tenant: '租户',
       proxy: '代理',
+      session: '会话',
       backup_task: '备份任务',
       recovery_task: '恢复任务',
       policy: '策略',
@@ -1290,17 +1322,6 @@ export default {
       title: '暂无审计日志',
       description: '系统活动将显示在这里',
       noResults: '没有找到匹配的记录'
-    },
-
-    detail: {
-      title: '操作详情',
-      basicInfo: '基本信息',
-      requestInfo: '请求信息',
-      responseInfo: '响应信息',
-      changes: '变更详情',
-      before: '变更前',
-      after: '变更后',
-      close: '关闭'
     }
   },
 

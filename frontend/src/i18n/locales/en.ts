@@ -84,6 +84,8 @@ export default {
     to: 'to',
     of: 'of',
     results: 'results',
+    rowsPerPage: 'Rows per page',
+    apply: 'Apply',
     // Welcome messages
     welcomeBack: 'Welcome back',
     goodMorning: 'Good morning',
@@ -95,7 +97,10 @@ export default {
     tip1: 'Data backup is essential for protecting information assets',
     tip2: 'Check backup task status regularly to ensure data safety',
     tip3: 'Multi-factor authentication effectively protects account security',
-    tip4: 'It is recommended to change passwords regularly'
+    tip4: 'It is recommended to change passwords regularly',
+    // Welcome toast
+    welcomeTitle: 'Welcome back',
+    welcomeSubtitle: 'Here is your system overview'
   },
 
   // Theme
@@ -103,6 +108,14 @@ export default {
     light: 'Light',
     dark: 'Dark',
     system: 'System'
+  },
+
+  // Welcome
+  welcome: {
+    goodMorning: 'Good morning',
+    goodAfternoon: 'Good afternoon',
+    goodEvening: 'Good evening',
+    subtitle: 'Here is your system overview'
   },
 
   // Auth
@@ -1207,6 +1220,17 @@ export default {
     requestPath: 'Request Path',
     noChanges: 'No changes recorded',
     loading: 'Loading...',
+    detail: 'Details',
+    // Search
+    searchPlaceholder: 'Search logs...',
+    searchUser: 'Search by user...',
+    searchResource: 'Search by resource...',
+    searchIp: 'Search by IP...',
+    // Date presets
+    today: 'Today',
+    last7Days: '7 Days',
+    last30Days: '30 Days',
+    custom: 'Custom',
 
     stats: {
       success: 'Success',
@@ -1240,6 +1264,13 @@ export default {
     },
 
     actions: {
+      create: 'Create',
+      update: 'Update',
+      delete: 'Delete',
+      login: 'Login',
+      logout: 'Logout',
+      enable: 'Enable',
+      disable: 'Disable',
       export: 'Export',
       filter: 'Filter',
       refresh: 'Refresh',
@@ -1272,6 +1303,7 @@ export default {
       user: 'User',
       tenant: 'Tenant',
       proxy: 'Proxy',
+      session: 'Session',
       backup_task: 'Backup Task',
       recovery_task: 'Recovery Task',
       policy: 'Policy',
@@ -1290,17 +1322,6 @@ export default {
       title: 'No audit logs',
       description: 'System activities will appear here',
       noResults: 'No matching records found'
-    },
-
-    detail: {
-      title: 'Operation Details',
-      basicInfo: 'Basic Information',
-      requestInfo: 'Request Information',
-      responseInfo: 'Response Information',
-      changes: 'Change Details',
-      before: 'Before',
-      after: 'After',
-      close: 'Close'
     }
   },
 
