@@ -18,7 +18,12 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+// Safe translation helper
+const safeT = (key: string, fallback: string): string => {
+  return te(key) ? t(key) : fallback
+}
 
 interface Stats {
   total_nodes: number
@@ -269,7 +274,7 @@ onMounted(() => {
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-slate-800 dark:text-white truncate">{{ task.name }}</p>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {{ t(`backupTasks.types.${task.task_type}`) }} • {{ task.source_node_name || 'Node' }}
+                  {{ safeT(`backupTasks.types.${task.task_type}`, task.task_type) }} • {{ task.source_node_name || 'Node' }}
                 </p>
               </div>
               <div class="text-right">
@@ -277,7 +282,7 @@ onMounted(() => {
                   'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
                   getStatusColor(task.status)
                 ]">
-                  {{ t(`backupTasks.status.${task.status}`) }}
+                  {{ safeT(`backupTasks.status.${task.status}`, task.status) }}
                 </span>
                 <p class="text-xs text-slate-400 mt-1">
                   {{ new Date(task.created_at).toLocaleDateString() }}

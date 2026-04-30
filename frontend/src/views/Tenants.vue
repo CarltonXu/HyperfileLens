@@ -89,7 +89,7 @@
             </td>
             <td class="whitespace-nowrap px-3 py-4 text-sm">
               <span :class="getStatusClass(tenant.status)" class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
-                {{ t(`tenants.${tenant.status}`) }}
+                {{ safeT(`tenants.${tenant.status}`, tenant.status) }}
               </span>
             </td>
             <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
@@ -577,9 +577,14 @@ import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import type { Tenant } from '@/types/tenant'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const { showToast } = useToast()
 const authStore = useAuthStore()
+
+// Safe translation helper
+const safeT = (key: string, fallback: string): string => {
+  return te(key) ? t(key) : fallback
+}
 
 // State
 const tenants = ref<Tenant[]>([])

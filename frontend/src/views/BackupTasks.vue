@@ -22,7 +22,12 @@ import {
   XCircleIcon
 } from '@heroicons/vue/24/outline'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+// Safe translation helper
+const safeT = (key: string, fallback: string): string => {
+  return te(key) ? t(key) : fallback
+}
 
 const isLoading = ref(true)
 const tasks = ref<BackupTask[]>([])
@@ -331,13 +336,13 @@ onMounted(() => {
             </td>
             <td class="px-6 py-4">
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
-                {{ t(`backupTasks.types.${task.task_type || 'full'}`) }}
+                {{ safeT(`backupTasks.types.${task.task_type || 'full'}`, task.task_type || 'full') }}
               </span>
             </td>
             <td class="px-6 py-4">
               <span :class="['inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium', getStatusColor(task.status)]">
                 <component :is="getStatusIcon(task.status)" class="w-3.5 h-3.5" />
-                {{ t(`backupTasks.status.${task.status}`) }}
+                {{ safeT(`backupTasks.status.${task.status}`, task.status) }}
               </span>
             </td>
             <td class="px-6 py-4">
@@ -465,7 +470,7 @@ onMounted(() => {
                 <component :is="getStatusIcon(selectedTask.status)" class="w-4 h-4" />
                 {{ t(`backupTasks.status.${selectedTask.status}`) }}
               </span>
-              <span class="text-sm text-slate-500 dark:text-slate-400">{{ t(`backupTasks.types.${selectedTask.task_type || 'full'}`) }}</span>
+              <span class="text-sm text-slate-500 dark:text-slate-400">{{ safeT(`backupTasks.types.${selectedTask.task_type || 'full'}`, selectedTask.task_type || 'full') }}</span>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
               <div class="bg-slate-50 rounded-lg p-3">

@@ -22,7 +22,12 @@ import {
   XCircleIcon
 } from '@heroicons/vue/24/outline'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+// Safe translation helper
+const safeT = (key: string, fallback: string): string => {
+  return te(key) ? t(key) : fallback
+}
 
 const isLoading = ref(true)
 const tasks = ref<RecoveryTask[]>([])
@@ -350,13 +355,13 @@ onMounted(() => {
             </td>
             <td class="px-6 py-4">
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
-                {{ t(`recoveryTasks.types.${task.recovery_type || 'original_location'}`) }}
+                {{ safeT(`recoveryTasks.types.${task.recovery_type || 'original_location'}`, task.recovery_type || 'original_location') }}
               </span>
             </td>
             <td class="px-6 py-4">
               <span :class="['inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium', getStatusColor(task.status)]">
                 <component :is="getStatusIcon(task.status)" class="w-3.5 h-3.5" />
-                {{ t(`recoveryTasks.status.${task.status}`) }}
+                {{ safeT(`recoveryTasks.status.${task.status}`, task.status) }}
               </span>
             </td>
             <td class="px-6 py-4">
@@ -495,7 +500,7 @@ onMounted(() => {
                 <component :is="getStatusIcon(selectedTask.status)" class="w-4 h-4" />
                 {{ t(`recoveryTasks.status.${selectedTask.status}`) }}
               </span>
-              <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ t(`recoveryTasks.types.${selectedTask.recovery_type || 'original_location'}`) }}</span>
+              <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ safeT(`recoveryTasks.types.${selectedTask.recovery_type || 'original_location'}`, selectedTask.recovery_type || 'original_location') }}</span>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
               <div class="bg-slate-50 rounded-lg p-3">

@@ -312,7 +312,7 @@
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <span :class="getActionBadgeClass(log.action)" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                  {{ log.action_display || t(`auditLog.actions.${log.action}`) }}
+                  {{ log.action_display || safeT(`auditLog.actions.${log.action}`, log.action) }}
                 </span>
               </td>
               <td class="px-4 py-3">
@@ -320,12 +320,12 @@
                   {{ log.resource_name || log.resource_id || '-' }}
                 </div>
                 <div class="text-xs text-slate-500 dark:text-slate-400">
-                  {{ log.resource_type_display || t(`auditLog.resourceTypes.${log.resource_type}`) }}
+                  {{ log.resource_type_display || safeT(`auditLog.resourceTypes.${log.resource_type}`, log.resource_type) }}
                 </div>
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <span :class="getResultBadgeClass(log.result)" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                  {{ log.result_display || t(`auditLog.results.${log.result}`) }}
+                  {{ log.result_display || safeT(`auditLog.results.${log.result}`, log.result) }}
                 </span>
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
@@ -534,8 +534,13 @@ import {
 import { auditLogApi } from '@/api'
 import { useAppStore } from '@/stores/app'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const appStore = useAppStore()
+
+// Safe translation helper - returns original value if key doesn't exist
+const safeT = (key: string, fallback: string): string => {
+  return te(key) ? t(key) : fallback
+}
 
 interface AuditLogItem {
   id: string
