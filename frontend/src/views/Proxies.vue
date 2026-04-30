@@ -2506,9 +2506,9 @@ onUnmounted(() => {
               <div class="flex items-center gap-2">
                 <span :class="[
                   'px-3 py-1 rounded-full text-xs font-medium',
-                  selectedProxy?.install_token_used ? 'bg-slate-100 text-slate-500 dark:text-slate-400' : 'bg-emerald-100 text-emerald-700'
+                  selectedProxy?.install_token_used ? 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
                 ]">
-                  {{ selectedProxy?.install_token_used ? t('proxies.installInfo.tokenUsed') : t('proxies.installInfo.tokenUnused') }}
+                  {{ selectedProxy?.install_token_used ? t('proxies.installInfo.tokenUsed') : t('proxies.installInfo.tokenAvailable') }}
                 </span>
               </div>
 
@@ -2534,7 +2534,7 @@ onUnmounted(() => {
                   <select
                     v-model="autoRefresh.monitor.interval"
                     @change="setAutoRefresh('monitor', autoRefresh.monitor.interval > 0, autoRefresh.monitor.interval)"
-                    class="text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    class="text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option :value="0">{{ t('proxies.monitoring.refreshOff') }}</option>
                     <option :value="10">{{ t('proxies.monitoring.refresh10s') }}</option>
@@ -2613,25 +2613,25 @@ onUnmounted(() => {
 
                 <!-- System Overview Cards -->
                 <div class="grid grid-cols-4 gap-3">
-                  <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-3">
-                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.cpuUsage') }}</p>
-                    <p class="text-xl font-bold text-indigo-700 mt-1">{{ (tabData.monitor.data.current?.cpu_usage || 0).toFixed(1) }}%</p>
-                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.monitoring.cpuCores') }}: {{ tabData.monitor.data.current?.cpu_cores || '-' }}</p>
+                  <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/30 dark:to-indigo-800/30 rounded-xl p-3">
+                    <p class="text-xs text-slate-600 dark:text-slate-300 opacity-80">{{ t('proxies.monitoring.cpuUsage') }}</p>
+                    <p class="text-xl font-bold text-indigo-700 dark:text-indigo-400 mt-1">{{ (tabData.monitor.data.current?.cpu_usage || 0).toFixed(1) }}%</p>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 opacity-70 mt-1">{{ t('proxies.monitoring.cpuCores') }}: {{ tabData.monitor.data.current?.cpu_cores || '-' }}</p>
                   </div>
-                  <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-3">
-                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.memoryUsage') }}</p>
-                    <p class="text-xl font-bold text-emerald-700 mt-1">{{ (tabData.monitor.data.current?.memory_usage || 0).toFixed(1) }}%</p>
-                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.monitoring.memoryTotal') }}: {{ tabData.monitor.data.current?.memory_total_gb || '-' }} GB</p>
+                  <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/30 rounded-xl p-3">
+                    <p class="text-xs text-slate-600 dark:text-slate-300 opacity-80">{{ t('proxies.monitoring.memoryUsage') }}</p>
+                    <p class="text-xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{{ (tabData.monitor.data.current?.memory_usage || 0).toFixed(1) }}%</p>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 opacity-70 mt-1">{{ t('proxies.monitoring.memoryTotal') }}: {{ tabData.monitor.data.current?.memory_total_gb || '-' }} GB</p>
                   </div>
-                  <div class="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-3">
-                    <p class="text-xs opacity-80">{{ t('proxies.monitoring.diskUsage') }}</p>
-                    <p class="text-xl font-bold text-amber-700 mt-1">{{ (tabData.monitor.data.current?.disk_usage || 0).toFixed(1) }}%</p>
-                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.monitoring.diskTotal') }}: {{ tabData.monitor.data.current?.disk_total_gb || '-' }} GB</p>
+                  <div class="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/30 rounded-xl p-3">
+                    <p class="text-xs text-slate-600 dark:text-slate-300 opacity-80">{{ t('proxies.monitoring.diskUsage') }}</p>
+                    <p class="text-xl font-bold text-amber-700 dark:text-amber-400 mt-1">{{ (tabData.monitor.data.current?.disk_usage || 0).toFixed(1) }}%</p>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 opacity-70 mt-1">{{ t('proxies.monitoring.diskTotal') }}: {{ tabData.monitor.data.current?.disk_total_gb || '-' }} GB</p>
                   </div>
-                  <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3">
-                    <p class="text-xs opacity-80">{{ t('proxies.detail.uptime') }}</p>
-                    <p class="text-xl font-bold text-blue-700 dark:text-blue-300 mt-1">{{ formatUptime(tabData.monitor.data.uptime_seconds) }}</p>
-                    <p class="text-xs opacity-70 mt-1">{{ t('proxies.detail.lastHeartbeat') }}: {{ tabData.monitor.data.last_heartbeat ? new Date(tabData.monitor.data.last_heartbeat).toLocaleTimeString() : '-' }}</p>
+                  <div class="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-xl p-3">
+                    <p class="text-xs text-slate-600 dark:text-slate-300 opacity-80">{{ t('proxies.detail.uptime') }}</p>
+                    <p class="text-xl font-bold text-blue-700 dark:text-blue-400 mt-1">{{ formatUptime(tabData.monitor.data.uptime_seconds) }}</p>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 opacity-70 mt-1">{{ t('proxies.detail.lastHeartbeat') }}: {{ tabData.monitor.data.last_heartbeat ? new Date(tabData.monitor.data.last_heartbeat).toLocaleTimeString() : '-' }}</p>
                   </div>
                 </div>
 
@@ -2816,17 +2816,17 @@ onUnmounted(() => {
                   <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('proxies.tasks.total') }}</p>
                   <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ tabData.tasks.stats?.total || 0 }}</p>
                 </div>
-                <div class="bg-emerald-50 rounded-xl p-4">
+                <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-4">
                   <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('proxies.tasks.completed') }}</p>
-                  <p class="text-2xl font-bold text-emerald-700 mt-1">{{ tabData.tasks.stats?.completed || 0 }}</p>
+                  <p class="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{{ tabData.tasks.stats?.completed || 0 }}</p>
                 </div>
-                <div class="bg-red-50 rounded-xl p-4">
+                <div class="bg-red-50 dark:bg-red-900/30 rounded-xl p-4">
                   <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('proxies.tasks.failed') }}</p>
-                  <p class="text-2xl font-bold text-red-700 mt-1">{{ tabData.tasks.stats?.failed || 0 }}</p>
+                  <p class="text-2xl font-bold text-red-700 dark:text-red-400 mt-1">{{ tabData.tasks.stats?.failed || 0 }}</p>
                 </div>
-                <div class="bg-blue-50 rounded-xl p-4">
+                <div class="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4">
                   <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('proxies.tasks.running') }}</p>
-                  <p class="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-1">{{ tabData.tasks.stats?.running || 0 }}</p>
+                  <p class="text-2xl font-bold text-blue-700 dark:text-blue-400 mt-1">{{ tabData.tasks.stats?.running || 0 }}</p>
                 </div>
               </div>
 
@@ -2841,10 +2841,10 @@ onUnmounted(() => {
                     <div class="flex items-center gap-3">
                       <span :class="[
                         'px-2 py-1 rounded text-xs font-medium',
-                        task.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                        task.status === 'running' ? 'bg-blue-100 text-blue-700 dark:text-blue-300' :
-                        task.status === 'failed' ? 'bg-red-100 text-red-700' :
-                        'bg-slate-100 text-slate-700 dark:text-slate-200'
+                        task.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
+                        task.status === 'running' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                        task.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                        'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
                       ]">
                         {{ t(`proxies.detail.taskStatus.${task.status}`) || task.status }}
                       </span>
@@ -2878,7 +2878,7 @@ onUnmounted(() => {
                   <select
                     v-model="autoRefresh.heartbeats.interval"
                     @change="setAutoRefresh('heartbeats', autoRefresh.heartbeats.interval > 0, autoRefresh.heartbeats.interval)"
-                    class="text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    class="text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option :value="0">{{ t('proxies.monitoring.refreshOff') }}</option>
                     <option :value="10">{{ t('proxies.monitoring.refresh10s') }}</option>
