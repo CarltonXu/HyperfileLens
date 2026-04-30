@@ -911,7 +911,7 @@ function getRepoTypeIcon(type: string) {
 function getRepoTypeColor(type: string): string {
   const colors: Record<string, string> = {
     s3: 'bg-orange-100 text-orange-600',
-    local: 'bg-blue-100 text-blue-600',
+    local: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
     nas: 'bg-purple-100 text-purple-600',
     nfs: 'bg-purple-100 text-purple-600',
     azure: 'bg-sky-100 text-sky-600',
@@ -1388,7 +1388,7 @@ onMounted(() => {
           </div>
           
           <!-- Fixed Repository Type Selection -->
-          <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 bg-slate-50 flex-shrink-0">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 flex-shrink-0">
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">{{ t('repository.form.repositoryType') }}</label>
             <div class="grid grid-cols-3 gap-3">
               <button
@@ -1405,10 +1405,10 @@ onMounted(() => {
                 ]"
               >
                 <div :class="[
-                  'w-9 h-9 rounded-lg flex items-center justify-center',
-                  type.color === 'orange' ? 'bg-orange-100 text-orange-600' :
-                  type.color === 'purple' ? 'bg-purple-100 text-purple-600' :
-                  'bg-blue-100 text-blue-600'
+                  'w-9 h-9 rounded-lg flex items-center justify-center dark:bg-opacity-50',
+                  type.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' :
+                  type.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' :
+                  'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                 ]">
                   <component :is="type.icon" class="w-5 h-5" />
                 </div>
@@ -1428,7 +1428,7 @@ onMounted(() => {
                   v-model="newRepo.name" 
                   type="text" 
                   :placeholder="t('repository.form.namePlaceholder')" 
-                  :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2', 
+                  :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2', 
                     formErrors.name ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                   @input="clearError('name')"
                 />
@@ -1474,7 +1474,7 @@ onMounted(() => {
                       v-model="newRepo.s3_config.endpoint" 
                       type="text" 
                       placeholder="https://s3.amazonaws.com" 
-                      :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                      :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                         formErrors.endpoint ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                       @input="clearError('endpoint')"
                     />
@@ -1530,7 +1530,7 @@ onMounted(() => {
                       v-model="newRepo.s3_config.access_key" 
                       type="text" 
                       placeholder="AKIAIOSFODNN7EXAMPLE" 
-                      :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                      :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                         formErrors.access_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                       @input="clearError('access_key')"
                     />
@@ -1545,7 +1545,7 @@ onMounted(() => {
                       v-model="newRepo.s3_config.secret_key" 
                       type="password" 
                       :placeholder="isEditMode ? '••••••••••••••••' : '••••••••••••••••'" 
-                      :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                      :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                         formErrors.secret_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                       @input="clearError('secret_key')"
                     />
@@ -1634,7 +1634,7 @@ onMounted(() => {
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('repository.s3.selectBucket') }} *</label>
                     <select
                       v-model="newRepo.s3_config.bucket"
-                      :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                      :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                         formErrors.bucket ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                       @change="clearError('bucket')"
                     >
@@ -1650,7 +1650,7 @@ onMounted(() => {
                 <!-- New Bucket Creation -->
                 <div v-if="newRepo.s3_config.bucket_mode === 'new'">
                   <!-- Bucket name rules info -->
-                  <div class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 bg-slate-50 rounded-lg p-3 mb-4 border border-slate-200 dark:border-slate-700">
+                  <div class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 mb-4 border border-slate-200 dark:border-slate-700">
                     <InformationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5 text-slate-400" />
                     <div class="text-xs space-y-1">
                       <p class="font-medium text-slate-700 dark:text-slate-200">{{ t('repository.s3.bucketNameRules') }}:</p>
@@ -1671,7 +1671,7 @@ onMounted(() => {
                         v-model="newRepo.s3_config.bucket" 
                         type="text" 
                         placeholder="my-backup-bucket" 
-                        :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 pr-24',
+                        :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 pr-24',
                           formErrors.bucket ? 'border-red-300 focus:ring-red-500' : 
                           bucketNameAvailable === true ? 'border-green-300 focus:ring-green-500' :
                           bucketNameAvailable === false ? 'border-red-300 focus:ring-red-500' :
@@ -1759,7 +1759,7 @@ onMounted(() => {
                     v-model="newRepo.nas_config.server" 
                     type="text" 
                     placeholder="192.168.1.100 或 nas.example.com" 
-                    :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                    :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                       formErrors.server ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                     @input="clearError('server')"
                   />
@@ -1771,7 +1771,7 @@ onMounted(() => {
                     v-model="newRepo.nas_config.export_path" 
                     type="text" 
                     :placeholder="newRepo.nas_config.mount_type === 'nfs' ? '/export/backup' : '/share/backup'" 
-                    :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                    :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                       formErrors.export_path ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                     @input="clearError('export_path')"
                   />
@@ -1786,14 +1786,14 @@ onMounted(() => {
               </div>
 
               <!-- CIFS credentials -->
-              <div v-if="newRepo.nas_config.mount_type === 'cifs'" class="grid grid-cols-2 gap-4 p-3 bg-white rounded-lg">
+              <div v-if="newRepo.nas_config.mount_type === 'cifs'" class="grid grid-cols-2 gap-4 p-3 bg-white dark:bg-slate-700 rounded-lg">
                 <div>
                   <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('repository.nas.username') }} *</label>
                   <input 
                     v-model="newRepo.nas_config.username" 
                     type="text" 
                     placeholder="username" 
-                    :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                    :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                       formErrors.username ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                     @input="clearError('username')"
                   />
@@ -1808,7 +1808,7 @@ onMounted(() => {
                     v-model="newRepo.nas_config.password" 
                     type="password" 
                     placeholder="••••••••" 
-                    :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                    :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                       formErrors.password ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                     @input="clearError('password')"
                   />
@@ -1824,7 +1824,7 @@ onMounted(() => {
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('repository.boundSyncProxy') }} *</label>
                 <select 
                   v-model="newRepo.bound_node" 
-                  :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                  :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                     formErrors.bound_node ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                   @change="clearError('bound_node')"
                 >
@@ -1854,7 +1854,7 @@ onMounted(() => {
                 <select 
                   :value="newRepo.bound_node || ''" 
                   @change="handleProxySelect(($event.target as HTMLSelectElement).value)"
-                  :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                  :class="['w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2',
                     formErrors.bound_node ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                 >
                   <option class="bg-white dark:bg-slate-700" value="">{{ t('repository.selectSyncProxy') }}</option>
@@ -1867,7 +1867,7 @@ onMounted(() => {
               </div>
 
               <!-- Directory Browser -->
-              <div v-if="newRepo.bound_node" class="bg-white rounded-lg border border-slate-200 dark:border-slate-700">
+              <div v-if="newRepo.bound_node" class="bg-white dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700">
                 <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 flex items-center justify-between">
                   <div class="flex items-center gap-2 text-sm">
                     <FolderIcon class="w-4 h-4 text-slate-400" />
@@ -1883,7 +1883,7 @@ onMounted(() => {
                 </div>
                 
                 <!-- Current Path -->
-                <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 dark:border-slate-700">
+                <div class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 dark:border-slate-700 dark:border-slate-700">
                   <code class="text-sm text-slate-700 dark:text-slate-200">{{ currentPath || '/' }}</code>
                 </div>
 
@@ -1921,16 +1921,16 @@ onMounted(() => {
               </div>
               
               <!-- Selected Path Display -->
-              <div v-if="newRepo.local_config.path" class="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+              <div v-if="newRepo.local_config.path" class="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
                 <CheckCircleIcon class="w-5 h-5 text-green-600" />
-                <span class="text-sm text-green-700">{{ t('repository.local.selectedPath') }}: <code class="bg-green-100 px-1 rounded">{{ newRepo.local_config.path }}</code></span>
+                <span class="text-sm text-green-700 dark:text-green-400">{{ t('repository.local.selectedPath') }}: <code class="bg-green-100 dark:bg-green-800/50 px-1 rounded">{{ newRepo.local_config.path }}</code></span>
               </div>
               
               <!-- Path Error -->
               <p v-if="formErrors.path" class="text-xs text-red-500">{{ formErrors.path }}</p>
 
               <!-- No Sync Proxy Available Warning -->
-              <div v-if="availableSyncProxies.length === 0" class="flex items-start gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <div v-if="availableSyncProxies.length === 0" class="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
                 <ExclamationCircleIcon class="w-5 h-5 text-amber-600 flex-shrink-0" />
                 <div>
                   <p class="text-sm font-medium text-amber-700">{{ t('repository.local.noSyncProxy') }}</p>
