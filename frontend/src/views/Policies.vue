@@ -202,7 +202,7 @@ onMounted(() => {
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('policies.stats.total') }}</p>
-        <p class="text-xl font-bold text-slate-800 dark:text-white mt-1">{{ policies.length }}</p>
+        <p class="text-xl font-bold text-slate-800 dark:text-white dark:text-white mt-1">{{ policies.length }}</p>
       </div>
       <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('policies.stats.enabled') }}</p>
@@ -228,7 +228,7 @@ onMounted(() => {
         </div>
         <button
           @click="fetchPolicies"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
         >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
@@ -251,7 +251,7 @@ onMounted(() => {
 
     <div v-else class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
       <table class="w-full">
-        <thead class="bg-slate-50 border-b border-slate-200 dark:border-slate-700">
+        <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 dark:border-slate-700">
           <tr>
             <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.name') }}</th>
             <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('policies.form.scheduleType') }}</th>
@@ -260,7 +260,7 @@ onMounted(() => {
             <th class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.actions') }}</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700 dark:divide-slate-700">
           <tr v-for="policy in paginatedPolicies" :key="policy.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
             <td class="px-6 py-4">
               <div class="flex items-center gap-3">
@@ -291,7 +291,7 @@ onMounted(() => {
                 {{ policy.enabled ? t('common.enabled') : t('common.disabled') }}
               </button>
             </td>
-            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">
               {{ policy.next_run ? new Date(policy.next_run).toLocaleString() : '-' }}
             </td>
             <td class="px-6 py-4 text-right">
@@ -328,8 +328,8 @@ onMounted(() => {
       <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="showCreateModal = false" />
         <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg">
-          <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ t('policies.form.addPolicy') }}</h2>
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white dark:text-white">{{ t('policies.form.addPolicy') }}</h2>
             <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -338,38 +338,38 @@ onMounted(() => {
           </div>
           <div class="p-6 space-y-4">
             <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('common.name') }}</label>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('common.name') }}</label>
               <input v-model="newPolicy.name" type="text" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('policies.form.backupTask') }}</label>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('policies.form.backupTask') }}</label>
               <select v-model="newPolicy.backup_task" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
-                <option :value="undefined">Select Task</option>
-                <option v-for="task in backupTasks" :key="task.id" :value="task.id">{{ task.name }}</option>
+                <option class="bg-white dark:bg-slate-700" :value="undefined">Select Task</option>
+                <option class="bg-white dark:bg-slate-700" v-for="task in backupTasks" :key="task.id" :value="task.id">{{ task.name }}</option>
               </select>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('policies.form.scheduleType') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('policies.form.scheduleType') }}</label>
                 <select v-model="newPolicy.schedule_type" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
-                  <option value="hourly">{{ t('policies.scheduleTypes.hourly') }}</option>
-                  <option value="daily">{{ t('policies.scheduleTypes.daily') }}</option>
-                  <option value="weekly">{{ t('policies.scheduleTypes.weekly') }}</option>
-                  <option value="monthly">{{ t('policies.scheduleTypes.monthly') }}</option>
+                  <option class="bg-white dark:bg-slate-700" value="hourly">{{ t('policies.scheduleTypes.hourly') }}</option>
+                  <option class="bg-white dark:bg-slate-700" value="daily">{{ t('policies.scheduleTypes.daily') }}</option>
+                  <option class="bg-white dark:bg-slate-700" value="weekly">{{ t('policies.scheduleTypes.weekly') }}</option>
+                  <option class="bg-white dark:bg-slate-700" value="monthly">{{ t('policies.scheduleTypes.monthly') }}</option>
                 </select>
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('policies.form.retention') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('policies.form.retention') }}</label>
                 <input v-model.number="newPolicy.retention_days" type="number" min="1" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500" />
               </div>
             </div>
             <div v-if="newPolicy.schedule_type === 'daily'">
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('policies.form.time') }}</label>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('policies.form.time') }}</label>
               <input v-model="newPolicy.schedule_config!.time" type="time" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500" />
             </div>
           </div>
-          <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
-            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
+          <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-700 dark:border-slate-700 flex justify-end gap-3">
+            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">
               {{ t('common.cancel') }}
             </button>
             <button @click="createPolicy" class="px-4 py-2 text-sm text-white bg-violet-600 rounded-lg hover:bg-violet-700">

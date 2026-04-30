@@ -207,7 +207,7 @@ onMounted(fetchData)
         <h1 class="text-2xl font-bold text-slate-800 dark:text-white">
           {{ t('sourceResources.title') }}
         </h1>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">
           {{ t('sourceResources.subtitle') }}
         </p>
       </div>
@@ -224,7 +224,7 @@ onMounted(fetchData)
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('sourceResources.stats.total') }}</p>
-        <p class="text-xl font-bold text-slate-800 mt-1">{{ stats?.total_resources || 0 }}</p>
+        <p class="text-xl font-bold text-slate-800 dark:text-white mt-1">{{ stats?.total_resources || 0 }}</p>
       </div>
       <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('sourceResources.stats.active') }}</p>
@@ -256,8 +256,8 @@ onMounted(fetchData)
           v-model="typeFilter"
           class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="">{{ t('sourceResources.allTypes') }}</option>
-          <option v-for="type in resourceTypes" :key="type.value" :value="type.value">
+          <option class="bg-white dark:bg-slate-700" value="">{{ t('sourceResources.allTypes') }}</option>
+          <option class="bg-white dark:bg-slate-700" v-for="type in resourceTypes" :key="type.value" :value="type.value">
             {{ type.label }}
           </option>
         </select>
@@ -265,14 +265,14 @@ onMounted(fetchData)
           v-model="statusFilter"
           class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="">{{ t('sourceResources.allStatus') }}</option>
-          <option value="connected">{{ t('sourceResources.status.connected') }}</option>
-          <option value="disconnected">{{ t('sourceResources.status.disconnected') }}</option>
-          <option value="error">{{ t('sourceResources.status.error') }}</option>
+          <option class="bg-white dark:bg-slate-700" value="">{{ t('sourceResources.allStatus') }}</option>
+          <option class="bg-white dark:bg-slate-700" value="connected">{{ t('sourceResources.status.connected') }}</option>
+          <option class="bg-white dark:bg-slate-700" value="disconnected">{{ t('sourceResources.status.disconnected') }}</option>
+          <option class="bg-white dark:bg-slate-700" value="error">{{ t('sourceResources.status.error') }}</option>
         </select>
         <button
           @click="fetchData"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
         >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
@@ -317,14 +317,14 @@ onMounted(fetchData)
               </div>
               <div>
                 <h3 class="font-medium text-slate-800 dark:text-white">{{ resource.name }}</h3>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ resource.resource_type_display }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ resource.resource_type_display }}</p>
               </div>
             </div>
             <div class="flex items-center gap-2">
               <span :class="[
                 'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full',
-                resource.status === 'connected' ? 'bg-emerald-100 text-emerald-700' :
-                resource.status === 'error' ? 'bg-red-100 text-red-700' : 'bg-slate-100 dark:bg-slate-700 text-slate-600'
+                resource.status === 'connected' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
+                resource.status === 'error' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-600'
               ]">
                 {{ resource.status }}
               </span>
@@ -346,7 +346,7 @@ onMounted(fetchData)
           <!-- Bound Node -->
           <div class="mt-4 flex items-center gap-2">
             <LinkIcon class="w-4 h-4 text-slate-400" />
-            <span v-if="resource.bound_node" class="text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300">
+            <span v-if="resource.bound_node" class="text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 dark:text-slate-300">
               {{ resource.bound_node.name }}
             </span>
             <span v-else class="text-sm text-slate-400">{{ t('sourceResources.noBoundNode') }}</span>
@@ -355,13 +355,13 @@ onMounted(fetchData)
           <!-- Mount Status -->
           <div class="mt-2 flex items-center gap-2">
             <FolderIcon class="w-4 h-4 text-slate-400" />
-            <span class="text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300">
+            <span class="text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 dark:text-slate-300">
               {{ resource.mount_point || t('sourceResources.notMounted') }}
             </span>
           </div>
 
           <!-- Actions -->
-          <div class="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-700 dark:border-slate-700">
+          <div class="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-700 dark:border-slate-700 dark:border-slate-700">
             <button
               @click="testConnection(resource)"
               class="px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -396,37 +396,37 @@ onMounted(fetchData)
     <div v-if="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto">
       <div class="flex min-h-full items-center justify-center p-4">
         <div class="fixed inset-0 bg-black/50" @click="showCreateModal = false"></div>
-        <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full">
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-lg w-full">
           <div class="p-6">
-            <h2 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white dark:text-white mb-4">
               {{ t('sourceResources.addResource') }}
             </h2>
             <form @submit.prevent="createResource" class="space-y-4">
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.name') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.name') }}</label>
                 <input v-model="formData.name" type="text" required class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.type') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.type') }}</label>
                 <select v-model="formData.resource_type" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option v-for="type in resourceTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                  <option class="bg-white dark:bg-slate-700" v-for="type in resourceTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
                 </select>
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.boundNode') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.boundNode') }}</label>
                 <select v-model="formData.bound_node_id" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option :value="null">{{ t('sourceResources.form.selectNode') }}</option>
-                  <option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
+                  <option class="bg-white dark:bg-slate-700" :value="null">{{ t('sourceResources.form.selectNode') }}</option>
+                  <option class="bg-white dark:bg-slate-700" v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
                 </select>
               </div>
               <div v-if="['nfs', 'nas'].includes(formData.resource_type)">
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.server') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.server') }}</label>
                     <input v-model="formData.config.server" type="text" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.exportPath') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.exportPath') }}</label>
                     <input v-model="formData.config.export_path" type="text" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
@@ -434,21 +434,21 @@ onMounted(fetchData)
               <div v-if="formData.resource_type === 'cifs'">
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.server') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.server') }}</label>
                     <input v-model="formData.config.server" type="text" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.share') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.share') }}</label>
                     <input v-model="formData.config.share" type="text" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4 mt-4">
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.username') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.username') }}</label>
                     <input v-model="formData.credentials.username" type="text" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.password') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.password') }}</label>
                     <input v-model="formData.credentials.password" type="password" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
@@ -456,27 +456,27 @@ onMounted(fetchData)
               <div v-if="formData.resource_type === 's3'">
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.endpoint') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.endpoint') }}</label>
                     <input v-model="formData.config.endpoint" type="text" placeholder="https://s3.amazonaws.com" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.bucket') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.bucket') }}</label>
                     <input v-model="formData.config.bucket" type="text" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4 mt-4">
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.accessKey') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.accessKey') }}</label>
                     <input v-model="formData.credentials.access_key" type="text" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.secretKey') }}</label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.secretKey') }}</label>
                     <input v-model="formData.credentials.secret_key" type="password" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
               </div>
               <div class="flex justify-end gap-3 pt-4">
-                <button type="button" @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
+                <button type="button" @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
                   {{ t('common.cancel') }}
                 </button>
                 <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
@@ -493,32 +493,32 @@ onMounted(fetchData)
     <div v-if="showDetailModal && selectedResource" class="fixed inset-0 z-50 overflow-y-auto">
       <div class="flex min-h-full items-center justify-center p-4">
         <div class="fixed inset-0 bg-black/50" @click="showDetailModal = false"></div>
-        <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full">
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-lg w-full">
           <div class="p-6">
-            <h2 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ selectedResource.name }}</h2>
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white dark:text-white mb-4">{{ selectedResource.name }}</h2>
             <div class="space-y-3">
-              <div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700">
-                <span class="text-sm text-slate-500 dark:text-slate-400">{{ t('sourceResources.form.type') }}</span>
+              <div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 dark:border-slate-700">
+                <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ t('sourceResources.form.type') }}</span>
                 <span class="text-sm text-slate-800 dark:text-white">{{ selectedResource.resource_type_display }}</span>
               </div>
-              <div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700">
-                <span class="text-sm text-slate-500 dark:text-slate-400">{{ t('sourceResources.status.label') }}</span>
+              <div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 dark:border-slate-700">
+                <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ t('sourceResources.status.label') }}</span>
                 <span :class="[
                   'text-sm font-medium',
                   selectedResource.status === 'connected' ? 'text-emerald-600' :
                   selectedResource.status === 'error' ? 'text-red-600' : 'text-slate-600'
                 ]">{{ selectedResource.status }}</span>
               </div>
-              <div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700">
-                <span class="text-sm text-slate-500 dark:text-slate-400">{{ t('sourceResources.mountStatus') }}</span>
+              <div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 dark:border-slate-700">
+                <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ t('sourceResources.mountStatus') }}</span>
                 <span class="text-sm text-slate-800 dark:text-white">{{ selectedResource.mount_status }}</span>
               </div>
-              <div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700">
-                <span class="text-sm text-slate-500 dark:text-slate-400">{{ t('sourceResources.mountPoint') }}</span>
+              <div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 dark:border-slate-700">
+                <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ t('sourceResources.mountPoint') }}</span>
                 <span class="text-sm text-slate-800 dark:text-white">{{ selectedResource.mount_point || '-' }}</span>
               </div>
               <div class="flex justify-between py-2">
-                <span class="text-sm text-slate-500 dark:text-slate-400">{{ t('sourceResources.boundNode') }}</span>
+                <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ t('sourceResources.boundNode') }}</span>
                 <span class="text-sm text-slate-800 dark:text-white">{{ selectedResource.bound_node?.name || '-' }}</span>
               </div>
             </div>
@@ -536,31 +536,31 @@ onMounted(fetchData)
     <div v-if="showEditModal && selectedResource" class="fixed inset-0 z-50 overflow-y-auto">
       <div class="flex min-h-full items-center justify-center p-4">
         <div class="fixed inset-0 bg-black/50" @click="showEditModal = false"></div>
-        <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full">
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-lg w-full">
           <div class="p-6">
-            <h2 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white dark:text-white mb-4">
               {{ t('sourceResources.editResource') }}
             </h2>
             <form @submit.prevent="updateResource" class="space-y-4">
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.name') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.name') }}</label>
                 <input v-model="formData.name" type="text" required class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.type') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.type') }}</label>
                 <select v-model="formData.resource_type" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option v-for="type in resourceTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                  <option class="bg-white dark:bg-slate-700" v-for="type in resourceTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
                 </select>
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sourceResources.form.boundNode') }}</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{{ t('sourceResources.form.boundNode') }}</label>
                 <select v-model="formData.bound_node_id" class="mt-1 w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option :value="null">{{ t('sourceResources.form.selectNode') }}</option>
-                  <option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
+                  <option class="bg-white dark:bg-slate-700" :value="null">{{ t('sourceResources.form.selectNode') }}</option>
+                  <option class="bg-white dark:bg-slate-700" v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
                 </select>
               </div>
               <div class="flex justify-end gap-3 pt-4">
-                <button type="button" @click="showEditModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">{{ t('common.cancel') }}</button>
+                <button type="button" @click="showEditModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">{{ t('common.cancel') }}</button>
                 <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">{{ t('common.save') }}</button>
               </div>
             </form>
@@ -573,12 +573,12 @@ onMounted(fetchData)
     <div v-if="showDeleteModal && selectedResource" class="fixed inset-0 z-50 overflow-y-auto">
       <div class="flex min-h-full items-center justify-center p-4">
         <div class="fixed inset-0 bg-black/50" @click="showDeleteModal = false"></div>
-        <div class="relative bg-white rounded-xl shadow-xl max-w-sm w-full">
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-sm w-full">
           <div class="p-6">
-            <h2 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">{{ t('sourceResources.deleteConfirm') }}</h2>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t('sourceResources.deleteConfirmDesc', { name: selectedResource.name }) }}</p>
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white dark:text-white mb-2">{{ t('sourceResources.deleteConfirm') }}</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400 mb-4">{{ t('sourceResources.deleteConfirmDesc', { name: selectedResource.name }) }}</p>
             <div class="flex justify-end gap-3">
-              <button @click="showDeleteModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">{{ t('common.cancel') }}</button>
+              <button @click="showDeleteModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">{{ t('common.cancel') }}</button>
               <button @click="deleteResource" class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">{{ t('common.delete') }}</button>
             </div>
           </div>

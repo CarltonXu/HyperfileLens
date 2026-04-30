@@ -54,14 +54,14 @@
             v-model="filters.action"
             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
           >
-            <option value="">{{ t('common.all') }}</option>
-            <option value="create">{{ t('auditLog.actions.create') }}</option>
-            <option value="update">{{ t('auditLog.actions.update') }}</option>
-            <option value="delete">{{ t('auditLog.actions.delete') }}</option>
-            <option value="login">{{ t('auditLog.actions.login') }}</option>
-            <option value="logout">{{ t('auditLog.actions.logout') }}</option>
-            <option value="enable">{{ t('auditLog.actions.enable') }}</option>
-            <option value="disable">{{ t('auditLog.actions.disable') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="create">{{ t('auditLog.actions.create') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="update">{{ t('auditLog.actions.update') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="delete">{{ t('auditLog.actions.delete') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="login">{{ t('auditLog.actions.login') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="logout">{{ t('auditLog.actions.logout') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="enable">{{ t('auditLog.actions.enable') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="disable">{{ t('auditLog.actions.disable') }}</option>
           </select>
         </div>
         <!-- Resource Type Filter -->
@@ -73,12 +73,12 @@
             v-model="filters.resource_type"
             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
           >
-            <option value="">{{ t('common.all') }}</option>
-            <option value="user">{{ t('auditLog.resourceTypes.user') }}</option>
-            <option value="tenant">{{ t('auditLog.resourceTypes.tenant') }}</option>
-            <option value="proxy">{{ t('auditLog.resourceTypes.proxy') }}</option>
-            <option value="license">{{ t('auditLog.resourceTypes.license') }}</option>
-            <option value="session">{{ t('auditLog.resourceTypes.session') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="user">{{ t('auditLog.resourceTypes.user') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="tenant">{{ t('auditLog.resourceTypes.tenant') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="proxy">{{ t('auditLog.resourceTypes.proxy') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="license">{{ t('auditLog.resourceTypes.license') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="session">{{ t('auditLog.resourceTypes.session') }}</option>
           </select>
         </div>
       </div>
@@ -149,7 +149,7 @@
               </th>
             </tr>
           </thead>
-          <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody class="bg-white dark:bg-slate-800 dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             <tr v-if="loading">
               <td colspan="7" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                 {{ t('common.loading') }}
@@ -212,14 +212,14 @@
           <button
             :disabled="pagination.page <= 1"
             @click="changePage(pagination.page - 1)"
-            class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            class="relative inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600"
           >
             {{ t('common.previous') }}
           </button>
           <button
             :disabled="pagination.page >= totalPages"
             @click="changePage(pagination.page + 1)"
-            class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            class="ml-3 relative inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600"
           >
             {{ t('common.next') }}
           </button>

@@ -248,7 +248,7 @@ onMounted(() => {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('common.total') }}</p>
-        <p class="text-xl font-bold text-slate-800 mt-1">{{ recoveryStats.total_tasks }}</p>
+        <p class="text-xl font-bold text-slate-800 dark:text-white mt-1">{{ recoveryStats.total_tasks }}</p>
       </div>
       <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('recoveryTasks.status.running') }}</p>
@@ -264,7 +264,7 @@ onMounted(() => {
       </div>
       <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
         <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('recoveryTasks.progress.files') }}</p>
-        <p class="text-xl font-bold text-slate-800 mt-1">{{ recoveryStats.total_files }}</p>
+        <p class="text-xl font-bold text-slate-800 dark:text-white mt-1">{{ recoveryStats.total_files }}</p>
       </div>
     </div>
 
@@ -277,22 +277,22 @@ onMounted(() => {
             v-model="searchQuery"
             type="text"
             :placeholder="t('common.search')"
-            class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
         <select
           v-model="selectedStatus"
           class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
-          <option value="all">{{ t('common.status') }}: {{ t('common.all') }}</option>
-          <option value="pending">{{ t('recoveryTasks.status.pending') }}</option>
-          <option value="running">{{ t('recoveryTasks.status.running') }}</option>
-          <option value="completed">{{ t('recoveryTasks.status.completed') }}</option>
-          <option value="failed">{{ t('recoveryTasks.status.failed') }}</option>
+          <option class="bg-white dark:bg-slate-700" value="all">{{ t('common.status') }}: {{ t('common.all') }}</option>
+          <option class="bg-white dark:bg-slate-700" value="pending">{{ t('recoveryTasks.status.pending') }}</option>
+          <option class="bg-white dark:bg-slate-700" value="running">{{ t('recoveryTasks.status.running') }}</option>
+          <option class="bg-white dark:bg-slate-700" value="completed">{{ t('recoveryTasks.status.completed') }}</option>
+          <option class="bg-white dark:bg-slate-700" value="failed">{{ t('recoveryTasks.status.failed') }}</option>
         </select>
         <button
           @click="fetchTasks"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
         >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
@@ -315,7 +315,7 @@ onMounted(() => {
 
     <div v-else class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
       <table class="w-full">
-        <thead class="bg-slate-50 border-b border-slate-200 dark:border-slate-700">
+        <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 dark:border-slate-700">
           <tr>
             <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.name') }}</th>
             <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('recoveryTasks.form.type') }}</th>
@@ -325,7 +325,7 @@ onMounted(() => {
             <th class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">{{ t('common.actions') }}</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700 dark:divide-slate-700">
           <tr v-for="task in paginatedTasks" :key="task.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
             <td class="px-6 py-4">
               <div class="flex items-center gap-3">
@@ -373,7 +373,7 @@ onMounted(() => {
               </div>
               <span v-else class="text-sm text-slate-400">-</span>
             </td>
-            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">
               {{ task.created_at ? new Date(task.created_at).toLocaleDateString() : '-' }}
             </td>
             <td class="px-6 py-4 text-right">
@@ -420,54 +420,54 @@ onMounted(() => {
       <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="showCreateModal = false" />
         <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-          <div class="sticky top-0 bg-white dark:bg-slate-800 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ t('recoveryTasks.createTask') }}</h2>
+          <div class="sticky top-0 bg-white dark:bg-slate-800 px-6 py-4 border-b border-slate-100 dark:border-slate-700 dark:border-slate-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white dark:text-white">{{ t('recoveryTasks.createTask') }}</h2>
             <button @click="showCreateModal = false" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
           </div>
           <div class="p-6 space-y-4">
             <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('common.name') }}</label>
-              <input v-model="newRecovery.name" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('common.name') }}</label>
+              <input v-model="newRecovery.name" type="text" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.targetNode') }}</label>
-                <select v-model="newRecovery.node" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                  <option :value="0">Select</option>
-                  <option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.targetNode') }}</label>
+                <select v-model="newRecovery.node" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option class="bg-white dark:bg-slate-700" :value="0">Select</option>
+                  <option class="bg-white dark:bg-slate-700" v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option>
                 </select>
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.repository') }}</label>
-                <select v-model="newRecovery.repository" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                  <option :value="0">Select</option>
-                  <option v-for="repo in repositories" :key="repo.id" :value="repo.id">{{ repo.name }}</option>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.repository') }}</label>
+                <select v-model="newRecovery.repository" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option class="bg-white dark:bg-slate-700" :value="0">Select</option>
+                  <option class="bg-white dark:bg-slate-700" v-for="repo in repositories" :key="repo.id" :value="repo.id">{{ repo.name }}</option>
                 </select>
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.snapshot') }}</label>
-              <select v-model="newRecovery.snapshot_id" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                <option value="">Select Snapshot</option>
-                <option v-for="snap in snapshots" :key="snap.id" :value="snap.id">{{ snap.name }}</option>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.snapshot') }}</label>
+              <select v-model="newRecovery.snapshot_id" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option class="bg-white dark:bg-slate-700" value="">Select Snapshot</option>
+                <option class="bg-white dark:bg-slate-700" v-for="snap in snapshots" :key="snap.id" :value="snap.id">{{ snap.name }}</option>
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.type') }}</label>
-              <select v-model="newRecovery.recovery_type" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                <option value="original_location">{{ t('recoveryTasks.types.original_location') }}</option>
-                <option value="new_location">{{ t('recoveryTasks.types.new_location') }}</option>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.type') }}</label>
+              <select v-model="newRecovery.recovery_type" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option class="bg-white dark:bg-slate-700" value="original_location">{{ t('recoveryTasks.types.original_location') }}</option>
+                <option class="bg-white dark:bg-slate-700" value="new_location">{{ t('recoveryTasks.types.new_location') }}</option>
               </select>
             </div>
             <div v-if="newRecovery.recovery_type === 'new_location'">
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.targetPath') }}</label>
-              <input v-model="newRecovery.target_path" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-1">{{ t('recoveryTasks.form.targetPath') }}</label>
+              <input v-model="newRecovery.target_path" type="text" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
           </div>
-          <div class="sticky bottom-0 bg-white dark:bg-slate-800 px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
-            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
+          <div class="sticky bottom-0 bg-white dark:bg-slate-800 px-6 py-4 border-t border-slate-100 dark:border-slate-700 dark:border-slate-700 flex justify-end gap-3">
+            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">
               {{ t('common.cancel') }}
             </button>
             <button @click="createRecovery" class="px-4 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700">
@@ -483,8 +483,8 @@ onMounted(() => {
       <div v-if="showDetailModal && selectedTask" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="showDetailModal = false" />
         <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg">
-          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedTask.name }}</h2>
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white dark:text-white">{{ selectedTask.name }}</h2>
             <button @click="showDetailModal = false" class="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-lg">
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
@@ -495,7 +495,7 @@ onMounted(() => {
                 <component :is="getStatusIcon(selectedTask.status)" class="w-4 h-4" />
                 {{ t(`recoveryTasks.status.${selectedTask.status}`) }}
               </span>
-              <span class="text-sm text-slate-500 dark:text-slate-400">{{ t(`recoveryTasks.types.${selectedTask.recovery_type || 'original_location'}`) }}</span>
+              <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ t(`recoveryTasks.types.${selectedTask.recovery_type || 'original_location'}`) }}</span>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
               <div class="bg-slate-50 rounded-lg p-3">
@@ -508,7 +508,7 @@ onMounted(() => {
               </div>
             </div>
             <div v-if="selectedTask.file_patterns?.length" class="bg-slate-50 rounded-lg p-3">
-              <p class="text-sm text-slate-500 mb-2">{{ t('recoveryTasks.form.filePatterns') }}</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400 mb-2">{{ t('recoveryTasks.form.filePatterns') }}</p>
               <div class="flex flex-wrap gap-1">
                 <span v-for="(pattern, i) in selectedTask.file_patterns" :key="i" class="px-2 py-0.5 bg-white text-xs text-slate-600 rounded border border-slate-200 dark:border-slate-700">
                   {{ pattern }}
@@ -532,8 +532,8 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <div class="px-6 py-4 border-t border-slate-100 flex justify-end">
-            <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
+          <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end">
+            <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">
               {{ t('common.cancel') }}
             </button>
           </div>

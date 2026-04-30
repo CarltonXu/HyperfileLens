@@ -41,10 +41,10 @@
             class="rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
             @change="fetchTenants"
           >
-            <option value="">{{ t('common.all') || 'All Status' }}</option>
-            <option value="active">{{ t('tenants.active') }}</option>
-            <option value="inactive">{{ t('tenants.inactive') }}</option>
-            <option value="suspended">{{ t('tenants.suspended') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') || 'All Status' }}</option>
+            <option class="bg-white dark:bg-slate-700" value="active">{{ t('tenants.active') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="inactive">{{ t('tenants.inactive') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="suspended">{{ t('tenants.suspended') }}</option>
           </select>
         </div>
       </div>
@@ -391,8 +391,8 @@
                     <div>
                       <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('users.role') }}</label>
                       <select v-model="newUserRole" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 text-sm">
-                        <option value="admin">{{ t('users.roles.admin') }}</option>
-                        <option value="member">{{ t('users.roles.member') }}</option>
+                        <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.admin') }}</option>
+                        <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
                       </select>
                     </div>
                   </div>
@@ -441,8 +441,8 @@
                       :disabled="user.is_superuser"
                       class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1.5 text-sm disabled:opacity-50"
                     >
-                      <option value="admin">{{ t('users.roles.admin') }}</option>
-                      <option value="member">{{ t('users.roles.member') }}</option>
+                      <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.admin') }}</option>
+                      <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
                     </select>
                     <!-- Remove Button -->
                     <button 

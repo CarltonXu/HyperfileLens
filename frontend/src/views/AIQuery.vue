@@ -162,7 +162,7 @@ function clearConversation() {
         <!-- Gateway Status -->
         <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg">
           <ServerIcon class="w-4 h-4 text-slate-400" />
-          <span class="text-sm text-slate-600 dark:text-slate-300">Gateway:</span>
+          <span class="text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300">Gateway:</span>
           <span 
             :class="[
               'text-sm font-medium',
@@ -184,7 +184,7 @@ function clearConversation() {
         <button
           v-if="hasSearched"
           @click="clearConversation"
-          class="px-3 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          class="px-3 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
         >
           {{ t('aiQuery.clearConversation') }}
         </button>
@@ -200,7 +200,7 @@ function clearConversation() {
           <div class="w-16 h-16 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
             <SparklesIcon class="w-8 h-8 text-white" />
           </div>
-          <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">{{ t('aiQuery.empty.title') }}</h3>
+          <h3 class="text-lg font-semibold text-slate-800 dark:text-white dark:text-white mb-2">{{ t('aiQuery.empty.title') }}</h3>
           <p class="text-slate-500 dark:text-slate-400 max-w-md mb-6">{{ t('aiQuery.empty.description') }}</p>
           
           <!-- Suggestions -->
@@ -241,14 +241,14 @@ function clearConversation() {
 
           <!-- Loading State -->
           <div v-if="isSearching" class="flex justify-start">
-            <div class="bg-slate-100 dark:bg-slate-700 px-4 py-3 rounded-2xl rounded-bl-md">
+            <div class="bg-slate-100 dark:bg-slate-700 dark:bg-slate-700 px-4 py-3 rounded-2xl rounded-bl-md">
               <div class="flex items-center gap-2">
                 <div class="flex gap-1">
                   <div class="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0s" />
                   <div class="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0.1s" />
                   <div class="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0.2s" />
                 </div>
-                <span class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiQuery.analyzing') }}</span>
+                <span class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400">{{ t('aiQuery.analyzing') }}</span>
               </div>
             </div>
           </div>
@@ -286,7 +286,7 @@ function clearConversation() {
               v-model="query"
               rows="1"
               :placeholder="t('aiQuery.search.placeholder')"
-              class="w-full px-4 py-3 text-sm border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none bg-white dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400"
+              class="w-full px-4 py-3 text-sm border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none bg-white dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
               @keydown.enter.exact.prevent="handleSearch"
             />
           </div>

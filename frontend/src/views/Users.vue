@@ -49,18 +49,18 @@
             class="rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
             @change="fetchUsers"
           >
-            <option value="">{{ t('common.all') }}</option>
-            <option value="admin">{{ t('users.roles.admin') }}</option>
-            <option value="member">{{ t('users.roles.member') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.admin') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
           </select>
           <select
             v-model="statusFilter"
             class="rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
             @change="fetchUsers"
           >
-            <option value="">{{ t('common.all') }}</option>
-            <option value="active">{{ t('users.active') }}</option>
-            <option value="inactive">{{ t('users.inactive') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="active">{{ t('users.active') }}</option>
+            <option class="bg-white dark:bg-slate-700" value="inactive">{{ t('users.inactive') }}</option>
           </select>
         </div>
       </div>
@@ -187,10 +187,10 @@
       <!-- Pagination -->
       <div v-if="totalCount > pageSize" class="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 sm:px-6">
         <div class="flex flex-1 justify-between sm:hidden">
-          <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="relative inline-flex items-center rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
             {{ t('common.previous') }}
           </button>
-          <button @click="goToPage(currentPage + 1)" :disabled="currentPage * pageSize >= totalCount" class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button @click="goToPage(currentPage + 1)" :disabled="currentPage * pageSize >= totalCount" class="relative ml-3 inline-flex items-center rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
             {{ t('common.next') }}
           </button>
         </div>
@@ -283,8 +283,8 @@
                       class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
                       :disabled="loadingTenants"
                     >
-                      <option value="">{{ loadingTenants ? t('common.loading') : t('users.selectTenant') }}</option>
-                      <option v-for="tenant in tenants" :key="tenant.id" :value="tenant.id">{{ tenant.name }}</option>
+                      <option class="bg-white dark:bg-slate-700" value="">{{ loadingTenants ? t('common.loading') : t('users.selectTenant') }}</option>
+                      <option class="bg-white dark:bg-slate-700" v-for="tenant in tenants" :key="tenant.id" :value="tenant.id">{{ tenant.name }}</option>
                     </select>
                   </div>
                   <!-- 统一角色选择 -->
@@ -294,9 +294,9 @@
                       v-model="createForm.role"
                       class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
                     >
-                      <option v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
-                      <option value="admin">{{ t('users.roles.tenantAdmin') }}</option>
-                      <option value="member">{{ t('users.roles.member') }}</option>
+                      <option class="bg-white dark:bg-slate-700" v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
+                      <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.tenantAdmin') }}</option>
+                      <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
                     </select>
                   </div>
                 </div>
@@ -380,9 +380,9 @@
                       v-model="editForm.role"
                       class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
                     >
-                      <option v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
-                      <option value="admin">{{ t('users.roles.tenantAdmin') }}</option>
-                      <option value="member">{{ t('users.roles.member') }}</option>
+                      <option class="bg-white dark:bg-slate-700" v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
+                      <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.tenantAdmin') }}</option>
+                      <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
                     </select>
                   </div>
                 </div>
@@ -437,8 +437,8 @@
                       v-model="inviteForm.role"
                       class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
                     >
-                      <option value="admin">{{ t('users.roles.admin') }}</option>
-                      <option value="member">{{ t('users.roles.member') }}</option>
+                      <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.admin') }}</option>
+                      <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
                     </select>
                   </div>
                 </div>
