@@ -44,14 +44,17 @@ export const useAuthStore = defineStore('auth', () => {
         return data
       }
 
-      // Normal login - store token and user
-      if (data.token && data.user) {
-        token.value = data.token
-        user.value = data.user
-        localStorage.setItem('token', data.token)
+      // Normal login - backend returns flat user data with token
+      // Extract token and user data separately
+      const { token: authToken, ...userData } = data
+      
+      if (authToken) {
+        token.value = authToken
+        user.value = userData as User
+        localStorage.setItem('token', authToken)
       }
 
-      return data
+      return { token: authToken, user: userData, mfa_required: false }
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Login failed'
       throw err
@@ -69,13 +72,16 @@ export const useAuthStore = defineStore('auth', () => {
 
       const data = response.data
 
-      if (data.token && data.user) {
-        token.value = data.token
-        user.value = data.user
-        localStorage.setItem('token', data.token)
+      // Backend returns flat user data with token
+      const { token: authToken, ...userData } = data
+      
+      if (authToken) {
+        token.value = authToken
+        user.value = userData as User
+        localStorage.setItem('token', authToken)
       }
 
-      return data
+      return { token: authToken, user: userData, mfa_required: false }
     } catch (err: any) {
       error.value = err.response?.data?.error || 'MFA verification failed'
       throw err

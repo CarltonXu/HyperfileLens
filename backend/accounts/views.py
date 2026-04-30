@@ -13,7 +13,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework.authtoken.models import Token
+from accounts.models import APIToken
 from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -988,7 +988,7 @@ class RegisterView(APIView):
             AuditService.log_user_create(request, user)
         
         response_data = UserProfileSerializer(user).data
-        response_data['token'] = token.key
+        response_data['token'] = api_token.key
         
         return Response(response_data, status=status.HTTP_201_CREATED)
 
@@ -1452,7 +1452,14 @@ class MFAVerifyView(APIView):
         cache.delete(f'mfa_login:{login_token}')
         
         # Generate auth token
-        token, _ = Token.objects.get_or_create(user=user)
+        import secrets
+        token_key = secrets.token_urlsafe(32)
+        api_token = APIToken.objects.create(
+            user=user,
+            name='MFA Login Token',
+            key=token_key,
+            prefix=token_key[:8]
+        )
         
         response_data = UserProfileSerializer(user).data
         response_data['token'] = token.key
