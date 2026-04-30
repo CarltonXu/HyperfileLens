@@ -39,7 +39,7 @@ const isValid = computed(() => {
 
 async function refreshCaptcha() {
   try {
-    const response = await api.get('/accounts/captcha/', { responseType: 'blob' })
+    const response = await api.get('/api/v1/accounts/captcha/', { responseType: 'blob' })
     captchaUrl.value = URL.createObjectURL(response.data)
     captchaKey.value = response.headers['x-captcha-key'] || ''
   } catch (err) {
@@ -66,7 +66,7 @@ async function handleLogin() {
       loginToken.value = response.login_token || ''
       showMfaDialog.value = true
       if (mfaMethod.value === 'email') {
-        await api.post('/accounts/mfa/send/', { user_id: pendingUserId.value, login_token: loginToken.value })
+        await api.post('/api/v1/accounts/mfa/send/', { user_id: pendingUserId.value, login_token: loginToken.value })
       }
     } else {
       router.push(route.query.redirect as string || '/')

@@ -97,10 +97,10 @@ function getCsrfToken(): string | null {
 // ============== Auth API ==============
 export const authApi = {
   login: (email: string, password: string, captcha_key?: string, captcha_code?: string) =>
-    api.post('/accounts/login/', { email, password, captcha_key, captcha_code }),
+    api.post('/api/v1/accounts/login/', { email, password, captcha_key, captcha_code }),
   
   logout: () =>
-    api.post('/accounts/logout/'),
+    api.post('/api/v1/accounts/logout/'),
   
   register: (data: {
     email: string
@@ -109,25 +109,25 @@ export const authApi = {
     last_name?: string
     captcha_key?: string
     captcha_code?: string
-  }) => api.post('/accounts/register-v2/', data),
+  }) => api.post('/api/v1/accounts/register-v2/', data),
   
   profile: () =>
-    api.get('/accounts/profile/'),
+    api.get('/api/v1/accounts/profile/'),
   
   updateProfile: (data: { full_name?: string; phone?: string }) =>
-    api.patch('/accounts/profile/', data),
+    api.patch('/api/v1/accounts/profile/', data),
   
   changePassword: (data: { old_password: string; new_password: string }) =>
-    api.post('/accounts/change-password/', data),
+    api.post('/api/v1/accounts/password/', data),
   
   forgotPassword: (email: string, captcha_key?: string, captcha_code?: string) =>
-    api.post('/accounts/forgot-password/', { email, captcha_key, captcha_code }),
+    api.post('/api/v1/accounts/forgot-password/', { email, captcha_key, captcha_code }),
   
   verifyResetCode: (email: string, code: string) =>
-    api.post('/accounts/verify-reset-code/', { email, code }),
+    api.post('/api/v1/accounts/verify-reset-code/', { email, code }),
   
   resetPassword: (token: string, new_password: string) =>
-    api.post('/accounts/reset-password/', { token, new_password }),
+    api.post('/api/v1/accounts/reset-password/', { token, new_password }),
 }
 
 // ============== Proxies API ==============
@@ -568,46 +568,46 @@ export type { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError }
 
 // ==================== Audit Log APIs ====================
 export const auditLogApi = {
-  list: (params?: Record<string, unknown>) => api.get('/audit-log/audit/', { params }),
-  retrieve: (id: string) => api.get(`/audit-log/audit/${id}/`),
-  statistics: () => api.get('/audit-log/audit/statistics/'),
+  list: (params?: Record<string, unknown>) => api.get('/api/v1/audit/audit/', { params }),
+  retrieve: (id: string) => api.get(`/api/v1/audit/audit/${id}/`),
+  statistics: () => api.get('/api/v1/audit/audit/statistics/'),
   export: (format: 'json' | 'csv' = 'json') => 
-    api.get('/audit-log/audit/export/', { params: { format }, responseType: 'blob' }),
+    api.get('/api/v1/audit/audit/export/', { params: { format }, responseType: 'blob' }),
 }
 
 // ==================== Event Log APIs ====================
 export const eventLogApi = {
-  list: (params?: Record<string, unknown>) => api.get('/audit-log/events/', { params }),
-  retrieve: (id: string) => api.get(`/audit-log/events/${id}/`),
-  statistics: () => api.get('/audit-log/events/statistics/'),
-  alerts: () => api.get('/audit-log/events/alerts/'),
+  list: (params?: Record<string, unknown>) => api.get('/api/v1/audit/events/', { params }),
+  retrieve: (id: string) => api.get(`/api/v1/audit/events/${id}/`),
+  statistics: () => api.get('/api/v1/audit/events/statistics/'),
+  alerts: () => api.get('/api/v1/audit/events/alerts/'),
   handle: (id: string, note?: string) => 
-    api.post(`/audit-log/events/${id}/handle/`, { note }),
+    api.post(`/api/v1/audit/events/${id}/handle/`, { note }),
   unhandle: (id: string) => 
-    api.post(`/audit-log/events/${id}/unhandle/`),
+    api.post(`/api/v1/audit/events/${id}/unhandle/`),
 }
 
 // ==================== Captcha APIs ====================
 export const captchaApi = {
-  get: () => api.get('/accounts/captcha/'),
+  get: () => api.get('/api/v1/accounts/captcha/'),
   validate: (key: string, code: string) => 
-    api.post('/accounts/captcha/validate/', { key, code }),
+    api.post('/api/v1/accounts/captcha/validate/', { key, code }),
 }
 
 // ==================== MFA APIs ====================
 export const mfaApi = {
-  getSetup: () => api.get('/accounts/mfa/'),
+  getSetup: () => api.get('/api/v1/accounts/mfa/'),
   
   enable: (method: 'email' | 'totp', code: string) =>
-    api.post('/accounts/mfa/', { method, code }),
+    api.post('/api/v1/accounts/mfa/', { method, code }),
   
-  disable: () => api.delete('/accounts/mfa/'),
+  disable: () => api.delete('/api/v1/accounts/mfa/'),
   
   requestCode: (email: string, login_token: string) =>
-    api.post('/accounts/mfa/verify/', { email, login_token }),
+    api.post('/api/v1/accounts/mfa/verify/', { email, login_token }),
   
   verify: (email: string, login_token: string, code: string) =>
-    api.put('/accounts/mfa/verify/', { email, login_token, code }),
+    api.put('/api/v1/accounts/mfa/verify/', { email, login_token, code }),
 }
 
 // ==================== System Settings APIs ====================
@@ -623,14 +623,14 @@ export interface SystemSetting {
 }
 
 export const systemSettingsApi = {
-  list: () => api.get<SystemSetting[]>('/system/settings/'),
+  list: () => api.get<SystemSetting[]>('/api/v1/system/settings/'),
   
-  get: (id: string) => api.get<SystemSetting>(`/system/settings/${id}/`),
+  get: (id: string) => api.get<SystemSetting>(`/api/v1/system/settings/${id}/`),
   
-  getByKey: (key: string) => api.get<SystemSetting>(`/system/settings/by_key/?key=${key}`),
+  getByKey: (key: string) => api.get<SystemSetting>(`/api/v1/system/settings/by_key/?key=${key}`),
   
   update: (id: string, data: Partial<SystemSetting>) =>
-    api.patch<SystemSetting>(`/system/settings/${id}/`, data),
+    api.patch<SystemSetting>(`/api/v1/system/settings/${id}/`, data),
 }
 
 // ==================== SMTP Config APIs ====================
@@ -652,25 +652,25 @@ export interface SMTPConfig {
 }
 
 export const smtpApi = {
-  list: () => api.get<SMTPConfig[]>('/system/smtp/'),
+  list: () => api.get<SMTPConfig[]>('/api/v1/system/smtp/'),
   
-  get: (id: string) => api.get<SMTPConfig>(`/system/smtp/${id}/`),
+  get: (id: string) => api.get<SMTPConfig>(`/api/v1/system/smtp/${id}/`),
   
-  create: (data: Partial<SMTPConfig>) => api.post<SMTPConfig>('/system/smtp/', data),
+  create: (data: Partial<SMTPConfig>) => api.post<SMTPConfig>('/api/v1/system/smtp/', data),
   
   update: (id: string, data: Partial<SMTPConfig>) =>
-    api.patch<SMTPConfig>(`/system/smtp/${id}/`, data),
+    api.patch<SMTPConfig>(`/api/v1/system/smtp/${id}/`, data),
   
-  delete: (id: string) => api.delete(`/system/smtp/${id}/`),
+  delete: (id: string) => api.delete(`/api/v1/system/smtp/${id}/`),
   
   testConnection: (id: string) =>
-    api.post<{ success: boolean; message: string }>(`/system/smtp/${id}/test_connection/`),
+    api.post<{ success: boolean; message: string }>(`/api/v1/system/smtp/${id}/test_connection/`),
   
   sendTestEmail: (id: string, to_email: string) =>
-    api.post<{ success: boolean; message: string }>(`/system/smtp/${id}/send_test_email/`, { to_email }),
+    api.post<{ success: boolean; message: string }>(`/api/v1/system/smtp/${id}/send_test_email/`, { to_email }),
   
   setDefault: (id: string) =>
-    api.post<{ success: boolean; message: string }>(`/system/smtp/${id}/set_default/`),
+    api.post<{ success: boolean; message: string }>(`/api/v1/system/smtp/${id}/set_default/`),
   
-  getDefault: () => api.get<SMTPConfig>('/system/smtp/default/'),
+  getDefault: () => api.get<SMTPConfig>('/api/v1/system/smtp/default/'),
 }

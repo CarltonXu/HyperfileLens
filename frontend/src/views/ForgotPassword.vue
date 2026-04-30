@@ -34,7 +34,7 @@ const isValidStep3 = computed(() => newPassword.value.length >= 8 && newPassword
 
 async function refreshCaptcha() {
   try {
-    const response = await api.get('/accounts/captcha/', { responseType: 'blob' })
+    const response = await api.get('/api/v1/accounts/captcha/', { responseType: 'blob' })
     captchaUrl.value = URL.createObjectURL(response.data)
     captchaKey.value = response.headers['x-captcha-key'] || ''
   } catch (err) {
@@ -49,9 +49,9 @@ async function sendResetEmail() {
   error.value = ''
   
   try {
-    const response = await api.post('/accounts/password/reset/', {
+    const response = await api.post('/api/v1/accounts/forgot-password/', {
       email: email.value,
-      captcha: captcha.value,
+      captcha_code: captcha.value,
       captcha_key: captchaKey.value
     })
     resetToken.value = response.data.reset_token
@@ -73,9 +73,8 @@ async function verifyCode() {
   error.value = ''
   
   try {
-    await api.post('/accounts/password/reset/verify/', {
+    await api.post('/api/v1/accounts/verify-reset-code/', {
       email: email.value,
-      token: resetToken.value,
       code: verificationCode.value
     })
     currentStep.value = 3
@@ -100,8 +99,7 @@ async function resetPassword() {
   error.value = ''
   
   try {
-    await api.post('/accounts/password/reset/confirm/', {
-      email: email.value,
+    await api.post('/api/v1/accounts/reset-password/', {
       token: resetToken.value,
       new_password: newPassword.value
     })

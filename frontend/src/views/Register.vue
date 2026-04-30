@@ -67,7 +67,7 @@ const isValid = computed(() => {
 
 async function refreshCaptcha() {
   try {
-    const response = await api.get('/accounts/captcha/', { responseType: 'blob' })
+    const response = await api.get('/api/v1/accounts/captcha/', { responseType: 'blob' })
     captchaUrl.value = URL.createObjectURL(response.data)
     captchaKey.value = response.headers['x-captcha-key'] || ''
   } catch (err) {
@@ -81,7 +81,7 @@ async function handleRegister() {
   error.value = ''
 
   try {
-    await api.post('/accounts/register/', {
+    await api.post('/api/v1/accounts/register-v2/', {
       email: email.value,
       password: password.value,
       first_name: firstName.value,
