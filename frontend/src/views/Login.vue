@@ -8,7 +8,15 @@ import api from '@/api'
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+// Language switch
+const currentLocale = computed(() => locale.value)
+function toggleLanguage() {
+  const newLocale = locale.value === 'zh-CN' ? 'en' : 'zh-CN'
+  locale.value = newLocale
+  localStorage.setItem('locale', newLocale)
+}
 
 // Form fields
 const email = ref('')
@@ -160,7 +168,22 @@ onMounted(() => {
     </div>
 
     <!-- Right Side - Login Form -->
-    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
+    <div class="w-full lg:w-1/2 flex flex-col bg-gray-50">
+      <!-- Language Switch Button -->
+      <div class="flex justify-end p-4">
+        <button
+          @click="toggleLanguage"
+          class="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
+          </svg>
+          <span>{{ currentLocale === 'zh-CN' ? 'English' : '中文' }}
+          </span>
+        </button>
+      </div>
+      
+      <div class="flex-1 flex items-center justify-center px-8 pb-8">
       <div class="max-w-md w-full">
         <!-- Mobile Logo -->
         <div class="lg:hidden text-center mb-8">
