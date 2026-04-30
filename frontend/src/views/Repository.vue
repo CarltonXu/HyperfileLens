@@ -1015,18 +1015,18 @@ onMounted(() => {
         </select>
         <button
           @click="fetchRepositories"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-300 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
         >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
         </button>
         <!-- View Toggle -->
-        <div class="flex items-center border border-slate-200 rounded-md">
+        <div class="flex items-center border border-slate-200 dark:border-slate-600 rounded-md">
           <button
             @click="viewMode = 'card'"
             :class="[
               'p-2 rounded-md transition-colors',
-              viewMode === 'card' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+              viewMode === 'card' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
             ]"
             :title="t('repository.viewModes.card')"
           >
@@ -1036,7 +1036,7 @@ onMounted(() => {
             @click="viewMode = 'list'"
             :class="[
               'p-2 rounded-md transition-colors',
-              viewMode === 'list' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+              viewMode === 'list' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
             ]"
             :title="t('repository.viewModes.list')"
           >
@@ -1088,7 +1088,7 @@ onMounted(() => {
         <p class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-400 mb-3">{{ repo.description || getRepoTypeLabel(repo.repo_type) }}</p>
         
         <!-- Connection Info -->
-        <div class="bg-slate-50 rounded-lg p-3 mb-3 space-y-2">
+        <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 mb-3 space-y-2">
           <!-- S3 Info -->
           <template v-if="repo.repo_type === 's3'">
             <div class="flex items-center gap-2 text-sm">
@@ -1220,14 +1220,14 @@ onMounted(() => {
           <table class="min-w-[1000px] w-full divide-y divide-slate-200">
             <thead class="bg-slate-50 dark:bg-slate-700/50">
               <tr>
-                <th class="sticky left-0 bg-slate-50 px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider z-10">{{ t('repository.list.name') }}</th>
+                <th class="sticky left-0 bg-slate-50 dark:bg-slate-700 px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider z-10">{{ t('repository.list.name') }}</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.type') }}</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.status') }}</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.connection') }}</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.boundNode') }}</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.capacity') }}</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">{{ t('repository.list.kopia') }}</th>
-                <th class="sticky right-0 bg-slate-50 px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider z-10">{{ t('repository.list.actions') }}</th>
+                <th class="sticky right-0 bg-slate-50 dark:bg-slate-700 px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider z-10">{{ t('repository.list.actions') }}</th>
               </tr>
             </thead>
             <tbody class="bg-white dark:bg-slate-800 divide-y divide-slate-200">
@@ -1400,8 +1400,8 @@ onMounted(() => {
                   'flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all',
                   isEditMode ? 'cursor-not-allowed opacity-60' : '',
                   newRepo.repo_type === type.value 
-                    ? 'border-blue-500 bg-white shadow-sm' 
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-blue-500 dark:border-blue-400 bg-white dark:bg-slate-700 shadow-sm' 
+                    : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500'
                 ]"
               >
                 <div :class="[
@@ -1429,7 +1429,7 @@ onMounted(() => {
                   type="text" 
                   :placeholder="t('repository.form.namePlaceholder')" 
                   :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2', 
-                    formErrors.name ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                    formErrors.name ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                   @input="clearError('name')"
                 />
                 <p v-if="formErrors.name" class="mt-1 text-xs text-red-500">{{ formErrors.name }}</p>
@@ -1455,8 +1455,8 @@ onMounted(() => {
             </div>
 
             <!-- S3 Configuration -->
-            <div v-if="newRepo.repo_type === 's3'" class="space-y-4 p-4 bg-orange-50 rounded-xl border border-orange-100">
-              <div class="flex items-start gap-2 text-sm text-orange-700 bg-orange-100 rounded-lg p-3">
+            <div v-if="newRepo.repo_type === 's3'" class="space-y-4 p-4 bg-orange-50 dark:bg-orange-900/30 rounded-xl border border-orange-100 dark:border-orange-800">
+              <div class="flex items-start gap-2 text-sm text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-800/50 rounded-lg p-3">
                 <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
                   <p class="font-medium">{{ t('repository.s3.hint') }}</p>
@@ -1465,7 +1465,7 @@ onMounted(() => {
               </div>
               
               <!-- Credentials Section (must be filled first) -->
-              <div class="p-3 bg-white rounded-lg border border-orange-200">
+              <div class="p-3 bg-white dark:bg-slate-700 rounded-lg border border-orange-200 dark:border-orange-800">
                 <h4 class="text-sm font-medium text-slate-700 mb-3">{{ t('repository.s3.credentials') }}</h4>
                 <div class="grid grid-cols-2 gap-4">
                   <div>
@@ -1475,7 +1475,7 @@ onMounted(() => {
                       type="text" 
                       placeholder="https://s3.amazonaws.com" 
                       :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                        formErrors.endpoint ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                        formErrors.endpoint ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                       @input="clearError('endpoint')"
                     />
                     <p class="text-xs text-slate-500 mt-1">{{ t('repository.s3.endpointHint') }}</p>
@@ -1531,7 +1531,7 @@ onMounted(() => {
                       type="text" 
                       placeholder="AKIAIOSFODNN7EXAMPLE" 
                       :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                        formErrors.access_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                        formErrors.access_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                       @input="clearError('access_key')"
                     />
                     <p v-if="formErrors.access_key" class="mt-1 text-xs text-red-500">{{ formErrors.access_key }}</p>
@@ -1546,7 +1546,7 @@ onMounted(() => {
                       type="password" 
                       :placeholder="isEditMode ? '••••••••••••••••' : '••••••••••••••••'" 
                       :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                        formErrors.secret_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                        formErrors.secret_key ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                       @input="clearError('secret_key')"
                     />
                     <p v-if="isEditMode && !formErrors.secret_key" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -1558,7 +1558,7 @@ onMounted(() => {
               </div>
               
               <!-- Bucket Selection Mode -->
-              <div class="p-3 bg-white rounded-lg border border-orange-200">
+              <div class="p-3 bg-white dark:bg-slate-700 rounded-lg border border-orange-200 dark:border-orange-800">
                 <h4 class="text-sm font-medium text-slate-700 mb-3">{{ t('repository.s3.bucketSelection') }}</h4>
                 
                 <!-- Bucket Mode Selection -->
@@ -1569,7 +1569,7 @@ onMounted(() => {
                       :class="[
                         'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
                         newRepo.s3_config.bucket_mode === 'existing' 
-                          ? 'border-orange-500 bg-orange-100 text-orange-700' 
+                          ? 'border-orange-500 dark:border-orange-400 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' 
                           : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                       ]"
                     >
@@ -1581,7 +1581,7 @@ onMounted(() => {
                       :class="[
                         'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
                         newRepo.s3_config.bucket_mode === 'new' 
-                          ? 'border-orange-500 bg-orange-100 text-orange-700' 
+                          ? 'border-orange-500 dark:border-orange-400 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' 
                           : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                       ]"
                     >
@@ -1594,7 +1594,7 @@ onMounted(() => {
                 <!-- Existing Bucket Selection -->
                 <div v-if="newRepo.s3_config.bucket_mode === 'existing'">
                   <!-- Warning for existing bucket -->
-                  <div class="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 rounded-lg p-3 mb-4 border border-amber-200">
+                  <div class="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 dark:bg-amber-900/30 rounded-lg p-3 mb-4 border border-amber-200 dark:border-amber-800">
                     <ExclamationTriangleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
                     <div>
                       <p class="font-medium">{{ t('repository.s3.existingBucketWarning') }}</p>
@@ -1635,7 +1635,7 @@ onMounted(() => {
                     <select
                       v-model="newRepo.s3_config.bucket"
                       :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                        formErrors.bucket ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                        formErrors.bucket ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                       @change="clearError('bucket')"
                     >
                       <option class="bg-white dark:bg-slate-700" value="">{{ t('repository.s3.selectBucketPlaceholder') }}</option>
@@ -1675,7 +1675,7 @@ onMounted(() => {
                           formErrors.bucket ? 'border-red-300 focus:ring-red-500' : 
                           bucketNameAvailable === true ? 'border-green-300 focus:ring-green-500' :
                           bucketNameAvailable === false ? 'border-red-300 focus:ring-red-500' :
-                          'border-slate-200 focus:ring-blue-500']"
+                          'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                         @input="clearError('bucket')"
                       />
                       <button
@@ -1715,8 +1715,8 @@ onMounted(() => {
             </div>
 
             <!-- NAS Configuration -->
-            <div v-if="newRepo.repo_type === 'nas'" class="space-y-4 p-4 bg-purple-50 rounded-xl border border-purple-100">
-              <div class="flex items-start gap-2 text-sm text-purple-700 bg-purple-100 rounded-lg p-3">
+            <div v-if="newRepo.repo_type === 'nas'" class="space-y-4 p-4 bg-purple-50 dark:bg-purple-900/30 rounded-xl border border-purple-100 dark:border-purple-800">
+              <div class="flex items-start gap-2 text-sm text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-800/50 rounded-lg p-3">
                 <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
                   <p class="font-medium">{{ t('repository.nas.hint') }}</p>
@@ -1732,7 +1732,7 @@ onMounted(() => {
                     :class="[
                       'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
                       newRepo.nas_config.mount_type === 'nfs' 
-                        ? 'border-purple-500 bg-purple-100 text-purple-700' 
+                        ? 'border-purple-500 dark:border-purple-400 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' 
                         : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                     ]"
                   >
@@ -1743,7 +1743,7 @@ onMounted(() => {
                     :class="[
                       'flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium',
                       newRepo.nas_config.mount_type === 'cifs' 
-                        ? 'border-purple-500 bg-purple-100 text-purple-700' 
+                        ? 'border-purple-500 dark:border-purple-400 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' 
                         : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500'
                     ]"
                   >
@@ -1760,7 +1760,7 @@ onMounted(() => {
                     type="text" 
                     placeholder="192.168.1.100 或 nas.example.com" 
                     :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                      formErrors.server ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                      formErrors.server ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                     @input="clearError('server')"
                   />
                   <p v-if="formErrors.server" class="mt-1 text-xs text-red-500">{{ formErrors.server }}</p>
@@ -1772,7 +1772,7 @@ onMounted(() => {
                     type="text" 
                     :placeholder="newRepo.nas_config.mount_type === 'nfs' ? '/export/backup' : '/share/backup'" 
                     :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                      formErrors.export_path ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                      formErrors.export_path ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                     @input="clearError('export_path')"
                   />
                   <p v-if="formErrors.export_path" class="mt-1 text-xs text-red-500">{{ formErrors.export_path }}</p>
@@ -1794,7 +1794,7 @@ onMounted(() => {
                     type="text" 
                     placeholder="username" 
                     :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                      formErrors.username ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                      formErrors.username ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                     @input="clearError('username')"
                   />
                   <p v-if="formErrors.username" class="mt-1 text-xs text-red-500">{{ formErrors.username }}</p>
@@ -1809,7 +1809,7 @@ onMounted(() => {
                     type="password" 
                     placeholder="••••••••" 
                     :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                      formErrors.password ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                      formErrors.password ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                     @input="clearError('password')"
                   />
                   <p v-if="isEditMode && !formErrors.password" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -1825,7 +1825,7 @@ onMounted(() => {
                 <select 
                   v-model="newRepo.bound_node" 
                   :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                    formErrors.bound_node ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                    formErrors.bound_node ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                   @change="clearError('bound_node')"
                 >
                   <option class="bg-white dark:bg-slate-700" value="">{{ t('repository.selectSyncProxy') }}</option>
@@ -1839,8 +1839,8 @@ onMounted(() => {
             </div>
 
             <!-- Local Filesystem Configuration -->
-            <div v-if="newRepo.repo_type === 'local'" class="space-y-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-              <div class="flex items-start gap-2 text-sm text-blue-700 bg-blue-100 rounded-lg p-3">
+            <div v-if="newRepo.repo_type === 'local'" class="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-100 dark:border-blue-800">
+              <div class="flex items-start gap-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-800/50 rounded-lg p-3">
                 <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
                   <p class="font-medium">{{ t('repository.local.hint') }}</p>
@@ -1855,7 +1855,7 @@ onMounted(() => {
                   :value="newRepo.bound_node || ''" 
                   @change="handleProxySelect(($event.target as HTMLSelectElement).value)"
                   :class="['w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
-                    formErrors.bound_node ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500']"
+                    formErrors.bound_node ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 dark:border-slate-600 focus:ring-blue-500']"
                 >
                   <option class="bg-white dark:bg-slate-700" value="">{{ t('repository.selectSyncProxy') }}</option>
                   <option class="bg-white dark:bg-slate-700" v-for="proxy in availableSyncProxies" :key="proxy.id" :value="proxy.id">
@@ -1901,7 +1901,7 @@ onMounted(() => {
                     v-for="dir in proxyDirectories"
                     :key="dir"
                     @click="navigateToDirectory(dir)"
-                    class="w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-50 text-left text-sm"
+                    class="w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-left text-sm"
                   >
                     <FolderIcon class="w-4 h-4 text-yellow-500" />
                     <span class="text-slate-700 dark:text-slate-200">{{ dir }}</span>
@@ -1992,25 +1992,25 @@ onMounted(() => {
             </div>
             
             <!-- Description -->
-            <div v-if="selectedRepo.description" class="bg-slate-50 rounded-lg p-4">
+            <div v-if="selectedRepo.description" class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
               <p class="text-xs text-slate-500 mb-1">{{ t('common.description') }}</p>
               <p class="text-sm text-slate-700 dark:text-slate-200">{{ selectedRepo.description }}</p>
             </div>
             
             <!-- Storage Stats -->
             <div class="grid grid-cols-2 gap-4">
-              <div class="bg-slate-50 rounded-lg p-4">
+              <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
                 <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.stats.totalCapacity') }}</p>
                 <p class="font-semibold text-slate-800 text-lg">{{ formatBytes(selectedRepo.capacity || 0) }}</p>
               </div>
-              <div class="bg-slate-50 rounded-lg p-4">
+              <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
                 <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('repository.stats.usedSpace') }}</p>
                 <p class="font-semibold text-slate-800 text-lg">{{ formatBytes(selectedRepo.used_space || 0) }}</p>
               </div>
             </div>
             
             <!-- S3 Configuration -->
-            <div v-if="selectedRepo.repo_type === 's3'" class="bg-slate-50 rounded-lg p-4 space-y-3">
+            <div v-if="selectedRepo.repo_type === 's3'" class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 space-y-3">
               <h4 class="font-medium text-slate-700 flex items-center gap-2">
                 <GlobeAltIcon class="w-5 h-5" />
                 {{ t('repository.types.s3') }} {{ t('repository.configInfo') }}
@@ -2044,7 +2044,7 @@ onMounted(() => {
             </div>
             
             <!-- NAS Configuration -->
-            <div v-if="selectedRepo.repo_type === 'nas'" class="bg-slate-50 rounded-lg p-4 space-y-3">
+            <div v-if="selectedRepo.repo_type === 'nas'" class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 space-y-3">
               <h4 class="font-medium text-slate-700 flex items-center gap-2">
                 <ServerIcon class="w-5 h-5" />
                 {{ t('repository.types.nas') }} {{ t('repository.configInfo') }}
@@ -2074,7 +2074,7 @@ onMounted(() => {
             </div>
             
             <!-- Local Configuration -->
-            <div v-if="selectedRepo.repo_type === 'local'" class="bg-slate-50 rounded-lg p-4 space-y-3">
+            <div v-if="selectedRepo.repo_type === 'local'" class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 space-y-3">
               <h4 class="font-medium text-slate-700 flex items-center gap-2">
                 <FolderIcon class="w-5 h-5" />
                 {{ t('repository.types.local') }} {{ t('repository.configInfo') }}
@@ -2086,7 +2086,7 @@ onMounted(() => {
             </div>
             
             <!-- Bound Node -->
-            <div class="bg-slate-50 rounded-lg p-4">
+            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
               <p class="text-xs text-slate-500 mb-1">{{ t('sourceResources.boundNode') }}</p>
               <div class="flex items-center gap-2">
                 <div :class="['w-2 h-2 rounded-full', getNodeStatus(selectedRepo.bound_node) === 'active' ? 'bg-emerald-500' : 'bg-slate-300']" />
