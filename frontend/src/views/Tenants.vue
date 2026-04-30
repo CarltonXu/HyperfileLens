@@ -206,35 +206,35 @@
                     <form @submit.prevent="saveTenant" class="mt-4 space-y-4">
                       <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.tenantName') }} *</label>
-                        <input v-model="formData.name" type="text" required :placeholder="t('tenants.tenantNamePlaceholder') || '请输入租户名称'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                        <input v-model="formData.name" type="text" required :placeholder="t('tenants.tenantNamePlaceholder') || '请输入租户名称'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                       </div>
                       <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.tenantSlug') }} *</label>
-                        <input v-model="formData.slug" type="text" required pattern="[a-z0-9-]+" :placeholder="t('tenants.tenantSlugPlaceholder') || '例如: my-company'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                        <input v-model="formData.slug" type="text" required pattern="[a-z0-9-]+" :placeholder="t('tenants.tenantSlugPlaceholder') || '例如: my-company'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         <p class="mt-1 text-xs text-gray-500">{{ t('tenants.tenantSlugHelp') || '只能使用小写字母、数字和连字符' }}</p>
                       </div>
                       <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.description') }}</label>
-                        <textarea v-model="formData.description" rows="2" :placeholder="t('tenants.descriptionPlaceholder') || '请输入租户描述（可选）'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                        <textarea v-model="formData.description" rows="2" :placeholder="t('tenants.descriptionPlaceholder') || '请输入租户描述（可选）'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                       </div>
                       <div class="grid grid-cols-2 gap-4">
                         <div>
                           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxUsers') }}</label>
-                          <input v-model.number="formData.max_users" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                          <input v-model.number="formData.max_users" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         </div>
                         <div>
                           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxProxies') }}</label>
-                          <input v-model.number="formData.max_proxies" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                          <input v-model.number="formData.max_proxies" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         </div>
                       </div>
                       <div class="grid grid-cols-2 gap-4">
                         <div>
                           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxRepositories') }}</label>
-                          <input v-model.number="formData.max_repositories" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                          <input v-model.number="formData.max_repositories" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         </div>
                         <div>
                           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('tenants.maxStorageGb') }}</label>
-                          <input v-model.number="formData.max_storage_gb" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6" />
+                          <input v-model.number="formData.max_storage_gb" type="number" min="1" :placeholder="t('common.unlimited') || '无限制'" class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm" />
                         </div>
                       </div>
                       <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
@@ -386,11 +386,11 @@
                   <div class="grid grid-cols-2 gap-3">
                     <div>
                       <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('users.email') }}</label>
-                      <input v-model="newUserEmail" type="email" :placeholder="t('users.emailPlaceholder')" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 text-sm" />
+                      <input v-model="newUserEmail" type="email" :placeholder="t('users.emailPlaceholder')" class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white px-3 py-2 text-sm" />
                     </div>
                     <div>
                       <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ t('users.role') }}</label>
-                      <select v-model="newUserRole" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 text-sm">
+                      <select v-model="newUserRole" class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white px-3 py-2 text-sm">
                         <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.admin') }}</option>
                         <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
                       </select>

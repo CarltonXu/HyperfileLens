@@ -4,14 +4,14 @@
     <div class="sm:flex sm:items-center sm:justify-between">
       <div>
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('users.title') }}</h1>
-        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
+        <p class="mt-2 text-sm text-gray-700 dark:text-slate-300">
           {{ t('users.description') }}
         </p>
       </div>
       <div class="mt-4 sm:mt-0 flex gap-3">
         <button
           type="button"
-          class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:ring-gray-600 dark:hover:bg-gray-600"
+          class="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
           @click="openInviteDialog"
         >
           <EnvelopeIcon class="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
@@ -29,7 +29,7 @@
     </div>
 
     <!-- Filters -->
-    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+    <div class="bg-white dark:bg-slate-800 shadow rounded-xl border border-slate-200 dark:border-slate-700 p-4">
       <div class="flex flex-wrap gap-4">
         <div class="flex-1 min-w-0">
           <div class="relative">
@@ -38,7 +38,7 @@
               v-model="searchQuery"
               type="text"
               :placeholder="t('common.search')"
-              class="block w-full rounded-md border-0 py-1.5 pl-10 pr-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+              class="block w-full rounded-lg border border-slate-200 dark:border-slate-600 py-2 pl-10 pr-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
               @input="debouncedSearch"
             />
           </div>
@@ -46,7 +46,7 @@
         <div class="flex items-center gap-2">
           <select
             v-model="roleFilter"
-            class="rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+            class="rounded-lg border border-slate-200 dark:border-slate-600 py-2 pl-3 pr-8 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
             @change="fetchUsers"
           >
             <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') }}</option>
@@ -55,7 +55,7 @@
           </select>
           <select
             v-model="statusFilter"
-            class="rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+            class="rounded-lg border border-slate-200 dark:border-slate-600 py-2 pl-3 pr-8 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 text-sm"
             @change="fetchUsers"
           >
             <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') }}</option>
@@ -67,17 +67,17 @@
     </div>
 
     <!-- Users Table -->
-    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+    <div class="bg-white dark:bg-slate-800 shadow rounded-xl border border-slate-200 dark:border-slate-700">
       <div v-if="loading" class="p-8 text-center">
         <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t('common.loading') }}</p>
+        <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">{{ t('common.loading') }}</p>
       </div>
 
       <table v-else class="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
-        <thead class="bg-gray-50 dark:bg-gray-900">
+        <thead class="bg-slate-50 dark:bg-slate-700/50">
           <tr>
             <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">{{ t('users.user') }}</th>
             <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">{{ t('users.email') }}</th>
@@ -91,7 +91,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-          <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50 dark:hover:bg-slate-700/50">
             <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
               <div class="flex items-center">
                 <div class="h-10 w-10 flex-shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
@@ -103,14 +103,14 @@
                   <div class="font-medium text-gray-900 dark:text-white">
                     {{ user.full_name || user.email.split('@')[0] }}
                   </div>
-                  <div class="text-gray-500 dark:text-gray-400 text-xs">ID: {{ user.id }}</div>
+                  <div class="text-gray-500 dark:text-slate-400 text-xs">ID: {{ user.id }}</div>
                 </div>
               </div>
             </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-slate-400">
               {{ user.email }}
             </td>
-            <td v-if="isPlatformAdmin" class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <td v-if="isPlatformAdmin" class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-slate-400">
               {{ user.tenant_name || '-' }}
             </td>
             <td class="whitespace-nowrap px-3 py-4 text-sm">
@@ -119,48 +119,48 @@
               </span>
             </td>
             <td class="whitespace-nowrap px-3 py-4 text-sm">
-              <span :class="user.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'" class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
+              <span :class="user.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-300'" class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
                 {{ user.is_active ? t('users.active') : t('users.inactive') }}
               </span>
             </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-slate-400">
               {{ user.last_login_at ? formatDate(user.last_login_at) : '-' }}
             </td>
             <td class="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
               <Menu as="div" class="relative inline-block text-left">
-                <MenuButton class="flex items-center rounded-full bg-white dark:bg-gray-700 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <MenuButton class="flex items-center rounded-full bg-white dark:bg-slate-700 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <EllipsisVerticalIcon class="h-5 w-5" aria-hidden="true" />
                 </MenuButton>
                 <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
-                  <MenuItems class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-gray-700 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                  <MenuItems class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-slate-700 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                     <div class="py-1">
                       <MenuItem v-slot="{ active }">
-                        <button @click="openEditDialog(user)" :class="[active ? 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200', 'block w-full px-4 py-2 text-left text-sm']">
+                        <button @click="openEditDialog(user)" :class="[active ? 'bg-gray-100 dark:bg-slate-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-200', 'block w-full px-4 py-2 text-left text-sm']">
                           {{ t('users.editUser') }}
                         </button>
                       </MenuItem>
                       <MenuItem v-slot="{ active }">
-                        <button @click="openResetPasswordDialog(user)" :class="[active ? 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200', 'block w-full px-4 py-2 text-left text-sm']">
+                        <button @click="openResetPasswordDialog(user)" :class="[active ? 'bg-gray-100 dark:bg-slate-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-200', 'block w-full px-4 py-2 text-left text-sm']">
                           {{ t('users.resetPassword') }}
                         </button>
                       </MenuItem>
                       <MenuItem v-if="isPlatformAdmin && !user.is_superuser" v-slot="{ active }">
-                        <button @click="toggleSuperuser(user, true)" :class="[active ? 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200', 'block w-full px-4 py-2 text-left text-sm']">
+                        <button @click="toggleSuperuser(user, true)" :class="[active ? 'bg-gray-100 dark:bg-slate-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-200', 'block w-full px-4 py-2 text-left text-sm']">
                           {{ t('users.setPlatformAdmin') }}
                         </button>
                       </MenuItem>
                       <MenuItem v-if="isPlatformAdmin && user.is_superuser && user.id !== currentUserId" v-slot="{ active }">
-                        <button @click="toggleSuperuser(user, false)" :class="[active ? 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200', 'block w-full px-4 py-2 text-left text-sm']">
+                        <button @click="toggleSuperuser(user, false)" :class="[active ? 'bg-gray-100 dark:bg-slate-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-200', 'block w-full px-4 py-2 text-left text-sm']">
                           {{ t('users.removePlatformAdmin') }}
                         </button>
                       </MenuItem>
                       <MenuItem v-if="user.is_active" v-slot="{ active }">
-                        <button @click="toggleUserStatus(user, false)" :class="[active ? 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200', 'block w-full px-4 py-2 text-left text-sm']">
+                        <button @click="toggleUserStatus(user, false)" :class="[active ? 'bg-gray-100 dark:bg-slate-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-200', 'block w-full px-4 py-2 text-left text-sm']">
                           {{ t('users.disableUser') }}
                         </button>
                       </MenuItem>
                       <MenuItem v-else v-slot="{ active }">
-                        <button @click="toggleUserStatus(user, true)" :class="[active ? 'bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200', 'block w-full px-4 py-2 text-left text-sm']">
+                        <button @click="toggleUserStatus(user, true)" :class="[active ? 'bg-gray-100 dark:bg-slate-600 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-200', 'block w-full px-4 py-2 text-left text-sm']">
                           {{ t('users.enableUser') }}
                         </button>
                       </MenuItem>
@@ -177,7 +177,7 @@
             </td>
           </tr>
           <tr v-if="users.length === 0">
-            <td :colspan="isPlatformAdmin ? 7 : 6" class="px-3 py-12 text-center text-gray-500 dark:text-gray-400">
+            <td :colspan="isPlatformAdmin ? 7 : 6" class="px-3 py-12 text-center text-gray-500 dark:text-slate-400">
               {{ t('common.noData') }}
             </td>
           </tr>
@@ -185,7 +185,7 @@
       </table>
 
       <!-- Pagination -->
-      <div v-if="totalCount > pageSize" class="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 sm:px-6">
+      <div v-if="totalCount > pageSize" class="flex items-center justify-between border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 sm:px-6">
         <div class="flex flex-1 justify-between sm:hidden">
           <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="relative inline-flex items-center rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
             {{ t('common.previous') }}
@@ -196,20 +196,20 @@
         </div>
         <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
           <div>
-            <p class="text-sm text-gray-700 dark:text-gray-300">
+            <p class="text-sm text-gray-700 dark:text-slate-300">
               {{ t('common.showing') }} <span class="font-medium">{{ (currentPage - 1) * pageSize + 1 }}</span> {{ t('common.to') }} <span class="font-medium">{{ Math.min(currentPage * pageSize, totalCount) }}</span> {{ t('common.of') }} <span class="font-medium">{{ totalCount }}</span> {{ t('common.results') }}
             </p>
           </div>
           <div>
             <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-              <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed dark:ring-gray-600 dark:hover:bg-gray-700">
+              <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="relative inline-flex items-center rounded-l-lg border border-slate-200 dark:border-slate-600 px-2 py-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
                 <span class="sr-only">{{ t('common.previous') }}</span>
                 <ChevronLeftIcon class="h-5 w-5" aria-hidden="true" />
               </button>
-              <button v-for="page in visiblePages" :key="page" @click="goToPage(page)" :class="[page === currentPage ? 'bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600' : 'text-gray-900 dark:text-white ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:ring-gray-600 dark:hover:bg-gray-700', 'relative inline-flex items-center px-4 py-2 text-sm font-semibold']">
+              <button v-for="page in visiblePages" :key="page" @click="goToPage(page)" :class="[page === currentPage ? 'bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600' : 'text-gray-900 dark:text-white ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:ring-slate-600 dark:hover:bg-slate-700', 'relative inline-flex items-center px-4 py-2 text-sm font-semibold']">
                 {{ page }}
               </button>
-              <button @click="goToPage(currentPage + 1)" :disabled="currentPage * pageSize >= totalCount" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed dark:ring-gray-600 dark:hover:bg-gray-700">
+              <button @click="goToPage(currentPage + 1)" :disabled="currentPage * pageSize >= totalCount" class="relative inline-flex items-center rounded-r-lg border border-slate-200 dark:border-slate-600 px-2 py-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
                 <span class="sr-only">{{ t('common.next') }}</span>
                 <ChevronRightIcon class="h-5 w-5" aria-hidden="true" />
               </button>
@@ -224,7 +224,7 @@
       <div v-if="showCreateDialog" class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
           <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeCreateDialog"></div>
-          <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+          <div class="relative transform overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
             <div>
               <div class="mt-3 text-center sm:mt-5">
                 <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
@@ -232,55 +232,55 @@
                 </h3>
                 <div class="mt-4 space-y-4 text-left">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.email') }} *</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.email') }} *</label>
                     <input
                       v-model="createForm.email"
                       type="email"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                       :placeholder="t('users.emailPlaceholder')"
                     />
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.password') }} *</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.password') }} *</label>
                     <input
                       v-model="createForm.password"
                       type="password"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                       :placeholder="t('users.passwordPlaceholder')"
                     />
                   </div>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.firstName') }}</label>
+                      <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.firstName') }}</label>
                       <input
                         v-model="createForm.first_name"
                         type="text"
-                        class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                        class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                       />
                     </div>
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.lastName') }}</label>
+                      <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.lastName') }}</label>
                       <input
                         v-model="createForm.last_name"
                         type="text"
-                        class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                        class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                       />
                     </div>
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.phone') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.phone') }}</label>
                     <input
                       v-model="createForm.phone"
                       type="text"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                     />
                   </div>
                   <!-- Tenant selector for platform admin -->
                   <div v-if="isPlatformAdmin">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.tenant') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.tenant') }}</label>
                     <select
                       v-model="createForm.tenant_id"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-slate-700 dark:text-white sm:text-sm sm:leading-6"
                       :disabled="loadingTenants"
                     >
                       <option class="bg-white dark:bg-slate-700" value="">{{ loadingTenants ? t('common.loading') : t('users.selectTenant') }}</option>
@@ -289,10 +289,10 @@
                   </div>
                   <!-- 统一角色选择 -->
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.role') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.role') }}</label>
                     <select
                       v-model="createForm.role"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-slate-700 dark:text-white sm:text-sm sm:leading-6"
                     >
                       <option class="bg-white dark:bg-slate-700" v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
                       <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.tenantAdmin') }}</option>
@@ -313,7 +313,7 @@
               </button>
               <button
                 type="button"
-                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:ring-gray-600 dark:hover:bg-gray-600 sm:col-start-1 sm:mt-0"
+                class="mt-3 inline-flex w-full justify-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 sm:col-start-1 sm:mt-0 transition-colors"
                 @click="closeCreateDialog"
               >
                 {{ t('common.cancel') }}
@@ -329,56 +329,56 @@
       <div v-if="showEditDialog" class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
           <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeEditDialog"></div>
-          <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+          <div class="relative transform overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
             <div>
               <div class="mt-3 text-center sm:mt-5">
                 <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
                   {{ t('users.editUser') }}
                 </h3>
-                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">
                   {{ t('users.editUserHint', { user: editingUser?.full_name || editingUser?.email }) }}
                 </p>
                 <div class="mt-4 space-y-4 text-left">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.email') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.email') }}</label>
                     <input
                       v-model="editForm.email"
                       type="email"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                     />
                   </div>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.firstName') }}</label>
+                      <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.firstName') }}</label>
                       <input
                         v-model="editForm.first_name"
                         type="text"
-                        class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                        class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                       />
                     </div>
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.lastName') }}</label>
+                      <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.lastName') }}</label>
                       <input
                         v-model="editForm.last_name"
                         type="text"
-                        class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                        class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                       />
                     </div>
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.phone') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.phone') }}</label>
                     <input
                       v-model="editForm.phone"
                       type="text"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                     />
                   </div>
                   <!-- 统一角色选择 -->
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.role') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.role') }}</label>
                     <select
                       v-model="editForm.role"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-slate-700 dark:text-white sm:text-sm sm:leading-6"
                     >
                       <option class="bg-white dark:bg-slate-700" v-if="isPlatformAdmin" value="platform_admin">{{ t('users.roles.platformAdmin') }}</option>
                       <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.tenantAdmin') }}</option>
@@ -399,7 +399,7 @@
               </button>
               <button
                 type="button"
-                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:ring-gray-600 dark:hover:bg-gray-600 sm:col-start-1 sm:mt-0"
+                class="mt-3 inline-flex w-full justify-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 sm:col-start-1 sm:mt-0 transition-colors"
                 @click="closeEditDialog"
               >
                 {{ t('common.cancel') }}
@@ -415,7 +415,7 @@
       <div v-if="showInviteDialog" class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
           <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeInviteDialog"></div>
-          <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+          <div class="relative transform overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
             <div>
               <div class="mt-3 text-center sm:mt-5">
                 <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
@@ -423,19 +423,19 @@
                 </h3>
                 <div class="mt-4 space-y-4 text-left">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.email') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.email') }}</label>
                     <input
                       v-model="inviteForm.email"
                       type="email"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                       :placeholder="t('users.emailPlaceholder')"
                     />
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.role') }}</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.role') }}</label>
                     <select
                       v-model="inviteForm.role"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-slate-700 dark:text-white sm:text-sm sm:leading-6"
                     >
                       <option class="bg-white dark:bg-slate-700" value="admin">{{ t('users.roles.admin') }}</option>
                       <option class="bg-white dark:bg-slate-700" value="member">{{ t('users.roles.member') }}</option>
@@ -455,7 +455,7 @@
               </button>
               <button
                 type="button"
-                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:ring-gray-600 dark:hover:bg-gray-600 sm:col-start-1 sm:mt-0"
+                class="mt-3 inline-flex w-full justify-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 sm:col-start-1 sm:mt-0 transition-colors"
                 @click="closeInviteDialog"
               >
                 {{ t('common.cancel') }}
@@ -471,31 +471,31 @@
       <div v-if="showResetPasswordDialog" class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
           <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeResetPasswordDialog"></div>
-          <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+          <div class="relative transform overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
             <div>
               <div class="mt-3 text-center sm:mt-5">
                 <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
                   {{ t('users.resetPassword') }}
                 </h3>
-                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">
                   {{ t('users.resetPasswordFor') }}: {{ resettingUser?.email }}
                 </p>
                 <div class="mt-4 space-y-4 text-left">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.newPassword') }} *</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.newPassword') }} *</label>
                     <input
                       v-model="resetPasswordForm.new_password"
                       type="password"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                       :placeholder="t('users.passwordPlaceholder')"
                     />
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('users.confirmPassword') }} *</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ t('users.confirmPassword') }} *</label>
                     <input
                       v-model="resetPasswordForm.confirm_password"
                       type="password"
-                      class="mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 dark:bg-gray-700 dark:text-white sm:text-sm sm:leading-6"
+                      class="mt-1 block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 text-sm"
                       :placeholder="t('users.confirmPasswordPlaceholder')"
                     />
                   </div>
@@ -513,7 +513,7 @@
               </button>
               <button
                 type="button"
-                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:ring-gray-600 dark:hover:bg-gray-600 sm:col-start-1 sm:mt-0"
+                class="mt-3 inline-flex w-full justify-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 sm:col-start-1 sm:mt-0 transition-colors"
                 @click="closeResetPasswordDialog"
               >
                 {{ t('common.cancel') }}
@@ -529,7 +529,7 @@
       <div v-if="showDeleteDialog" class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
           <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeDeleteDialog"></div>
-          <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+          <div class="relative transform overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
             <div class="sm:flex sm:items-start">
               <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
                 <ExclamationTriangleIcon class="h-6 w-6 text-red-600 dark:text-red-400" aria-hidden="true" />
@@ -539,7 +539,7 @@
                   {{ t('users.deleteUser') }}
                 </h3>
                 <div class="mt-2">
-                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                  <p class="text-sm text-gray-500 dark:text-slate-400">
                     {{ t('users.confirmDeleteDesc', { email: deletingUser?.email }) }}
                   </p>
                 </div>
@@ -556,7 +556,7 @@
               </button>
               <button
                 type="button"
-                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:ring-gray-600 dark:hover:bg-gray-600 sm:mt-0 sm:w-auto"
+                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-slate-700 dark:text-white dark:ring-slate-600 dark:hover:bg-slate-600 sm:mt-0 sm:w-auto"
                 @click="closeDeleteDialog"
               >
                 {{ t('common.cancel') }}
@@ -735,7 +735,7 @@ function getUnifiedRoleClass(user: User) {
   } else if (user.tenant_role === 'admin') {
     return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
   }
-  return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+  return 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-300'
 }
 
 function formatDate(date: string) {
