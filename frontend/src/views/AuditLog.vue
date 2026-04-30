@@ -3,17 +3,17 @@
     <!-- Page Header -->
     <div class="flex justify-between items-center">
       <div>
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
+        <h1 class="text-2xl font-semibold text-slate-800 dark:text-white">
           {{ t('auditLog.title') }}
         </h1>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {{ t('auditLog.description') }}
         </p>
       </div>
       <div class="flex gap-2">
         <button
           @click="exportLogs('json')"
-          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+          class="inline-flex items-center px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg shadow-sm text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
         >
           <ArrowDownTrayIcon class="h-4 w-4 mr-2" />
           {{ t('auditLog.export') }}
@@ -22,37 +22,37 @@
     </div>
 
     <!-- Filters -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <!-- Date Range -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             {{ t('auditLog.startDate') }}
           </label>
           <input
             v-model="filters.start_date"
             type="date"
-            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-3 py-2"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             {{ t('auditLog.endDate') }}
           </label>
           <input
             v-model="filters.end_date"
             type="date"
-            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-3 py-2"
           />
         </div>
         <!-- Action Filter -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             {{ t('auditLog.action') }}
           </label>
           <select
             v-model="filters.action"
-            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-3 py-2"
           >
             <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') }}</option>
             <option class="bg-white dark:bg-slate-700" value="create">{{ t('auditLog.actions.create') }}</option>
@@ -66,12 +66,12 @@
         </div>
         <!-- Resource Type Filter -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             {{ t('auditLog.resourceType') }}
           </label>
           <select
             v-model="filters.resource_type"
-            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-3 py-2"
           >
             <option class="bg-white dark:bg-slate-700" value="">{{ t('common.all') }}</option>
             <option class="bg-white dark:bg-slate-700" value="user">{{ t('auditLog.resourceTypes.user') }}</option>
@@ -94,26 +94,26 @@
 
     <!-- Statistics Cards -->
     <div v-if="statistics" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('auditLog.totalLogs') }}</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
+        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.totalLogs') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-slate-800 dark:text-white">
           {{ statistics.total_count }}
         </div>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('auditLog.todayLogs') }}</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
+        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.todayLogs') }}</div>
+        <div class="mt-1 text-2xl font-semibold text-slate-800 dark:text-white">
           {{ statistics.today_count }}
         </div>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('auditLog.successRate') }}</div>
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
+        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.successRate') }}</div>
         <div class="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">
           {{ successRate }}%
         </div>
       </div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div class="text-sm text-gray-500 dark:text-gray-400">{{ t('auditLog.failureCount') }}</div>
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow p-4">
+        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('auditLog.failureCount') }}</div>
         <div class="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">
           {{ statistics.result_stats?.failure || 0 }}
         </div>
@@ -121,54 +121,54 @@
     </div>
 
     <!-- Logs Table -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+    <div class="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
           <thead class="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {{ t('auditLog.timestamp') }}
               </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {{ t('auditLog.user') }}
               </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {{ t('auditLog.action') }}
               </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {{ t('auditLog.resource') }}
               </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {{ t('auditLog.result') }}
               </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {{ t('auditLog.ipAddress') }}
               </th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th class="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {{ t('common.actions') }}
               </th>
             </tr>
           </thead>
-          <tbody class="bg-white dark:bg-slate-800 dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody class="bg-white dark:bg-slate-800 dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
             <tr v-if="loading">
-              <td colspan="7" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+              <td colspan="7" class="px-6 py-4 text-center text-slate-500 dark:text-slate-400">
                 {{ t('common.loading') }}
               </td>
             </tr>
             <tr v-else-if="logs.length === 0">
-              <td colspan="7" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+              <td colspan="7" class="px-6 py-4 text-center text-slate-500 dark:text-slate-400">
                 {{ t('common.noData') }}
               </td>
             </tr>
-            <tr v-for="log in logs" :key="log.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+            <tr v-for="log in logs" :key="log.id" class="hover:bg-gray-50 dark:hover:bg-slate-700">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800 dark:text-white">
                 {{ formatDateTime(log.timestamp) }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900 dark:text-white">
+                <div class="text-sm font-medium text-slate-800 dark:text-white">
                   {{ log.user_display || t('auditLog.user') }}
                 </div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">
+                <div class="text-sm text-slate-500 dark:text-slate-400">
                   {{ log.user_email || '-' }}
                 </div>
               </td>
@@ -178,10 +178,10 @@
                 </span>
               </td>
               <td class="px-6 py-4">
-                <div class="text-sm text-gray-900 dark:text-white">
+                <div class="text-sm text-slate-800 dark:text-white">
                   {{ log.resource_name || log.resource_id || '-' }}
                 </div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">
+                <div class="text-sm text-slate-500 dark:text-slate-400">
                   {{ log.resource_type_display || t(`auditLog.resourceTypes.${log.resource_type}`) }}
                 </div>
               </td>
@@ -190,7 +190,7 @@
                   {{ log.result_display || t(`auditLog.results.${log.result}`) }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                 {{ log.ip_address || '-' }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
@@ -207,7 +207,7 @@
       </div>
 
       <!-- Pagination -->
-      <div v-if="pagination.count > 0" class="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
+      <div v-if="pagination.count > 0" class="bg-white dark:bg-slate-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
         <div class="flex-1 flex justify-between sm:hidden">
           <button
             :disabled="pagination.page <= 1"
@@ -226,7 +226,7 @@
         </div>
         <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
           <div>
-            <p class="text-sm text-gray-700 dark:text-gray-300">
+            <p class="text-sm text-slate-700 dark:text-slate-300">
               {{ t('common.showing') }} {{ (pagination.page - 1) * pageSize + 1 }}
               {{ t('common.to') }} {{ Math.min(pagination.page * pageSize, pagination.count) }}
               {{ t('common.of') }} {{ pagination.count }} {{ t('common.results') }}
@@ -237,7 +237,7 @@
               <button
                 :disabled="pagination.page <= 1"
                 @click="changePage(pagination.page - 1)"
-                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
               >
                 {{ t('common.previous') }}
               </button>
@@ -248,7 +248,7 @@
                 :class="[
                   page === pagination.page
                     ? 'z-10 bg-indigo-50 dark:bg-indigo-900 border-indigo-500 text-indigo-600 dark:text-indigo-300'
-                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700',
                   'relative inline-flex items-center px-4 py-2 border text-sm font-medium'
                 ]"
               >
@@ -257,7 +257,7 @@
               <button
                 :disabled="pagination.page >= totalPages"
                 @click="changePage(pagination.page + 1)"
-                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
               >
                 {{ t('common.next') }}
               </button>
@@ -271,9 +271,9 @@
     <div v-if="showDetailModal" class="fixed inset-0 z-50 overflow-y-auto">
       <div class="flex items-center justify-center min-h-screen px-4">
         <div class="fixed inset-0 bg-black bg-opacity-50" @click="showDetailModal = false"></div>
-        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full p-6">
+        <div class="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl w-full p-6">
           <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+            <h3 class="text-lg font-medium text-slate-800 dark:text-white">
               {{ t('auditLog.detail') }}
             </h3>
             <button @click="showDetailModal = false" class="text-gray-400 hover:text-gray-500">
@@ -283,47 +283,47 @@
           <div v-if="selectedLog" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                <label class="block text-sm font-medium text-slate-500 dark:text-slate-400">
                   {{ t('auditLog.timestamp') }}
                 </label>
-                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                <div class="mt-1 text-sm text-slate-800 dark:text-white">
                   {{ formatDateTime(selectedLog.timestamp) }}
                 </div>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                <label class="block text-sm font-medium text-slate-500 dark:text-slate-400">
                   {{ t('auditLog.user') }}
                 </label>
-                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                <div class="mt-1 text-sm text-slate-800 dark:text-white">
                   {{ selectedLog.user_display || 'System' }}
                 </div>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                <label class="block text-sm font-medium text-slate-500 dark:text-slate-400">
                   {{ t('auditLog.action') }}
                 </label>
-                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                <div class="mt-1 text-sm text-slate-800 dark:text-white">
                   {{ selectedLog.action_display }}
                 </div>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                <label class="block text-sm font-medium text-slate-500 dark:text-slate-400">
                   {{ t('auditLog.resource') }}
                 </label>
-                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                <div class="mt-1 text-sm text-slate-800 dark:text-white">
                   {{ selectedLog.resource_type_display }}: {{ selectedLog.resource_name || selectedLog.resource_id }}
                 </div>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                <label class="block text-sm font-medium text-slate-500 dark:text-slate-400">
                   {{ t('auditLog.ipAddress') }}
                 </label>
-                <div class="mt-1 text-sm text-gray-900 dark:text-white">
+                <div class="mt-1 text-sm text-slate-800 dark:text-white">
                   {{ selectedLog.ip_address || '-' }}
                 </div>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                <label class="block text-sm font-medium text-slate-500 dark:text-slate-400">
                   {{ t('auditLog.result') }}
                 </label>
                 <div class="mt-1">
@@ -334,10 +334,10 @@
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+              <label class="block text-sm font-medium text-slate-500 dark:text-slate-400">
                 {{ t('auditLog.description') }}
               </label>
-              <div class="mt-1 text-sm text-gray-900 dark:text-white">
+              <div class="mt-1 text-sm text-slate-800 dark:text-white">
                 {{ selectedLog.details || '-' }}
               </div>
             </div>
@@ -350,16 +350,16 @@
               </div>
             </div>
             <div v-if="selectedLog.changes && Object.keys(selectedLog.changes).length > 0">
-              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+              <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
                 {{ t('auditLog.changes') }}
               </label>
               <pre class="bg-gray-50 dark:bg-gray-900 rounded p-3 text-xs overflow-auto max-h-60">{{ JSON.stringify(selectedLog.changes, null, 2) }}</pre>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+              <label class="block text-sm font-medium text-slate-500 dark:text-slate-400">
                 {{ t('auditLog.requestPath') }}
               </label>
-              <div class="mt-1 text-sm text-gray-900 dark:text-white">
+              <div class="mt-1 text-sm text-slate-800 dark:text-white">
                 {{ selectedLog.request_method }} {{ selectedLog.request_path }}
               </div>
             </div>
@@ -522,11 +522,11 @@ const getActionBadgeClass = (action: string) => {
     update: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     delete: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     login: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
-    logout: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+    logout: 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200',
     enable: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
     disable: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   }
-  return classes[action] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+  return classes[action] || 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200'
 }
 
 const getResultBadgeClass = (result: string) => {
@@ -535,7 +535,7 @@ const getResultBadgeClass = (result: string) => {
     failure: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     partial: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   }
-  return classes[result] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+  return classes[result] || 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200'
 }
 
 onMounted(() => {

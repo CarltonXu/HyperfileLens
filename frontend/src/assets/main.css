@@ -13,17 +13,44 @@
     @apply min-h-screen antialiased;
   }
 
+  /* Form elements dark mode support */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    color-scheme: light;
+  }
+
+  .dark input[type="date"],
+  .dark input[type="time"],
+  .dark input[type="datetime-local"],
+  .dark input[type="month"],
+  .dark input[type="week"] {
+    color-scheme: dark;
+  }
+
+  /* Date picker calendar icon */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
   /* Scrollbar styling */
   ::-webkit-scrollbar {
     @apply w-2 h-2;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-gray-100 rounded;
+    @apply bg-gray-100 dark:bg-slate-800 rounded;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 rounded hover:bg-gray-400;
+    @apply bg-gray-300 dark:bg-slate-600 rounded hover:bg-gray-400 dark:hover:bg-slate-500;
   }
 }
 
