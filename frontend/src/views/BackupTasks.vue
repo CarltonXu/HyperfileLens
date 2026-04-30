@@ -273,7 +273,7 @@ onMounted(() => {
         </select>
         <button
           @click="fetchTasks"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50"
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
         >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t('common.refresh') }}
@@ -437,7 +437,7 @@ onMounted(() => {
             </div>
           </div>
           <div class="sticky bottom-0 bg-white dark:bg-slate-800 px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
-            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
+            <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">
               {{ t('common.cancel') }}
             </button>
             <button @click="createTask" class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
@@ -485,7 +485,7 @@ onMounted(() => {
             </div>
           </div>
           <div class="px-6 py-4 border-t border-slate-100 flex justify-end">
-            <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 dark:bg-slate-700/50">
+            <button @click="showDetailModal = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">
               {{ t('common.cancel') }}
             </button>
           </div>
