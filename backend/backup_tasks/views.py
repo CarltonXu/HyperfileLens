@@ -69,9 +69,9 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         ).prefetch_related('snapshots')
         
         # Permission-based filtering
-        if user.is_superuser or user.role.code == 'admin':
+        if user.is_superuser or (user.role and user.role.code == 'admin'):
             pass  # Admin sees all
-        elif user.role.code == 'operator':
+        elif user.role and user.role.code == 'operator':
             queryset = queryset.filter(user=user)
         else:
             queryset = queryset.filter(user=user)
@@ -336,7 +336,7 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         
         # Filter by user role
         user = request.user
-        if not (user.is_superuser or user.role.code == 'admin'):
+        if not (user.is_superuser or (user.role and user.role.code == 'admin')):
             queryset = queryset.filter(user=user)
         
         # Calculate statistics
@@ -394,9 +394,9 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = BackupSnapshot.objects.select_related('task', 'repository')
         
         # Permission-based filtering
-        if user.is_superuser or user.role.code == 'admin':
+        if user.is_superuser or (user.role and user.role.code == 'admin'):
             pass  # Admin sees all
-        elif user.role.code == 'operator':
+        elif user.role and user.role.code == 'operator':
             queryset = queryset.filter(task__user=user)
         else:
             queryset = queryset.filter(task__user=user)

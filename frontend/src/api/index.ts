@@ -274,7 +274,7 @@ export const backupTasksApi = {
     api.delete(`/api/v1/backup-tasks/tasks/${id}/`),
   
   stats: () =>
-    api.get('/api/v1/backup-tasks/stats/'),
+    api.get('/api/v1/backup-tasks/tasks/statistics/'),
   
   execute: (id: number) =>
     api.post(`/api/v1/backup-tasks/tasks/${id}/execute/`),
