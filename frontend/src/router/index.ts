@@ -13,6 +13,8 @@ const SourceResources = () => import('@/views/SourceResources.vue')
 const Policies = () => import('@/views/Policies.vue')
 const AIInsights = () => import('@/views/AIInsights.vue')
 const AuditLog = () => import('@/views/AuditLog.vue')
+const EventLog = () => import('@/views/EventLog.vue')
+const Alerts = () => import('@/views/Alerts.vue')
 const Settings = () => import('@/views/Settings.vue')
 const Layout = () => import('@/views/Layout.vue')
 const Tenants = () => import('@/views/Tenants.vue')
@@ -130,6 +132,18 @@ const routes: RouteRecordRaw[] = [
         name: 'AuditLog',
         component: AuditLog,
         meta: { title: 'Audit Log' }
+      },
+      {
+        path: 'event-log',
+        name: 'EventLog',
+        component: EventLog,
+        meta: { title: 'Event Log' }
+      },
+      {
+        path: 'alerts',
+        name: 'Alerts',
+        component: Alerts,
+        meta: { title: 'Alerts' }
       },
       {
         path: 'settings',

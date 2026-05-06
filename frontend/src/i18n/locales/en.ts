@@ -11,8 +11,10 @@ export default {
     policies: 'Policies',
     aiInsights: 'AI Insights',
     auditLog: 'Audit Log',
+    eventLog: 'Event Log',
     tenants: 'Tenants',
     users: 'Users',
+    alerts: 'Alerts',
     licenses: 'Licenses',
     settings: 'Settings',
     logout: 'Logout'
@@ -22,8 +24,9 @@ export default {
   navGroups: {
     overview: 'Overview',
     dataProtection: 'Data Protection',
-    storage: 'Storage Management',
+    resources: 'Resources',
     aiInsights: 'AI Insights',
+    opsMonitor: 'Ops Monitor',
     system: 'System'
   },
 

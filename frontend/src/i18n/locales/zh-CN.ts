@@ -11,8 +11,10 @@ export default {
     policies: '备份策略',
     aiInsights: '智能洞察',
     auditLog: '审计日志',
+    eventLog: '事件日志',
     tenants: '租户管理',
     users: '用户管理',
+    alerts: '监控告警',
     licenses: '许可证管理',
     settings: '设置',
     logout: '退出登录'
@@ -22,8 +24,9 @@ export default {
   navGroups: {
     overview: '概览',
     dataProtection: '数据保护',
-    storage: '存储管理',
+    resources: '资源管理',
     aiInsights: '智能洞察',
+    opsMonitor: '运维监控',
     system: '系统管理'
   },
 

@@ -29,7 +29,9 @@ import {
   MagnifyingGlassIcon,
   ShieldCheckIcon,
   ChartBarIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon,
+  BellIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/vue/24/outline'
 import {
   HomeIcon as HomeIconSolid,
@@ -43,7 +45,9 @@ import {
   Cog6ToothIcon as Cog6ToothIconSolid,
   BuildingOffice2Icon as BuildingOffice2IconSolid,
   KeyIcon as KeyIconSolid,
-  UsersIcon as UsersIconSolid
+  UsersIcon as UsersIconSolid,
+  BellIcon as BellIconSolid,
+  ExclamationTriangleIcon as ExclamationTriangleIconSolid
 } from '@heroicons/vue/24/solid'
 
 const router = useRouter()
@@ -167,12 +171,19 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
           icon: ArrowUturnLeftIcon,
           iconSolid: ArrowUturnLeftIconSolid,
           current: route.path === '/recovery-tasks'
+        },
+        {
+          name: t('nav.policies'),
+          path: '/policies',
+          icon: ClockIcon,
+          iconSolid: ClockIconSolid,
+          current: route.path === '/policies'
         }
       ]
     },
     {
-      id: 'storage',
-      title: t('navGroups.storage'),
+      id: 'resources',
+      title: t('navGroups.resources'),
       items: [
         {
           name: t('nav.repository'),
@@ -187,13 +198,6 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
           icon: ComputerDesktopIcon,
           iconSolid: ComputerDesktopIcon,
           current: route.path === '/source-resources'
-        },
-        {
-          name: t('nav.policies'),
-          path: '/policies',
-          icon: ClockIcon,
-          iconSolid: ClockIconSolid,
-          current: route.path === '/policies'
         }
       ]
     },
@@ -237,8 +241,8 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
       ]
     },
     {
-      id: 'system',
-      title: t('navGroups.system'),
+      id: 'ops-monitor',
+      title: t('navGroups.opsMonitor'),
       items: [
         {
           name: t('nav.auditLog'),
@@ -246,6 +250,13 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
           icon: ClipboardDocumentListIcon,
           iconSolid: ClipboardDocumentListIconSolid,
           current: route.path === '/audit-log'
+        },
+        {
+          name: t('nav.eventLog'),
+          path: '/event-log',
+          icon: BellIcon,
+          iconSolid: BellIconSolid,
+          current: route.path === '/event-log'
         },
         {
           name: t('nav.tenants'),
@@ -263,6 +274,19 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
           current: route.path === '/users',
           requiresTenantAdmin: true
         },
+        {
+          name: t('nav.alerts'),
+          path: '/alerts',
+          icon: ExclamationTriangleIcon,
+          iconSolid: ExclamationTriangleIconSolid,
+          current: route.path === '/alerts'
+        }
+      ]
+    },
+    {
+      id: 'system',
+      title: t('navGroups.system'),
+      items: [
         {
           name: t('nav.licenses'),
           path: '/licenses',
