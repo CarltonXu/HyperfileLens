@@ -70,13 +70,14 @@ class TenantViewSet(viewsets.ModelViewSet):
         return TenantSerializer
 
     def perform_create(self, serializer):
-        """Create a new tenant."""
+        """Create a new tenant.
+        
+        Note: New tenant is created without any users assigned.
+        Users need to be explicitly added via user management.
+        """
         tenant = serializer.save()
-        # Assign the creator as owner
-        user = self.request.user
-        user.tenant = tenant
-        user.tenant_role = User.TenantRole.ADMIN
-        user.save()
+        # Record audit log
+        AuditService.log_tenant_create(self.request, tenant)
 
     def destroy(self, request, *args, **kwargs):
         """Delete a tenant. Prevent deleting own tenant or administrator tenant."""
@@ -115,6 +116,42 @@ class TenantViewSet(viewsets.ModelViewSet):
         users_in_tenant = User.objects.filter(tenant=tenant).count()
         if users_in_tenant > 0:
             error_msg = f'Cannot delete tenant with {users_in_tenant} associated user(s). Remove users first.'
+            AuditService.log_tenant_delete(
+                request, tenant, 
+                result='failure', 
+                error_message=error_msg
+            )
+            return Response(
+                {'detail': error_msg},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 检查是否有其他资源关联到此租户
+        from nodes.models import ProxyNode
+        from repository.models import Repository
+        from source_resources.models import SourceResource
+        from backup_tasks.models import BackupTask
+        
+        resource_counts = {}
+        proxy_count = ProxyNode.objects.filter(tenant=tenant).count()
+        if proxy_count > 0:
+            resource_counts['proxies'] = proxy_count
+        
+        repository_count = Repository.objects.filter(tenant=tenant).count()
+        if repository_count > 0:
+            resource_counts['repositories'] = repository_count
+        
+        source_count = SourceResource.objects.filter(tenant=tenant).count()
+        if source_count > 0:
+            resource_counts['source_resources'] = source_count
+        
+        backup_count = BackupTask.objects.filter(tenant=tenant).count()
+        if backup_count > 0:
+            resource_counts['backup_tasks'] = backup_count
+        
+        if resource_counts:
+            resource_details = ', '.join([f"{v} {k}" for k, v in resource_counts.items()])
+            error_msg = f'Cannot delete tenant with associated resources: {resource_details}. Remove resources first.'
             AuditService.log_tenant_delete(
                 request, tenant, 
                 result='failure', 
@@ -350,6 +387,57 @@ class TenantViewSet(viewsets.ModelViewSet):
         if user.id == request.user.id:
             return Response(
                 {'error': 'Cannot remove yourself from a tenant'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 检查用户是否有关联的资源
+        from nodes.models import ProxyNode
+        from repository.models import Repository
+        from source_resources.models import SourceResource
+        from policies.models import BackupPolicy
+        from backup_tasks.models import BackupTask
+        from recovery_tasks.models import RecoveryTask
+        from gateways.models import Gateway
+
+        resource_counts = {}
+        
+        proxy_count = ProxyNode.objects.filter(created_by=user).count()
+        if proxy_count > 0:
+            resource_counts['proxies'] = proxy_count
+            
+        repo_count = Repository.objects.filter(created_by=user).count()
+        if repo_count > 0:
+            resource_counts['repositories'] = repo_count
+            
+        source_count = SourceResource.objects.filter(created_by=user).count()
+        if source_count > 0:
+            resource_counts['source_resources'] = source_count
+            
+        policy_count = BackupPolicy.objects.filter(created_by=user).count()
+        if policy_count > 0:
+            resource_counts['policies'] = policy_count
+            
+        backup_count = BackupTask.objects.filter(created_by=user).count()
+        if backup_count > 0:
+            resource_counts['backup_tasks'] = backup_count
+            
+        recovery_count = RecoveryTask.objects.filter(created_by=user).count()
+        if recovery_count > 0:
+            resource_counts['recovery_tasks'] = recovery_count
+            
+        gateway_count = Gateway.objects.filter(created_by=user).count()
+        if gateway_count > 0:
+            resource_counts['gateways'] = gateway_count
+
+        if resource_counts:
+            resource_details = ', '.join([f"{v} {k}" for k, v in resource_counts.items()])
+            error_msg = f'Cannot remove user with associated resources: {resource_details}. Transfer or delete resources first.'
+            return Response(
+                {
+                    'error': 'Cannot remove user with associated resources',
+                    'detail': f'User has created resources that belong to this tenant. Transfer ownership or delete resources before removing the user.',
+                    'resources': resource_counts
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
         

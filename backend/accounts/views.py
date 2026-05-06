@@ -776,6 +776,58 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Check if user has associated resources
+        from nodes.models import ProxyNode
+        from repository.models import Repository
+        from source_resources.models import SourceResource
+        from policies.models import BackupPolicy
+        from backup_tasks.models import BackupTask
+        from recovery_tasks.models import RecoveryTask
+        from gateways.models import Gateway
+
+        resource_counts = {}
+        
+        # Count resources created by this user
+        proxy_count = ProxyNode.objects.filter(created_by=user).count()
+        if proxy_count > 0:
+            resource_counts['proxies'] = proxy_count
+            
+        repo_count = Repository.objects.filter(created_by=user).count()
+        if repo_count > 0:
+            resource_counts['repositories'] = repo_count
+            
+        source_count = SourceResource.objects.filter(created_by=user).count()
+        if source_count > 0:
+            resource_counts['source_resources'] = source_count
+            
+        policy_count = BackupPolicy.objects.filter(created_by=user).count()
+        if policy_count > 0:
+            resource_counts['policies'] = policy_count
+            
+        backup_count = BackupTask.objects.filter(created_by=user).count()
+        if backup_count > 0:
+            resource_counts['backup_tasks'] = backup_count
+            
+        recovery_count = RecoveryTask.objects.filter(created_by=user).count()
+        if recovery_count > 0:
+            resource_counts['recovery_tasks'] = recovery_count
+            
+        gateway_count = Gateway.objects.filter(created_by=user).count()
+        if gateway_count > 0:
+            resource_counts['gateways'] = gateway_count
+
+        if resource_counts:
+            error_msg = f'Cannot delete user with associated resources. Please transfer or delete the following resources first: {", ".join(f"{v} {k}" for k, v in resource_counts.items())}'
+            AuditService.log_user_delete(request, user, result='failure', error_message=error_msg)
+            return Response(
+                {
+                    'error': 'Cannot delete user with associated resources',
+                    'detail': f'User has associated resources that must be transferred or deleted first.',
+                    'resources': resource_counts
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # Record audit log before deletion
         AuditService.log_user_delete(request, user, result='success')
         
