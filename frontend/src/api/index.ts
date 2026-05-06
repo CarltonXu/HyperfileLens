@@ -448,35 +448,27 @@ export const policiesApi = {
 }
 
 // ============== Gateway API (AI Query, File Index) ==============
-// Gateway runs on a separate port (8001) with FastAPI
-const gatewayApi = axios.create({
-  baseURL: import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8001',
-  timeout: 60000, // Longer timeout for AI queries
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
+// Gateway requests are proxied through Django backend for consistency
 export const gateway = {
   // AI Query
   aiQuery: (data: { query: string; repository_id?: string; filters?: Record<string, unknown> }) =>
-    gatewayApi.post('/ai/query', data),
+    api.post('/api/v1/ai-query/gateway/ai-query/', data),
   
   // File browsing
   listFiles: (params?: { path?: string; repository_id?: string }) =>
-    gatewayApi.get('/files', { params }),
+    api.get('/api/v1/ai-query/gateway/files/', { params }),
   
   // Repository mount status
   mountStatus: () =>
-    gatewayApi.get('/mount/status'),
+    api.get('/api/v1/ai-query/gateway/mount-status/'),
   
   // Index status
   indexStatus: () =>
-    gatewayApi.get('/index/status'),
+    api.get('/api/v1/ai-query/gateway/index-status/'),
   
   // Rebuild index
   rebuildIndex: (repositoryId: string) =>
-    gatewayApi.post('/index/rebuild', { repository_id: repositoryId })
+    api.post('/api/v1/ai-query/gateway/rebuild-index/', { repository_id: repositoryId })
 }
 
 // ============== AI Query API (Django Backend) ==============

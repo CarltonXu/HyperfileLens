@@ -9,7 +9,7 @@ export default {
     repository: '备份仓库',
     sourceResources: '源端资源',
     policies: '备份策略',
-    aiQuery: 'AI 查询',
+    aiQuery: '智能洞察',
     auditLog: '审计日志',
     tenants: '租户管理',
     users: '用户管理',
@@ -1153,10 +1153,10 @@ export default {
     confirmDelete: '确定要删除此策略吗？'
   },
 
-  // AI Query
+  // 智能洞察
   aiQuery: {
-    title: 'AI 文件智能',
-    subtitle: '搜索和分析备份数据',
+    title: '智能洞察',
+    subtitle: '智能搜索和分析您的备份数据',
 
     search: {
       placeholder: '询问关于备份数据的问题...',

@@ -9,7 +9,7 @@ export default {
     repository: 'Backup Repository',
     sourceResources: 'Source Resources',
     policies: 'Policies',
-    aiQuery: 'AI Query',
+    aiQuery: 'AI Insights',
     auditLog: 'Audit Log',
     tenants: 'Tenants',
     users: 'Users',
@@ -1153,10 +1153,10 @@ export default {
     confirmDelete: 'Are you sure you want to delete this policy?'
   },
 
-  // AI Query
+  // AI Insights
   aiQuery: {
-    title: 'AI File Intelligence',
-    subtitle: 'Search and analyze your backup data',
+    title: 'AI Insights',
+    subtitle: 'Intelligent search and analysis of your backup data',
 
     search: {
       placeholder: 'Ask questions about your backup data...',

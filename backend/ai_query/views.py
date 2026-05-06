@@ -2,14 +2,20 @@
 HyperFileLens Backend - AI Query Views
 """
 
+import requests
+from django.conf import settings
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import AIQuery
 from .serializers import AIQuerySerializer, AIQueryCreateSerializer
 from .tasks import execute_ai_query
+
+
+# Gateway service URL (can be configured in settings)
+GATEWAY_URL = getattr(settings, 'GATEWAY_URL', 'http://localhost:8001')
 
 
 class AIQueryViewSet(viewsets.ModelViewSet):
@@ -75,3 +81,92 @@ class AIQueryViewSet(viewsets.ModelViewSet):
         queries = self.get_queryset()[:20]
         serializer = AIQuerySerializer(queries, many=True)
         return Response(serializer.data)
+
+
+# ============== Gateway Proxy Views ==============
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def gateway_mount_status(request):
+    """Proxy: Get mount status from Gateway service."""
+    try:
+        response = requests.get(f'{GATEWAY_URL}/mount/status', timeout=10)
+        return Response(response.json(), status=response.status_code)
+    except requests.exceptions.ConnectionError:
+        return Response({'error': 'Gateway service unavailable', 'mounted': False}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except requests.exceptions.Timeout:
+        return Response({'error': 'Gateway service timeout', 'mounted': False}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except Exception as e:
+        return Response({'error': str(e), 'mounted': False}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def gateway_index_status(request):
+    """Proxy: Get index status from Gateway service."""
+    try:
+        response = requests.get(f'{GATEWAY_URL}/index/status', timeout=10)
+        return Response(response.json(), status=response.status_code)
+    except requests.exceptions.ConnectionError:
+        return Response({'error': 'Gateway service unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except requests.exceptions.Timeout:
+        return Response({'error': 'Gateway service timeout'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def gateway_ai_query(request):
+    """Proxy: Execute AI query through Gateway service."""
+    try:
+        response = requests.post(
+            f'{GATEWAY_URL}/ai/query',
+            json=request.data,
+            timeout=60
+        )
+        return Response(response.json(), status=response.status_code)
+    except requests.exceptions.ConnectionError:
+        return Response({'error': 'Gateway service unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except requests.exceptions.Timeout:
+        return Response({'error': 'Gateway service timeout'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def gateway_rebuild_index(request):
+    """Proxy: Rebuild index through Gateway service."""
+    try:
+        response = requests.post(
+            f'{GATEWAY_URL}/index/rebuild',
+            json=request.data,
+            timeout=30
+        )
+        return Response(response.json(), status=response.status_code)
+    except requests.exceptions.ConnectionError:
+        return Response({'error': 'Gateway service unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except requests.exceptions.Timeout:
+        return Response({'error': 'Gateway service timeout'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def gateway_list_files(request):
+    """Proxy: List files from Gateway service."""
+    try:
+        response = requests.get(
+            f'{GATEWAY_URL}/files',
+            params=request.query_params,
+            timeout=30
+        )
+        return Response(response.json(), status=response.status_code)
+    except requests.exceptions.ConnectionError:
+        return Response({'error': 'Gateway service unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except requests.exceptions.Timeout:
+        return Response({'error': 'Gateway service timeout'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
