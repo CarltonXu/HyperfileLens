@@ -41,7 +41,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
             # 操作结果
             'result', 'result_display', 'error_message', 'error_code',
             # 请求信息
-            'request_method', 'request_path', 'request_id', 'session_id',
+            'request_method', 'request_path', 'request_query', 'request_body', 'request_id', 'session_id',
             # 其他
             'location', 'metadata',
         ]

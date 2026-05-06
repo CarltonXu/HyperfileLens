@@ -203,6 +203,8 @@ class AuditLogManager(models.Manager):
         user_agent = ''
         request_method = ''
         request_path = ''
+        request_query = {}
+        request_body = {}
         tenant_id = None
         
         if request:
@@ -224,6 +226,27 @@ class AuditLogManager(models.Manager):
             # 记录租户ID
             if user and hasattr(user, 'tenant_id') and user.tenant_id:
                 tenant_id = str(user.tenant_id)
+            
+            # 记录查询参数
+            try:
+                request_query = dict(request.GET) if hasattr(request, 'GET') else {}
+            except Exception:
+                request_query = {}
+            
+            # 记录请求体
+            try:
+                if hasattr(request, 'data'):
+                    request_body = self._sanitize_request_body(request.data)
+                elif hasattr(request, 'body') and request.body:
+                    import json
+                    try:
+                        request_body = self._sanitize_request_body(json.loads(request.body.decode('utf-8')))
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        request_body = {'raw': '[无法解析]'}
+                else:
+                    request_body = {}
+            except Exception:
+                request_body = {}
         
         # 构建变更字段信息
         changes = {}
@@ -248,8 +271,29 @@ class AuditLogManager(models.Manager):
             result=result,
             error_message=error_message,
             request_method=request_method,
-            request_path=request_path
+            request_path=request_path,
+            request_query=request_query,
+            request_body=request_body
         )
+    
+    def _sanitize_request_body(self, data):
+        """脱敏请求体中的敏感字段"""
+        if not isinstance(data, dict):
+            return data
+        
+        sensitive_fields = ['password', 'password_confirm', 'new_password', 'old_password',
+                           'token', 'access_token', 'refresh_token', 'api_key', 'secret',
+                           'authorization', 'credential']
+        
+        sanitized = {}
+        for key, value in data.items():
+            if key.lower() in sensitive_fields:
+                sanitized[key] = '******'
+            elif isinstance(value, dict):
+                sanitized[key] = self._sanitize_request_body(value)
+            else:
+                sanitized[key] = value
+        return sanitized
 
 
 class AuditLog(models.Model):
@@ -449,6 +493,18 @@ class AuditLog(models.Model):
         max_length=1000,
         blank=True,
         verbose_name='请求路径'
+    )
+    request_query = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='查询参数',
+        help_text='URL查询参数'
+    )
+    request_body = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='请求体',
+        help_text='请求体数据（敏感字段已脱敏）'
     )
     request_id = models.CharField(
         max_length=100,

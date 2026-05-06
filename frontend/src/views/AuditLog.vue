@@ -485,6 +485,60 @@
                 </div>
               </div>
 
+              <!-- Request Details (Collapsible) -->
+              <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  @click="showRequestDetails = !showRequestDetails"
+                  class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <span class="text-sm font-medium text-slate-700 dark:text-slate-200">
+                    {{ t('auditLog.requestDetails') }}
+                  </span>
+                  <ChevronDownIcon
+                    :class="['w-4 h-4 text-slate-500 transition-transform', showRequestDetails ? 'rotate-180' : '']"
+                  />
+                </button>
+                <Transition
+                  enter-active-class="transition duration-200 ease-out"
+                  enter-from-class="opacity-0 -translate-y-1"
+                  enter-to-class="opacity-100 translate-y-0"
+                  leave-active-class="transition duration-150 ease-in"
+                  leave-from-class="opacity-100 translate-y-0"
+                  leave-to-class="opacity-0 -translate-y-1"
+                >
+                  <div v-show="showRequestDetails" class="px-4 py-3 space-y-3 bg-white dark:bg-slate-800">
+                    <!-- Query Parameters -->
+                    <div v-if="selectedLog.request_query && Object.keys(selectedLog.request_query).length > 0">
+                      <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                        {{ t('auditLog.queryParams') }}
+                      </label>
+                      <pre class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-xs overflow-auto max-h-40 font-mono text-slate-700 dark:text-slate-200">{{ formatJson(selectedLog.request_query) }}</pre>
+                    </div>
+                    <!-- Request Body -->
+                    <div v-if="selectedLog.request_body && Object.keys(selectedLog.request_body).length > 0">
+                      <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                        {{ t('auditLog.requestBody') }}
+                      </label>
+                      <pre class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-xs overflow-auto max-h-60 font-mono text-slate-700 dark:text-slate-200">{{ formatJson(selectedLog.request_body) }}</pre>
+                    </div>
+                    <!-- User Agent -->
+                    <div v-if="selectedLog.user_agent">
+                      <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                        {{ t('auditLog.userAgent') }}
+                      </label>
+                      <div class="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/50 px-3 py-2 rounded font-mono break-all">
+                        {{ selectedLog.user_agent }}
+                      </div>
+                    </div>
+                    <!-- Empty State -->
+                    <div v-if="(!selectedLog.request_query || Object.keys(selectedLog.request_query).length === 0) && (!selectedLog.request_body || Object.keys(selectedLog.request_body).length === 0)" class="text-sm text-slate-500 dark:text-slate-400 italic">
+                      {{ t('auditLog.noRequestData') }}
+                    </div>
+                  </div>
+                </Transition>
+              </div>
+
               <div v-if="selectedLog.details">
                 <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
                   {{ t('auditLog.description') }}
@@ -543,6 +597,7 @@ interface AuditLogItem {
   user: string | null
   user_display: string
   user_email: string
+  user_name: string
   action: string
   action_display: string
   resource_type: string
@@ -556,6 +611,9 @@ interface AuditLogItem {
   error_message: string
   request_method: string
   request_path: string
+  request_query: Record<string, string[]>
+  request_body: Record<string, unknown>
+  user_agent: string
   changes: Record<string, unknown>
 }
 
@@ -573,6 +631,7 @@ const loading = ref(false)
 const statistics = ref<Statistics | null>(null)
 const showDetailModal = ref(false)
 const selectedLog = ref<AuditLogItem | null>(null)
+const showRequestDetails = ref(false)
 const tableRef = ref<HTMLTableElement | null>(null)
 
 // Search & Filters
@@ -822,6 +881,7 @@ const handlePageSizeChange = () => {
 
 const showDetail = (log: AuditLogItem) => {
   selectedLog.value = log
+  showRequestDetails.value = false
   showDetailModal.value = true
 }
 
@@ -847,6 +907,15 @@ const formatDateTime = (dateStr: string) => {
   if (!dateStr) return '-'
   const date = new Date(dateStr)
   return date.toLocaleString()
+}
+
+const formatJson = (data: unknown) => {
+  if (!data) return '{}'
+  try {
+    return JSON.stringify(data, null, 2)
+  } catch {
+    return String(data)
+  }
 }
 
 const getActionBadgeClass = (action: string) => {
