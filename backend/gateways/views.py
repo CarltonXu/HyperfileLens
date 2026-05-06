@@ -15,6 +15,7 @@ from .serializers import (
     GatewayHeartbeatSerializer
 )
 from accounts.models import User
+from audit_log.services import AuditService
 
 
 class GatewayViewSet(viewsets.ModelViewSet):
@@ -55,7 +56,52 @@ class GatewayViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Set owner and tenant when creating a gateway."""
         user: User = self.request.user
-        serializer.save(owner=user, tenant=user.tenant)
+        gateway = serializer.save(owner=user, tenant=user.tenant)
+        # Record audit log
+        AuditService.log_gateway_create(self.request, gateway, result='success')
+    
+    def perform_update(self, serializer):
+        """Update a gateway with audit logging."""
+        # Get the old instance data before update
+        old_instance = self.get_object()
+        old_data = {
+            'name': old_instance.name,
+            'hostname': old_instance.hostname,
+            'status': old_instance.status,
+            'description': old_instance.description,
+            'ai_insights_enabled': old_instance.ai_insights_enabled,
+        }
+        
+        # Save the updated instance
+        instance = serializer.save()
+        
+        # Track changed fields
+        changed_fields = []
+        new_data = {
+            'name': instance.name,
+            'hostname': instance.hostname,
+            'status': instance.status,
+            'description': instance.description,
+            'ai_insights_enabled': instance.ai_insights_enabled,
+        }
+        
+        for field in old_data.keys():
+            if old_data[field] != new_data[field]:
+                changed_fields.append(field)
+        
+        # Record audit log
+        AuditService.log_gateway_update(
+            self.request, instance, 
+            changed_fields=changed_fields,
+            before_data=old_data,
+            after_data=new_data,
+            result='success'
+        )
+
+    def perform_destroy(self, instance):
+        """Delete a gateway with audit logging."""
+        AuditService.log_gateway_delete(self.request, instance, result='success')
+        instance.delete()
     
     @action(detail=True, methods=['get'])
     def install_command(self, request, pk=None):
@@ -77,12 +123,17 @@ class GatewayViewSet(viewsets.ModelViewSet):
         gateway = self.get_object()
         
         if gateway.status not in ['pending', 'inactive', 'maintenance']:
+            AuditService.log_gateway_activate(request, gateway, result='failure',
+                error_message='Can only activate pending, inactive, or maintenance gateways')
             return Response({
                 'error': 'Can only activate pending, inactive, or maintenance gateways'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         gateway.status = 'active'
         gateway.save()
+        
+        # Record audit log
+        AuditService.log_gateway_activate(request, gateway, result='success')
         
         return Response(GatewaySerializer(gateway).data)
     
@@ -92,12 +143,17 @@ class GatewayViewSet(viewsets.ModelViewSet):
         gateway = self.get_object()
         
         if gateway.status != 'active':
+            AuditService.log_gateway_deactivate(request, gateway, result='failure',
+                error_message='Can only deactivate active gateways')
             return Response({
                 'error': 'Can only deactivate active gateways'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         gateway.status = 'inactive'
         gateway.save()
+        
+        # Record audit log
+        AuditService.log_gateway_deactivate(request, gateway, result='success')
         
         return Response(GatewaySerializer(gateway).data)
     

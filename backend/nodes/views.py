@@ -163,6 +163,46 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
         AuditService.log_proxy_delete(self.request, instance, result='success')
         instance.delete()
 
+    def perform_update(self, serializer):
+        """Update a proxy with audit logging."""
+        # Get the old instance data before update
+        old_instance = self.get_object()
+        old_data = {
+            'name': old_instance.name,
+            'hostname': old_instance.hostname,
+            'role': old_instance.role,
+            'status': old_instance.status,
+            'description': old_instance.description,
+            'labels': old_instance.labels,
+        }
+        
+        # Save the updated instance
+        instance = serializer.save()
+        
+        # Track changed fields
+        changed_fields = []
+        new_data = {
+            'name': instance.name,
+            'hostname': instance.hostname,
+            'role': instance.role,
+            'status': instance.status,
+            'description': instance.description,
+            'labels': instance.labels,
+        }
+        
+        for field in old_data.keys():
+            if old_data[field] != new_data[field]:
+                changed_fields.append(field)
+        
+        # Record audit log
+        AuditService.log_proxy_update(
+            self.request, instance, 
+            changed_fields=changed_fields,
+            before_data=old_data,
+            after_data=new_data,
+            result='success'
+        )
+
     @extend_schema(
         summary='Get installation command',
         description='Generate installation command for a specific OS.',
@@ -289,6 +329,8 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
 
         # Only allow for pending proxies
         if proxy.status != ProxyNode.NodeStatus.PENDING:
+            AuditService.log_proxy_token_regenerate(request, proxy, result='failure', 
+                error_message='Can only regenerate token for pending proxies')
             return Response(
                 {'error': 'Can only regenerate token for pending proxies'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -327,6 +369,9 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
 
         proxy.install_command = install_command
         proxy.save()
+        
+        # Record audit log
+        AuditService.log_proxy_token_regenerate(request, proxy, result='success')
 
         return Response({
             'proxy_id': proxy.id,
@@ -1062,6 +1107,9 @@ logging:
         # Update install_command in database
         proxy.install_command = install_cmd
         proxy.save(update_fields=['api_token', 'install_token', 'install_command'])
+        
+        # Record audit log
+        AuditService.log_proxy_token_regenerate(request, proxy, result='success')
         
         return Response({
             'id': str(proxy.id),

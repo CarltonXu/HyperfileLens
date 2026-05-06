@@ -297,6 +297,166 @@ class AuditService:
             error_message=error_message
         )
     
+    @staticmethod
+    def log_proxy_update(request, proxy, changed_fields=None, before_data=None, after_data=None,
+                         result='success', error_message=''):
+        """记录代理更新"""
+        details = f'更新代理: {proxy.name if proxy else "Unknown"}'
+        if changed_fields:
+            details += f' (变更字段: {", ".join(changed_fields)})'
+        return audit_log(
+            request=request,
+            action='update',
+            resource_type='proxy',
+            resource_id=str(proxy.id) if proxy else '',
+            resource_name=proxy.name if proxy else '',
+            details=details,
+            changes={
+                'changed_fields': changed_fields or [],
+                'before': before_data or {},
+                'after': after_data or {},
+            },
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_proxy_token_regenerate(request, proxy, result='success', error_message=''):
+        """记录代理令牌重新生成"""
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='proxy',
+            resource_id=str(proxy.id) if proxy else '',
+            resource_name=proxy.name if proxy else '',
+            details=f'重新生成代理令牌: {proxy.name if proxy else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_proxy_activate(request, proxy, result='success', error_message=''):
+        """记录代理激活"""
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='proxy',
+            resource_id=str(proxy.id) if proxy else '',
+            resource_name=proxy.name if proxy else '',
+            details=f'激活代理: {proxy.name if proxy else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_proxy_deactivate(request, proxy, result='success', error_message=''):
+        """记录代理停用"""
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='proxy',
+            resource_id=str(proxy.id) if proxy else '',
+            resource_name=proxy.name if proxy else '',
+            details=f'停用代理: {proxy.name if proxy else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    # ==================== 网关相关 ====================
+    
+    @staticmethod
+    def log_gateway_create(request, gateway, result='success', error_message=''):
+        """记录网关创建"""
+        return audit_log(
+            request=request,
+            action='create',
+            resource_type='gateway',
+            resource_id=str(gateway.id) if gateway else '',
+            resource_name=gateway.name if gateway else '',
+            details=f'创建网关: {gateway.name if gateway else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_delete(request, gateway, result='success', error_message=''):
+        """记录网关删除"""
+        return audit_log(
+            request=request,
+            action='delete',
+            resource_type='gateway',
+            resource_id=str(gateway.id) if gateway else '',
+            resource_name=gateway.name if gateway else '',
+            details=f'删除网关: {gateway.name if gateway else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_update(request, gateway, changed_fields=None, before_data=None, after_data=None,
+                           result='success', error_message=''):
+        """记录网关更新"""
+        details = f'更新网关: {gateway.name if gateway else "Unknown"}'
+        if changed_fields:
+            details += f' (变更字段: {", ".join(changed_fields)})'
+        return audit_log(
+            request=request,
+            action='update',
+            resource_type='gateway',
+            resource_id=str(gateway.id) if gateway else '',
+            resource_name=gateway.name if gateway else '',
+            details=details,
+            changes={
+                'changed_fields': changed_fields or [],
+                'before': before_data or {},
+                'after': after_data or {},
+            },
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_token_regenerate(request, gateway, result='success', error_message=''):
+        """记录网关令牌重新生成"""
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='gateway',
+            resource_id=str(gateway.id) if gateway else '',
+            resource_name=gateway.name if gateway else '',
+            details=f'重新生成网关令牌: {gateway.name if gateway else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_activate(request, gateway, result='success', error_message=''):
+        """记录网关激活"""
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='gateway',
+            resource_id=str(gateway.id) if gateway else '',
+            resource_name=gateway.name if gateway else '',
+            details=f'激活网关: {gateway.name if gateway else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_deactivate(request, gateway, result='success', error_message=''):
+        """记录网关停用"""
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='gateway',
+            resource_id=str(gateway.id) if gateway else '',
+            resource_name=gateway.name if gateway else '',
+            details=f'停用网关: {gateway.name if gateway else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
     # ==================== 许可证相关 ====================
     
     @staticmethod
