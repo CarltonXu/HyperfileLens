@@ -407,9 +407,40 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
   })).filter(group => group.items.length > 0 || (group.aiInsightsCategories && group.aiInsightsCategories.length > 0))
 })
 
+// 获取当前路由所在的分组ID
+const currentGroup = computed(() => {
+  for (const group of navigationGroups.value) {
+    // 检查普通菜单项
+    for (const item of group.items) {
+      if (item.current) return group.id
+      // 检查子菜单
+      if (item.subItems) {
+        for (const subItem of item.subItems) {
+          if (route.path === subItem.path) return group.id
+        }
+      }
+    }
+    // 检查 AI Insights 分类
+    if (group.aiInsightsCategories) {
+      for (const category of group.aiInsightsCategories) {
+        for (const catItem of category.items) {
+          if (route.path === catItem.path) return group.id
+        }
+      }
+    }
+  }
+  return null
+})
+
 function toggleSidebar() {
+  const wasCollapsed = isCollapsed.value
   isCollapsed.value = !isCollapsed.value
   localStorage.setItem('sidebarCollapsed', String(isCollapsed.value))
+  
+  // 如果是从收起状态展开，自动展开当前菜单所在的分组，折叠其他分组
+  if (wasCollapsed && !isCollapsed.value && currentGroup.value) {
+    expandedGroups.value = [currentGroup.value]
+  }
 }
 
 function toggleUserMenu() {
