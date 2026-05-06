@@ -1206,6 +1206,26 @@ export default {
       redundancy: 'Redundancy'
     },
 
+    categories: {
+      documents: 'Documents',
+      images: 'Images',
+      archives: 'Archives',
+      videos: 'Videos',
+      others: 'Others'
+    },
+
+    risks: {
+      sensitive: 'Sensitive Info',
+      ransomware: 'Ransomware Risk',
+      permission: 'Permission Issues'
+    },
+
+    optimizations: {
+      duplicate: 'Duplicate Files',
+      cold: 'Cold Data',
+      growth: 'Fastest Growing'
+    },
+
     overview: {
       totalFiles: 'Total Files',
       totalSize: 'Total Size',

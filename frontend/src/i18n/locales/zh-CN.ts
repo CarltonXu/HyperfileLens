@@ -1206,6 +1206,26 @@ export default {
       redundancy: '冗余分析'
     },
 
+    categories: {
+      documents: '文档',
+      images: '图片',
+      archives: '压缩包',
+      videos: '视频',
+      others: '其他'
+    },
+
+    risks: {
+      sensitive: '敏感信息',
+      ransomware: '勒索风险',
+      permission: '权限异常'
+    },
+
+    optimizations: {
+      duplicate: '重复文件',
+      cold: '冷数据',
+      growth: '增长最快'
+    },
+
     overview: {
       totalFiles: '文件总数',
       totalSize: '总大小',
