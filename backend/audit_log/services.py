@@ -127,15 +127,16 @@ class AuditService:
         )
     
     @staticmethod
-    def log_user_logout(request, user):
+    def log_user_logout(user, ip_address=None):
         """记录用户登出"""
         return audit_log(
-            request=request,
+            user=user,
             action='logout',
-            resource_type='session',
+            resource_type='user',
             resource_id=str(user.id) if user else '',
             resource_name=user.email if user else '',
-            details=f'用户登出: {user.email if user else "Unknown"}'
+            result='success',
+            ip_address=ip_address,
         )
     
     @staticmethod
