@@ -108,6 +108,25 @@ class AuditService:
         )
     
     @staticmethod
+    def log_user_login_success(request, user):
+        """记录用户登录成功"""
+        return AuditService.log_user_login(request, user, result='success')
+    
+    @staticmethod
+    def log_user_login_failure(request, email, error_message=''):
+        """记录用户登录失败"""
+        return audit_log(
+            request=request,
+            action='login',
+            resource_type='session',
+            resource_id='',
+            resource_name=email or '',
+            details=f'登录失败: {email or "Unknown"}',
+            result='failure',
+            error_message=error_message
+        )
+    
+    @staticmethod
     def log_user_logout(request, user):
         """记录用户登出"""
         return audit_log(

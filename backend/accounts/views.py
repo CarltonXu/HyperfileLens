@@ -20,6 +20,7 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .models import User, Role, APIToken, UserSession
+from audit_log.services import AuditService
 from .serializers import (
     UserCreateSerializer,
     UserRegistrationSerializer,
@@ -226,11 +227,23 @@ class LoginView(APIView):
         user = backend.authenticate(request, email=email, password=password)
 
         if user is None:
+            # Log failed login attempt
+            AuditService.log_user_login_failure(
+                request,
+                email=email,
+                error_message='Invalid credentials'
+            )
             return Response({
                 'error': 'Invalid credentials.'
             }, status=status.HTTP_401_UNAUTHORIZED)
 
         if not user.is_active:
+            # Log failed login attempt - account disabled
+            AuditService.log_user_login_failure(
+                request,
+                email=email,
+                error_message='User account is disabled'
+            )
             return Response({
                 'error': 'User account is disabled.'
             }, status=status.HTTP_401_UNAUTHORIZED)
@@ -257,6 +270,9 @@ class LoginView(APIView):
             prefix=token_key[:8]
         )
 
+        # Log successful login
+        AuditService.log_user_login_success(request, user)
+
         # Create session
         login(request, user)
 
@@ -265,6 +281,15 @@ class LoginView(APIView):
         response_data['token'] = api_token.key
 
         return Response(response_data)
+
+    def _get_client_ip(self, request):
+        """Get client IP address from request."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR', '')
+        return ip
 
 
 class LogoutView(APIView):
@@ -287,18 +312,36 @@ class LogoutView(APIView):
 
         Removes user session and deletes token.
         """
+        user = request.user
+        ip_address = self._get_client_ip(request)
+        
         try:
             # Delete API token
-            APIToken.objects.filter(user=request.user).delete()
+            APIToken.objects.filter(user=user).delete()
         except Exception:
             pass
 
         # Logout from session
         logout(request)
 
+        # Log logout
+        AuditService.log_user_logout(
+            user=user,
+            ip_address=ip_address
+        )
+
         return Response({
             'message': 'Logged out successfully.'
         })
+
+    def _get_client_ip(self, request):
+        """Get client IP address from request."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR', '')
+        return ip
 
 
 class CSRFTokenView(APIView):
