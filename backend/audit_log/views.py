@@ -46,12 +46,8 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     
     def list(self, request, *args, **kwargs):
         """重写 list 方法以支持自定义 page_size"""
-        # get_queryset 已经应用了所有过滤和权限控制
-        queryset = self.get_queryset()
-        
-        # 应用排序（从 filter_queryset 中获取排序功能）
-        ordering = request.query_params.get('ordering', '-timestamp')
-        queryset = queryset.order_by(ordering)
+        # 使用 filter_queryset 来应用所有过滤器（DjangoFilterBackend, SearchFilter, OrderingFilter）
+        queryset = self.filter_queryset(self.get_queryset())
         
         # 获取分页参数
         page_size = request.query_params.get('page_size', 10)

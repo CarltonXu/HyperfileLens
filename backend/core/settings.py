@@ -53,6 +53,7 @@ THIRD_PARTY_APPS = [
     'django_celery_beat',
     'django_celery_results',
     'drf_spectacular',
+    'django_filters',  # Required for DRF filtering
 ]
 
 # Project apps
