@@ -95,6 +95,8 @@ export default {
     optional: 'Optional',
     settings: 'Settings',
     close: 'Close',
+    collapse: 'Collapse',
+    expand: 'Expand',
     never: 'Never',
     justNow: 'Just now',
     minutesAgo: 'm ago',

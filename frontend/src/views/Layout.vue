@@ -486,27 +486,20 @@ onUnmounted(() => {
       ]"
     >
       <!-- Logo -->
-      <div class="flex items-center justify-between h-16 px-4 border-b border-slate-200 dark:border-slate-700">
+      <div class="flex items-center justify-center h-16 px-4 border-b border-slate-200 dark:border-slate-700">
         <div class="flex items-center gap-2" v-if="!isCollapsed">
           <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
             <CloudArrowUpIcon class="w-5 h-5 text-white" />
           </div>
           <span class="font-bold text-slate-900 dark:text-white text-lg">HyperFileLens</span>
         </div>
-        <div v-else class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center mx-auto">
+        <div v-else class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
           <CloudArrowUpIcon class="w-5 h-5 text-white" />
         </div>
-        <button
-          @click="toggleSidebar"
-          class="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700"
-        >
-          <ChevronLeftIcon v-if="!isCollapsed" class="w-4 h-4" />
-          <ChevronRightIcon v-else class="w-4 h-4" />
-        </button>
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
+      <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto h-[calc(100vh-8rem)]">
         <template v-for="group in navigationGroups" :key="group.id">
           <!-- Group Header -->
           <div
@@ -531,7 +524,7 @@ onUnmounted(() => {
                 @mouseenter="handleMouseEnter(item, $event)"
                 @mouseleave="handleMouseLeave"
                 :class="[
-                  'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
+                  'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                   item.current
                     ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -540,7 +533,7 @@ onUnmounted(() => {
                 <component
                   :is="item.current ? item.iconSolid : item.icon"
                   :class="[
-                    'w-5 h-5 flex-shrink-0',
+                    'w-4 h-4 flex-shrink-0',
                     item.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
                   ]"
                 />
@@ -568,6 +561,7 @@ onUnmounted(() => {
           </div>
 
           <!-- AI Insights Special Categories -->
+          <!-- Expanded state: show categories with labels -->
           <div v-if="group.aiInsightsCategories && !isCollapsed" v-show="isGroupExpanded(group.id)" class="space-y-2">
             <div v-for="category in group.aiInsightsCategories" :key="category.name" class="mt-2">
               <!-- Category Label -->
@@ -600,6 +594,33 @@ onUnmounted(() => {
             </div>
           </div>
 
+          <!-- Collapsed state: show AI Insights items as icons -->
+          <div v-if="group.aiInsightsCategories && isCollapsed" class="space-y-0.5">
+            <template v-for="category in group.aiInsightsCategories" :key="category.name">
+              <router-link
+                v-for="subItem in category.items"
+                :key="subItem.path"
+                :to="subItem.path"
+                @mouseenter="handleMouseEnter(subItem, $event)"
+                @mouseleave="handleMouseLeave"
+                :class="[
+                  'group flex items-center justify-center px-2 py-2 rounded-lg text-sm transition-colors',
+                  subItem.current
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                ]"
+              >
+                <component
+                  :is="subItem.current ? subItem.iconSolid : subItem.icon"
+                  :class="[
+                    'w-5 h-5 flex-shrink-0',
+                    subItem.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
+                  ]"
+                />
+              </router-link>
+            </template>
+          </div>
+
           <!-- Divider -->
           <div v-if="!isCollapsed && group.id !== 'system'" class="my-3 border-t border-slate-200 dark:border-slate-700"></div>
         </template>
@@ -622,6 +643,18 @@ onUnmounted(() => {
           {{ tooltipPosition.text }}
         </div>
       </Transition>
+
+      <!-- Collapse Button at Bottom -->
+      <div class="absolute bottom-0 left-0 right-0 p-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <button
+          @click="toggleSidebar"
+          class="w-full flex items-center justify-center gap-2 p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+        >
+          <ChevronLeftIcon v-if="!isCollapsed" class="w-5 h-5" />
+          <ChevronRightIcon v-else class="w-5 h-5" />
+          <span v-if="!isCollapsed" class="text-sm">{{ $t('common.collapse') }}</span>
+        </button>
+      </div>
     </aside>
 
     <!-- Main Content -->

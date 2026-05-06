@@ -93,6 +93,8 @@ export default {
     optional: '可选',
     settings: '设置',
     close: '关闭',
+    collapse: '收起',
+    expand: '展开',
     never: '从未',
     justNow: '刚刚',
     minutesAgo: '分钟前',
