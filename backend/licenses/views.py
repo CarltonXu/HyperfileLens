@@ -20,6 +20,7 @@ import json
 from .models import License, LicenseHistory, MachineCode, QuotaUsage, generate_machine_code
 from .serializers import LicenseSerializer, LicenseHistorySerializer, MachineCodeSerializer
 from .crypto import LicenseCrypto
+from audit_log.services import AuditService
 
 
 class LicenseViewSet(viewsets.ModelViewSet):
@@ -398,19 +399,27 @@ class LicenseViewSet(viewsets.ModelViewSet):
                     changed_by=request.user,
                 )
             
+            # 审计日志：激活成功
+            change_type_str = 'initial' if not existing_license else change_type
+            AuditService.log_license_activate(request, license_obj, result='success')
+            
             return Response({
                 'success': True,
                 'message': _('License activated successfully'),
                 'license': LicenseSerializer(license_obj).data,
-                'change_type': 'initial' if not existing_license else change_type,
+                'change_type': change_type_str,
             })
             
         except ValueError as e:
+            # 审计日志：激活失败（无效激活码）
+            AuditService.log_license_activate(request, None, result='failure', error_message=str(e))
             return Response({
                 'error': 'invalid_activation_code',
                 'message': str(e),
             }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            # 审计日志：激活失败
+            AuditService.log_license_activate(request, None, result='failure', error_message=str(e))
             return Response({
                 'error': 'activation_failed',
                 'message': str(e),
