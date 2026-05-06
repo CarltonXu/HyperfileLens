@@ -70,9 +70,11 @@ const { t, locale } = useI18n()
 const isCollapsed = ref(false)
 const isUserMenuOpen = ref(false)
 const isLangMenuOpen = ref(false)
-const hoverItem = ref<string | null>(null)
-const tooltipPosition = ref({ top: 0, show: false, text: '' })
 const expandedGroups = ref<string[]>(['overview', 'data-protection', 'ai-insights'])
+
+// 收起状态下的弹出菜单
+const activePopup = ref<string | null>(null)
+const popupPosition = ref({ top: 0 })
 
 // 菜单项类型定义
 interface MenuItem {
@@ -436,22 +438,41 @@ function setLocale(newLocale: string) {
   isLangMenuOpen.value = false
 }
 
-function handleMouseEnter(item: any, event: MouseEvent) {
-  hoverItem.value = item.path
-  if (isCollapsed.value) {
-    const target = event.currentTarget as HTMLElement
-    const rect = target.getBoundingClientRect()
-    tooltipPosition.value = {
-      top: rect.top + rect.height / 2,
-      show: true,
-      text: item.name
-    }
-  }
+// 收起状态下显示分组弹出菜单
+const showGroupPopup = (groupId: string, event: MouseEvent) => {
+  if (!isCollapsed.value) return
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  popupPosition.value = { top: rect.top }
+  activePopup.value = groupId
 }
 
-function handleMouseLeave() {
-  hoverItem.value = null
-  tooltipPosition.value.show = false
+const hideGroupPopup = () => {
+  activePopup.value = null
+}
+
+// 获取分组图标（用于收起状态显示）
+const getGroupIcon = (groupId: string) => {
+  const iconMap: Record<string, any> = {
+    'overview': HomeIcon,
+    'data-protection': CloudArrowUpIcon,
+    'resources': ServerIcon,
+    'ai-insights': ChartBarIcon,
+    'ops-monitor': ClipboardDocumentListIcon,
+    'system': Cog6ToothIcon
+  }
+  return iconMap[groupId] || HomeIcon
+}
+
+// 检查分组是否有当前激活项
+const isGroupActive = (group: NavigationGroup) => {
+  if (group.items.some(item => item.current || item.subItems?.some(sub => sub.current))) {
+    return true
+  }
+  if (group.aiInsightsCategories?.some(cat => cat.items.some(item => item.current))) {
+    return true
+  }
+  return false
 }
 
 // 处理欢迎弹窗
@@ -501,132 +522,125 @@ onUnmounted(() => {
       <!-- Navigation -->
       <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto h-[calc(100vh-8rem)]">
         <template v-for="group in navigationGroups" :key="group.id">
-          <!-- Group Header -->
-          <div
-            v-if="!isCollapsed"
-            @click="toggleGroup(group.id)"
-            class="flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-500 dark:hover:text-slate-400"
-          >
-            <span>{{ group.title }}</span>
-            <ChevronDownIcon
-              :class="[
-                'w-4 h-4 transition-transform duration-200',
-                isGroupExpanded(group.id) ? 'rotate-0' : '-rotate-90'
-              ]"
-            />
-          </div>
-
-          <!-- Group Items -->
-          <div v-show="isCollapsed || isGroupExpanded(group.id)" class="space-y-0.5">
-            <div v-for="item in group.items" :key="item.path">
-              <router-link
-                :to="item.path"
-                @mouseenter="handleMouseEnter(item, $event)"
-                @mouseleave="handleMouseLeave"
+          <!-- Expanded state: show group header and items -->
+          <template v-if="!isCollapsed">
+            <!-- Group Header -->
+            <div
+              @click="toggleGroup(group.id)"
+              class="flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-500 dark:hover:text-slate-400"
+            >
+              <span>{{ group.title }}</span>
+              <ChevronDownIcon
                 :class="[
-                  'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                  item.current
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  'w-4 h-4 transition-transform duration-200',
+                  isGroupExpanded(group.id) ? 'rotate-0' : '-rotate-90'
                 ]"
-              >
-                <component
-                  :is="item.current ? item.iconSolid : item.icon"
-                  :class="[
-                    'w-4 h-4 flex-shrink-0',
-                    item.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
-                  ]"
-                />
-                <span v-if="!isCollapsed">{{ item.name }}</span>
-              </router-link>
-              
-              <!-- Sub Items -->
-              <div v-if="!isCollapsed && item.subItems && item.subItems.length > 0" class="ml-4 mt-1 space-y-0.5">
-                <router-link
-                  v-for="subItem in item.subItems"
-                  :key="subItem.path"
-                  :to="subItem.path"
-                  :class="[
-                    'group flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
-                    subItem.current
-                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300'
-                  ]"
-                >
-                  <span class="w-1.5 h-1.5 rounded-full" :class="subItem.current ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'"></span>
-                  {{ subItem.name }}
-                </router-link>
-              </div>
+              />
             </div>
-          </div>
 
-          <!-- AI Insights Special Categories -->
-          <!-- Expanded state: show categories with labels -->
-          <div v-if="group.aiInsightsCategories && !isCollapsed" v-show="isGroupExpanded(group.id)" class="space-y-2">
-            <div v-for="category in group.aiInsightsCategories" :key="category.name" class="mt-2">
-              <!-- Category Label -->
-              <div class="px-3 py-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                {{ category.name }}
-              </div>
-              <!-- Category Items (三级菜单) -->
-              <div class="space-y-0.5 ml-4">
+            <!-- Group Items -->
+            <div v-show="isGroupExpanded(group.id)" class="space-y-0.5">
+              <div v-for="item in group.items" :key="item.path">
                 <router-link
-                  v-for="subItem in category.items"
-                  :key="subItem.path"
-                  :to="subItem.path"
+                  :to="item.path"
                   :class="[
-                    'group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
-                    subItem.current
-                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200'
+                    'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
+                    item.current
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   ]"
                 >
                   <component
-                    :is="subItem.current ? subItem.iconSolid : subItem.icon"
+                    :is="item.current ? item.iconSolid : item.icon"
                     :class="[
                       'w-4 h-4 flex-shrink-0',
-                      subItem.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
+                      item.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
                     ]"
                   />
-                  {{ subItem.name }}
+                  <span>{{ item.name }}</span>
                 </router-link>
+                
+                <!-- Sub Items -->
+                <div v-if="item.subItems && item.subItems.length > 0" class="ml-4 mt-1 space-y-0.5">
+                  <router-link
+                    v-for="subItem in item.subItems"
+                    :key="subItem.path"
+                    :to="subItem.path"
+                    :class="[
+                      'group flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
+                      subItem.current
+                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300'
+                    ]"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full" :class="subItem.current ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'"></span>
+                    {{ subItem.name }}
+                  </router-link>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Collapsed state: show AI Insights items as icons -->
-          <div v-if="group.aiInsightsCategories && isCollapsed" class="space-y-0.5">
-            <template v-for="category in group.aiInsightsCategories" :key="category.name">
-              <router-link
-                v-for="subItem in category.items"
-                :key="subItem.path"
-                :to="subItem.path"
-                @mouseenter="handleMouseEnter(subItem, $event)"
-                @mouseleave="handleMouseLeave"
-                :class="[
-                  'group flex items-center justify-center px-2 py-2 rounded-lg text-sm transition-colors',
-                  subItem.current
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                ]"
-              >
-                <component
-                  :is="subItem.current ? subItem.iconSolid : subItem.icon"
-                  :class="[
-                    'w-5 h-5 flex-shrink-0',
-                    subItem.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
-                  ]"
-                />
-              </router-link>
-            </template>
-          </div>
+            <!-- AI Insights Special Categories -->
+            <div v-if="group.aiInsightsCategories" v-show="isGroupExpanded(group.id)" class="space-y-2">
+              <div v-for="category in group.aiInsightsCategories" :key="category.name" class="mt-2">
+                <!-- Category Label -->
+                <div class="px-3 py-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  {{ category.name }}
+                </div>
+                <!-- Category Items (三级菜单) -->
+                <div class="space-y-0.5 ml-4">
+                  <router-link
+                    v-for="subItem in category.items"
+                    :key="subItem.path"
+                    :to="subItem.path"
+                    :class="[
+                      'group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
+                      subItem.current
+                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200'
+                    ]"
+                  >
+                    <component
+                      :is="subItem.current ? subItem.iconSolid : subItem.icon"
+                      :class="[
+                        'w-4 h-4 flex-shrink-0',
+                        subItem.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
+                      ]"
+                    />
+                    {{ subItem.name }}
+                  </router-link>
+                </div>
+              </div>
+            </div>
 
-          <!-- Divider -->
-          <div v-if="!isCollapsed && group.id !== 'system'" class="my-3 border-t border-slate-200 dark:border-slate-700"></div>
+            <!-- Divider -->
+            <div v-if="group.id !== 'system'" class="my-3 border-t border-slate-200 dark:border-slate-700"></div>
+          </template>
+
+          <!-- Collapsed state: show only group icon -->
+          <div
+            v-else
+            @mouseenter="showGroupPopup(group.id, $event)"
+            @mouseleave="hideGroupPopup"
+            :class="[
+              'relative flex items-center justify-center px-2 py-2 rounded-lg transition-colors cursor-pointer',
+              isGroupActive(group) 
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'
+            ]"
+          >
+            <component
+              :is="getGroupIcon(group.id)"
+              :class="[
+                'w-5 h-5',
+                isGroupActive(group) ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400'
+              ]"
+            />
+          </div>
         </template>
       </nav>
 
-      <!-- Tooltip for collapsed sidebar -->
+      <!-- Popup Menu for Collapsed Sidebar -->
       <Transition
         enter-active-class="transition ease-out duration-100"
         enter-from-class="opacity-0 translate-x-2"
@@ -636,11 +650,92 @@ onUnmounted(() => {
         leave-to-class="opacity-0 translate-x-2"
       >
         <div
-          v-if="tooltipPosition.show"
-          class="fixed left-20 z-50 px-3 py-1.5 text-sm font-medium text-white bg-slate-800 dark:bg-slate-700 rounded-lg shadow-lg whitespace-nowrap"
-          :style="{ top: tooltipPosition.top + 'px', transform: 'translateY(-50%)' }"
+          v-if="activePopup && isCollapsed"
+          class="fixed left-16 z-50 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-2"
+          :style="{ top: popupPosition.top + 'px' }"
+          @mouseenter="activePopup = activePopup"
+          @mouseleave="hideGroupPopup"
         >
-          {{ tooltipPosition.text }}
+          <template v-for="group in navigationGroups" :key="group.id">
+            <div v-if="group.id === activePopup">
+              <!-- Popup Header -->
+              <div class="px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">
+                {{ group.title }}
+              </div>
+              
+              <!-- Regular Items -->
+              <div v-for="item in group.items" :key="item.path">
+                <router-link
+                  :to="item.path"
+                  @click="hideGroupPopup"
+                  :class="[
+                    'group flex items-center gap-3 px-3 py-2 text-sm transition-colors',
+                    item.current
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  ]"
+                >
+                  <component
+                    :is="item.current ? item.iconSolid : item.icon"
+                    :class="[
+                      'w-4 h-4 flex-shrink-0',
+                      item.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500'
+                    ]"
+                  />
+                  {{ item.name }}
+                </router-link>
+                
+                <!-- Sub Items in Popup -->
+                <div v-if="item.subItems && item.subItems.length > 0" class="ml-6">
+                  <router-link
+                    v-for="subItem in item.subItems"
+                    :key="subItem.path"
+                    :to="subItem.path"
+                    @click="hideGroupPopup"
+                    :class="[
+                      'group flex items-center gap-2 px-3 py-1.5 text-sm transition-colors',
+                      subItem.current
+                        ? 'text-blue-600 dark:text-blue-400 font-medium'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    ]"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full" :class="subItem.current ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'"></span>
+                    {{ subItem.name }}
+                  </router-link>
+                </div>
+              </div>
+              
+              <!-- AI Insights Categories in Popup -->
+              <div v-if="group.aiInsightsCategories">
+                <div v-for="category in group.aiInsightsCategories" :key="category.name">
+                  <div class="px-3 py-1.5 mt-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    {{ category.name }}
+                  </div>
+                  <router-link
+                    v-for="subItem in category.items"
+                    :key="subItem.path"
+                    :to="subItem.path"
+                    @click="hideGroupPopup"
+                    :class="[
+                      'group flex items-center gap-2.5 px-3 py-1.5 text-sm transition-colors',
+                      subItem.current
+                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    ]"
+                  >
+                    <component
+                      :is="subItem.current ? subItem.iconSolid : subItem.icon"
+                      :class="[
+                        'w-4 h-4 flex-shrink-0',
+                        subItem.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500'
+                      ]"
+                    />
+                    {{ subItem.name }}
+                  </router-link>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </Transition>
 
