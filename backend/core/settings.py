@@ -62,6 +62,7 @@ PROJECT_APPS = [
     'tenants',       # Multi-tenancy support
     'licenses',      # License management
     'nodes',
+    'gateways',      # Gateway nodes for AI Insights
     'source_resources',
     'backup_tasks',
     'recovery_tasks',

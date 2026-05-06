@@ -27,6 +27,7 @@ import {
   MoonIcon,
   BellIcon,
   ExclamationTriangleIcon,
+  CloudIcon,
   // AI Insights 三级菜单图标
   ChartBarIcon,
   MagnifyingGlassIcon,
@@ -50,6 +51,7 @@ import {
   UsersIcon as UsersIconSolid,
   BellIcon as BellIconSolid,
   ExclamationTriangleIcon as ExclamationTriangleIconSolid,
+  CloudIcon as CloudIconSolid,
   // AI Insights 三级菜单图标
   ChartBarIcon as ChartBarIconSolid,
   MagnifyingGlassIcon as MagnifyingGlassIconSolid,
@@ -232,6 +234,13 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
           icon: ComputerDesktopIcon,
           iconSolid: ComputerDesktopIcon,
           current: route.path === '/source-resources'
+        },
+        {
+          name: t('nav.gateways'),
+          path: '/gateways',
+          icon: CloudIcon,
+          iconSolid: CloudIconSolid,
+          current: route.path === '/gateways'
         }
       ]
     },

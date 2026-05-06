@@ -21,6 +21,7 @@ urlpatterns = [
     path('api/v1/tenants/', include('tenants.urls')),      # Multi-tenancy
     path('api/v1/licenses/', include('licenses.urls')),    # License management
     path('api/v1/proxies/', include('nodes.urls')),
+    path('api/v1/gateways/', include('gateways.urls')),    # Gateway nodes for AI Insights
     path('api/v1/source-resources/', include('source_resources.urls')),
     path('api/v1/backup-tasks/', include('backup_tasks.urls')),
     path('api/v1/recovery-tasks/', include('recovery_tasks.urls')),

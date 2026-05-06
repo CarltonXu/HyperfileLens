@@ -21,6 +21,7 @@ const Layout = () => import('@/views/Layout.vue')
 const Tenants = () => import('@/views/Tenants.vue')
 const Users = () => import('@/views/Users.vue')
 const Licenses = () => import('@/views/Licenses.vue')
+const Gateways = () => import('@/views/Gateways.vue')
 const Register = () => import('@/views/Register.vue')
 const ForgotPassword = () => import('@/views/ForgotPassword.vue')
 
@@ -115,6 +116,12 @@ const routes: RouteRecordRaw[] = [
         name: 'SourceResources',
         component: SourceResources,
         meta: { title: 'Source Resources' }
+      },
+      {
+        path: 'gateways',
+        name: 'Gateways',
+        component: Gateways,
+        meta: { title: 'Gateways' }
       },
       {
         path: 'policies',

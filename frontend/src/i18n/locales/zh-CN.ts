@@ -18,6 +18,7 @@ export default {
     licenses: '许可证管理',
     settings: '设置',
     logout: '退出登录',
+    gateways: '存储网关',
     
     // AI Insights Sub-items
     overview: '洞察看板',
@@ -1928,4 +1929,87 @@ export default {
     resourceStorage: '存储空间',
     resourceAiInsights: 'AI Insights',
   },
+
+  // Gateways
+  gateways: {
+    title: '存储网关',
+    subtitle: '管理用于备份数据挂载和 AI 洞察的网关节点',
+    createGateway: '创建网关',
+    searchPlaceholder: '搜索网关...',
+    allStatus: '全部状态',
+    noGateways: '暂无网关',
+    confirmDelete: '确定要删除此网关吗？',
+    
+    // Stats
+    statsTotal: '总数',
+    statsActive: '活跃',
+    statsOffline: '离线',
+    statsPending: '待安装',
+    statsError: '错误',
+    statsMounts: '活跃挂载',
+    
+    // Status
+    statusPending: '待安装',
+    statusInstalling: '安装中',
+    statusActive: '活跃',
+    statusInactive: '未激活',
+    statusOffline: '离线',
+    statusError: '错误',
+    statusMaintenance: '维护中',
+    online: '在线',
+    offline: '离线',
+    
+    // Form
+    gatewayName: '网关名称',
+    description: '描述',
+    sshPort: 'SSH 端口',
+    maxMounts: '最大挂载数',
+    mountBasePath: '挂载基础路径',
+    enableAI: '启用 AI 洞察',
+    
+    // Info
+    hostname: '主机名',
+    internalIp: '内网 IP',
+    osVersion: '操作系统版本',
+    kopiaVersion: 'Kopia 版本',
+    cpuCores: 'CPU 核数',
+    cpu: 'CPU',
+    memory: '内存',
+    disk: '磁盘',
+    cores: '核',
+    used: '已用',
+    resources: '资源信息',
+    activeMounts: '活跃挂载',
+    mountInfo: '挂载信息',
+    aiEnabled: '已启用 AI 洞察',
+    aiInsights: 'AI 洞察',
+    lastIndexTime: '上次索引时间',
+    createdAt: '创建时间',
+    registeredAt: '注册时间',
+    lastHeartbeat: '最后心跳',
+    
+    // Actions
+    activate: '激活',
+    deactivate: '停用',
+    delete: '删除',
+    
+    // Tabs
+    tabs: {
+      overview: '概览',
+      install: '安装',
+      mounts: '挂载'
+    },
+    
+    // Install
+    installInstructions: '在 Ubuntu 22.04 服务器上运行以下命令安装并注册网关。',
+    installCommand: '安装命令',
+    copyCommand: '复制',
+    copied: '已复制！',
+    installNote: '网关安装完成后将自动连接到控制端。',
+    alreadyInstalled: '此网关已完成安装。',
+    
+    // Mounts
+    mountStatus: '挂载状态',
+    mountDetailsNote: '网关激活后可查看挂载详情。'
+  }
 }

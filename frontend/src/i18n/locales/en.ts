@@ -18,6 +18,7 @@ export default {
     licenses: 'Licenses',
     settings: 'Settings',
     logout: 'Logout',
+    gateways: 'Gateways',
     
     // AI Insights Sub-items
     overview: 'Insight Overview',
@@ -1926,4 +1927,87 @@ export default {
     resourceStorage: 'Storage',
     resourceAiInsights: 'AI Insights',
   },
+
+  // Gateways
+  gateways: {
+    title: 'Gateways',
+    subtitle: 'Manage gateway nodes for backup data mounting and AI insights',
+    createGateway: 'Create Gateway',
+    searchPlaceholder: 'Search gateways...',
+    allStatus: 'All Status',
+    noGateways: 'No gateways found',
+    confirmDelete: 'Are you sure you want to delete this gateway?',
+    
+    // Stats
+    statsTotal: 'Total',
+    statsActive: 'Active',
+    statsOffline: 'Offline',
+    statsPending: 'Pending',
+    statsError: 'Error',
+    statsMounts: 'Active Mounts',
+    
+    // Status
+    statusPending: 'Pending',
+    statusInstalling: 'Installing',
+    statusActive: 'Active',
+    statusInactive: 'Inactive',
+    statusOffline: 'Offline',
+    statusError: 'Error',
+    statusMaintenance: 'Maintenance',
+    online: 'Online',
+    offline: 'Offline',
+    
+    // Form
+    gatewayName: 'Gateway Name',
+    description: 'Description',
+    sshPort: 'SSH Port',
+    maxMounts: 'Max Mounts',
+    mountBasePath: 'Mount Base Path',
+    enableAI: 'Enable AI Insights',
+    
+    // Info
+    hostname: 'Hostname',
+    internalIp: 'Internal IP',
+    osVersion: 'OS Version',
+    kopiaVersion: 'Kopia Version',
+    cpuCores: 'CPU Cores',
+    cpu: 'CPU',
+    memory: 'Memory',
+    disk: 'Disk',
+    cores: 'Cores',
+    used: 'Used',
+    resources: 'Resources',
+    activeMounts: 'Active Mounts',
+    mountInfo: 'Mount Information',
+    aiEnabled: 'AI Insights Enabled',
+    aiInsights: 'AI Insights',
+    lastIndexTime: 'Last Index Time',
+    createdAt: 'Created At',
+    registeredAt: 'Registered At',
+    lastHeartbeat: 'Last Heartbeat',
+    
+    // Actions
+    activate: 'Activate',
+    deactivate: 'Deactivate',
+    delete: 'Delete',
+    
+    // Tabs
+    tabs: {
+      overview: 'Overview',
+      install: 'Install',
+      mounts: 'Mounts'
+    },
+    
+    // Install
+    installInstructions: 'Run the following command on an Ubuntu 22.04 server to install and register the gateway.',
+    installCommand: 'Install Command',
+    copyCommand: 'Copy',
+    copied: 'Copied!',
+    installNote: 'The gateway will automatically connect to the control plane after installation.',
+    alreadyInstalled: 'This gateway has already been installed.',
+    
+    // Mounts
+    mountStatus: 'Mount Status',
+    mountDetailsNote: 'Mount details will be available when the gateway is active.'
+  }
 }

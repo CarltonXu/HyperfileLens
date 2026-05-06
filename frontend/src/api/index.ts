@@ -644,6 +644,47 @@ export const invitationsApi = {
     api.delete(`/api/v1/tenants/invitations/${id}/`)
 }
 
+// ============== Gateways API ==============
+export const gatewaysApi = {
+  list: (params?: { page?: number; page_size?: number; status?: string }) =>
+    api.get('/api/v1/gateways/', { params }),
+  
+  detail: (id: string) =>
+    api.get(`/api/v1/gateways/${id}/`),
+  
+  create: (data: { name: string; description?: string; ssh_port?: number; mount_base_path?: string; max_concurrent_mounts?: number; ai_enabled?: boolean; tags?: Record<string, string>; labels?: string[] }) =>
+    api.post('/api/v1/gateways/', data),
+  
+  update: (id: string, data: Partial<{ name: string; description: string; ssh_port: number; mount_base_path: string; max_concurrent_mounts: number; ai_enabled: boolean; tags: Record<string, string>; labels: string[] }>) =>
+    api.patch(`/api/v1/gateways/${id}/`, data),
+  
+  delete: (id: string) =>
+    api.delete(`/api/v1/gateways/${id}/`),
+  
+  stats: () =>
+    api.get('/api/v1/gateways/stats/'),
+  
+  // Get installation command
+  installCommand: (id: string) =>
+    api.get(`/api/v1/gateways/${id}/install_command/`),
+  
+  // Activate gateway
+  activate: (id: string) =>
+    api.post(`/api/v1/gateways/${id}/activate/`),
+  
+  // Deactivate gateway
+  deactivate: (id: string) =>
+    api.post(`/api/v1/gateways/${id}/deactivate/`),
+  
+  // Put gateway into maintenance mode
+  maintenance: (id: string) =>
+    api.post(`/api/v1/gateways/${id}/maintenance/`),
+  
+  // Regenerate API token
+  regenerateToken: (id: string) =>
+    api.post(`/api/v1/gateways/${id}/regenerate_token/`)
+}
+
 // Export api instance
 export default api
 
