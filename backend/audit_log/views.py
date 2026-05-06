@@ -76,13 +76,13 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         """应用额外过滤条件"""
         params = self.request.query_params
         
-        # 时间范围过滤
+        # 时间范围过滤（使用 __date 进行日期比较）
         start_date = params.get('start_date')
         end_date = params.get('end_date')
         if start_date:
-            queryset = queryset.filter(timestamp__gte=start_date)
+            queryset = queryset.filter(timestamp__date__gte=start_date)
         if end_date:
-            queryset = queryset.filter(timestamp__lte=end_date)
+            queryset = queryset.filter(timestamp__date__lte=end_date)
         
         # 用户过滤
         user_id = params.get('user_id')
