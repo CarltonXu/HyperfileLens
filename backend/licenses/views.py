@@ -302,6 +302,24 @@ class LicenseViewSet(viewsets.ModelViewSet):
             license_key = activation_data['license_key']
             machine_code = activation_data['machine_code']
             
+            # Check if this license_key has already been activated by another tenant
+            existing_license_by_key = License.objects.filter(license_key=license_key).first()
+            if existing_license_by_key:
+                # Check if it's the same tenant
+                tenant = request.user.tenant
+                if existing_license_by_key.tenant_id != tenant.id:
+                    # Different tenant trying to use the same activation code
+                    return Response({
+                        'error': 'activation_code_already_used',
+                        'message': _('此激活码已被其他租户使用，无法重复激活'),
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    # Same tenant trying to use the same activation code again
+                    return Response({
+                        'error': 'activation_code_already_activated',
+                        'message': _('此激活码已经激活使用，无法重复激活'),
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
             # Verify machine code matches
             tenant = request.user.tenant
             current_machine_code_record = MachineCode.objects.filter(tenant=tenant).first()
