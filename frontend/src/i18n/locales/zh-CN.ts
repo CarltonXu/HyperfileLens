@@ -17,7 +17,24 @@ export default {
     alerts: '监控告警',
     licenses: '许可证管理',
     settings: '设置',
-    logout: '退出登录'
+    logout: '退出登录',
+    
+    // AI Insights Sub-items
+    overview: '洞察看板',
+    smartSearch: '全局智搜',
+    sensitiveData: '敏感数据扫描',
+    contentProfiling: '内容分类画像',
+    dataHeatmap: '冷热数据分析',
+    redundancy: '冗余内容识别',
+    aiChat: '智库问答'
+  },
+
+  // AI Insights Categories (Section Labels)
+  aiInsightsCategories: {
+    discovery: '发现与搜索',
+    contentSecurity: '内容与安全',
+    governance: '治理与优化',
+    knowledge: '知识助手'
   },
 
   // Navigation Groups

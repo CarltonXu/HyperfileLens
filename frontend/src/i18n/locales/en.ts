@@ -17,7 +17,24 @@ export default {
     alerts: 'Alerts',
     licenses: 'Licenses',
     settings: 'Settings',
-    logout: 'Logout'
+    logout: 'Logout',
+    
+    // AI Insights Sub-items
+    overview: 'Insight Overview',
+    smartSearch: 'Smart Search',
+    sensitiveData: 'Sensitive Data Scan',
+    contentProfiling: 'Content Profile',
+    dataHeatmap: 'Data Heatmap',
+    redundancy: 'Redundancy Check',
+    aiChat: 'AI Knowledge Chat'
+  },
+
+  // AI Insights Categories (Section Labels)
+  aiInsightsCategories: {
+    discovery: 'Discovery & Search',
+    contentSecurity: 'Content & Security',
+    governance: 'Governance & Optimization',
+    knowledge: 'Knowledge Assistant'
   },
 
   // Navigation Groups

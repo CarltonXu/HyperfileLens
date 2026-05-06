@@ -11,7 +11,6 @@ import {
   ArrowUturnLeftIcon,
   CircleStackIcon,
   ClockIcon,
-  SparklesIcon,
   ClipboardDocumentListIcon,
   Cog6ToothIcon,
   ChevronLeftIcon,
@@ -36,7 +35,6 @@ import {
   ArrowUturnLeftIcon as ArrowUturnLeftIconSolid,
   CircleStackIcon as CircleStackIconSolid,
   ClockIcon as ClockIconSolid,
-  SparklesIcon as SparklesIconSolid,
   ClipboardDocumentListIcon as ClipboardDocumentListIconSolid,
   Cog6ToothIcon as Cog6ToothIconSolid,
   BuildingOffice2Icon as BuildingOffice2IconSolid,
@@ -67,13 +65,29 @@ interface MenuItem {
   current: boolean
   requiresSuperuser?: boolean
   requiresTenantAdmin?: boolean
-  subItems?: { name: string; path: string; current: boolean }[]
+  subItems?: SubMenuItem[]
+}
+
+interface SubMenuItem {
+  name: string
+  path: string
+  icon: any
+  iconSolid?: any
+  current: boolean
+}
+
+// AI Insights 二级分类（固定标签，不可点击）
+interface AIInsightsCategory {
+  name: string  // 分类名称
+  items: { name: string; path: string; current: boolean }[]  // 三级菜单
 }
 
 interface NavigationGroup {
   id: string
   title: string
   items: MenuItem[]
+  // AI Insights 特殊的三级菜单结构
+  aiInsightsCategories?: AIInsightsCategory[]
 }
 
 // 欢迎弹窗
@@ -200,20 +214,33 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
     {
       id: 'ai-insights',
       title: t('navGroups.aiInsights'),
-      items: [
+      items: [],
+      // AI Insights 特殊的三级菜单结构
+      aiInsightsCategories: [
         {
-          name: t('nav.aiInsights'),
-          path: '/ai-insights',
-          icon: SparklesIcon,
-          iconSolid: SparklesIconSolid,
-          current: route.path === '/ai-insights',
-          subItems: [
+          name: t('aiInsights.categories.discovery'),
+          items: [
             { name: t('aiInsights.nav.overview'), path: '/ai-insights/overview', current: route.path === '/ai-insights/overview' || route.path === '/ai-insights' },
-            { name: t('aiInsights.nav.smartSearch'), path: '/ai-insights/smart-search', current: route.path === '/ai-insights/smart-search' },
+            { name: t('aiInsights.nav.smartSearch'), path: '/ai-insights/smart-search', current: route.path === '/ai-insights/smart-search' }
+          ]
+        },
+        {
+          name: t('aiInsights.categories.contentSecurity'),
+          items: [
             { name: t('aiInsights.nav.sensitiveData'), path: '/ai-insights/sensitive-data', current: route.path === '/ai-insights/sensitive-data' },
-            { name: t('aiInsights.nav.contentProfiling'), path: '/ai-insights/content-profiling', current: route.path === '/ai-insights/content-profiling' },
+            { name: t('aiInsights.nav.contentProfiling'), path: '/ai-insights/content-profiling', current: route.path === '/ai-insights/content-profiling' }
+          ]
+        },
+        {
+          name: t('aiInsights.categories.governance'),
+          items: [
             { name: t('aiInsights.nav.dataHeatmap'), path: '/ai-insights/data-heatmap', current: route.path === '/ai-insights/data-heatmap' },
-            { name: t('aiInsights.nav.redundancy'), path: '/ai-insights/redundancy', current: route.path === '/ai-insights/redundancy' },
+            { name: t('aiInsights.nav.redundancy'), path: '/ai-insights/redundancy', current: route.path === '/ai-insights/redundancy' }
+          ]
+        },
+        {
+          name: t('aiInsights.categories.knowledge'),
+          items: [
             { name: t('aiInsights.nav.aiChat'), path: '/ai-insights/ai-chat', current: route.path === '/ai-insights/ai-chat' }
           ]
         }
@@ -453,6 +480,33 @@ onUnmounted(() => {
                   :to="subItem.path"
                   :class="[
                     'group flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
+                    subItem.current
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300'
+                  ]"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" :class="subItem.current ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'"></span>
+                  {{ subItem.name }}
+                </router-link>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Insights Special Categories -->
+          <div v-if="group.aiInsightsCategories && !isCollapsed" v-show="isGroupExpanded(group.id)" class="space-y-2">
+            <div v-for="category in group.aiInsightsCategories" :key="category.name" class="mt-2">
+              <!-- Category Label -->
+              <div class="px-3 py-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                {{ category.name }}
+              </div>
+              <!-- Category Items -->
+              <div class="space-y-0.5">
+                <router-link
+                  v-for="subItem in category.items"
+                  :key="subItem.path"
+                  :to="subItem.path"
+                  :class="[
+                    'group flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ml-2',
                     subItem.current
                       ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
                       : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300'
