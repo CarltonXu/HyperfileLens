@@ -73,15 +73,10 @@ watch(activeTab, (newTab) => {
 })
 
 onMounted(async () => {
-  // Check Gateway status
-  try {
-    await gateway.mountStatus()
-    gatewayStatus.value = 'online'
-  } catch {
-    gatewayStatus.value = 'offline'
-  }
-  // Load overview data
-  loadOverview()
+  // Load overview data (this will also indicate if the service is available)
+  await loadOverview()
+  // Set gateway status based on overview data availability
+  gatewayStatus.value = overviewData.value ? 'online' : 'offline'
 })
 
 async function loadOverview() {
