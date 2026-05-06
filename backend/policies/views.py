@@ -26,9 +26,16 @@ class BackupPolicyViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser or user.role == 'admin':
-            return BackupPolicy.objects.all()
-        return BackupPolicy.objects.filter(user=user)
+        queryset = BackupPolicy.objects.select_related('user', 'tenant')
+        
+        # Superuser can see all policies
+        if user.is_superuser:
+            return queryset
+        # Filter by tenant for tenant users
+        if user.tenant:
+            return queryset.filter(tenant=user.tenant)
+        # Users without tenant can only see their own policies
+        return queryset.filter(user=user)
     
     def perform_create(self, serializer):
         """Create a new backup policy."""

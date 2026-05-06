@@ -30,9 +30,16 @@ class AIQueryViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser or user.role == 'admin':
-            return AIQuery.objects.all()
-        return AIQuery.objects.filter(user=user)
+        queryset = AIQuery.objects.select_related('user', 'tenant')
+        
+        # Superuser can see all AI queries
+        if user.is_superuser:
+            return queryset
+        # Filter by tenant for tenant users
+        if user.tenant:
+            return queryset.filter(tenant=user.tenant)
+        # Users without tenant can only see their own queries
+        return queryset.filter(user=user)
     
     def create(self, request, *args, **kwargs):
         """Create a new AI query and execute it asynchronously."""

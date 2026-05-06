@@ -27,9 +27,16 @@ class RecoveryTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser or user.role == 'admin':
-            return RecoveryTask.objects.all()
-        return RecoveryTask.objects.filter(user=user)
+        queryset = RecoveryTask.objects.select_related('user', 'tenant')
+        
+        # Superuser can see all recovery tasks
+        if user.is_superuser:
+            return queryset
+        # Filter by tenant for tenant users
+        if user.tenant:
+            return queryset.filter(tenant=user.tenant)
+        # Users without tenant can only see their own recovery tasks
+        return queryset.filter(user=user)
     
     def perform_create(self, serializer):
         self.check_quota_before_create()

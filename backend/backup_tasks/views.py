@@ -65,15 +65,16 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         queryset = BackupTask.objects.select_related(
             'source_resource', 'target_repository',
             'source_resource__bound_node', 'target_repository__bound_node',
-            'user', 'schedule'
+            'user', 'schedule', 'tenant'
         ).prefetch_related('snapshots')
         
-        # Permission-based filtering
-        if user.is_superuser or (user.role and user.role.code == 'admin'):
-            pass  # Admin sees all
-        elif user.role and user.role.code == 'operator':
-            queryset = queryset.filter(user=user)
+        # Permission-based filtering by tenant
+        if user.is_superuser:
+            pass  # Superuser sees all
+        elif user.tenant:
+            queryset = queryset.filter(tenant=user.tenant)
         else:
+            # Users without tenant can only see their own tasks
             queryset = queryset.filter(user=user)
         
         # Filter by status
@@ -391,14 +392,15 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         """Filter snapshots based on user permissions."""
         user = self.request.user
-        queryset = BackupSnapshot.objects.select_related('task', 'repository')
+        queryset = BackupSnapshot.objects.select_related('task', 'repository', 'task__tenant')
         
-        # Permission-based filtering
-        if user.is_superuser or (user.role and user.role.code == 'admin'):
-            pass  # Admin sees all
-        elif user.role and user.role.code == 'operator':
-            queryset = queryset.filter(task__user=user)
+        # Permission-based filtering by tenant
+        if user.is_superuser:
+            pass  # Superuser sees all
+        elif user.tenant:
+            queryset = queryset.filter(task__tenant=user.tenant)
         else:
+            # Users without tenant can only see their own snapshots
             queryset = queryset.filter(task__user=user)
         
         # Filter by task

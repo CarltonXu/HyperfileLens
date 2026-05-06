@@ -39,10 +39,16 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = SourceResource.objects.select_related('bound_node', 'user')
+        queryset = SourceResource.objects.select_related('bound_node', 'user', 'tenant')
         
-        # Filter by user role
-        if not (user.is_superuser or user.role == 'admin'):
+        # Superuser can see all resources
+        if user.is_superuser:
+            pass
+        # Filter by tenant for tenant users
+        elif user.tenant:
+            queryset = queryset.filter(tenant=user.tenant)
+        else:
+            # Users without tenant can only see their own resources
             queryset = queryset.filter(user=user)
         
         # Filter by resource type

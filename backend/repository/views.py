@@ -105,12 +105,15 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = Repository.objects.select_related('bound_node', 'user')
+        queryset = Repository.objects.select_related('bound_node', 'user', 'tenant')
         
-        # Role-based access
-        if user.is_superuser or (user.role and user.role.code == 'admin'):
-            pass  # Admin sees all
+        # Permission-based filtering by tenant
+        if user.is_superuser:
+            pass  # Superuser sees all
+        elif user.tenant:
+            queryset = queryset.filter(tenant=user.tenant)
         else:
+            # Users without tenant can only see their own repositories
             queryset = queryset.filter(user=user)
         
         # Filter by type
