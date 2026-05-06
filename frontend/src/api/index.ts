@@ -337,7 +337,7 @@ export const sourceResourcesApi = {
     api.delete(`/api/v1/source-resources/${id}/`),
   
   stats: () =>
-    api.get('/api/v1/source-resources/stats/'),
+    api.get('/api/v1/source-resources/statistics/'),
   
   testConnection: (id: number | string) =>
     api.post(`/api/v1/source-resources/${id}/test-connection/`),
