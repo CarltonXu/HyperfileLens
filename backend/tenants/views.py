@@ -82,29 +82,51 @@ class TenantViewSet(viewsets.ModelViewSet):
         """Delete a tenant. Prevent deleting own tenant or administrator tenant."""
         tenant = self.get_object()
         user = request.user
+        tenant_name = tenant.name
+        tenant_id = tenant.id
         
         # 不允许删除 administrator 租户（系统保留租户）
         if tenant.name == 'administrator':
+            error_msg = 'Cannot delete the system administrator tenant.'
+            AuditService.log_tenant_delete(
+                request, tenant, 
+                result='failure', 
+                error_message=error_msg
+            )
             return Response(
-                {'detail': 'Cannot delete the system administrator tenant.'},
+                {'detail': error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         # 不允许删除自己关联的租户
         if user.tenant and user.tenant.id == tenant.id:
+            error_msg = 'Cannot delete your own tenant.'
+            AuditService.log_tenant_delete(
+                request, tenant, 
+                result='failure', 
+                error_message=error_msg
+            )
             return Response(
-                {'detail': 'Cannot delete your own tenant.'},
+                {'detail': error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         # 检查是否有用户关联到此租户
         users_in_tenant = User.objects.filter(tenant=tenant).count()
         if users_in_tenant > 0:
+            error_msg = f'Cannot delete tenant with {users_in_tenant} associated user(s). Remove users first.'
+            AuditService.log_tenant_delete(
+                request, tenant, 
+                result='failure', 
+                error_message=error_msg
+            )
             return Response(
-                {'detail': f'Cannot delete tenant with {users_in_tenant} associated user(s). Remove users first.'},
+                {'detail': error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # 记录成功的审计日志
+        AuditService.log_tenant_delete(request, tenant, result='success')
         tenant.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

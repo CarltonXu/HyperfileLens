@@ -732,7 +732,8 @@ const deleteTenant = async () => {
     showDeleteConfirm.value = false
     fetchTenants()
   } catch (error: any) {
-    showToast(error.response?.data?.detail || t('common.error'), 'error')
+    const errorMsg = error.response?.data?.detail || error.response?.data?.error || t('common.error')
+    showToast(errorMsg, 'error')
   } finally {
     deleting.value = false
     deletingTenant.value = null

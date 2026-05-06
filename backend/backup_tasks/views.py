@@ -14,6 +14,7 @@ from django.db.models import Sum, Count
 
 from core.permissions import IsAdminOrOperator
 from licenses.quota import QuotaCheckMixin
+from audit_log.services import AuditService
 from .models import BackupTask, BackupSnapshot
 from .serializers import (
     BackupTaskSerializer,
@@ -115,7 +116,19 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create a new backup task with the current user."""
         self.check_quota_before_create()
-        serializer.save(user=self.request.user, tenant=self.request.user.tenant)
+        task = serializer.save(user=self.request.user, tenant=self.request.user.tenant)
+        AuditService.log_backup_task_create(self.request, task, result='success')
+    
+    def perform_update(self, serializer):
+        """Update a backup task."""
+        task = serializer.save()
+        changed_fields = list(serializer.validated_data.keys())
+        AuditService.log_backup_task_update(self.request, task, changed_fields=changed_fields, result='success')
+    
+    def perform_destroy(self, instance):
+        """Delete a backup task."""
+        AuditService.log_backup_task_delete(self.request, instance, result='success')
+        instance.delete()
     
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):

@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 
 from licenses.quota import QuotaCheckMixin
+from audit_log.services import AuditService
 from .models import SourceResource
 from .serializers import (
     SourceResourceSerializer,
@@ -67,8 +68,21 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
+        """Create a new source resource."""
         self.check_quota_before_create()
-        serializer.save(user=self.request.user, tenant=self.request.user.tenant)
+        resource = serializer.save(user=self.request.user, tenant=self.request.user.tenant)
+        AuditService.log_source_resource_create(self.request, resource, result='success')
+    
+    def perform_update(self, serializer):
+        """Update a source resource."""
+        resource = serializer.save()
+        changed_fields = list(serializer.validated_data.keys())
+        AuditService.log_source_resource_update(self.request, resource, changed_fields=changed_fields, result='success')
+    
+    def perform_destroy(self, instance):
+        """Delete a source resource."""
+        AuditService.log_source_resource_delete(self.request, instance, result='success')
+        instance.delete()
     
     @action(detail=True, methods=['post'])
     def test_connection(self, request, pk=None):

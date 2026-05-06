@@ -751,27 +751,33 @@ class UserViewSet(viewsets.ModelViewSet):
 
         # Cannot delete yourself
         if user == request.user:
+            error_msg = 'Cannot delete your own account'
+            AuditService.log_user_delete(request, user, result='failure', error_message=error_msg)
             return Response(
-                {'error': 'Cannot delete your own account'},
+                {'error': error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Cannot delete platform admin (only platform admin can delete platform admin)
         if user.is_superuser and not request.user.is_superuser:
+            error_msg = 'Cannot delete platform admin'
+            AuditService.log_user_delete(request, user, result='failure', error_message=error_msg)
             return Response(
-                {'error': 'Cannot delete platform admin'},
+                {'error': error_msg},
                 status=status.HTTP_403_FORBIDDEN
             )
 
         # Platform admin cannot delete themselves
         if user.is_superuser and user == request.user:
+            error_msg = 'Cannot delete your own platform admin account'
+            AuditService.log_user_delete(request, user, result='failure', error_message=error_msg)
             return Response(
-                {'error': 'Cannot delete your own platform admin account'},
+                {'error': error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Record audit log before deletion
-        AuditService.log_user_delete(request, user)
+        AuditService.log_user_delete(request, user, result='success')
         
         user.delete()
         return Response({'status': 'deleted', 'message': 'User deleted successfully'})

@@ -25,6 +25,7 @@ from .serializers import (
     ProxyStatsSerializer, ProxyHeartbeatCreateSerializer,
     ProxyRegisterSerializer, InstallCommandSerializer, InstallCommandResponseSerializer
 )
+from audit_log.services import AuditService
 
 
 class ProxyViewSet(viewsets.ModelViewSet):
@@ -93,6 +94,7 @@ class ProxyViewSet(viewsets.ModelViewSet):
             if license:
                 is_allowed, message = license.check_quota('proxies')
                 if not is_allowed:
+                    AuditService.log_proxy_create(request, None, result='failure', error_message=f"License quota exceeded: {message}")
                     raise PermissionDenied(f"License quota exceeded: {message}")
         
         serializer = self.get_serializer(data=request.data)
@@ -107,6 +109,9 @@ class ProxyViewSet(viewsets.ModelViewSet):
 
         # Generate installation command
         self._generate_install_command(proxy, request)
+        
+        # Record audit log
+        AuditService.log_proxy_create(request, proxy, result='success')
 
         response_serializer = ProxyNodeSerializer(proxy)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -152,6 +157,11 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
   --server {server_url} \\
   --token {install_token} \\
   --name "{name}"'''
+
+    def perform_destroy(self, instance):
+        """Delete a proxy with audit logging."""
+        AuditService.log_proxy_delete(self.request, instance, result='success')
+        instance.delete()
 
     @extend_schema(
         summary='Get installation command',

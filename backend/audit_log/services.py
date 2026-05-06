@@ -313,6 +313,222 @@ class AuditService:
             error_message=error_message
         )
     
+    # ==================== 仓库相关 ====================
+    
+    @staticmethod
+    def log_repository_create(request, repository, result='success', error_message=''):
+        """记录仓库创建"""
+        return audit_log(
+            request=request,
+            action='create',
+            resource_type='repository',
+            resource_id=str(repository.id) if repository else '',
+            resource_name=repository.name if repository else '',
+            details=f'创建仓库: {repository.name if repository else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_repository_update(request, repository, changed_fields=None, result='success', error_message=''):
+        """记录仓库更新"""
+        details = f'更新仓库: {repository.name if repository else "Unknown"}'
+        if changed_fields:
+            details += f' (变更字段: {", ".join(changed_fields)})'
+        return audit_log(
+            request=request,
+            action='update',
+            resource_type='repository',
+            resource_id=str(repository.id) if repository else '',
+            resource_name=repository.name if repository else '',
+            details=details,
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_repository_delete(request, repository, result='success', error_message=''):
+        """记录仓库删除"""
+        return audit_log(
+            request=request,
+            action='delete',
+            resource_type='repository',
+            resource_id=str(repository.id) if repository else '',
+            resource_name=repository.name if repository else '',
+            details=f'删除仓库: {repository.name if repository else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_repository_connect(request, repository, result='success', error_message=''):
+        """记录仓库连接"""
+        return audit_log(
+            request=request,
+            action='access',
+            resource_type='repository',
+            resource_id=str(repository.id) if repository else '',
+            resource_name=repository.name if repository else '',
+            details=f'连接仓库: {repository.name if repository else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    # ==================== 策略相关 ====================
+    
+    @staticmethod
+    def log_policy_create(request, policy, result='success', error_message=''):
+        """记录策略创建"""
+        return audit_log(
+            request=request,
+            action='create',
+            resource_type='policy',
+            resource_id=str(policy.id) if policy else '',
+            resource_name=policy.name if policy else '',
+            details=f'创建策略: {policy.name if policy else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_policy_update(request, policy, changed_fields=None, result='success', error_message=''):
+        """记录策略更新"""
+        details = f'更新策略: {policy.name if policy else "Unknown"}'
+        if changed_fields:
+            details += f' (变更字段: {", ".join(changed_fields)})'
+        return audit_log(
+            request=request,
+            action='update',
+            resource_type='policy',
+            resource_id=str(policy.id) if policy else '',
+            resource_name=policy.name if policy else '',
+            details=details,
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_policy_delete(request, policy, result='success', error_message=''):
+        """记录策略删除"""
+        return audit_log(
+            request=request,
+            action='delete',
+            resource_type='policy',
+            resource_id=str(policy.id) if policy else '',
+            resource_name=policy.name if policy else '',
+            details=f'删除策略: {policy.name if policy else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    # ==================== 备份任务相关 ====================
+    
+    @staticmethod
+    def log_backup_task_create(request, task, result='success', error_message=''):
+        """记录备份任务创建"""
+        return audit_log(
+            request=request,
+            action='create',
+            resource_type='backup_task',
+            resource_id=str(task.id) if task else '',
+            resource_name=task.name if task else '',
+            details=f'创建备份任务: {task.name if task else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_backup_task_update(request, task, changed_fields=None, result='success', error_message=''):
+        """记录备份任务更新"""
+        details = f'更新备份任务: {task.name if task else "Unknown"}'
+        if changed_fields:
+            details += f' (变更字段: {", ".join(changed_fields)})'
+        return audit_log(
+            request=request,
+            action='update',
+            resource_type='backup_task',
+            resource_id=str(task.id) if task else '',
+            resource_name=task.name if task else '',
+            details=details,
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_backup_task_delete(request, task, result='success', error_message=''):
+        """记录备份任务删除"""
+        return audit_log(
+            request=request,
+            action='delete',
+            resource_type='backup_task',
+            resource_id=str(task.id) if task else '',
+            resource_name=task.name if task else '',
+            details=f'删除备份任务: {task.name if task else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_backup_task_execute(request, task, result='success', error_message=''):
+        """记录备份任务执行"""
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='backup_task',
+            resource_id=str(task.id) if task else '',
+            resource_name=task.name if task else '',
+            details=f'执行备份任务: {task.name if task else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    # ==================== 源资源相关 ====================
+    
+    @staticmethod
+    def log_source_resource_create(request, resource, result='success', error_message=''):
+        """记录源资源创建"""
+        return audit_log(
+            request=request,
+            action='create',
+            resource_type='source_resource',
+            resource_id=str(resource.id) if resource else '',
+            resource_name=resource.name if resource else '',
+            details=f'创建源资源: {resource.name if resource else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_source_resource_update(request, resource, changed_fields=None, result='success', error_message=''):
+        """记录源资源更新"""
+        details = f'更新源资源: {resource.name if resource else "Unknown"}'
+        if changed_fields:
+            details += f' (变更字段: {", ".join(changed_fields)})'
+        return audit_log(
+            request=request,
+            action='update',
+            resource_type='source_resource',
+            resource_id=str(resource.id) if resource else '',
+            resource_name=resource.name if resource else '',
+            details=details,
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_source_resource_delete(request, resource, result='success', error_message=''):
+        """记录源资源删除"""
+        return audit_log(
+            request=request,
+            action='delete',
+            resource_type='source_resource',
+            resource_id=str(resource.id) if resource else '',
+            resource_name=resource.name if resource else '',
+            details=f'删除源资源: {resource.name if resource else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
     # ==================== 通用方法 ====================
     
     @staticmethod

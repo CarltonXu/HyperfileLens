@@ -29,6 +29,7 @@ from .serializers import (
 )
 from nodes.models import Node
 from licenses.quota import QuotaCheckMixin
+from audit_log.services import AuditService
 
 
 # S3 Bucket name validation rules (AWS S3 naming rules)
@@ -143,10 +144,22 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create a new repository."""
         self.check_quota_before_create()
-        serializer.save(
+        repository = serializer.save(
             user=self.request.user,
             tenant=self.request.user.tenant
         )
+        AuditService.log_repository_create(self.request, repository, result='success')
+    
+    def perform_update(self, serializer):
+        """Update a repository."""
+        repository = serializer.save()
+        changed_fields = list(serializer.validated_data.keys())
+        AuditService.log_repository_update(self.request, repository, changed_fields=changed_fields, result='success')
+    
+    def perform_destroy(self, instance):
+        """Delete a repository."""
+        AuditService.log_repository_delete(self.request, instance, result='success')
+        instance.delete()
     
     @action(detail=True, methods=['post'])
     def test_connection(self, request, pk=None):
