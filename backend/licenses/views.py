@@ -377,6 +377,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
                     machine_code=machine_code,
                     issued_at=issued_at,
                     expires_at=expires_at,
+                    activated_by=request.user,
                     max_tenants=limits.get('max_tenants', 1),
                     max_users=limits.get('max_users', 10),
                     max_proxies=limits.get('max_proxies', 5),
