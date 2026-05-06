@@ -144,7 +144,9 @@ export default {
   favorites: {
     add: '添加到收藏夹',
     remove: '从收藏夹移除',
-    emptyHint: '收藏常用页面以便快速访问'
+    emptyHint: '收藏常用页面以便快速访问',
+    limitReached: '收藏数量已达上限',
+    limitHint: '最多可收藏 {max} 个页面，请先移除部分收藏再添加新收藏。'
   },
 
   // Theme

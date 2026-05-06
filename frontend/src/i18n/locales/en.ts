@@ -145,7 +145,9 @@ export default {
   favorites: {
     add: 'Add to favorites',
     remove: 'Remove from favorites',
-    emptyHint: 'Star your favorite pages for quick access'
+    emptyHint: 'Star your favorite pages for quick access',
+    limitReached: 'Favorites limit reached',
+    limitHint: 'Maximum {max} favorites allowed. Please remove some items before adding new ones.'
   },
 
   // Theme

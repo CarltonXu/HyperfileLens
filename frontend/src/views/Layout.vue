@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
 import { useFavoritesStore } from '@/stores/favorites'
 import type { FavoriteItem } from '@/stores/favorites'
 import { useI18n } from 'vue-i18n'
@@ -69,6 +70,7 @@ import {
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const appStore = useAppStore()
 const favoritesStore = useFavoritesStore()
 const { t, locale } = useI18n()
 
@@ -561,7 +563,22 @@ const toggleFavorite = (item: { name: string; path: string; icon: any }, groupId
     groupId: groupId
   }
   
-  favoritesStore.toggleFavorite(favoriteItem)
+  // 如果已经收藏，直接移除
+  if (favoritesStore.isFavorite(item.path)) {
+    favoritesStore.removeFavorite(item.path)
+    return
+  }
+  
+  // 检查是否可以添加收藏
+  if (!favoritesStore.canAddFavorite) {
+    appStore.warning(
+      t('favorites.limitReached'),
+      t('favorites.limitHint', { max: favoritesStore.maxFavorites })
+    )
+    return
+  }
+  
+  favoritesStore.addFavorite(favoriteItem)
 }
 
 const isFavorite = (path: string): boolean => {
