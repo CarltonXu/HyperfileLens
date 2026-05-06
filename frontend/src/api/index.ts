@@ -50,7 +50,15 @@ api.interceptors.response.use(
     return response
   },
   async (error: AxiosError) => {
-    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
+    const originalRequest = error.config as AxiosRequestConfig & { 
+      _retry?: boolean
+      _skipGlobalErrorHandler?: boolean 
+    }
+
+    // Skip global error handling if requested (page will handle it)
+    if (originalRequest._skipGlobalErrorHandler) {
+      return Promise.reject(error)
+    }
 
     // Handle 401 Unauthorized
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -63,15 +71,70 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // Handle 403 Forbidden
-    if (error.response?.status === 403) {
-      console.error('Access forbidden:', error.response.data)
+    // For 400 and 422 errors, let the page handle the specific error messages
+    // These are usually validation errors that need contextual display
+    if (error.response?.status === 400 || error.response?.status === 422) {
+      return Promise.reject(error)
     }
 
-    // Handle 500 Server Error
-    if (error.response?.status === 500) {
-      console.error('Server error:', error.response.data)
+    // Show error toast for network errors, server errors, and other HTTP errors
+    // that are not handled by individual pages
+    let errorMessage = 'An unexpected error occurred'
+    let errorTitle = 'Error'
+    
+    if (error.response) {
+      // Server responded with error status
+      const data = error.response.data as Record<string, unknown>
+      
+      // Try to extract error message from response
+      if (typeof data === 'object' && data !== null) {
+        errorMessage = (data.detail || data.error || data.message || 
+          'The server returned an error') as string
+      }
+      
+      // Set title based on status code
+      switch (error.response.status) {
+        case 403:
+          errorTitle = 'Access Denied'
+          break
+        case 404:
+          errorTitle = 'Not Found'
+          break
+        case 500:
+          errorTitle = 'Server Error'
+          errorMessage = errorMessage || 'An internal server error occurred. Please try again later.'
+          break
+        case 502:
+        case 503:
+        case 504:
+          errorTitle = 'Service Unavailable'
+          errorMessage = 'The service is temporarily unavailable. Please try again later.'
+          break
+      }
+    } else if (error.request) {
+      // Request was made but no response received
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        errorTitle = 'Request Timeout'
+        errorMessage = 'The request took too long to complete. Please try again.'
+      } else {
+        errorTitle = 'Network Error'
+        errorMessage = 'Unable to connect to the server. Please check your network connection.'
+      }
+    } else {
+      // Error setting up request
+      errorMessage = error.message || 'An unexpected error occurred'
     }
+
+    // Show toast notification (dynamic import to avoid circular dependency)
+    import('@/stores/app').then(({ useAppStore }) => {
+      const appStore = useAppStore()
+      appStore.showToast({
+        type: 'error',
+        title: errorTitle,
+        message: errorMessage,
+        duration: 5000
+      })
+    })
 
     return Promise.reject(error)
   }
