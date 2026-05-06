@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useFavoritesStore } from '@/stores/favorites'
+import type { FavoriteItem } from '@/stores/favorites'
 import { useI18n } from 'vue-i18n'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 import {
@@ -28,6 +30,7 @@ import {
   BellIcon,
   ExclamationTriangleIcon,
   CloudIcon,
+  StarIcon,
   // AI Insights 三级菜单图标
   ChartBarIcon,
   MagnifyingGlassIcon,
@@ -65,6 +68,7 @@ import {
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const favoritesStore = useFavoritesStore()
 const { t, locale } = useI18n()
 
 const isCollapsed = ref(false)
@@ -513,6 +517,56 @@ const getGroupIcon = (groupId: string) => {
   return iconMap[groupId] || HomeIcon
 }
 
+// 图标名称到组件的映射（用于收藏栏）
+const iconComponentMap: Record<string, any> = {
+  'HomeIcon': HomeIcon,
+  'ServerIcon': ServerIcon,
+  'CloudArrowUpIcon': CloudArrowUpIcon,
+  'ArrowUturnLeftIcon': ArrowUturnLeftIcon,
+  'CircleStackIcon': CircleStackIcon,
+  'ClockIcon': ClockIcon,
+  'ClipboardDocumentListIcon': ClipboardDocumentListIcon,
+  'Cog6ToothIcon': Cog6ToothIcon,
+  'ComputerDesktopIcon': ComputerDesktopIcon,
+  'BuildingOffice2Icon': BuildingOffice2Icon,
+  'KeyIcon': KeyIcon,
+  'UsersIcon': UsersIcon,
+  'BellIcon': BellIcon,
+  'ExclamationTriangleIcon': ExclamationTriangleIcon,
+  'CloudIcon': CloudIcon,
+  'ChartBarIcon': ChartBarIcon,
+  'MagnifyingGlassIcon': MagnifyingGlassIcon,
+  'ShieldCheckIcon': ShieldCheckIcon,
+  'DocumentChartBarIcon': DocumentChartBarIcon,
+  'FireIcon': FireIcon,
+  'DocumentDuplicateIcon': DocumentDuplicateIcon,
+  'ChatBubbleLeftRightIcon': ChatBubbleLeftRightIcon
+}
+
+const getIconComponent = (iconName: string) => {
+  return iconComponentMap[iconName] || HomeIcon
+}
+
+// 收藏相关函数
+const toggleFavorite = (item: { name: string; path: string; icon: any }, groupId: string) => {
+  // 获取图标名称
+  const iconName = Object.keys(iconComponentMap).find(key => iconComponentMap[key] === item.icon) || 'HomeIcon'
+  
+  const favoriteItem: FavoriteItem = {
+    id: item.path,
+    name: item.name,
+    path: item.path,
+    icon: iconName,
+    groupId: groupId
+  }
+  
+  favoritesStore.toggleFavorite(favoriteItem)
+}
+
+const isFavorite = (path: string): boolean => {
+  return favoritesStore.isFavorite(path)
+}
+
 // 检查分组是否有当前激活项
 const isGroupActive = (group: NavigationGroup) => {
   if (group.items.some(item => item.current || item.subItems?.some(sub => sub.current))) {
@@ -570,9 +624,9 @@ onUnmounted(() => {
 
       <!-- Navigation -->
       <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto h-[calc(100vh-8rem)]">
-        <template v-for="group in navigationGroups" :key="group.id">
+        <div v-for="group in navigationGroups" :key="group.id">
           <!-- Expanded state: show group header and items -->
-          <template v-if="!isCollapsed">
+          <div v-show="!isCollapsed">
             <!-- Group Header -->
             <div
               @click="toggleGroup(group.id)"
@@ -589,11 +643,11 @@ onUnmounted(() => {
 
             <!-- Group Items -->
             <div v-show="isGroupExpanded(group.id)" class="space-y-0.5">
-              <div v-for="item in group.items" :key="item.path">
+              <div v-for="item in group.items" :key="item.path" class="relative group/item">
                 <router-link
                   :to="item.path"
                   :class="[
-                    'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
+                    'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors pr-10',
                     item.current
                       ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                       : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -608,23 +662,47 @@ onUnmounted(() => {
                   />
                   <span>{{ item.name }}</span>
                 </router-link>
+                <!-- Favorite Button -->
+                <button
+                  @click.prevent="toggleFavorite(item, group.id)"
+                  :class="[
+                    'absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover/item:opacity-100 transition-opacity',
+                    isFavorite(item.path) ? 'text-yellow-500 hover:text-yellow-600' : 'text-slate-400 hover:text-yellow-500'
+                  ]"
+                  :title="isFavorite(item.path) ? t('favorites.remove') : t('favorites.add')"
+                >
+                  <StarIcon v-if="isFavorite(item.path)" class="w-4 h-4 fill-current" />
+                  <StarIcon v-else class="w-4 h-4" />
+                </button>
                 
                 <!-- Sub Items -->
                 <div v-if="item.subItems && item.subItems.length > 0" class="ml-4 mt-1 space-y-0.5">
-                  <router-link
-                    v-for="subItem in item.subItems"
-                    :key="subItem.path"
-                    :to="subItem.path"
-                    :class="[
-                      'group flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
-                      subItem.current
-                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300'
-                    ]"
-                  >
-                    <span class="w-1.5 h-1.5 rounded-full" :class="subItem.current ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'"></span>
-                    {{ subItem.name }}
-                  </router-link>
+                  <div v-for="subItem in item.subItems" :key="subItem.path" class="relative group/subitem">
+                    <router-link
+                      :to="subItem.path"
+                      :class="[
+                        'group flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors pr-8',
+                        subItem.current
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300'
+                      ]"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full" :class="subItem.current ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'"></span>
+                      {{ subItem.name }}
+                    </router-link>
+                    <!-- Favorite Button for Sub Item -->
+                    <button
+                      @click.prevent="toggleFavorite({ name: subItem.name, path: subItem.path, icon: subItem.icon }, group.id)"
+                      :class="[
+                        'absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover/subitem:opacity-100 transition-opacity',
+                        isFavorite(subItem.path) ? 'text-yellow-500 hover:text-yellow-600' : 'text-slate-400 hover:text-yellow-500'
+                      ]"
+                      :title="isFavorite(subItem.path) ? t('favorites.remove') : t('favorites.add')"
+                    >
+                      <StarIcon v-if="isFavorite(subItem.path)" class="w-3.5 h-3.5 fill-current" />
+                      <StarIcon v-else class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -638,37 +716,49 @@ onUnmounted(() => {
                 </div>
                 <!-- Category Items (三级菜单) -->
                 <div class="space-y-0.5 ml-4">
-                  <router-link
-                    v-for="subItem in category.items"
-                    :key="subItem.path"
-                    :to="subItem.path"
-                    :class="[
-                      'group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
-                      subItem.current
-                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200'
-                    ]"
-                  >
-                    <component
-                      :is="subItem.current ? subItem.iconSolid : subItem.icon"
+                  <div v-for="subItem in category.items" :key="subItem.path" class="relative group/aiitem">
+                    <router-link
+                      :to="subItem.path"
                       :class="[
-                        'w-4 h-4 flex-shrink-0',
-                        subItem.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
+                        'group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors pr-8',
+                        subItem.current
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200'
                       ]"
-                    />
-                    {{ subItem.name }}
-                  </router-link>
+                    >
+                      <component
+                        :is="subItem.current ? subItem.iconSolid : subItem.icon"
+                        :class="[
+                          'w-4 h-4 flex-shrink-0',
+                          subItem.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
+                        ]"
+                      />
+                      {{ subItem.name }}
+                    </router-link>
+                    <!-- Favorite Button for AI Insights Item -->
+                    <button
+                      @click.prevent="toggleFavorite({ name: subItem.name, path: subItem.path, icon: subItem.icon }, group.id)"
+                      :class="[
+                        'absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover/aiitem:opacity-100 transition-opacity',
+                        isFavorite(subItem.path) ? 'text-yellow-500 hover:text-yellow-600' : 'text-slate-400 hover:text-yellow-500'
+                      ]"
+                      :title="isFavorite(subItem.path) ? t('favorites.remove') : t('favorites.add')"
+                    >
+                      <StarIcon v-if="isFavorite(subItem.path)" class="w-3.5 h-3.5 fill-current" />
+                      <StarIcon v-else class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
             <!-- Divider -->
             <div v-if="group.id !== 'system'" class="my-3 border-t border-slate-200 dark:border-slate-700"></div>
-          </template>
+          </div>
 
           <!-- Collapsed state: show only group icon -->
           <div
-            v-else
+            v-show="isCollapsed"
             @mouseenter="showGroupPopup(group.id, $event)"
             @mouseleave="hideGroupPopup"
             :class="[
@@ -686,7 +776,7 @@ onUnmounted(() => {
               ]"
             />
           </div>
-        </template>
+        </div>
       </nav>
 
       <!-- Popup Menu for Collapsed Sidebar -->
@@ -811,13 +901,39 @@ onUnmounted(() => {
       <!-- Header -->
       <header class="sticky top-0 z-30 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
         <div class="flex items-center justify-between h-16 px-6">
-          <div class="flex items-center gap-4">
-            <h1 class="text-lg font-semibold text-slate-900 dark:text-white">
-              {{ $route.meta.title || 'HyperFileLens' }}
-            </h1>
+          <!-- Left side - empty or can show breadcrumbs -->
+          <div class="flex items-center gap-4 flex-1">
+            <!-- Reserved for future use -->
           </div>
 
-          <div class="flex items-center gap-4">
+          <!-- Center - Favorites Bar -->
+          <div class="flex items-center justify-center flex-1">
+            <div v-if="favoritesStore.favorites.length > 0" class="flex items-center gap-1">
+              <router-link
+                v-for="fav in favoritesStore.favorites"
+                :key="fav.id"
+                :to="fav.path"
+                :class="[
+                  'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
+                  route.path === fav.path
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                ]"
+              >
+                <component
+                  :is="getIconComponent(fav.icon)"
+                  class="w-4 h-4"
+                />
+                <span>{{ fav.name }}</span>
+              </router-link>
+            </div>
+            <div v-else class="text-sm text-slate-400 dark:text-slate-500">
+              {{ t('favorites.emptyHint') }}
+            </div>
+          </div>
+
+          <!-- Right side - Theme & Language -->
+          <div class="flex items-center gap-4 flex-1 justify-end">
             <!-- Theme Switcher -->
             <ThemeSwitcher />
 

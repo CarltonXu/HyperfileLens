@@ -137,6 +137,13 @@ export default {
     welcomeSubtitle: 'Here is your system overview'
   },
 
+  // Favorites
+  favorites: {
+    add: 'Add to favorites',
+    remove: 'Remove from favorites',
+    emptyHint: 'Star your favorite pages for quick access'
+  },
+
   // Theme
   theme: {
     light: 'Light',

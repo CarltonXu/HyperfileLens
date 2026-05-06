@@ -136,6 +136,13 @@ export default {
     welcomeSubtitle: '系统概览一览'
   },
 
+  // Favorites
+  favorites: {
+    add: '添加到收藏夹',
+    remove: '从收藏夹移除',
+    emptyHint: '收藏常用页面以便快速访问'
+  },
+
   // Theme
   theme: {
     light: '浅色',
