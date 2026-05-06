@@ -26,10 +26,6 @@ import {
   UsersIcon,
   SunIcon,
   MoonIcon,
-  MagnifyingGlassIcon,
-  ShieldCheckIcon,
-  ChartBarIcon,
-  ChatBubbleLeftRightIcon,
   BellIcon,
   ExclamationTriangleIcon
 } from '@heroicons/vue/24/outline'
@@ -77,7 +73,6 @@ interface NavigationGroup {
   id: string
   title: string
   items: MenuItem[]
-  subItems?: MenuItem[]
 }
 
 // 欢迎弹窗
@@ -152,13 +147,6 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
       title: t('navGroups.dataProtection'),
       items: [
         {
-          name: t('nav.proxies'),
-          path: '/proxies',
-          icon: ServerIcon,
-          iconSolid: ServerIconSolid,
-          current: route.path.startsWith('/proxies')
-        },
-        {
           name: t('nav.backupTasks'),
           path: '/backup-tasks',
           icon: CloudArrowUpIcon,
@@ -186,6 +174,13 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
       title: t('navGroups.resources'),
       items: [
         {
+          name: t('nav.proxies'),
+          path: '/proxies',
+          icon: ServerIcon,
+          iconSolid: ServerIconSolid,
+          current: route.path.startsWith('/proxies')
+        },
+        {
           name: t('nav.repository'),
           path: '/repository',
           icon: CircleStackIcon,
@@ -211,32 +206,6 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
           icon: SparklesIcon,
           iconSolid: SparklesIconSolid,
           current: route.path === '/ai-insights'
-        }
-      ],
-      subItems: [
-        {
-          name: t('aiInsights.nav.overview'),
-          path: '/ai-insights?tab=overview',
-          icon: ChartBarIcon,
-          current: route.path === '/ai-insights' && route.query.tab === 'overview'
-        },
-        {
-          name: t('aiInsights.nav.smartSearch'),
-          path: '/ai-insights?tab=search',
-          icon: MagnifyingGlassIcon,
-          current: route.path === '/ai-insights' && route.query.tab === 'search'
-        },
-        {
-          name: t('aiInsights.nav.sensitiveData'),
-          path: '/ai-insights?tab=sensitive',
-          icon: ShieldCheckIcon,
-          current: route.path === '/ai-insights' && route.query.tab === 'sensitive'
-        },
-        {
-          name: t('aiInsights.nav.aiChat'),
-          path: '/ai-insights?tab=chat',
-          icon: ChatBubbleLeftRightIcon,
-          current: route.path === '/ai-insights' && route.query.tab === 'chat'
         }
       ]
     },
@@ -466,30 +435,6 @@ onUnmounted(() => {
               />
               <span v-if="!isCollapsed">{{ item.name }}</span>
             </router-link>
-
-            <!-- Sub Items (for AI Insights) -->
-            <div v-if="group.subItems && group.subItems.length > 0 && !isCollapsed && isGroupExpanded(group.id)" class="ml-8 mt-1 space-y-0.5">
-              <router-link
-                v-for="subItem in group.subItems"
-                :key="subItem.path"
-                :to="subItem.path"
-                :class="[
-                  'group flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                  subItem.current
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300'
-                ]"
-              >
-                <component
-                  :is="subItem.icon"
-                  :class="[
-                    'w-4 h-4 flex-shrink-0',
-                    subItem.current ? 'text-blue-500' : 'text-slate-400 group-hover:text-slate-500'
-                  ]"
-                />
-                <span>{{ subItem.name }}</span>
-              </router-link>
-            </div>
           </div>
 
           <!-- Divider -->
