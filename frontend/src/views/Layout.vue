@@ -531,7 +531,7 @@ onUnmounted(() => {
                 @mouseenter="handleMouseEnter(item, $event)"
                 @mouseleave="handleMouseLeave"
                 :class="[
-                  'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
                   item.current
                     ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
