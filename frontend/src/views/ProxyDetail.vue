@@ -165,8 +165,12 @@ const chartTooltip = ref<{
 const hoverLineX = ref<number | null>(null)
 
 function handleChartMouseMove(event: MouseEvent) {
-  const rect = (event.currentTarget as SVGElement).getBoundingClientRect()
-  const mouseX = event.clientX - rect.left
+  const svg = event.currentTarget as SVGElement
+  const rect = svg.getBoundingClientRect()
+  
+  // Scale mouse position to viewBox coordinates
+  const scaleX = chartWidth / rect.width
+  const mouseX = (event.clientX - rect.left) * scaleX
   
   // Find closest point
   let closestPoint = chartPoints.value[0]
