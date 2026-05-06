@@ -1528,7 +1528,7 @@ export default {
     tenantSlugPlaceholder: 'e.g., my-company',
     tenantSlugHelp: 'Only lowercase letters, numbers, and hyphens',
     contactEmail: 'Contact Email',
-    contactEmailPlaceholder: 'admin@company.com',
+    contactEmailPlaceholder: 'admin\\@company.com',
     descriptionPlaceholder: 'Enter tenant description (optional)',
     confirmRemoveUser: 'Confirm Remove User',
     confirmRemoveUserDesc: 'Are you sure you want to remove user {email} from this tenant?',

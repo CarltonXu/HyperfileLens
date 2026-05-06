@@ -1528,7 +1528,7 @@ export default {
     tenantSlugPlaceholder: '例如: my-company',
     tenantSlugHelp: '只能使用小写字母、数字和连字符',
     contactEmail: '联系邮箱',
-    contactEmailPlaceholder: 'admin@company.com',
+    contactEmailPlaceholder: 'admin\\@company.com',
     descriptionPlaceholder: '请输入租户描述（可选）',
     confirmRemoveUser: '确认移除用户',
     confirmRemoveUserDesc: '确定要将用户 {email} 从此租户移除吗？',

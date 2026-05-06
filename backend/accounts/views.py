@@ -21,6 +21,7 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .models import User, Role, APIToken, UserSession
 from .serializers import (
+    UserCreateSerializer,
     UserRegistrationSerializer,
     UserProfileSerializer,
     UserUpdateSerializer,
