@@ -146,7 +146,7 @@ const routes: RouteRecordRaw[] = [
             meta: { title: 'Sensitive Data', tab: 'sensitive' }
           },
           {
-            path: 'content-profile',
+            path: 'content-profiling',
             name: 'AIInsightsProfile',
             component: AIInsights,
             meta: { title: 'Content Profile', tab: 'profile' }
