@@ -1245,6 +1245,14 @@ export default {
       aiChat: 'AI Knowledge Chat'
     },
 
+    // Menu category labels (left sidebar)
+    menuCategories: {
+      discovery: 'Discovery & Search',
+      contentSecurity: 'Content & Security',
+      governance: 'Governance & Optimization',
+      knowledge: 'Knowledge Assistant'
+    },
+
     categories: {
       documents: 'Documents',
       images: 'Images',

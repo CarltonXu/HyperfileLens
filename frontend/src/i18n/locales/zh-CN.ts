@@ -1245,6 +1245,14 @@ export default {
       aiChat: '智库问答'
     },
 
+    // Menu category labels (left sidebar)
+    menuCategories: {
+      discovery: '发现与搜索',
+      contentSecurity: '内容与安全',
+      governance: '治理与优化',
+      knowledge: '知识助手'
+    },
+
     categories: {
       documents: '文档',
       images: '图片',

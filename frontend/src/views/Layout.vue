@@ -218,28 +218,28 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
       // AI Insights 特殊的三级菜单结构
       aiInsightsCategories: [
         {
-          name: t('aiInsights.categories.discovery'),
+          name: t('aiInsights.menuCategories.discovery'),
           items: [
             { name: t('aiInsights.nav.overview'), path: '/ai-insights/overview', current: route.path === '/ai-insights/overview' || route.path === '/ai-insights' },
             { name: t('aiInsights.nav.smartSearch'), path: '/ai-insights/smart-search', current: route.path === '/ai-insights/smart-search' }
           ]
         },
         {
-          name: t('aiInsights.categories.contentSecurity'),
+          name: t('aiInsights.menuCategories.contentSecurity'),
           items: [
             { name: t('aiInsights.nav.sensitiveData'), path: '/ai-insights/sensitive-data', current: route.path === '/ai-insights/sensitive-data' },
             { name: t('aiInsights.nav.contentProfiling'), path: '/ai-insights/content-profiling', current: route.path === '/ai-insights/content-profiling' }
           ]
         },
         {
-          name: t('aiInsights.categories.governance'),
+          name: t('aiInsights.menuCategories.governance'),
           items: [
             { name: t('aiInsights.nav.dataHeatmap'), path: '/ai-insights/data-heatmap', current: route.path === '/ai-insights/data-heatmap' },
             { name: t('aiInsights.nav.redundancy'), path: '/ai-insights/redundancy', current: route.path === '/ai-insights/redundancy' }
           ]
         },
         {
-          name: t('aiInsights.categories.knowledge'),
+          name: t('aiInsights.menuCategories.knowledge'),
           items: [
             { name: t('aiInsights.nav.aiChat'), path: '/ai-insights/ai-chat', current: route.path === '/ai-insights/ai-chat' }
           ]
@@ -327,7 +327,7 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
       }
       return true
     })
-  })).filter(group => group.items.length > 0)
+  })).filter(group => group.items.length > 0 || (group.aiInsightsCategories && group.aiInsightsCategories.length > 0))
 })
 
 function toggleSidebar() {
