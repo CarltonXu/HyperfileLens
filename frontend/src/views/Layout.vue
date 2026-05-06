@@ -439,8 +439,15 @@ function setLocale(newLocale: string) {
 }
 
 // 收起状态下显示分组弹出菜单
+const hideTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
+
 const showGroupPopup = (groupId: string, event: MouseEvent) => {
   if (!isCollapsed.value) return
+  // Clear any pending hide timeout
+  if (hideTimeout.value) {
+    clearTimeout(hideTimeout.value)
+    hideTimeout.value = null
+  }
   const target = event.currentTarget as HTMLElement
   const rect = target.getBoundingClientRect()
   popupPosition.value = { top: rect.top }
@@ -448,7 +455,18 @@ const showGroupPopup = (groupId: string, event: MouseEvent) => {
 }
 
 const hideGroupPopup = () => {
-  activePopup.value = null
+  // Delay hiding to allow mouse to move to popup
+  hideTimeout.value = setTimeout(() => {
+    activePopup.value = null
+  }, 150)
+}
+
+const cancelHidePopup = () => {
+  // Cancel hide when mouse enters popup
+  if (hideTimeout.value) {
+    clearTimeout(hideTimeout.value)
+    hideTimeout.value = null
+  }
 }
 
 // 获取分组图标（用于收起状态显示）
@@ -653,7 +671,7 @@ onUnmounted(() => {
           v-if="activePopup && isCollapsed"
           class="fixed left-16 z-50 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-2"
           :style="{ top: popupPosition.top + 'px' }"
-          @mouseenter="activePopup = activePopup"
+          @mouseenter="cancelHidePopup"
           @mouseleave="hideGroupPopup"
         >
           <template v-for="group in navigationGroups" :key="group.id">
