@@ -172,7 +172,6 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
             'hostname': old_instance.hostname,
             'role': old_instance.role,
             'status': old_instance.status,
-            'description': old_instance.description,
             'labels': old_instance.labels,
         }
         
@@ -186,7 +185,6 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
             'hostname': instance.hostname,
             'role': instance.role,
             'status': instance.status,
-            'description': instance.description,
             'labels': instance.labels,
         }
         
