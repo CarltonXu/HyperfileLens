@@ -28,6 +28,7 @@ from .serializers import (
     ConnectionTestResultSerializer
 )
 from nodes.models import Node
+from audit_log.services import AuditService
 from licenses.quota import QuotaCheckMixin
 from audit_log.services import AuditService
 
@@ -612,32 +613,100 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     
     def _test_node_connection(self, repo):
         """通过 Node 测试 NAS/Local 连接"""
+        import uuid
+        from nodes.proxy_service import ProxyService
+        from nodes.models import ProxyTask
+        
         logger.info(
             f"[Node Connection Test] Starting test for repository '{repo.name}' "
             f"(ID: {repo.id}, Type: {repo.repo_type}, Bound Node: {repo.bound_node.name if repo.bound_node else 'None'})"
         )
-        # TODO: 实现通过 WebSocket 向 Node 发送测试命令
-        # 目前返回模拟结果
-        logger.info(
-            f"[Node Connection Test] Simulated test for '{repo.name}' - "
-            f"actual WebSocket test not yet implemented"
+        
+        # Prepare storage configuration based on repository type
+        storage_type = 'nas' if repo.repo_type == Repository.TYPE_NAS else 'local'
+        storage_config = {}
+        
+        if repo.repo_type == Repository.TYPE_NAS:
+            config = repo.config or {}
+            storage_config = {
+                'server': config.get('nas_server', config.get('server', '')),
+                'path': config.get('nas_path', config.get('path', '')),
+                'mount_type': config.get('mount_type', 'nfs'),
+                'mount_path': config.get('mount_path', ''),
+            }
+        elif repo.repo_type == Repository.TYPE_LOCAL:
+            config = repo.config or {}
+            storage_config = {
+                'path': config.get('path', repo.storage_path or ''),
+            }
+        
+        # Create task for tracking
+        task_id = str(uuid.uuid4())
+        
+        # Create ProxyTask record
+        ProxyTask.objects.create(
+            id=task_id,
+            proxy=repo.bound_node,
+            task_type='test_storage',
+            payload={
+                'repository_id': str(repo.id),
+                'storage_type': storage_type,
+                'storage_config': storage_config,
+            },
+            status=ProxyTask.TaskStatus.PENDING,
         )
-        repo.last_connection_test = timezone.now()
-        repo.connection_test_result = 'Connection test successful (simulated)'
-        repo.status = Repository.STATUS_ACTIVE
-        repo.save()
+        
+        # Send command to SyncProxy via WebSocket
+        sent = ProxyService.send_test_storage_command(
+            proxy_id=str(repo.bound_node.id),
+            repository_id=str(repo.id),
+            storage_type=storage_type,
+            storage_config=storage_config,
+            test_write=True,
+            task_id=task_id,
+        )
+        
+        if not sent:
+            logger.error(
+                f"[Node Connection Test] Failed to send command to proxy {repo.bound_node.name}"
+            )
+            # Log audit for failed test
+            AuditService.log_repository_test_connection(
+                self.request,
+                repo,
+                result='failure',
+                error_message='Failed to send test command to proxy. Proxy may be offline.',
+                details=f'测试仓库连接失败: {repo.name} (Proxy离线)'
+            )
+            return Response({
+                'success': False,
+                'message': 'Failed to send test command to proxy. Proxy may be offline.',
+                'error_code': 'PROXY_UNREACHABLE',
+                'task_id': task_id,
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
+        # Log audit for test command sent
+        AuditService.log_repository_test_connection(
+            self.request,
+            repo,
+            result='success',
+            details=f'发送测试连接命令: {repo.name} -> {repo.bound_node.name} (task_id={task_id})'
+        )
         
         logger.info(
-            f"[Node Connection Test] SUCCESS (simulated) for repository '{repo.name}'"
+            f"[Node Connection Test] Command sent to proxy, task_id={task_id}"
         )
         
+        # Return immediately with task_id for async tracking
         return Response({
             'success': True,
-            'message': 'Connection test successful (simulated)',
+            'message': 'Connection test command sent to proxy',
+            'task_id': task_id,
+            'status': 'pending',
             'details': {
                 'node': repo.bound_node.name,
                 'repo_type': repo.repo_type,
-                'tested_at': repo.last_connection_test.isoformat()
+                'storage_type': storage_type,
             }
         })
     
@@ -648,7 +717,14 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         
         This creates the Kopia repository on the storage backend,
         setting up encryption and metadata structures.
+        
+        For NAS/Local repositories, the initialization is performed
+        by the bound SyncProxy node via WebSocket command.
         """
+        import uuid
+        from nodes.proxy_service import ProxyService
+        from nodes.models import ProxyTask
+        
         repo = self.get_object()
         
         if repo.kopia_initialized:
@@ -666,38 +742,110 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         serializer = RepositoryInitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        # In production, this would send a command to the Node
-        # to initialize the Kopia repository
-        try:
-            # TODO: Implement actual Kopia initialization via Node
-            
-            repo.status = Repository.STATUS_INITIALIZING
-            repo.save()
-            
-            # Simulate initialization
-            import uuid as uuid_lib
-            repo.kopia_initialized = True
-            repo.kopia_repository_id = str(uuid_lib.uuid4())
-            repo.status = Repository.STATUS_ACTIVE
-            repo.save()
-            
-            return Response({
-                'success': True,
-                'message': 'Repository initialized successfully',
-                'details': {
-                    'repository_id': repo.kopia_repository_id,
-                    'encryption_algorithm': repo.encryption_algorithm
-                }
+        password = serializer.validated_data.get('password')
+        
+        # Prepare repository configuration
+        repository_config = {
+            'type': repo.repo_type,
+            'path': repo.storage_path or '',
+        }
+        
+        # Add type-specific configuration
+        if repo.repo_type == Repository.TYPE_NAS:
+            config = repo.config or {}
+            repository_config.update({
+                'nas_server': config.get('nas_server', config.get('server', '')),
+                'nas_path': config.get('nas_path', config.get('path', '')),
+                'mount_type': config.get('mount_type', 'nfs'),
+                'mount_path': config.get('mount_path', ''),
             })
-        except Exception as e:
+        elif repo.repo_type == Repository.TYPE_S3:
+            config = repo.config or {}
+            repository_config.update({
+                'endpoint': config.get('endpoint', ''),
+                'bucket': config.get('bucket', ''),
+                'region': config.get('region', 'us-east-1'),
+                'access_key': config.get('access_key', ''),
+                'secret_key': config.get('secret_key', ''),
+                'prefix': config.get('prefix', ''),
+            })
+        
+        # Create task for tracking
+        task_id = str(uuid.uuid4())
+        
+        # Update repository status
+        repo.status = Repository.STATUS_INITIALIZING
+        repo.save()
+        
+        # Create ProxyTask record
+        ProxyTask.objects.create(
+            id=task_id,
+            proxy=repo.bound_node,
+            task_type='init_repository',
+            payload={
+                'repository_id': str(repo.id),
+                'repository_config': repository_config,
+            },
+            status=ProxyTask.TaskStatus.PENDING,
+        )
+        
+        # Send command to SyncProxy via WebSocket
+        sent = ProxyService.send_init_repository_command(
+            proxy_id=str(repo.bound_node.id),
+            repository_id=str(repo.id),
+            repository_config=repository_config,
+            password=password,
+            task_id=task_id,
+        )
+        
+        if not sent:
+            logger.error(
+                f"[Repository Initialize] Failed to send command to proxy {repo.bound_node.name}"
+            )
             repo.status = Repository.STATUS_ERROR
-            repo.status_message = str(e)
+            repo.status_message = 'Failed to send initialization command to proxy. Proxy may be offline.'
             repo.save()
+            
+            # Log audit for failed initialization
+            AuditService.log_repository_initialize(
+                request,
+                repo,
+                result='failure',
+                error_message='Failed to send initialization command to proxy. Proxy may be offline.',
+                details=f'初始化仓库失败: {repo.name} (Proxy离线)'
+            )
             
             return Response({
                 'success': False,
-                'message': f'Initialization failed: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'message': 'Failed to send initialization command to proxy. Proxy may be offline.',
+                'error_code': 'PROXY_UNREACHABLE',
+                'task_id': task_id,
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
+        # Log audit for initialization command sent
+        AuditService.log_repository_initialize(
+            request,
+            repo,
+            result='success',
+            details=f'发送初始化仓库命令: {repo.name} -> {repo.bound_node.name} (task_id={task_id})'
+        )
+        
+        logger.info(
+            f"[Repository Initialize] Command sent to proxy, task_id={task_id}"
+        )
+        
+        # Return immediately with task_id for async tracking
+        return Response({
+            'success': True,
+            'message': 'Initialization command sent to proxy',
+            'task_id': task_id,
+            'status': 'pending',
+            'details': {
+                'node': repo.bound_node.name,
+                'repo_type': repo.repo_type,
+                'repository_id': str(repo.id),
+            }
+        })
     
     @action(detail=True, methods=['post'])
     def bind_node(self, request, pk=None):
@@ -727,8 +875,12 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'message': f'Node is {node.get_status_display()}. Node must be active.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        old_node = repo.bound_node
         repo.bound_node = node
         repo.save()
+        
+        # Log audit
+        AuditService.log_repository_bind_node(request, repo, node, result='success')
         
         return Response({
             'success': True,
@@ -751,9 +903,13 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'message': 'No node is currently bound.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        old_node_name = repo.bound_node.name
+        old_node = repo.bound_node
+        old_node_name = old_node.name
         repo.bound_node = None
         repo.save()
+        
+        # Log audit
+        AuditService.log_repository_unbind_node(request, repo, old_node, result='success')
         
         return Response({
             'success': True,

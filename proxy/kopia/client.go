@@ -293,6 +293,82 @@ func (c *Client) parseSnapshotList(output string) ([]SnapshotInfo, error) {
 	return snapshots, nil
 }
 
+// CreateRepoResult represents repository creation result
+type CreateRepoResult struct {
+	RepositoryID string    `json:"repository_id"`
+	Path         string    `json:"path"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// CreateRepo creates a new Kopia repository
+// This initializes a new repository on the storage backend
+func (c *Client) CreateRepo(config map[string]interface{}, password string) (*CreateRepoResult, error) {
+	repoType, _ := config["type"].(string)
+
+	args := []string{"repository", "create"}
+
+	switch repoType {
+	case "filesystem", "":
+		args = append(args, "filesystem", "--path", getString(config, "path"))
+	case "s3":
+		args = append(args, "s3",
+			"--bucket", getString(config, "bucket"),
+			"--endpoint", getString(config, "endpoint"),
+		)
+		if ak := getString(config, "access_key"); ak != "" {
+			args = append(args, "--access-key-id", ak)
+		}
+		if sk := getString(config, "secret_key"); sk != "" {
+			args = append(args, "--secret-access-key", sk)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported repository type: %s", repoType)
+	}
+
+	if password != "" {
+		args = append(args, "--password", password)
+	}
+
+	// Add encryption algorithm if specified
+	if encryption := getString(config, "encryption"); encryption != "" {
+		args = append(args, "--encryption", encryption)
+	}
+
+	fmt.Printf("[INFO] Executing: kopia %s\n", strings.Join(args, " "))
+
+	cmd := exec.Command(c.path, args...)
+	cmd.Env = append(os.Environ(), "KOPIA_PASSWORD="+password)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("repository creation failed: %w - %s", err, string(output))
+	}
+
+	result := &CreateRepoResult{
+		CreatedAt: time.Now(),
+	}
+
+	// Extract repository ID from output
+	result.RepositoryID = c.parseRepositoryID(string(output))
+	result.Path = getString(config, "path")
+
+	return result, nil
+}
+
+// parseRepositoryID extracts repository ID from output
+func (c *Client) parseRepositoryID(output string) string {
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if strings.Contains(strings.ToLower(line), "repository") {
+			parts := strings.Fields(line)
+			if len(parts) >= 1 {
+				return parts[0]
+			}
+		}
+	}
+	return ""
+}
+
 func getString(m map[string]interface{}, key string) string {
 	if v, ok := m[key]; ok {
 		if s, ok := v.(string); ok {

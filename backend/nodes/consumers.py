@@ -97,6 +97,8 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 'mount_result': self.handle_mount_result,
                 'snapshot_list_result': self.handle_snapshot_list_result,
                 'test_connection_result': self.handle_test_connection_result,
+                'test_storage_result': self.handle_test_storage_result,
+                'init_repository_result': self.handle_init_repository_result,
             }
 
             handler = handlers.get(message_type)
@@ -275,6 +277,87 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         details = data.get('details', {})
 
         await self.update_connection_status(resource_type, resource_id, success, error, details)
+
+    async def handle_test_storage_result(self, data):
+        """
+        Handle storage test result from sync proxy.
+        
+        Expected data format:
+        {
+            'type': 'test_storage_result',
+            'task_id': 'uuid',
+            'success': True/False,
+            'result': {
+                'storage_type': 'nas/s3/local',
+                'repository_id': 'uuid',
+                'connectivity': {...},
+                'write_test': {...},
+                'space_info': {...}
+            },
+            'error': 'error message if failed',
+            'timestamp': 'iso timestamp'
+        }
+        """
+        task_id = data.get('task_id')
+        success = data.get('success', False)
+        result = data.get('result', {})
+        error = data.get('error')
+        repository_id = result.get('repository_id')
+
+        # Update repository connection test status
+        await self.update_storage_test_result(repository_id, task_id, success, result, error)
+
+        # Broadcast to task group for real-time UI updates
+        await self.channel_layer.group_send(
+            f'task_{task_id}',
+            {
+                'type': 'task_result',
+                'data': {
+                    'task_id': task_id,
+                    'task_type': 'test_storage',
+                    'success': success,
+                    'result': result,
+                    'error': error
+                }
+            }
+        )
+
+    async def handle_init_repository_result(self, data):
+        """
+        Handle repository initialization result from sync proxy.
+        
+        Expected data format:
+        {
+            'type': 'init_repository_result',
+            'task_id': 'uuid',
+            'repository_id': 'uuid',
+            'success': True/False,
+            'error': 'error message if failed',
+            'timestamp': 'iso timestamp'
+        }
+        """
+        task_id = data.get('task_id')
+        repository_id = data.get('repository_id')
+        success = data.get('success', False)
+        error = data.get('error')
+
+        # Update repository initialization status
+        await self.update_repository_init_result(repository_id, task_id, success, error)
+
+        # Broadcast to task group for real-time UI updates
+        await self.channel_layer.group_send(
+            f'task_{task_id}',
+            {
+                'type': 'task_result',
+                'data': {
+                    'task_id': task_id,
+                    'task_type': 'init_repository',
+                    'repository_id': repository_id,
+                    'success': success,
+                    'error': error
+                }
+            }
+        )
 
     # Send methods for group broadcasts
     async def proxy_message(self, event):
@@ -595,6 +678,100 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 resource.save()
             except SourceResource.DoesNotExist:
                 pass
+
+    @sync_to_async
+    def update_storage_test_result(self, repository_id, task_id, success, result, error):
+        """Update storage test result for repository."""
+        from repository.models import Repository
+        from .models import ProxyTask
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Update task status
+            task = ProxyTask.objects.filter(id=task_id).first()
+            if task:
+                if success:
+                    task.complete(result)
+                else:
+                    task.fail(error or 'Storage test failed')
+            
+            # Update repository status
+            if repository_id:
+                repo = Repository.objects.get(id=repository_id)
+                repo.last_connection_test = timezone.now()
+                
+                if success:
+                    repo.connection_test_result = 'Connection test successful'
+                    repo.status = Repository.STATUS_ACTIVE
+                    
+                    # Store connectivity details
+                    connectivity = result.get('connectivity', {})
+                    if connectivity:
+                        repo.connection_test_result = (
+                            f"Connected (response time: {connectivity.get('response_time', 0)}ms)"
+                        )
+                    
+                    # Store space info if available
+                    space_info = result.get('space_info', {})
+                    if space_info:
+                        repo.total_size = space_info.get('total_bytes', 0)
+                        repo.used_size = space_info.get('used_bytes', 0)
+                        repo.available_size = space_info.get('free_bytes', 0)
+                else:
+                    repo.connection_test_result = f"Connection test failed: {error}"
+                    repo.status = Repository.STATUS_ERROR
+                    repo.status_message = error
+                
+                repo.save()
+                logger.info(
+                    f"[Storage Test] Repository '{repo.name}' (ID: {repository_id}) - "
+                    f"success={success}, error={error}"
+                )
+        except Repository.DoesNotExist:
+            logger.warning(f"[Storage Test] Repository not found: {repository_id}")
+        except Exception as e:
+            logger.error(f"[Storage Test] Error updating result: {e}")
+
+    @sync_to_async
+    def update_repository_init_result(self, repository_id, task_id, success, error):
+        """Update repository initialization result."""
+        from repository.models import Repository
+        from .models import ProxyTask
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Update task status
+            task = ProxyTask.objects.filter(id=task_id).first()
+            if task:
+                if success:
+                    task.complete({'repository_id': repository_id})
+                else:
+                    task.fail(error or 'Repository initialization failed')
+            
+            # Update repository status
+            if repository_id:
+                repo = Repository.objects.get(id=repository_id)
+                
+                if success:
+                    repo.kopia_initialized = True
+                    repo.kopia_repository_id = repository_id
+                    repo.status = Repository.STATUS_ACTIVE
+                    repo.status_message = ''
+                else:
+                    repo.status = Repository.STATUS_ERROR
+                    repo.status_message = error or 'Repository initialization failed'
+                
+                repo.save()
+                logger.info(
+                    f"[Repository Init] Repository '{repo.name}' (ID: {repository_id}) - "
+                    f"success={success}, error={error}"
+                )
+        except Repository.DoesNotExist:
+            logger.warning(f"[Repository Init] Repository not found: {repository_id}")
+        except Exception as e:
+            logger.error(f"[Repository Init] Error updating result: {e}")
 
 
 class TaskConsumer(AsyncWebsocketConsumer):

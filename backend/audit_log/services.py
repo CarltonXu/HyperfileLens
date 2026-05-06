@@ -615,6 +615,79 @@ class AuditService:
             error_message=error_message
         )
     
+    @staticmethod
+    def log_repository_test_connection(request, repository, result='success', error_message='', details=None):
+        """记录仓库连接测试"""
+        details_str = details or f'测试仓库连接: {repository.name if repository else "Unknown"}'
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='repository',
+            resource_id=str(repository.id) if repository else '',
+            resource_name=repository.name if repository else '',
+            details=details_str,
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_repository_initialize(request, repository, result='success', error_message='', details=None):
+        """记录仓库初始化"""
+        details_str = details or f'初始化仓库: {repository.name if repository else "Unknown"}'
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='repository',
+            resource_id=str(repository.id) if repository else '',
+            resource_name=repository.name if repository else '',
+            details=details_str,
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_repository_bind_node(request, repository, node, result='success', error_message=''):
+        """记录仓库绑定节点"""
+        return audit_log(
+            request=request,
+            action='update',
+            resource_type='repository',
+            resource_id=str(repository.id) if repository else '',
+            resource_name=repository.name if repository else '',
+            details=f'绑定节点: {node.name if node else "Unknown"} -> {repository.name if repository else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_repository_unbind_node(request, repository, node, result='success', error_message=''):
+        """记录仓库解绑节点"""
+        return audit_log(
+            request=request,
+            action='update',
+            resource_type='repository',
+            resource_id=str(repository.id) if repository else '',
+            resource_name=repository.name if repository else '',
+            details=f'解绑节点: {node.name if node else "Unknown"} <-> {repository.name if repository else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_storage_test(request, proxy_id, storage_type, result='success', error_message='', details=None):
+        """记录存储测试"""
+        details_str = details or f'测试存储: 代理={proxy_id}, 类型={storage_type}'
+        return audit_log(
+            request=request,
+            action='execute',
+            resource_type='storage',
+            resource_id=proxy_id,
+            resource_name=f'{storage_type}-storage-test',
+            details=details_str,
+            result=result,
+            error_message=error_message
+        )
+    
     # ==================== 策略相关 ====================
     
     @staticmethod

@@ -2,6 +2,7 @@ package task
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -87,6 +88,10 @@ func (d *Dispatcher) HandleMessage(msg ws.Message) {
 		go d.listSnapshots(msg)
 	case "cancel":
 		go d.cancelTask(msg)
+	case "test_storage":
+		go d.executeTestStorage(msg)
+	case "init_repository":
+		go d.executeInitRepository(msg)
 	case "ping":
 		d.wsClient.Send(ws.Message{Type: "pong", ID: msg.ID})
 	case "connection_established":
@@ -381,4 +386,245 @@ func getMap(m map[string]interface{}, key string) map[string]interface{} {
 		}
 	}
 	return nil
+}
+
+// executeTestStorage executes a storage connectivity test (Sync Proxy only)
+func (d *Dispatcher) executeTestStorage(msg ws.Message) {
+	if !d.config.IsSyncProxy() {
+		d.sendError(msg.ID, "", "test_storage only available for Sync Proxy")
+		return
+	}
+
+	taskID := getString(msg.Payload, "task_id", msg.ID)
+	storageType := getString(msg.Payload, "storage_type", "nas") // nas, s3, local
+	testWrite := getBool(msg.Payload, "test_write", true)
+	repositoryID := getString(msg.Payload, "repository_id", "")
+
+	fmt.Printf("[INFO] Starting storage test: type=%s, task_id=%s\n", storageType, taskID)
+
+	// Send task start notification
+	d.wsClient.Send(ws.Message{
+		Type: "task_start",
+		ID:   msg.ID,
+		Payload: map[string]interface{}{
+			"task_id":   taskID,
+			"task_type": "test_storage",
+			"timestamp": time.Now(),
+		},
+	})
+
+	result := map[string]interface{}{
+		"storage_type":  storageType,
+		"repository_id": repositoryID,
+		"success":       false,
+	}
+
+	switch storageType {
+	case "nas", "nfs":
+		// Test NAS/NFS connectivity
+		server := getString(msg.Payload, "server", "")
+		path := getString(msg.Payload, "path", "")
+		mountType := getString(msg.Payload, "mount_type", "nfs") // nfs or smb
+
+		if server == "" {
+			d.sendStorageTestResult(msg.ID, taskID, result, "server is required")
+			return
+		}
+
+		// Test connectivity
+		var connResult *mount.ConnectivityResult
+		if mountType == "smb" {
+			connResult = mount.TestSMBConnectivity(server)
+		} else {
+			connResult = mount.TestNFSConnectivity(server)
+		}
+
+		result["connectivity"] = map[string]interface{}{
+			"reachable":     connResult.Reachable,
+			"response_time": connResult.ResponseTime,
+			"error":         connResult.Error,
+		}
+
+		if !connResult.Reachable {
+			d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("connectivity test failed: %s", connResult.Error))
+			return
+		}
+
+		// Test write if mount_path provided
+		if testWrite {
+			mountPath := getString(msg.Payload, "mount_path", "")
+			if mountPath != "" {
+				writeResult := mount.TestWriteSimple(mountPath)
+				result["write_test"] = map[string]interface{}{
+					"writable":    writeResult.Writable,
+					"write_speed": writeResult.WriteSpeed,
+					"read_speed":  writeResult.ReadSpeed,
+					"error":       writeResult.Error,
+				}
+
+				// Get space info
+				total, used, free, err := mount.GetMountSpaceInfo(mountPath)
+				if err == nil {
+					result["space_info"] = map[string]interface{}{
+						"total_bytes": total,
+						"used_bytes":  used,
+						"free_bytes":  free,
+					}
+				}
+			}
+		}
+
+		result["success"] = true
+		d.sendStorageTestResult(msg.ID, taskID, result, "")
+
+	case "s3":
+		// Test S3 connectivity (using kopia's built-in S3 support)
+		// S3 connectivity test is handled by the backend directly via boto3
+		// This is for cases where Sync Proxy needs to test S3 access
+		result["success"] = true
+		result["message"] = "S3 connectivity test should be performed by control plane"
+		d.sendStorageTestResult(msg.ID, taskID, result, "")
+
+	case "local":
+		// Test local filesystem
+		path := getString(msg.Payload, "path", "")
+		if path == "" {
+			d.sendStorageTestResult(msg.ID, taskID, result, "path is required for local storage test")
+			return
+		}
+
+		// Check if path exists and is accessible
+		if _, err := os.Stat(path); err != nil {
+			d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("path not accessible: %v", err))
+			return
+		}
+
+		// Test write
+		if testWrite {
+			writeResult := mount.TestWriteSimple(path)
+			result["write_test"] = map[string]interface{}{
+				"writable":    writeResult.Writable,
+				"write_speed": writeResult.WriteSpeed,
+				"read_speed":  writeResult.ReadSpeed,
+				"error":       writeResult.Error,
+			}
+		}
+
+		// Get space info
+		total, used, free, err := mount.GetMountSpaceInfo(path)
+		if err == nil {
+			result["space_info"] = map[string]interface{}{
+				"total_bytes": total,
+				"used_bytes":  used,
+				"free_bytes":  free,
+			}
+		}
+
+		result["success"] = true
+		d.sendStorageTestResult(msg.ID, taskID, result, "")
+
+	default:
+		d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("unsupported storage type: %s", storageType))
+	}
+}
+
+// sendStorageTestResult sends storage test result to server
+func (d *Dispatcher) sendStorageTestResult(msgID, taskID string, result map[string]interface{}, errMsg string) {
+	if errMsg != "" {
+		result["error"] = errMsg
+		d.wsClient.Send(ws.Message{
+			Type: "test_storage_result",
+			ID:   msgID,
+			Payload: map[string]interface{}{
+				"task_id":    taskID,
+				"success":    false,
+				"error":      errMsg,
+				"result":     result,
+				"timestamp":  time.Now(),
+			},
+		})
+	} else {
+		d.wsClient.Send(ws.Message{
+			Type: "test_storage_result",
+			ID:   msgID,
+			Payload: map[string]interface{}{
+				"task_id":   taskID,
+				"success":   true,
+				"result":    result,
+				"timestamp": time.Now(),
+			},
+		})
+	}
+}
+
+// executeInitRepository initializes a new Kopia repository (Sync Proxy only)
+func (d *Dispatcher) executeInitRepository(msg ws.Message) {
+	if !d.config.IsSyncProxy() {
+		d.sendError(msg.ID, "", "init_repository only available for Sync Proxy")
+		return
+	}
+
+	taskID := getString(msg.Payload, "task_id", msg.ID)
+	repositoryID := getString(msg.Payload, "repository_id", "")
+	repoConfig := getMap(msg.Payload, "repository")
+	password := getString(msg.Payload, "password", "")
+
+	fmt.Printf("[INFO] Starting repository initialization: repo_id=%s, task_id=%s\n", repositoryID, taskID)
+
+	// Send task start notification
+	d.wsClient.Send(ws.Message{
+		Type: "task_start",
+		ID:   msg.ID,
+		Payload: map[string]interface{}{
+			"task_id":       taskID,
+			"task_type":     "init_repository",
+			"repository_id": repositoryID,
+			"timestamp":     time.Now(),
+		},
+	})
+
+	if len(repoConfig) == 0 {
+		d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, "repository config is required")
+		return
+	}
+
+	// Execute repository creation
+	result, err := d.kopia.CreateRepo(repoConfig, password)
+	if err != nil {
+		d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, err.Error())
+		return
+	}
+
+	d.sendRepoInitResult(msg.ID, taskID, repositoryID, result, "")
+}
+
+// sendRepoInitResult sends repository initialization result to server
+func (d *Dispatcher) sendRepoInitResult(msgID, taskID, repositoryID string, result *kopia.CreateRepoResult, errMsg string) {
+	if errMsg != "" {
+		d.wsClient.Send(ws.Message{
+			Type: "init_repository_result",
+			ID:   msgID,
+			Payload: map[string]interface{}{
+				"task_id":       taskID,
+				"repository_id": repositoryID,
+				"success":       false,
+				"error":         errMsg,
+				"timestamp":     time.Now(),
+			},
+		})
+	} else {
+		d.wsClient.Send(ws.Message{
+			Type: "init_repository_result",
+			ID:   msgID,
+			Payload: map[string]interface{}{
+				"task_id":       taskID,
+				"repository_id": repositoryID,
+				"success":       true,
+				"repository_id": result.RepositoryID,
+				"path":          result.Path,
+				"created_at":    result.CreatedAt,
+				"timestamp":     time.Now(),
+			},
+		})
+	}
 }
