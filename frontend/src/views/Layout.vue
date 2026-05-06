@@ -31,6 +31,7 @@ import {
   ExclamationTriangleIcon,
   CloudIcon,
   StarIcon,
+  XMarkIcon,
   // AI Insights 三级菜单图标
   ChartBarIcon,
   MagnifyingGlassIcon,
@@ -909,23 +910,35 @@ onUnmounted(() => {
           <!-- Center - Favorites Bar -->
           <div class="flex items-center justify-center flex-1">
             <div v-if="favoritesStore.favorites.length > 0" class="flex items-center gap-1">
-              <router-link
+              <div
                 v-for="fav in favoritesStore.favorites"
                 :key="fav.id"
-                :to="fav.path"
-                :class="[
-                  'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
-                  route.path === fav.path
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                ]"
+                class="relative group/fav"
               >
-                <component
-                  :is="getIconComponent(fav.icon)"
-                  class="w-4 h-4"
-                />
-                <span>{{ fav.name }}</span>
-              </router-link>
+                <router-link
+                  :to="fav.path"
+                  :class="[
+                    'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors pr-8',
+                    route.path === fav.path
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  ]"
+                >
+                  <component
+                    :is="getIconComponent(fav.icon)"
+                    class="w-4 h-4"
+                  />
+                  <span>{{ fav.name }}</span>
+                </router-link>
+                <!-- Remove Favorite Button -->
+                <button
+                  @click.prevent="favoritesStore.removeFavorite(fav.id)"
+                  class="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full opacity-0 group-hover/fav:opacity-100 transition-opacity text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                  :title="$t('favorites.remove')"
+                >
+                  <XMarkIcon class="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
             <div v-else class="text-sm text-slate-400 dark:text-slate-500">
               {{ t('favorites.emptyHint') }}
