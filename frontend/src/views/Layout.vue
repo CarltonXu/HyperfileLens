@@ -16,16 +16,20 @@ import {
   Cog6ToothIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronDownIcon,
   ArrowRightStartOnRectangleIcon,
   LanguageIcon,
   ComputerDesktopIcon,
-  Bars3Icon,
   UserCircleIcon,
   BuildingOffice2Icon,
   KeyIcon,
   UsersIcon,
   SunIcon,
-  MoonIcon
+  MoonIcon,
+  MagnifyingGlassIcon,
+  ShieldCheckIcon,
+  ChartBarIcon,
+  ChatBubbleLeftRightIcon
 } from '@heroicons/vue/24/outline'
 import {
   HomeIcon as HomeIconSolid,
@@ -52,6 +56,25 @@ const isUserMenuOpen = ref(false)
 const isLangMenuOpen = ref(false)
 const hoverItem = ref<string | null>(null)
 const tooltipPosition = ref({ top: 0, show: false, text: '' })
+const expandedGroups = ref<string[]>(['overview', 'data-protection', 'ai-insights'])
+
+// 菜单项类型定义
+interface MenuItem {
+  name: string
+  path: string
+  icon: any
+  iconSolid?: any
+  current: boolean
+  requiresSuperuser?: boolean
+  requiresTenantAdmin?: boolean
+}
+
+interface NavigationGroup {
+  id: string
+  title: string
+  items: MenuItem[]
+  subItems?: MenuItem[]
+}
 
 // 欢迎弹窗
 const showWelcome = ref(false)
@@ -75,7 +98,6 @@ const showWelcomeToast = () => {
   setTimeout(() => {
     welcomeVisible.value = true
   }, 50)
-  // 5秒后自动关闭
   setTimeout(() => {
     closeWelcome()
   }, 5000)
@@ -89,117 +111,193 @@ const closeWelcome = () => {
   }, 300)
 }
 
-// Navigation items with icons
-const navigation = computed(() => {
-  const items = [
+// 切换分组展开状态
+const toggleGroup = (groupId: string) => {
+  if (isCollapsed.value) return
+  const index = expandedGroups.value.indexOf(groupId)
+  if (index > -1) {
+    expandedGroups.value.splice(index, 1)
+  } else {
+    expandedGroups.value.push(groupId)
+  }
+}
+
+// 检查分组是否展开
+const isGroupExpanded = (groupId: string) => {
+  return expandedGroups.value.includes(groupId)
+}
+
+// 导航分组
+const navigationGroups = computed<NavigationGroup[]>(() => {
+  const groups = [
     {
-      name: t('nav.dashboard'),
-      path: '/',
-      icon: HomeIcon,
-      iconSolid: HomeIconSolid,
-      current: route.path === '/'
+      id: 'overview',
+      title: t('navGroups.overview'),
+      items: [
+        {
+          name: t('nav.dashboard'),
+          path: '/',
+          icon: HomeIcon,
+          iconSolid: HomeIconSolid,
+          current: route.path === '/'
+        }
+      ]
     },
     {
-      name: t('nav.proxies'),
-      path: '/proxies',
-      icon: ServerIcon,
-      iconSolid: ServerIconSolid,
-      current: route.path.startsWith('/proxies')
+      id: 'data-protection',
+      title: t('navGroups.dataProtection'),
+      items: [
+        {
+          name: t('nav.proxies'),
+          path: '/proxies',
+          icon: ServerIcon,
+          iconSolid: ServerIconSolid,
+          current: route.path.startsWith('/proxies')
+        },
+        {
+          name: t('nav.backupTasks'),
+          path: '/backup-tasks',
+          icon: CloudArrowUpIcon,
+          iconSolid: CloudArrowUpIconSolid,
+          current: route.path === '/backup-tasks'
+        },
+        {
+          name: t('nav.recoveryTasks'),
+          path: '/recovery-tasks',
+          icon: ArrowUturnLeftIcon,
+          iconSolid: ArrowUturnLeftIconSolid,
+          current: route.path === '/recovery-tasks'
+        }
+      ]
     },
     {
-      name: t('nav.backupTasks'),
-      path: '/backup-tasks',
-      icon: CloudArrowUpIcon,
-      iconSolid: CloudArrowUpIconSolid,
-      current: route.path === '/backup-tasks'
+      id: 'storage',
+      title: t('navGroups.storage'),
+      items: [
+        {
+          name: t('nav.repository'),
+          path: '/repository',
+          icon: CircleStackIcon,
+          iconSolid: CircleStackIconSolid,
+          current: route.path === '/repository'
+        },
+        {
+          name: t('nav.sourceResources'),
+          path: '/source-resources',
+          icon: ComputerDesktopIcon,
+          iconSolid: ComputerDesktopIcon,
+          current: route.path === '/source-resources'
+        },
+        {
+          name: t('nav.policies'),
+          path: '/policies',
+          icon: ClockIcon,
+          iconSolid: ClockIconSolid,
+          current: route.path === '/policies'
+        }
+      ]
     },
     {
-      name: t('nav.recoveryTasks'),
-      path: '/recovery-tasks',
-      icon: ArrowUturnLeftIcon,
-      iconSolid: ArrowUturnLeftIconSolid,
-      current: route.path === '/recovery-tasks'
+      id: 'ai-insights',
+      title: t('navGroups.aiInsights'),
+      items: [
+        {
+          name: t('nav.aiInsights'),
+          path: '/ai-insights',
+          icon: SparklesIcon,
+          iconSolid: SparklesIconSolid,
+          current: route.path === '/ai-insights'
+        }
+      ],
+      subItems: [
+        {
+          name: t('aiInsights.nav.overview'),
+          path: '/ai-insights?tab=overview',
+          icon: ChartBarIcon,
+          current: route.path === '/ai-insights' && route.query.tab === 'overview'
+        },
+        {
+          name: t('aiInsights.nav.smartSearch'),
+          path: '/ai-insights?tab=search',
+          icon: MagnifyingGlassIcon,
+          current: route.path === '/ai-insights' && route.query.tab === 'search'
+        },
+        {
+          name: t('aiInsights.nav.sensitiveData'),
+          path: '/ai-insights?tab=sensitive',
+          icon: ShieldCheckIcon,
+          current: route.path === '/ai-insights' && route.query.tab === 'sensitive'
+        },
+        {
+          name: t('aiInsights.nav.aiChat'),
+          path: '/ai-insights?tab=chat',
+          icon: ChatBubbleLeftRightIcon,
+          current: route.path === '/ai-insights' && route.query.tab === 'chat'
+        }
+      ]
     },
     {
-      name: t('nav.repository'),
-      path: '/repository',
-      icon: CircleStackIcon,
-      iconSolid: CircleStackIconSolid,
-      current: route.path === '/repository'
-    },
-    {
-      name: t('nav.sourceResources'),
-      path: '/source-resources',
-      icon: ComputerDesktopIcon,
-      iconSolid: ComputerDesktopIcon,
-      current: route.path === '/source-resources'
-    },
-    {
-      name: t('nav.policies'),
-      path: '/policies',
-      icon: ClockIcon,
-      iconSolid: ClockIconSolid,
-      current: route.path === '/policies'
-    },
-    {
-      name: t('nav.aiInsights'),
-      path: '/ai-insights',
-      icon: SparklesIcon,
-      iconSolid: SparklesIconSolid,
-      current: route.path === '/ai-insights'
-    },
-    {
-      name: t('nav.auditLog'),
-      path: '/audit-log',
-      icon: ClipboardDocumentListIcon,
-      iconSolid: ClipboardDocumentListIconSolid,
-      current: route.path === '/audit-log'
-    },
-    {
-      name: t('nav.tenants'),
-      path: '/tenants',
-      icon: BuildingOffice2Icon,
-      iconSolid: BuildingOffice2IconSolid,
-      current: route.path === '/tenants',
-      requiresSuperuser: true
-    },
-    {
-      name: t('nav.users'),
-      path: '/users',
-      icon: UsersIcon,
-      iconSolid: UsersIconSolid,
-      current: route.path === '/users',
-      requiresTenantAdmin: true
-    },
-    {
-      name: t('nav.licenses'),
-      path: '/licenses',
-      icon: KeyIcon,
-      iconSolid: KeyIconSolid,
-      current: route.path === '/licenses'
-    },
-    {
-      name: t('nav.settings'),
-      path: '/settings',
-      icon: Cog6ToothIcon,
-      iconSolid: Cog6ToothIconSolid,
-      current: route.path === '/settings'
+      id: 'system',
+      title: t('navGroups.system'),
+      items: [
+        {
+          name: t('nav.auditLog'),
+          path: '/audit-log',
+          icon: ClipboardDocumentListIcon,
+          iconSolid: ClipboardDocumentListIconSolid,
+          current: route.path === '/audit-log'
+        },
+        {
+          name: t('nav.tenants'),
+          path: '/tenants',
+          icon: BuildingOffice2Icon,
+          iconSolid: BuildingOffice2IconSolid,
+          current: route.path === '/tenants',
+          requiresSuperuser: true
+        },
+        {
+          name: t('nav.users'),
+          path: '/users',
+          icon: UsersIcon,
+          iconSolid: UsersIconSolid,
+          current: route.path === '/users',
+          requiresTenantAdmin: true
+        },
+        {
+          name: t('nav.licenses'),
+          path: '/licenses',
+          icon: KeyIcon,
+          iconSolid: KeyIconSolid,
+          current: route.path === '/licenses'
+        },
+        {
+          name: t('nav.settings'),
+          path: '/settings',
+          icon: Cog6ToothIcon,
+          iconSolid: Cog6ToothIconSolid,
+          current: route.path === '/settings'
+        }
+      ]
     }
   ]
 
-  return items.filter(item => {
-    if (item.requiresSuperuser && !authStore.user?.is_superuser) {
-      return false
-    }
-    if (item.requiresTenantAdmin) {
-      const isSuperuser = authStore.user?.is_superuser
-      const role = authStore.user?.tenant_role
-      if (!isSuperuser && role !== 'admin') {
+  // 过滤权限
+  return (groups as NavigationGroup[]).map(group => ({
+    ...group,
+    items: group.items.filter(item => {
+      if (item.requiresSuperuser && !authStore.user?.is_superuser) {
         return false
       }
-    }
-    return true
-  })
+      if (item.requiresTenantAdmin) {
+        const isSuperuser = authStore.user?.is_superuser
+        const role = authStore.user?.tenant_role
+        if (!isSuperuser && role !== 'admin') {
+          return false
+        }
+      }
+      return true
+    })
+  })).filter(group => group.items.length > 0)
 })
 
 function toggleSidebar() {
@@ -251,26 +349,16 @@ function handleMouseLeave() {
   tooltipPosition.value.show = false
 }
 
-function handleClickOutside(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  if (!target.closest('.user-menu') && !target.closest('.lang-menu')) {
-    isUserMenuOpen.value = false
-    isLangMenuOpen.value = false
-  }
-}
-
+// 处理欢迎弹窗
 onMounted(() => {
-  const savedCollapsed = localStorage.getItem('sidebarCollapsed')
-  if (savedCollapsed !== null) {
-    isCollapsed.value = savedCollapsed === 'true'
+  const collapsed = localStorage.getItem('sidebarCollapsed')
+  if (collapsed === 'true') {
+    isCollapsed.value = true
   }
-  document.addEventListener('click', handleClickOutside)
   
-  // 检查是否需要显示欢迎弹窗（登录后首次进入）
-  const showWelcomeFlag = sessionStorage.getItem('showWelcome')
-  if (showWelcomeFlag === 'true') {
+  // 显示欢迎弹窗
+  if (sessionStorage.getItem('showWelcome') === 'true') {
     sessionStorage.removeItem('showWelcome')
-    // 延迟显示，让页面完全加载
     setTimeout(() => {
       showWelcomeToast()
     }, 500)
@@ -278,335 +366,289 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('click', () => {})
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
-    <!-- Top Header Bar -->
-    <header class="fixed top-0 left-0 right-0 h-14 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm z-40 flex items-center justify-between px-4">
-      <!-- Left: Logo & Toggle -->
-      <div class="flex items-center gap-3">
+  <div class="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <!-- Sidebar -->
+    <aside
+      :class="[
+        'fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out',
+        'bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700',
+        isCollapsed ? 'w-16' : 'w-64'
+      ]"
+    >
+      <!-- Logo -->
+      <div class="flex items-center justify-between h-16 px-4 border-b border-slate-200 dark:border-slate-700">
+        <div class="flex items-center gap-2" v-if="!isCollapsed">
+          <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <CloudArrowUpIcon class="w-5 h-5 text-white" />
+          </div>
+          <span class="font-bold text-slate-900 dark:text-white text-lg">HyperFileLens</span>
+        </div>
+        <div v-else class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center mx-auto">
+          <CloudArrowUpIcon class="w-5 h-5 text-white" />
+        </div>
         <button
           @click="toggleSidebar"
-          class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors lg:hidden"
+          class="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700"
         >
-          <Bars3Icon class="w-5 h-5" />
+          <ChevronLeftIcon v-if="!isCollapsed" class="w-4 h-4" />
+          <ChevronRightIcon v-else class="w-4 h-4" />
         </button>
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
-            <ComputerDesktopIcon class="w-4 h-4 text-white" />
+      </div>
+
+      <!-- Navigation -->
+      <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
+        <template v-for="group in navigationGroups" :key="group.id">
+          <!-- Group Header -->
+          <div
+            v-if="!isCollapsed"
+            @click="toggleGroup(group.id)"
+            class="flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-500 dark:hover:text-slate-400"
+          >
+            <span>{{ group.title }}</span>
+            <ChevronDownIcon
+              :class="[
+                'w-4 h-4 transition-transform duration-200',
+                isGroupExpanded(group.id) ? 'rotate-0' : '-rotate-90'
+              ]"
+            />
           </div>
-          <span class="font-semibold text-slate-800 dark:text-white text-sm hidden sm:block">HyperFileLens</span>
-        </div>
-      </div>
 
-      <!-- Right: Theme, Language Switcher & User Menu -->
-      <div class="flex items-center gap-1">
-        <!-- Theme Switcher -->
-        <ThemeSwitcher />
-
-        <!-- Language Switcher -->
-        <div class="relative lang-menu">
-          <button
-            @click="toggleLangMenu"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors"
-          >
-            <LanguageIcon class="w-4 h-4" />
-            <span class="text-sm font-medium">
-              {{ locale === 'zh-CN' ? '中文' : 'EN' }}
-            </span>
-          </button>
-
-          <!-- Language Dropdown -->
-          <Transition name="dropdown">
-            <div
-              v-if="isLangMenuOpen"
-              class="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-50 w-32"
+          <!-- Group Items -->
+          <div v-show="isCollapsed || isGroupExpanded(group.id)" class="space-y-0.5">
+            <router-link
+              v-for="item in group.items"
+              :key="item.path"
+              :to="item.path"
+              @mouseenter="handleMouseEnter(item, $event)"
+              @mouseleave="handleMouseLeave"
+              :class="[
+                'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                item.current
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              ]"
             >
-              <button
-                @click="setLocale('en')"
+              <component
+                :is="item.current ? item.iconSolid : item.icon"
                 :class="[
-                  'flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 first:rounded-t-lg',
-                  locale === 'en' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : ''
+                  'w-5 h-5 flex-shrink-0',
+                  item.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
                 ]"
-              >
-                <span class="w-6 text-center">EN</span>
-                <span>English</span>
-              </button>
-              <button
-                @click="setLocale('zh-CN')"
-                :class="[
-                  'flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 last:rounded-b-lg',
-                  locale === 'zh-CN' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : ''
-                ]"
-              >
-                <span class="w-6 text-center">中</span>
-                <span>中文</span>
-              </button>
-            </div>
-          </Transition>
-        </div>
+              />
+              <span v-if="!isCollapsed">{{ item.name }}</span>
+            </router-link>
 
-        <!-- User Menu -->
-        <div class="relative user-menu">
-          <button
-            @click="toggleUserMenu"
-            :class="[
-              'flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors',
-              isUserMenuOpen ? 'bg-slate-100 dark:bg-slate-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700'
-            ]"
-          >
-            <div class="w-7 h-7 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center shadow-sm">
-              <span class="text-xs font-medium text-white">
-                {{ authStore.user?.email?.[0]?.toUpperCase() || 'U' }}
-              </span>
-            </div>
-            <div class="text-left hidden sm:block">
-              <p class="text-sm font-medium text-slate-800 dark:text-white">
-                {{ authStore.userFullName }}
-              </p>
-            </div>
-          </button>
-
-          <!-- User Dropdown -->
-          <Transition name="dropdown">
-            <div
-              v-if="isUserMenuOpen"
-              class="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-50 w-56"
-            >
-              <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-700">
-                <p class="text-sm font-medium text-slate-800 dark:text-white truncate">{{ authStore.userFullName }}</p>
-                <p class="text-xs text-slate-400 truncate">{{ authStore.user?.email }}</p>
-                <p class="text-xs text-slate-400 truncate">{{ authStore.user?.role?.name || 'User' }}</p>
-              </div>
-              <div class="py-1 border-b border-slate-100 dark:border-slate-700">
-                <button
-                  @click="openProfile"
-                  class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-                >
-                  <UserCircleIcon class="w-4 h-4" />
-                  <span>{{ t('settings.profile.title') }}</span>
-                </button>
-              </div>
-              <button
-                @click="handleLogout"
-                class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-b-lg"
-              >
-                <ArrowRightStartOnRectangleIcon class="w-4 h-4" />
-                <span>{{ t('nav.logout') }}</span>
-              </button>
-            </div>
-          </Transition>
-        </div>
-      </div>
-    </header>
-
-    <!-- Main Layout: Sidebar + Content -->
-    <div class="flex flex-1 pt-14">
-      <!-- Left Sidebar -->
-      <aside
-        :class="[
-          'fixed left-0 top-14 h-[calc(100vh-3.5rem)] bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 shadow-lg z-30 transition-all duration-300 ease-in-out flex flex-col',
-          isCollapsed ? 'w-16' : 'w-64'
-        ]"
-      >
-        <!-- Navigation -->
-        <nav class="flex-1 py-4 overflow-y-auto">
-          <ul class="space-y-1 px-2">
-            <li v-for="item in navigation" :key="item.path">
+            <!-- Sub Items (for AI Insights) -->
+            <div v-if="group.subItems && group.subItems.length > 0 && !isCollapsed && isGroupExpanded(group.id)" class="ml-8 mt-1 space-y-0.5">
               <router-link
-                :to="item.path"
+                v-for="subItem in group.subItems"
+                :key="subItem.path"
+                :to="subItem.path"
                 :class="[
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative group',
-                  item.current
-                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
+                  'group flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                  subItem.current
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300'
                 ]"
-                @mouseenter="(e) => handleMouseEnter(item, e)"
-                @mouseleave="handleMouseLeave"
               >
                 <component
-                  :is="item.current ? item.iconSolid : item.icon"
+                  :is="subItem.icon"
                   :class="[
-                    'w-5 h-5 flex-shrink-0 transition-colors',
-                    item.current ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
+                    'w-4 h-4 flex-shrink-0',
+                    subItem.current ? 'text-blue-500' : 'text-slate-400 group-hover:text-slate-500'
                   ]"
                 />
-                <Transition name="fade">
-                  <span v-if="!isCollapsed" class="text-sm font-medium truncate">
-                    {{ item.name }}
-                  </span>
-                </Transition>
-                
-                <!-- Active indicator -->
-                <div
-                  v-if="item.current"
-                  class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 dark:bg-indigo-400 rounded-r-full"
-                />
+                <span>{{ subItem.name }}</span>
               </router-link>
-            </li>
-          </ul>
-        </nav>
+            </div>
+          </div>
 
-        <!-- Collapse Button -->
-        <div class="border-t border-slate-100 dark:border-slate-700 p-2">
-          <button
-            @click="toggleSidebar"
-            class="flex items-center justify-center w-full px-3 py-2.5 rounded-lg text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-          >
-            <component
-              :is="isCollapsed ? ChevronRightIcon : ChevronLeftIcon"
-              class="w-5 h-5"
-            />
-          </button>
-        </div>
-      </aside>
+          <!-- Divider -->
+          <div v-if="!isCollapsed && group.id !== 'system'" class="my-3 border-t border-slate-200 dark:border-slate-700"></div>
+        </template>
+      </nav>
 
-      <!-- Main Content Area -->
-      <main
-        :class="[
-          'flex-1 transition-all duration-300 ease-in-out',
-          isCollapsed ? 'ml-16' : 'ml-64'
-        ]"
+      <!-- Tooltip for collapsed sidebar -->
+      <Transition
+        enter-active-class="transition ease-out duration-100"
+        enter-from-class="opacity-0 translate-x-2"
+        enter-to-class="opacity-100 translate-x-0"
+        leave-active-class="transition ease-in duration-75"
+        leave-from-class="opacity-100 translate-x-0"
+        leave-to-class="opacity-0 translate-x-2"
       >
-        <div class="p-6 lg:p-8">
-          <router-view />
+        <div
+          v-if="tooltipPosition.show"
+          class="fixed left-20 z-50 px-3 py-1.5 text-sm font-medium text-white bg-slate-800 dark:bg-slate-700 rounded-lg shadow-lg whitespace-nowrap"
+          :style="{ top: tooltipPosition.top + 'px', transform: 'translateY(-50%)' }"
+        >
+          {{ tooltipPosition.text }}
         </div>
+      </Transition>
+    </aside>
+
+    <!-- Main Content -->
+    <div
+      :class="[
+        'transition-all duration-300',
+        isCollapsed ? 'ml-16' : 'ml-64'
+      ]"
+    >
+      <!-- Header -->
+      <header class="sticky top-0 z-30 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+        <div class="flex items-center justify-between h-16 px-6">
+          <div class="flex items-center gap-4">
+            <h1 class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ $route.meta.title || 'HyperFileLens' }}
+            </h1>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <!-- Theme Switcher -->
+            <ThemeSwitcher />
+
+            <!-- Language Switcher -->
+            <div class="relative">
+              <button
+                @click="toggleLangMenu"
+                class="flex items-center gap-2 p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <LanguageIcon class="w-5 h-5" />
+                <span class="text-sm">{{ locale === 'zh-CN' ? '中文' : 'EN' }}</span>
+              </button>
+              <Transition
+                enter-active-class="transition ease-out duration-100"
+                enter-from-class="opacity-0 scale-95"
+                enter-to-class="opacity-100 scale-100"
+                leave-active-class="transition ease-in duration-75"
+                leave-from-class="opacity-100 scale-100"
+                leave-to-class="opacity-0 scale-95"
+              >
+                <div
+                  v-if="isLangMenuOpen"
+                  class="absolute right-0 mt-2 w-32 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1"
+                >
+                  <button
+                    @click="setLocale('zh-CN')"
+                    :class="[
+                      'w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700',
+                      locale === 'zh-CN' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-slate-700 dark:text-slate-300'
+                    ]"
+                  >
+                    中文
+                  </button>
+                  <button
+                    @click="setLocale('en')"
+                    :class="[
+                      'w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700',
+                      locale === 'en' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-slate-700 dark:text-slate-300'
+                    ]"
+                  >
+                    English
+                  </button>
+                </div>
+              </Transition>
+            </div>
+
+            <!-- User Menu -->
+            <div class="relative">
+              <button
+                @click="toggleUserMenu"
+                class="flex items-center gap-2 p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <UserCircleIcon class="w-6 h-6" />
+                <span class="text-sm font-medium">{{ authStore.user?.full_name || authStore.user?.email }}</span>
+              </button>
+              <Transition
+                enter-active-class="transition ease-out duration-100"
+                enter-from-class="opacity-0 scale-95"
+                enter-to-class="opacity-100 scale-100"
+                leave-active-class="transition ease-in duration-75"
+                leave-from-class="opacity-100 scale-100"
+                leave-to-class="opacity-0 scale-95"
+              >
+                <div
+                  v-if="isUserMenuOpen"
+                  class="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1"
+                >
+                  <button
+                    @click="openProfile"
+                    class="w-full px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                  >
+                    <Cog6ToothIcon class="w-4 h-4" />
+                    {{ t('nav.settings') }}
+                  </button>
+                  <hr class="my-1 border-slate-200 dark:border-slate-700" />
+                  <button
+                    @click="handleLogout"
+                    class="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                  >
+                    <ArrowRightStartOnRectangleIcon class="w-4 h-4" />
+                    {{ t('common.logout') }}
+                  </button>
+                </div>
+              </Transition>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <main class="p-6">
+        <router-view />
       </main>
     </div>
 
-    <!-- Welcome Toast -->
-    <Transition name="welcome">
+    <!-- Welcome Popup -->
+    <Transition
+      enter-active-class="transition ease-out duration-300"
+      enter-from-class="opacity-0 translate-x-full"
+      enter-to-class="opacity-100 translate-x-0"
+      leave-active-class="transition ease-in duration-200"
+      leave-from-class="opacity-100 translate-x-0"
+      leave-to-class="opacity-0 translate-x-full"
+    >
       <div
         v-if="showWelcome"
-        :class="[
-          'fixed top-20 right-6 z-[9999] transition-all duration-300',
-          welcomeVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
-        ]"
+        v-show="welcomeVisible"
+        class="fixed top-20 right-6 z-50 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
       >
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 max-w-sm">
-          <div class="flex items-start gap-3">
-            <!-- Avatar -->
-            <div class="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
-              <span class="text-sm font-semibold text-white">
-                {{ authStore.user?.email?.[0]?.toUpperCase() || 'U' }}
-              </span>
+        <div class="bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <component :is="getGreeting().icon" :class="['w-5 h-5', getGreeting().color]" />
+              <span class="text-white font-medium">{{ getGreeting().text }}</span>
             </div>
-            <!-- Content -->
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold text-slate-800 dark:text-white">
-                {{ authStore.userFullName }}
-              </p>
-              <div class="flex items-center gap-1.5 mt-1">
-                <component
-                  :is="getGreeting().icon"
-                  :class="['w-4 h-4', getGreeting().color]"
-                />
-                <span class="text-sm text-slate-500 dark:text-slate-400">
-                  {{ getGreeting().text }}
-                </span>
-              </div>
-              <p class="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                {{ t('welcome.subtitle') }}
-              </p>
-            </div>
-            <!-- Close Button -->
             <button
               @click="closeWelcome"
-              class="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              class="text-white/80 hover:text-white"
             >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
         </div>
+        <div class="px-4 py-3">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+              {{ (authStore.user?.full_name || authStore.user?.email || 'U')[0].toUpperCase() }}
+            </div>
+            <div>
+              <div class="font-medium text-slate-900 dark:text-white">{{ authStore.user?.full_name || authStore.user?.email }}</div>
+              <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('welcome.subtitle') }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="bg-slate-50 dark:bg-slate-900/50 px-4 py-2 text-xs text-slate-400 dark:text-slate-500 text-center">
+          HyperFileLens · {{ t('welcome.subtitle') }}
+        </div>
       </div>
     </Transition>
-
-    <!-- Global Tooltip for collapsed sidebar -->
-    <Transition name="tooltip">
-      <div
-        v-if="tooltipPosition.show"
-        class="fixed bg-slate-800 dark:bg-slate-700 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap shadow-xl z-[9999] pointer-events-none"
-        :style="{ left: '68px', top: `${tooltipPosition.top}px`, transform: 'translateY(-50%)' }"
-      >
-        {{ tooltipPosition.text }}
-        <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 dark:bg-slate-700 rotate-45" />
-      </div>
-    </Transition>
-
   </div>
 </template>
-
-<style scoped>
-/* Welcome toast transition */
-.welcome-enter-active,
-.welcome-leave-active {
-  transition: all 0.3s ease;
-}
-.welcome-enter-from,
-.welcome-leave-to {
-  opacity: 0;
-  transform: translateX(16px);
-}
-
-/* Fade transition */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* Tooltip transition */
-.tooltip-enter-active,
-.tooltip-leave-active {
-  transition: all 0.15s ease;
-}
-.tooltip-enter-from,
-.tooltip-leave-to {
-  opacity: 0;
-  transform: translateX(-8px) translateY(-50%);
-}
-.tooltip-enter-to,
-.tooltip-leave-from {
-  transform: translateX(0) translateY(-50%);
-}
-
-/* Dropdown transition */
-.dropdown-enter-active,
-.dropdown-leave-active {
-  transition: all 0.2s ease;
-}
-.dropdown-enter-from,
-.dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-/* Scrollbar styling */
-aside::-webkit-scrollbar {
-  width: 4px;
-}
-aside::-webkit-scrollbar-track {
-  background: transparent;
-}
-aside::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 2px;
-}
-.dark aside::-webkit-scrollbar-thumb {
-  background: #475569;
-}
-aside::-webkit-scrollbar-thumb:hover {
-  background: #cbd5e1;
-}
-.dark aside::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
-}
-</style>

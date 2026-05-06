@@ -18,6 +18,15 @@ export default {
     logout: '退出登录'
   },
 
+  // Navigation Groups
+  navGroups: {
+    overview: '概览',
+    dataProtection: '数据保护',
+    storage: '存储管理',
+    aiInsights: '智能洞察',
+    system: '系统管理'
+  },
+
   // Common
   common: {
     save: '保存',
@@ -1204,6 +1213,16 @@ export default {
       contentProfile: '内容画像',
       dataHeatmap: '数据热度',
       redundancy: '冗余分析'
+    },
+
+    nav: {
+      overview: '洞察看板',
+      smartSearch: '全局智搜',
+      sensitiveData: '敏感数据扫描',
+      contentProfile: '内容分类画像',
+      dataHeatmap: '冷热数据分析',
+      redundancy: '冗余内容识别',
+      aiChat: '智库问答'
     },
 
     categories: {

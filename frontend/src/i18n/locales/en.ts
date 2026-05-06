@@ -18,6 +18,15 @@ export default {
     logout: 'Logout'
   },
 
+  // Navigation Groups
+  navGroups: {
+    overview: 'Overview',
+    dataProtection: 'Data Protection',
+    storage: 'Storage Management',
+    aiInsights: 'AI Insights',
+    system: 'System'
+  },
+
   // Common
   common: {
     save: 'Save',
@@ -1204,6 +1213,16 @@ export default {
       contentProfile: 'Content Profile',
       dataHeatmap: 'Data Heatmap',
       redundancy: 'Redundancy'
+    },
+
+    nav: {
+      overview: 'Insight Overview',
+      smartSearch: 'Smart Search',
+      sensitiveData: 'Sensitive Data Scan',
+      contentProfile: 'Content Profile',
+      dataHeatmap: 'Data Heatmap',
+      redundancy: 'Redundancy Check',
+      aiChat: 'AI Knowledge Chat'
     },
 
     categories: {
