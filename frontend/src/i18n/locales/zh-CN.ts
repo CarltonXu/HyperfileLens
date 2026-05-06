@@ -98,6 +98,7 @@ export default {
     never: '从未',
     justNow: '刚刚',
     minutesAgo: '分钟前',
+    comingSoon: '功能开发中，敬请期待...',
     hoursAgo: '小时前',
     daysAgo: '天前',
     createdAt: '创建时间',
@@ -1246,6 +1247,17 @@ export default {
       dataHeatmap: '冷热数据分析',
       redundancy: '冗余内容识别',
       aiChat: '智库问答'
+    },
+
+    // Page titles for each AI Insights page
+    pageTitles: {
+      overview: '洞察看板',
+      search: '全局智搜',
+      sensitive: '敏感数据扫描',
+      profile: '内容分类画像',
+      heatmap: '冷热数据分析',
+      redundancy: '冗余内容识别',
+      chat: '智库问答'
     },
 
     // Menu category labels (left sidebar)

@@ -54,16 +54,17 @@ const currentTab = computed(() => {
 
 // Page title based on current tab
 const pageTitle = computed(() => {
-  const titles: Record<string, string> = {
-    overview: '洞察看板',
-    search: '全局智搜',
-    sensitive: '敏感数据扫描',
-    profile: '内容分类画像',
-    heatmap: '冷热数据分析',
-    redundancy: '冗余内容识别',
-    chat: '智库问答'
+  const titleKeys: Record<string, string> = {
+    overview: 'aiInsights.pageTitles.overview',
+    search: 'aiInsights.pageTitles.search',
+    sensitive: 'aiInsights.pageTitles.sensitive',
+    profile: 'aiInsights.pageTitles.profile',
+    heatmap: 'aiInsights.pageTitles.heatmap',
+    redundancy: 'aiInsights.pageTitles.redundancy',
+    chat: 'aiInsights.pageTitles.chat'
   }
-  return titles[currentTab.value] || 'AI Insights'
+  const key = titleKeys[currentTab.value]
+  return key ? t(key) : 'AI Insights'
 })
 
 // Format bytes
@@ -645,8 +646,8 @@ onMounted(() => {
       <!-- AI Chat (Placeholder) -->
       <div v-if="currentTab === 'chat'" class="space-y-6">
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-          <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">智库问答</h3>
-          <p class="text-slate-500">功能开发中，敬请期待...</p>
+          <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.pageTitles.chat') }}</h3>
+          <p class="text-slate-500">{{ t('common.comingSoon') }}</p>
         </div>
       </div>
     </div>

@@ -100,6 +100,7 @@ export default {
     never: 'Never',
     justNow: 'Just now',
     minutesAgo: 'm ago',
+    comingSoon: 'Coming soon...',
     hoursAgo: 'h ago',
     daysAgo: 'd ago',
     createdAt: 'Created At',
@@ -1246,6 +1247,17 @@ export default {
       dataHeatmap: 'Data Heatmap',
       redundancy: 'Redundancy Check',
       aiChat: 'AI Knowledge Chat'
+    },
+
+    // Page titles for each AI Insights page
+    pageTitles: {
+      overview: 'Insight Overview',
+      search: 'Smart Search',
+      sensitive: 'Sensitive Data Scan',
+      profile: 'Content Profile',
+      heatmap: 'Data Heatmap',
+      redundancy: 'Redundancy Check',
+      chat: 'AI Knowledge Chat'
     },
 
     // Menu category labels (left sidebar)
