@@ -125,7 +125,51 @@ const routes: RouteRecordRaw[] = [
         path: 'ai-insights',
         name: 'AIInsights',
         component: AIInsights,
-        meta: { title: 'AI Insights' }
+        meta: { title: 'AI Insights' },
+        children: [
+          {
+            path: '',
+            name: 'AIInsightsOverview',
+            component: AIInsights,
+            meta: { title: 'AI Insights Overview', tab: 'overview' }
+          },
+          {
+            path: 'smart-search',
+            name: 'AIInsightsSearch',
+            component: AIInsights,
+            meta: { title: 'Smart Search', tab: 'search' }
+          },
+          {
+            path: 'sensitive-data',
+            name: 'AIInsightsSensitive',
+            component: AIInsights,
+            meta: { title: 'Sensitive Data', tab: 'sensitive' }
+          },
+          {
+            path: 'content-profile',
+            name: 'AIInsightsProfile',
+            component: AIInsights,
+            meta: { title: 'Content Profile', tab: 'profile' }
+          },
+          {
+            path: 'data-heatmap',
+            name: 'AIInsightsHeatmap',
+            component: AIInsights,
+            meta: { title: 'Data Heatmap', tab: 'heatmap' }
+          },
+          {
+            path: 'redundancy',
+            name: 'AIInsightsRedundancy',
+            component: AIInsights,
+            meta: { title: 'Redundancy Analysis', tab: 'redundancy' }
+          },
+          {
+            path: 'ai-chat',
+            name: 'AIInsightsChat',
+            component: AIInsights,
+            meta: { title: 'AI Chat', tab: 'chat' }
+          }
+        ]
       },
       {
         path: 'audit-log',

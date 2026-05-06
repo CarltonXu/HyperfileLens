@@ -493,11 +493,11 @@ export const aiInsightsApi = {
     api.get('/api/v1/ai-insights/overview/'),
   
   // 敏感数据扫描
-  sensitiveDataScan: (params?: { repository_id?: string }) =>
+  sensitiveData: (params?: { repository_id?: string }) =>
     api.get('/api/v1/ai-insights/sensitive-data/', { params }),
   
   // 内容分类画像
-  contentProfile: (params?: { repository_id?: string }) =>
+  contentProfiling: (params?: { repository_id?: string }) =>
     api.get('/api/v1/ai-insights/content-profile/', { params }),
   
   // 冷热数据分析
@@ -505,8 +505,12 @@ export const aiInsightsApi = {
     api.get('/api/v1/ai-insights/data-heatmap/', { params }),
   
   // 冗余内容识别
-  redundancyAnalysis: (params?: { repository_id?: string }) =>
-    api.get('/api/v1/ai-insights/redundancy/', { params })
+  redundancy: (params?: { repository_id?: string }) =>
+    api.get('/api/v1/ai-insights/redundancy/', { params }),
+  
+  // 全局智搜
+  smartSearch: (params?: { query?: string; repository_id?: string; filters?: Record<string, unknown> }) =>
+    api.get('/api/v1/ai-insights/smart-search/', { params })
 }
 
 // Legacy export for backward compatibility

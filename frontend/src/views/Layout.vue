@@ -67,6 +67,7 @@ interface MenuItem {
   current: boolean
   requiresSuperuser?: boolean
   requiresTenantAdmin?: boolean
+  subItems?: { name: string; path: string; current: boolean }[]
 }
 
 interface NavigationGroup {
@@ -205,7 +206,16 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
           path: '/ai-insights',
           icon: SparklesIcon,
           iconSolid: SparklesIconSolid,
-          current: route.path === '/ai-insights'
+          current: route.path === '/ai-insights',
+          subItems: [
+            { name: t('aiInsights.nav.overview'), path: '/ai-insights/overview', current: route.path === '/ai-insights/overview' || route.path === '/ai-insights' },
+            { name: t('aiInsights.nav.smartSearch'), path: '/ai-insights/smart-search', current: route.path === '/ai-insights/smart-search' },
+            { name: t('aiInsights.nav.sensitiveData'), path: '/ai-insights/sensitive-data', current: route.path === '/ai-insights/sensitive-data' },
+            { name: t('aiInsights.nav.contentProfiling'), path: '/ai-insights/content-profiling', current: route.path === '/ai-insights/content-profiling' },
+            { name: t('aiInsights.nav.dataHeatmap'), path: '/ai-insights/data-heatmap', current: route.path === '/ai-insights/data-heatmap' },
+            { name: t('aiInsights.nav.redundancy'), path: '/ai-insights/redundancy', current: route.path === '/ai-insights/redundancy' },
+            { name: t('aiInsights.nav.aiChat'), path: '/ai-insights/ai-chat', current: route.path === '/ai-insights/ai-chat' }
+          ]
         }
       ]
     },
@@ -413,28 +423,46 @@ onUnmounted(() => {
 
           <!-- Group Items -->
           <div v-show="isCollapsed || isGroupExpanded(group.id)" class="space-y-0.5">
-            <router-link
-              v-for="item in group.items"
-              :key="item.path"
-              :to="item.path"
-              @mouseenter="handleMouseEnter(item, $event)"
-              @mouseleave="handleMouseLeave"
-              :class="[
-                'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                item.current
-                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-              ]"
-            >
-              <component
-                :is="item.current ? item.iconSolid : item.icon"
+            <div v-for="item in group.items" :key="item.path">
+              <router-link
+                :to="item.path"
+                @mouseenter="handleMouseEnter(item, $event)"
+                @mouseleave="handleMouseLeave"
                 :class="[
-                  'w-5 h-5 flex-shrink-0',
-                  item.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
+                  'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  item.current
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                 ]"
-              />
-              <span v-if="!isCollapsed">{{ item.name }}</span>
-            </router-link>
+              >
+                <component
+                  :is="item.current ? item.iconSolid : item.icon"
+                  :class="[
+                    'w-5 h-5 flex-shrink-0',
+                    item.current ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400'
+                  ]"
+                />
+                <span v-if="!isCollapsed">{{ item.name }}</span>
+              </router-link>
+              
+              <!-- Sub Items -->
+              <div v-if="!isCollapsed && item.subItems && item.subItems.length > 0" class="ml-4 mt-1 space-y-0.5">
+                <router-link
+                  v-for="subItem in item.subItems"
+                  :key="subItem.path"
+                  :to="subItem.path"
+                  :class="[
+                    'group flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
+                    subItem.current
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300'
+                  ]"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" :class="subItem.current ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'"></span>
+                  {{ subItem.name }}
+                </router-link>
+              </div>
+            </div>
           </div>
 
           <!-- Divider -->
