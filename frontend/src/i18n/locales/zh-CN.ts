@@ -133,7 +133,11 @@ export default {
     tip4: '建议定期更换密码，提高账户安全性',
     // 欢迎弹窗
     welcomeTitle: '欢迎回来',
-    welcomeSubtitle: '系统概览一览'
+    welcomeSubtitle: '系统概览一览',
+    // 用户状态
+    logout: '退出登录',
+    online: '在线',
+    offline: '离线'
   },
 
   // Favorites

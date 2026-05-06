@@ -134,7 +134,11 @@ export default {
     tip4: 'It is recommended to change passwords regularly',
     // Welcome toast
     welcomeTitle: 'Welcome back',
-    welcomeSubtitle: 'Here is your system overview'
+    welcomeSubtitle: 'Here is your system overview',
+    // User status
+    logout: 'Logout',
+    online: 'Online',
+    offline: 'Offline'
   },
 
   // Favorites
