@@ -75,6 +75,130 @@ const heartbeatStats = computed(() => {
   }
 })
 
+// Chart data sampling (reduce points to max 24 for 24h view)
+const MAX_CHART_POINTS = 24
+const sampledHeartbeats = computed(() => {
+  const data = heartbeats.value.slice().reverse() // Oldest to newest
+  if (data.length <= MAX_CHART_POINTS) return data
+  
+  const step = Math.ceil(data.length / MAX_CHART_POINTS)
+  const sampled = []
+  for (let i = 0; i < data.length; i += step) {
+    // Take average of each step window
+    const window = data.slice(i, Math.min(i + step, data.length))
+    const avgHb = {
+      ...window[0],
+      cpu_usage: window.reduce((sum, h) => sum + (h.cpu_usage || 0), 0) / window.length,
+      memory_usage: window.reduce((sum, h) => sum + (h.memory_usage || 0), 0) / window.length,
+      disk_usage: window.reduce((sum, h) => sum + (h.disk_usage || 0), 0) / window.length,
+    }
+    sampled.push(avgHb)
+  }
+  return sampled
+})
+
+// Chart dimensions
+const chartWidth = 800
+const chartHeight = 200
+const chartPadding = { top: 20, right: 20, bottom: 30, left: 40 }
+const plotWidth = chartWidth - chartPadding.left - chartPadding.right
+const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom
+
+// Chart line points
+const cpuPoints = computed(() => {
+  const data = sampledHeartbeats.value
+  if (data.length === 0) return ''
+  
+  return data.map((hb, i) => {
+    const x = chartPadding.left + (i / (data.length - 1 || 1)) * plotWidth
+    const y = chartPadding.top + plotHeight - (hb.cpu_usage || 0) / 100 * plotHeight
+    return `${x},${y}`
+  }).join(' ')
+})
+
+const memoryPoints = computed(() => {
+  const data = sampledHeartbeats.value
+  if (data.length === 0) return ''
+  
+  return data.map((hb, i) => {
+    const x = chartPadding.left + (i / (data.length - 1 || 1)) * plotWidth
+    const y = chartPadding.top + plotHeight - (hb.memory_usage || 0) / 100 * plotHeight
+    return `${x},${y}`
+  }).join(' ')
+})
+
+const diskPoints = computed(() => {
+  const data = sampledHeartbeats.value
+  if (data.length === 0) return ''
+  
+  return data.map((hb, i) => {
+    const x = chartPadding.left + (i / (data.length - 1 || 1)) * plotWidth
+    const y = chartPadding.top + plotHeight - (hb.disk_usage || 0) / 100 * plotHeight
+    return `${x},${y}`
+  }).join(' ')
+})
+
+// Chart point positions for hover detection
+const chartPoints = computed(() => {
+  const data = sampledHeartbeats.value
+  return data.map((hb, i) => ({
+    x: chartPadding.left + (i / (data.length - 1 || 1)) * plotWidth,
+    hb,
+    index: i
+  }))
+})
+
+// Tooltip state
+const chartTooltip = ref<{
+  visible: boolean
+  x: number
+  y: number
+  data: ProxyHeartbeat | null
+}>({
+  visible: false,
+  x: 0,
+  y: 0,
+  data: null
+})
+
+// Hover line position
+const hoverLineX = ref<number | null>(null)
+
+function handleChartMouseMove(event: MouseEvent) {
+  const rect = (event.currentTarget as SVGElement).getBoundingClientRect()
+  const mouseX = event.clientX - rect.left
+  
+  // Find closest point
+  let closestPoint = chartPoints.value[0]
+  let minDistance = Infinity
+  
+  for (const point of chartPoints.value) {
+    const distance = Math.abs(point.x - mouseX)
+    if (distance < minDistance) {
+      minDistance = distance
+      closestPoint = point
+    }
+  }
+  
+  if (closestPoint && minDistance < 30) {
+    hoverLineX.value = closestPoint.x
+    chartTooltip.value = {
+      visible: true,
+      x: event.clientX + 10,
+      y: event.clientY - 60,
+      data: closestPoint.hb
+    }
+  } else {
+    hoverLineX.value = null
+    chartTooltip.value.visible = false
+  }
+}
+
+function handleChartMouseLeave() {
+  hoverLineX.value = null
+  chartTooltip.value.visible = false
+}
+
 // Polling
 let pollInterval: number | null = null
 
@@ -754,6 +878,151 @@ onUnmounted(() => {
                 </div>
               </div>
               <p class="text-sm text-slate-600 dark:text-slate-300 mt-2">{{ t('proxies.detail.diskUsage') }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Usage Trend Chart -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('proxies.monitoring.usageTrend') || '24h Usage Trend' }}</h3>
+            <div class="flex items-center gap-4 text-xs">
+              <span class="flex items-center gap-1">
+                <span class="w-3 h-0.5 bg-indigo-500 rounded" />
+                <span class="text-slate-600 dark:text-slate-400">{{ t('proxies.detail.cpuUsage') }}</span>
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="w-3 h-0.5 bg-emerald-500 rounded" />
+                <span class="text-slate-600 dark:text-slate-400">{{ t('proxies.detail.memoryUsage') }}</span>
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="w-3 h-0.5 bg-amber-500 rounded" />
+                <span class="text-slate-600 dark:text-slate-400">{{ t('proxies.detail.diskUsage') }}</span>
+              </span>
+            </div>
+          </div>
+          
+          <div v-if="sampledHeartbeats.length === 0" class="h-48 flex items-center justify-center text-slate-400">
+            {{ t('proxies.detail.noHeartbeats') }}
+          </div>
+          
+          <div v-else class="relative">
+            <svg 
+              class="w-full h-48"
+              viewBox="0 0 800 200"
+              preserveAspectRatio="xMidYMid meet"
+              @mousemove="handleChartMouseMove"
+              @mouseleave="handleChartMouseLeave"
+            >
+              <!-- Grid lines -->
+              <g class="text-slate-200 dark:text-slate-700">
+                <line x1="40" y1="20" x2="780" y2="20" stroke="currentColor" stroke-dasharray="4" />
+                <line x1="40" y1="60" x2="780" y2="60" stroke="currentColor" stroke-dasharray="4" />
+                <line x1="40" y1="100" x2="780" y2="100" stroke="currentColor" stroke-dasharray="4" />
+                <line x1="40" y1="140" x2="780" y2="140" stroke="currentColor" stroke-dasharray="4" />
+                <line x1="40" y1="170" x2="780" y2="170" stroke="currentColor" stroke-dasharray="4" />
+              </g>
+              
+              <!-- Y-axis labels -->
+              <g class="text-xs fill-slate-400">
+                <text x="35" y="24" text-anchor="end">100%</text>
+                <text x="35" y="64" text-anchor="end">75%</text>
+                <text x="35" y="104" text-anchor="end">50%</text>
+                <text x="35" y="144" text-anchor="end">25%</text>
+                <text x="35" y="174" text-anchor="end">0%</text>
+              </g>
+              
+              <!-- Disk line (bottom layer) -->
+              <polyline
+                :points="diskPoints"
+                fill="none"
+                stroke="#f59e0b"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              
+              <!-- Memory line (middle layer) -->
+              <polyline
+                :points="memoryPoints"
+                fill="none"
+                stroke="#10b981"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              
+              <!-- CPU line (top layer) -->
+              <polyline
+                :points="cpuPoints"
+                fill="none"
+                stroke="#6366f1"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              
+              <!-- Hover line -->
+              <line
+                v-if="hoverLineX !== null"
+                :x1="hoverLineX"
+                y1="20"
+                :x2="hoverLineX"
+                y2="170"
+                stroke="#6366f1"
+                stroke-width="1"
+                stroke-dasharray="4"
+                opacity="0.5"
+              />
+              
+              <!-- Hover point -->
+              <circle
+                v-if="hoverLineX !== null && chartTooltip.data"
+                :cx="hoverLineX"
+                :cy="chartPadding.top + plotHeight - (chartTooltip.data.cpu_usage || 0) / 100 * plotHeight"
+                r="4"
+                fill="#6366f1"
+              />
+              <circle
+                v-if="hoverLineX !== null && chartTooltip.data"
+                :cx="hoverLineX"
+                :cy="chartPadding.top + plotHeight - (chartTooltip.data.memory_usage || 0) / 100 * plotHeight"
+                r="4"
+                fill="#10b981"
+              />
+              <circle
+                v-if="hoverLineX !== null && chartTooltip.data"
+                :cx="hoverLineX"
+                :cy="chartPadding.top + plotHeight - (chartTooltip.data.disk_usage || 0) / 100 * plotHeight"
+                r="4"
+                fill="#f59e0b"
+              />
+            </svg>
+            
+            <!-- Tooltip -->
+            <div
+              v-if="chartTooltip.visible && chartTooltip.data"
+              class="fixed z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-3 text-sm pointer-events-none"
+              :style="{ left: chartTooltip.x + 'px', top: chartTooltip.y + 'px' }"
+            >
+              <div class="text-xs text-slate-500 mb-2">{{ formatDate(chartTooltip.data.created_at) }}</div>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-indigo-500" />
+                  <span class="text-slate-600 dark:text-slate-400">{{ t('proxies.detail.cpuUsage') }}:</span>
+                  <span class="font-medium text-slate-800 dark:text-white">{{ chartTooltip.data.cpu_usage?.toFixed(1) || 0 }}%</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span class="text-slate-600 dark:text-slate-400">{{ t('proxies.detail.memoryUsage') }}:</span>
+                  <span class="font-medium text-slate-800 dark:text-white">{{ chartTooltip.data.memory_usage?.toFixed(1) || 0 }}%</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-amber-500" />
+                  <span class="text-slate-600 dark:text-slate-400">{{ t('proxies.detail.diskUsage') }}:</span>
+                  <span class="font-medium text-slate-800 dark:text-white">{{ chartTooltip.data.disk_usage?.toFixed(1) || 0 }}%</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

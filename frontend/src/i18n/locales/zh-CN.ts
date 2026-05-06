@@ -613,6 +613,7 @@ export default {
       last7d: '最近 7 天',
       last30d: '最近 30 天',
       custom: '自定义',
+      usageTrend: '24小时使用率趋势',
       cpuChart: 'CPU 使用率趋势',
       memoryChart: '内存使用率趋势',
       diskChart: '磁盘使用率趋势',

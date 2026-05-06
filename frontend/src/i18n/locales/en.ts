@@ -619,6 +619,7 @@ export default {
       last7d: 'Last 7 Days',
       last30d: 'Last 30 Days',
       custom: 'Custom',
+      usageTrend: '24h Usage Trend',
       cpuChart: 'CPU Usage Trend',
       memoryChart: 'Memory Usage Trend',
       diskChart: 'Disk Usage Trend',
