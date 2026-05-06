@@ -11,7 +11,7 @@ const RecoveryTasks = () => import('@/views/RecoveryTasks.vue')
 const Repository = () => import('@/views/Repository.vue')
 const SourceResources = () => import('@/views/SourceResources.vue')
 const Policies = () => import('@/views/Policies.vue')
-const AIQuery = () => import('@/views/AIQuery.vue')
+const AIInsights = () => import('@/views/AIInsights.vue')
 const AuditLog = () => import('@/views/AuditLog.vue')
 const Settings = () => import('@/views/Settings.vue')
 const Layout = () => import('@/views/Layout.vue')
@@ -120,10 +120,10 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Backup Policies' }
       },
       {
-        path: 'ai-query',
-        name: 'AIQuery',
-        component: AIQuery,
-        meta: { title: 'AI File Intelligence' }
+        path: 'ai-insights',
+        name: 'AIInsights',
+        component: AIInsights,
+        meta: { title: 'AI Insights' }
       },
       {
         path: 'audit-log',

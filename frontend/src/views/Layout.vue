@@ -142,11 +142,11 @@ const navigation = computed(() => {
       current: route.path === '/policies'
     },
     {
-      name: t('nav.aiQuery'),
-      path: '/ai-query',
+      name: t('nav.aiInsights'),
+      path: '/ai-insights',
       icon: SparklesIcon,
       iconSolid: SparklesIconSolid,
-      current: route.path === '/ai-query'
+      current: route.path === '/ai-insights'
     },
     {
       name: t('nav.auditLog'),

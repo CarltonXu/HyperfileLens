@@ -9,7 +9,7 @@ export default {
     repository: '备份仓库',
     sourceResources: '源端资源',
     policies: '备份策略',
-    aiQuery: '智能洞察',
+    aiInsights: '智能洞察',
     auditLog: '审计日志',
     tenants: '租户管理',
     users: '用户管理',
@@ -246,7 +246,8 @@ export default {
       activeTasks: '活动任务',
       storageUsed: '已用存储',
       totalBackups: '备份总数',
-      successRate: '成功率'
+      successRate: '成功率',
+      used: '已使用'
     },
 
     recentActivity: '最近活动',
@@ -257,7 +258,45 @@ export default {
       newBackup: '新建备份',
       newRecovery: '新建恢复',
       viewNodes: '查看节点',
-      viewReports: '查看报告'
+      viewReports: '查看报告',
+      aiInsights: '智能洞察',
+      manageProxies: '管理代理'
+    },
+
+    taskTypes: {
+      backup: '备份',
+      recovery: '恢复',
+      ai: 'AI扫描'
+    },
+
+    aiInsights: {
+      title: '智能洞察 - 全盘画像',
+      syncTime: '数据已同步至: {time}',
+      viewDetails: '进入详情分析',
+      fileCategories: '文件分类占比',
+      riskMonitoring: '风险监测中心',
+      storageOptimization: '存储优化建议',
+      items: '份',
+      safe: '安全'
+    },
+
+    alerts: {
+      title: '待处理告警'
+    },
+
+    activeTasks: {
+      title: '正在进行'
+    },
+
+    compliance: {
+      title: '合规与授权',
+      licenseStatus: '授权状态',
+      normal: '正常',
+      storageQuota: '授权余额',
+      quotaRemaining: '还剩 {amount}',
+      expiryDate: '到期日期',
+      drill: '恢复演练',
+      drillOverdue: '超过30天未执行'
     }
   },
 
@@ -1154,23 +1193,89 @@ export default {
   },
 
   // 智能洞察
-  aiQuery: {
+  aiInsights: {
     title: '智能洞察',
     subtitle: '智能搜索和分析您的备份数据',
 
+    tabs: {
+      overview: '洞察看板',
+      smartSearch: '全局智搜',
+      sensitiveData: '敏感数据',
+      contentProfile: '内容画像',
+      dataHeatmap: '数据热度',
+      redundancy: '冗余分析'
+    },
+
+    overview: {
+      totalFiles: '文件总数',
+      totalSize: '总大小',
+      sensitiveFiles: '敏感文件',
+      duplicateSize: '重复大小',
+      fileCategories: '文件分类占比',
+      riskMonitoring: '风险监测中心',
+      sensitiveInfo: '敏感信息',
+      ransomwareRisk: '勒索风险',
+      safe: '安全',
+      permissionIssues: '权限异常',
+      places: '处',
+      files: '文件',
+      optimizationSuggestions: '存储优化建议',
+      duplicateFiles: '重复文件',
+      suggestClean: '建议清理',
+      coldData: '冷数据',
+      suggestArchive: '建议归档',
+      fastestGrowing: '增长最快',
+      weeklyGrowth: '周增长率'
+    },
+
+    search: {
+      title: '全局智搜',
+      placeholder: '使用自然语言搜索文件... (例如：查找上周修改的所有 PDF 文件)',
+      search: '搜索',
+      results: '搜索结果',
+      noResults: '未找到结果，请尝试不同的搜索词。'
+    },
+
+    sensitive: {
+      title: '敏感数据扫描',
+      lastScan: '上次扫描',
+      matches: '处匹配',
+      files: '文件'
+    },
+
+    heatmap: {
+      files: '文件',
+      zombieData: '检测到僵尸数据',
+      hot: '热数据',
+      warm: '温数据',
+      cold: '冷数据'
+    },
+
+    redundancy: {
+      duplicateFiles: '重复文件数',
+      duplicateSize: '重复数据大小',
+      potentialSavings: '可节省空间',
+      duplicateGroups: '重复文件组',
+      copies: '副本',
+      locations: '位置'
+    }
+  },
+
+  // Legacy alias for backwards compatibility
+  aiQuery: {
+    title: '智能洞察',
+    subtitle: '智能搜索和分析您的备份数据',
     search: {
       placeholder: '询问关于备份数据的问题...',
       submit: '提问',
       examples: '示例查询'
     },
-
     examples: {
       contracts: '查找去年签署的所有合同',
       sensitive: '显示包含敏感数据的目录',
       changes: '此文件夹有什么变化？',
       summary: '总结此目录中的文档'
     },
-
     results: {
       title: '结果',
       files: '文件',
@@ -1180,15 +1285,12 @@ export default {
       preview: '预览',
       download: '下载'
     },
-
     empty: {
       title: '开始探索',
       description: '使用自然语言询问关于备份数据的问题'
     },
-
     clearConversation: '清空对话',
     analyzing: '正在分析备份数据...',
-
     tips: {
       title: '获取更好结果的提示',
       tip1: '具体说明文件类型或日期范围',

@@ -26,7 +26,7 @@ urlpatterns = [
     path('api/v1/recovery-tasks/', include('recovery_tasks.urls')),
     path('api/v1/repositories/', include('repository.urls')),
     path('api/v1/policies/', include('policies.urls')),
-    path('api/v1/ai-query/', include('ai_query.urls')),
+    path('api/v1/ai-insights/', include('ai_query.urls')),
     path('api/v1/audit/', include('audit_log.urls')),
     path('api/v1/system/', include('system_settings.urls')),  # System settings & SMTP
 

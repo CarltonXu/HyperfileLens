@@ -9,7 +9,7 @@ export default {
     repository: 'Backup Repository',
     sourceResources: 'Source Resources',
     policies: 'Policies',
-    aiQuery: 'AI Insights',
+    aiInsights: 'AI Insights',
     auditLog: 'Audit Log',
     tenants: 'Tenants',
     users: 'Users',
@@ -252,7 +252,8 @@ export default {
       activeTasks: 'Active Tasks',
       storageUsed: 'Storage Used',
       totalBackups: 'Total Backups',
-      successRate: 'Success Rate'
+      successRate: 'Success Rate',
+      used: 'used'
     },
 
     recentActivity: 'Recent Activity',
@@ -263,7 +264,45 @@ export default {
       newBackup: 'New Backup',
       newRecovery: 'New Recovery',
       viewNodes: 'View Nodes',
-      viewReports: 'View Reports'
+      viewReports: 'View Reports',
+      aiInsights: 'AI Insights',
+      manageProxies: 'Manage Proxies'
+    },
+
+    taskTypes: {
+      backup: 'Backup',
+      recovery: 'Recovery',
+      ai: 'AI Scan'
+    },
+
+    aiInsights: {
+      title: 'AI Insights - Asset Overview',
+      syncTime: 'Data synced at: {time}',
+      viewDetails: 'View Details',
+      fileCategories: 'File Categories',
+      riskMonitoring: 'Risk Monitoring',
+      storageOptimization: 'Storage Optimization',
+      items: 'items',
+      safe: 'Safe'
+    },
+
+    alerts: {
+      title: 'Pending Alerts'
+    },
+
+    activeTasks: {
+      title: 'Active Tasks'
+    },
+
+    compliance: {
+      title: 'Compliance & License',
+      licenseStatus: 'License Status',
+      normal: 'Normal',
+      storageQuota: 'Storage Quota',
+      quotaRemaining: '{amount} remaining',
+      expiryDate: 'Expiry Date',
+      drill: 'DR Drill',
+      drillOverdue: 'Overdue >30 days'
     }
   },
 
@@ -1154,23 +1193,89 @@ export default {
   },
 
   // AI Insights
-  aiQuery: {
+  aiInsights: {
     title: 'AI Insights',
     subtitle: 'Intelligent search and analysis of your backup data',
 
+    tabs: {
+      overview: 'Overview',
+      smartSearch: 'Smart Search',
+      sensitiveData: 'Sensitive Data',
+      contentProfile: 'Content Profile',
+      dataHeatmap: 'Data Heatmap',
+      redundancy: 'Redundancy'
+    },
+
+    overview: {
+      totalFiles: 'Total Files',
+      totalSize: 'Total Size',
+      sensitiveFiles: 'Sensitive Files',
+      duplicateSize: 'Duplicate Size',
+      fileCategories: 'File Categories',
+      riskMonitoring: 'Risk Monitoring',
+      sensitiveInfo: 'Sensitive Information',
+      ransomwareRisk: 'Ransomware Risk',
+      safe: 'Safe',
+      permissionIssues: 'Permission Issues',
+      places: 'places',
+      files: 'files',
+      optimizationSuggestions: 'Storage Optimization Suggestions',
+      duplicateFiles: 'Duplicate Files',
+      suggestClean: 'Recommended to clean up',
+      coldData: 'Cold Data',
+      suggestArchive: 'Recommended to archive',
+      fastestGrowing: 'Fastest Growing',
+      weeklyGrowth: 'Weekly growth'
+    },
+
+    search: {
+      title: 'Smart Search',
+      placeholder: 'Search files using natural language... (e.g., "find all PDF files modified last week")',
+      search: 'Search',
+      results: 'Search Results',
+      noResults: 'No results found. Try a different search term.'
+    },
+
+    sensitive: {
+      title: 'Sensitive Data Scan',
+      lastScan: 'Last Scan',
+      matches: 'matches',
+      files: 'Files'
+    },
+
+    heatmap: {
+      files: 'files',
+      zombieData: 'Zombie Data Detected',
+      hot: 'Hot Data',
+      warm: 'Warm Data',
+      cold: 'Cold Data'
+    },
+
+    redundancy: {
+      duplicateFiles: 'Duplicate Files',
+      duplicateSize: 'Duplicate Size',
+      potentialSavings: 'Potential Savings',
+      duplicateGroups: 'Duplicate Groups',
+      copies: 'copies',
+      locations: 'Locations'
+    }
+  },
+
+  // Legacy alias for backwards compatibility
+  aiQuery: {
+    title: 'AI Insights',
+    subtitle: 'Intelligent search and analysis of your backup data',
     search: {
       placeholder: 'Ask questions about your backup data...',
       submit: 'Ask',
       examples: 'Example queries'
     },
-
     examples: {
       contracts: 'Find all contracts signed last year',
       sensitive: 'Show directories with sensitive data',
       changes: 'What changed in this folder?',
       summary: 'Summarize documents in this directory'
     },
-
     results: {
       title: 'Results',
       files: 'Files',
@@ -1180,15 +1285,12 @@ export default {
       preview: 'Preview',
       download: 'Download'
     },
-
     empty: {
       title: 'Start exploring',
       description: 'Ask questions about your backup data using natural language'
     },
-
     clearConversation: 'Clear Conversation',
     analyzing: 'Analyzing backup data...',
-
     tips: {
       title: 'Tips for better results',
       tip1: 'Be specific about file types or date ranges',

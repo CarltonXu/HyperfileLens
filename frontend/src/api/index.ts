@@ -447,45 +447,70 @@ export const policiesApi = {
     api.post(`/api/v1/policies/policies/${id}/disable/`)
 }
 
-// ============== Gateway API (AI Query, File Index) ==============
-// Gateway requests are proxied through Django backend for consistency
+// ============== AI Insights API ==============
+// AI-powered file intelligence platform
 export const gateway = {
   // AI Query
   aiQuery: (data: { query: string; repository_id?: string; filters?: Record<string, unknown> }) =>
-    api.post('/api/v1/ai-query/gateway/ai-query/', data),
+    api.post('/api/v1/ai-insights/gateway/ai-query/', data),
   
   // File browsing
   listFiles: (params?: { path?: string; repository_id?: string }) =>
-    api.get('/api/v1/ai-query/gateway/files/', { params }),
+    api.get('/api/v1/ai-insights/gateway/files/', { params }),
   
   // Repository mount status
   mountStatus: () =>
-    api.get('/api/v1/ai-query/gateway/mount-status/'),
+    api.get('/api/v1/ai-insights/gateway/mount-status/'),
   
   // Index status
   indexStatus: () =>
-    api.get('/api/v1/ai-query/gateway/index-status/'),
+    api.get('/api/v1/ai-insights/gateway/index-status/'),
   
   // Rebuild index
   rebuildIndex: (repositoryId: string) =>
-    api.post('/api/v1/ai-query/gateway/rebuild-index/', { repository_id: repositoryId })
+    api.post('/api/v1/ai-insights/gateway/rebuild-index/', { repository_id: repositoryId })
 }
 
-// ============== AI Query API (Django Backend) ==============
-export const aiQueryApi = {
+// ============== AI Insights API (Django Backend) ==============
+export const aiInsightsApi = {
+  // Query history
   query: (data: { query: string; node?: number; repository?: number; snapshot_id?: string }) =>
-    api.post('/api/v1/ai-query/queries/', data),
+    api.post('/api/v1/ai-insights/queries/', data),
   
   // Gateway AI Query (direct)
   gatewayQuery: (data: { query: string; repository_id?: string; filters?: Record<string, unknown> }) =>
     gateway.aiQuery(data),
   
   history: (params?: { page?: number; page_size?: number }) =>
-    api.get('/api/v1/ai-query/queries/', { params }),
+    api.get('/api/v1/ai-insights/queries/', { params }),
   
   cancel: (id: number) =>
-    api.post(`/api/v1/ai-query/queries/${id}/cancel/`)
+    api.post(`/api/v1/ai-insights/queries/${id}/cancel/`),
+  
+  // ============== 智能洞察功能 API ==============
+  // 洞察看板统计
+  overview: () =>
+    api.get('/api/v1/ai-insights/overview/'),
+  
+  // 敏感数据扫描
+  sensitiveDataScan: (params?: { repository_id?: string }) =>
+    api.get('/api/v1/ai-insights/sensitive-data/', { params }),
+  
+  // 内容分类画像
+  contentProfile: (params?: { repository_id?: string }) =>
+    api.get('/api/v1/ai-insights/content-profile/', { params }),
+  
+  // 冷热数据分析
+  dataHeatmap: (params?: { repository_id?: string; days?: number }) =>
+    api.get('/api/v1/ai-insights/data-heatmap/', { params }),
+  
+  // 冗余内容识别
+  redundancyAnalysis: (params?: { repository_id?: string }) =>
+    api.get('/api/v1/ai-insights/redundancy/', { params })
 }
+
+// Legacy export for backward compatibility
+export const aiQueryApi = aiInsightsApi
 
 // ============== Tenant API ==============
 export const tenantsApi = {

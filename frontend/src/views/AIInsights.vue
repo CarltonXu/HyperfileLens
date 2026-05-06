@@ -1,0 +1,571 @@
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { aiInsightsApi, gateway } from '@/api'
+import {
+  SparklesIcon,
+  MagnifyingGlassIcon,
+  ShieldExclamationIcon,
+  TagIcon,
+  FireIcon,
+  DocumentDuplicateIcon,
+  ServerIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  ArrowTrendingUpIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  FolderIcon,
+  TrashIcon,
+  ArrowPathIcon
+} from '@heroicons/vue/24/outline'
+
+const { t, locale } = useI18n()
+
+// Current active tab
+const activeTab = ref('overview')
+
+const tabs = computed(() => [
+  { id: 'overview', icon: SparklesIcon, label: t('aiInsights.tabs.overview'), labelEn: 'Overview' },
+  { id: 'search', icon: MagnifyingGlassIcon, label: t('aiInsights.tabs.smartSearch'), labelEn: 'Smart Search' },
+  { id: 'sensitive', icon: ShieldExclamationIcon, label: t('aiInsights.tabs.sensitiveData'), labelEn: 'Sensitive Data' },
+  { id: 'profile', icon: TagIcon, label: t('aiInsights.tabs.contentProfile'), labelEn: 'Content Profile' },
+  { id: 'heatmap', icon: FireIcon, label: t('aiInsights.tabs.dataHeatmap'), labelEn: 'Data Heatmap' },
+  { id: 'redundancy', icon: DocumentDuplicateIcon, label: t('aiInsights.tabs.redundancy'), labelEn: 'Redundancy' }
+])
+
+// Gateway status
+const gatewayStatus = ref<'online' | 'offline' | 'checking'>('checking')
+
+// Overview data
+const overviewData = ref<any>(null)
+const isLoadingOverview = ref(false)
+
+// Sensitive data
+const sensitiveData = ref<any>(null)
+const isLoadingSensitive = ref(false)
+
+// Content profile
+const contentProfile = ref<any>(null)
+const isLoadingProfile = ref(false)
+
+// Data heatmap
+const dataHeatmap = ref<any>(null)
+const isLoadingHeatmap = ref(false)
+
+// Redundancy
+const redundancyData = ref<any>(null)
+const isLoadingRedundancy = ref(false)
+
+// Smart Search
+const searchQuery = ref('')
+const isSearching = ref(false)
+const searchResults = ref<any[]>([])
+const hasSearched = ref(false)
+
+// Load data based on active tab
+watch(activeTab, (newTab) => {
+  if (newTab === 'overview' && !overviewData.value) loadOverview()
+  if (newTab === 'sensitive' && !sensitiveData.value) loadSensitiveData()
+  if (newTab === 'profile' && !contentProfile.value) loadContentProfile()
+  if (newTab === 'heatmap' && !dataHeatmap.value) loadDataHeatmap()
+  if (newTab === 'redundancy' && !redundancyData.value) loadRedundancy()
+})
+
+onMounted(async () => {
+  // Check Gateway status
+  try {
+    await gateway.mountStatus()
+    gatewayStatus.value = 'online'
+  } catch {
+    gatewayStatus.value = 'offline'
+  }
+  // Load overview data
+  loadOverview()
+})
+
+async function loadOverview() {
+  isLoadingOverview.value = true
+  try {
+    const response = await aiInsightsApi.overview()
+    overviewData.value = response.data
+  } catch (error) {
+    console.error('Failed to load overview:', error)
+  } finally {
+    isLoadingOverview.value = false
+  }
+}
+
+async function loadSensitiveData() {
+  isLoadingSensitive.value = true
+  try {
+    const response = await aiInsightsApi.sensitiveDataScan()
+    sensitiveData.value = response.data
+  } catch (error) {
+    console.error('Failed to load sensitive data:', error)
+  } finally {
+    isLoadingSensitive.value = false
+  }
+}
+
+async function loadContentProfile() {
+  isLoadingProfile.value = true
+  try {
+    const response = await aiInsightsApi.contentProfile()
+    contentProfile.value = response.data
+  } catch (error) {
+    console.error('Failed to load content profile:', error)
+  } finally {
+    isLoadingProfile.value = false
+  }
+}
+
+async function loadDataHeatmap() {
+  isLoadingHeatmap.value = true
+  try {
+    const response = await aiInsightsApi.dataHeatmap()
+    dataHeatmap.value = response.data
+  } catch (error) {
+    console.error('Failed to load data heatmap:', error)
+  } finally {
+    isLoadingHeatmap.value = false
+  }
+}
+
+async function loadRedundancy() {
+  isLoadingRedundancy.value = true
+  try {
+    const response = await aiInsightsApi.redundancyAnalysis()
+    redundancyData.value = response.data
+  } catch (error) {
+    console.error('Failed to load redundancy:', error)
+  } finally {
+    isLoadingRedundancy.value = false
+  }
+}
+
+async function handleSearch() {
+  if (!searchQuery.value.trim()) return
+  isSearching.value = true
+  hasSearched.value = true
+  try {
+    const response = await gateway.aiQuery({ query: searchQuery.value })
+    searchResults.value = response.data.results || []
+  } catch (error) {
+    console.error('Search failed:', error)
+  } finally {
+    isSearching.value = false
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+function getSeverityColor(severity: string): string {
+  switch (severity) {
+    case 'high': return 'text-red-600 bg-red-50 dark:bg-red-900/20'
+    case 'medium': return 'text-amber-600 bg-amber-50 dark:bg-amber-900/20'
+    case 'low': return 'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
+    default: return 'text-slate-600 bg-slate-50 dark:bg-slate-700'
+  }
+}
+</script>
+
+<template>
+  <div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ t('aiInsights.title') }}</h1>
+        <p class="text-slate-500 dark:text-slate-400 mt-1">{{ t('aiInsights.subtitle') }}</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <!-- Gateway Status -->
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg">
+          <ServerIcon class="w-4 h-4 text-slate-400" />
+          <span class="text-sm text-slate-600 dark:text-slate-300">Gateway:</span>
+          <span 
+            :class="[
+              'text-sm font-medium',
+              gatewayStatus === 'online' ? 'text-emerald-600 dark:text-emerald-400' : 
+              gatewayStatus === 'offline' ? 'text-red-600 dark:text-red-400' : 'text-slate-400'
+            ]"
+          >
+            {{ gatewayStatus === 'online' ? t('common.online') : 
+               gatewayStatus === 'offline' ? t('common.offline') : t('common.checking') }}
+          </span>
+          <div 
+            :class="[
+              'w-2 h-2 rounded-full',
+              gatewayStatus === 'online' ? 'bg-emerald-500' : 
+              gatewayStatus === 'offline' ? 'bg-red-500' : 'bg-slate-300 animate-pulse'
+            ]"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-slate-200 dark:border-slate-700">
+      <nav class="flex space-x-1 overflow-x-auto pb-px">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          @click="activeTab = tab.id"
+          :class="[
+            'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
+            activeTab === tab.id
+              ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300'
+          ]"
+        >
+          <component :is="tab.icon" class="w-5 h-5" />
+          {{ tab.label }}
+        </button>
+      </nav>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="min-h-[500px]">
+      <!-- Overview Tab -->
+      <div v-if="activeTab === 'overview'" class="space-y-6">
+        <div v-if="isLoadingOverview" class="flex items-center justify-center py-12">
+          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+        </div>
+        <template v-else-if="overviewData">
+          <!-- Stats Cards -->
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiInsights.overview.totalFiles') }}</p>
+                  <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ overviewData.total_files?.toLocaleString() }}</p>
+                </div>
+                <div class="w-12 h-12 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center">
+                  <FolderIcon class="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                </div>
+              </div>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiInsights.overview.totalSize') }}</p>
+                  <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ overviewData.total_size }}</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                  <DocumentTextIcon class="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiInsights.overview.sensitiveFiles') }}</p>
+                  <p class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{{ overviewData.risk_summary?.sensitive_files }}</p>
+                </div>
+                <div class="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+                  <ShieldExclamationIcon class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                </div>
+              </div>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiInsights.overview.duplicateSize') }}</p>
+                  <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{{ overviewData.optimization_suggestions?.duplicate_files?.size }}</p>
+                </div>
+                <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+                  <DocumentDuplicateIcon class="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- File Categories & Risk -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- File Categories -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+              <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.overview.fileCategories') }}</h3>
+              <div class="space-y-4">
+                <div v-for="cat in overviewData.file_categories" :key="cat.name" class="flex items-center gap-4">
+                  <div class="flex-1">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ locale === 'zh-CN' ? cat.name_zh : cat.name }}</span>
+                      <span class="text-sm text-slate-500">{{ cat.percentage }}%</span>
+                    </div>
+                    <div class="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div 
+                        class="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all"
+                        :style="{ width: `${cat.percentage}%` }"
+                      />
+                    </div>
+                  </div>
+                  <span class="text-sm text-slate-500 w-16 text-right">{{ cat.size }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Risk Summary -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+              <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.overview.riskMonitoring') }}</h3>
+              <div class="space-y-4">
+                <div class="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                  <div class="flex items-center gap-3">
+                    <ExclamationTriangleIcon class="w-5 h-5 text-amber-500" />
+                    <span class="text-sm text-amber-700 dark:text-amber-300">{{ t('aiInsights.overview.sensitiveInfo') }}</span>
+                  </div>
+                  <span class="text-sm font-semibold text-amber-600 dark:text-amber-400">{{ overviewData.risk_summary?.sensitive_files }} {{ t('aiInsights.overview.files') }}</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                  <div class="flex items-center gap-3">
+                    <CheckCircleIcon class="w-5 h-5 text-emerald-500" />
+                    <span class="text-sm text-emerald-700 dark:text-emerald-300">{{ t('aiInsights.overview.ransomwareRisk') }}</span>
+                  </div>
+                  <span class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{{ t('aiInsights.overview.safe') }}</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div class="flex items-center gap-3">
+                    <ShieldExclamationIcon class="w-5 h-5 text-blue-500" />
+                    <span class="text-sm text-blue-700 dark:text-blue-300">{{ t('aiInsights.overview.permissionIssues') }}</span>
+                  </div>
+                  <span class="text-sm font-semibold text-blue-600 dark:text-blue-400">{{ overviewData.risk_summary?.permission_issues }} {{ t('aiInsights.overview.places') }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Optimization Suggestions -->
+          <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+            <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.overview.optimizationSuggestions') }}</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                <div class="flex items-center gap-2 mb-2">
+                  <TrashIcon class="w-5 h-5 text-red-500" />
+                  <span class="font-medium text-slate-700 dark:text-slate-300">{{ t('aiInsights.overview.duplicateFiles') }}</span>
+                </div>
+                <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ overviewData.optimization_suggestions?.duplicate_files?.size }}</p>
+                <p class="text-sm text-slate-500 mt-1">{{ t('aiInsights.overview.suggestClean') }}</p>
+              </div>
+              <div class="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                <div class="flex items-center gap-2 mb-2">
+                  <ClockIcon class="w-5 h-5 text-blue-500" />
+                  <span class="font-medium text-slate-700 dark:text-slate-300">{{ t('aiInsights.overview.coldData') }}</span>
+                </div>
+                <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ overviewData.optimization_suggestions?.cold_data?.size }}</p>
+                <p class="text-sm text-slate-500 mt-1">{{ t('aiInsights.overview.suggestArchive') }}</p>
+              </div>
+              <div class="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                <div class="flex items-center gap-2 mb-2">
+                  <ArrowTrendingUpIcon class="w-5 h-5 text-amber-500" />
+                  <span class="font-medium text-slate-700 dark:text-slate-300">{{ t('aiInsights.overview.fastestGrowing') }}</span>
+                </div>
+                <p class="text-lg font-bold text-slate-800 dark:text-white">{{ overviewData.optimization_suggestions?.fastest_growing?.path }}</p>
+                <p class="text-sm text-slate-500 mt-1">{{ t('aiInsights.overview.weeklyGrowth') }}: {{ overviewData.optimization_suggestions?.fastest_growing?.growth_rate }}</p>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Smart Search Tab -->
+      <div v-if="activeTab === 'search'" class="space-y-6">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+          <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.search.title') }}</h3>
+          <div class="flex gap-4">
+            <div class="flex-1 relative">
+              <MagnifyingGlassIcon class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                v-model="searchQuery"
+                type="text"
+                :placeholder="t('aiInsights.search.placeholder')"
+                class="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <button
+              @click="handleSearch"
+              :disabled="isSearching || !searchQuery.trim()"
+              class="px-6 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <ArrowPathIcon v-if="isSearching" class="w-5 h-5 animate-spin" />
+              <MagnifyingGlassIcon v-else class="w-5 h-5" />
+              {{ t('aiInsights.search.search') }}
+            </button>
+          </div>
+          
+          <!-- Search Results -->
+          <div v-if="hasSearched" class="mt-6">
+            <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">{{ t('aiInsights.search.results') }}</h4>
+            <div v-if="searchResults.length === 0" class="text-center py-8 text-slate-500">
+              {{ t('aiInsights.search.noResults') }}
+            </div>
+            <div v-else class="space-y-2">
+              <div 
+                v-for="result in searchResults" 
+                :key="result.path"
+                class="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg"
+              >
+                <DocumentTextIcon class="w-5 h-5 text-slate-400" />
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{{ result.path?.split('/').pop() }}</p>
+                  <p class="text-xs text-slate-500 truncate">{{ result.path }}</p>
+                </div>
+                <span class="text-sm text-slate-500">{{ formatBytes(result.size || 0) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sensitive Data Tab -->
+      <div v-if="activeTab === 'sensitive'" class="space-y-6">
+        <div v-if="isLoadingSensitive" class="flex items-center justify-center py-12">
+          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+        </div>
+        <template v-else-if="sensitiveData">
+          <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+            <div class="flex items-center justify-between mb-6">
+              <h3 class="text-lg font-semibold text-slate-800 dark:text-white">{{ t('aiInsights.sensitive.title') }}</h3>
+              <div class="flex items-center gap-2 text-sm text-slate-500">
+                <ClockIcon class="w-4 h-4" />
+                {{ t('aiInsights.sensitive.lastScan') }}: {{ sensitiveData.last_scan }}
+              </div>
+            </div>
+            <div class="space-y-4">
+              <div v-for="finding in sensitiveData.findings" :key="finding.type" class="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-3">
+                    <span :class="['px-2 py-1 text-xs font-medium rounded', getSeverityColor(finding.severity)]">
+                      {{ finding.severity.toUpperCase() }}
+                    </span>
+                    <span class="font-medium text-slate-700 dark:text-slate-300">{{ locale === 'zh-CN' ? finding.type_zh : finding.type }}</span>
+                  </div>
+                  <span class="text-sm text-slate-500">{{ finding.count }} {{ t('aiInsights.sensitive.matches') }}</span>
+                </div>
+                <p class="text-sm text-slate-600 dark:text-slate-400 mb-2">{{ finding.recommendation }}</p>
+                <div class="text-xs text-slate-500">
+                  {{ t('aiInsights.sensitive.files') }}: {{ finding.files.map((f: any) => f.path?.split('/').pop()).join(', ') }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Content Profile Tab -->
+      <div v-if="activeTab === 'profile'" class="space-y-6">
+        <div v-if="isLoadingProfile" class="flex items-center justify-center py-12">
+          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+        </div>
+        <template v-else-if="contentProfile">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div v-for="cat in contentProfile.categories" :key="cat.name" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <TagIcon class="w-5 h-5 text-violet-500" />
+                <span class="font-medium text-slate-700 dark:text-slate-300">{{ locale === 'zh-CN' ? cat.name_zh : cat.name }}</span>
+              </div>
+              <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ cat.count }}</p>
+              <p class="text-sm text-slate-500">{{ cat.size }}</p>
+              <div class="flex flex-wrap gap-1 mt-3">
+                <span v-for="tag in cat.tags" :key="tag" class="px-2 py-0.5 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded">
+                  {{ tag }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Data Heatmap Tab -->
+      <div v-if="activeTab === 'heatmap'" class="space-y-6">
+        <div v-if="isLoadingHeatmap" class="flex items-center justify-center py-12">
+          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+        </div>
+        <template v-else-if="dataHeatmap">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div v-for="item in dataHeatmap.heatmap" :key="item.category" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+              <div class="flex items-center gap-3 mb-4">
+                <div :class="[
+                  'w-10 h-10 rounded-lg flex items-center justify-center',
+                  item.category === 'hot' ? 'bg-red-100 dark:bg-red-900/30' :
+                  item.category === 'warm' ? 'bg-amber-100 dark:bg-amber-900/30' :
+                  'bg-blue-100 dark:bg-blue-900/30'
+                ]">
+                  <FireIcon :class="[
+                    'w-5 h-5',
+                    item.category === 'hot' ? 'text-red-500' :
+                    item.category === 'warm' ? 'text-amber-500' :
+                    'text-blue-500'
+                  ]" />
+                </div>
+                <div>
+                  <p class="font-medium text-slate-700 dark:text-slate-300">{{ locale === 'zh-CN' ? item.category_zh : item.category }}</p>
+                  <p class="text-xs text-slate-500">{{ item.description }}</p>
+                </div>
+              </div>
+              <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ item.size }}</p>
+              <div class="flex items-center justify-between mt-2 text-sm text-slate-500">
+                <span>{{ item.percentage }}%</span>
+                <span>{{ item.file_count?.toLocaleString() }} {{ t('aiInsights.heatmap.files') }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Zombie Data -->
+          <div v-if="dataHeatmap.zombie_data" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <ExclamationTriangleIcon class="w-5 h-5 text-amber-500" />
+              <span class="font-medium text-amber-700 dark:text-amber-300">{{ t('aiInsights.heatmap.zombieData') }}</span>
+            </div>
+            <p class="text-amber-600 dark:text-amber-400">{{ dataHeatmap.zombie_data.description }}</p>
+            <p class="text-lg font-bold text-amber-700 dark:text-amber-300 mt-2">{{ dataHeatmap.zombie_data.size }} ({{ dataHeatmap.zombie_data.file_count?.toLocaleString() }} {{ t('aiInsights.heatmap.files') }})</p>
+            <p class="text-sm text-amber-600 dark:text-amber-400 mt-1">{{ dataHeatmap.zombie_data.potential_savings }}</p>
+          </div>
+        </template>
+      </div>
+
+      <!-- Redundancy Tab -->
+      <div v-if="activeTab === 'redundancy'" class="space-y-6">
+        <div v-if="isLoadingRedundancy" class="flex items-center justify-center py-12">
+          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+        </div>
+        <template v-else-if="redundancyData">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <p class="text-sm text-slate-500">{{ t('aiInsights.redundancy.duplicateFiles') }}</p>
+              <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ redundancyData.total_duplicates?.toLocaleString() }}</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <p class="text-sm text-slate-500">{{ t('aiInsights.redundancy.duplicateSize') }}</p>
+              <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{{ redundancyData.duplicate_size }}</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <p class="text-sm text-slate-500">{{ t('aiInsights.redundancy.potentialSavings') }}</p>
+              <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{{ redundancyData.potential_savings }}</p>
+            </div>
+          </div>
+          
+          <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+            <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.redundancy.duplicateGroups') }}</h3>
+            <div class="space-y-3">
+              <div v-for="group in redundancyData.duplicate_groups" :key="group.file_name" class="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-medium text-slate-700 dark:text-slate-300">{{ group.file_name }}</span>
+                  <span class="text-sm text-slate-500">{{ group.count }} {{ t('aiInsights.redundancy.copies') }}</span>
+                </div>
+                <div class="text-xs text-slate-500">
+                  {{ t('aiInsights.redundancy.locations') }}: {{ group.locations.join(', ') }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</template>
