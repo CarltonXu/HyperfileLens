@@ -32,7 +32,6 @@ import {
   ExclamationTriangleIcon,
   CloudIcon,
   StarIcon,
-  XMarkIcon,
   // AI Insights 三级菜单图标
   ChartBarIcon,
   MagnifyingGlassIcon,
@@ -57,6 +56,7 @@ import {
   BellIcon as BellIconSolid,
   ExclamationTriangleIcon as ExclamationTriangleIconSolid,
   CloudIcon as CloudIconSolid,
+  StarIcon as StarIconSolid,
   // AI Insights 三级菜单图标
   ChartBarIcon as ChartBarIconSolid,
   MagnifyingGlassIcon as MagnifyingGlassIconSolid,
@@ -950,10 +950,10 @@ onUnmounted(() => {
                 <!-- Remove Favorite Button -->
                 <button
                   @click.prevent="favoritesStore.removeFavorite(fav.id)"
-                  class="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full opacity-0 group-hover/fav:opacity-100 transition-opacity text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                  class="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full opacity-0 group-hover/fav:opacity-100 transition-all text-yellow-500 hover:text-slate-300 dark:hover:text-slate-600"
                   :title="$t('favorites.remove')"
                 >
-                  <XMarkIcon class="w-3.5 h-3.5" />
+                  <StarIconSolid class="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
