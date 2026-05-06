@@ -1295,6 +1295,33 @@ export default {
       weeklyGrowth: 'Weekly growth'
     },
 
+    // Insight Overview Page (独立的洞察看板页面)
+    insightOverview: {
+      title: 'Insight Overview',
+      subtitle: 'Comprehensive overview of your AI-powered data insights',
+      lastSync: 'Last synced',
+      totalFiles: 'Total Files',
+      totalSize: 'Total Size',
+      sensitiveFiles: 'Sensitive Files',
+      duplicateSize: 'Duplicate Size',
+      fileCategories: 'File Categories',
+      quickAccess: 'Quick Access',
+      riskSummary: 'Risk Summary',
+      optimizationSuggestions: 'Optimization Suggestions',
+      sensitiveInfo: 'Sensitive Information',
+      ransomwareRisk: 'Ransomware Risk',
+      safe: 'Safe',
+      coldData: 'cold data',
+      files: 'files',
+      // Feature descriptions
+      smartSearchDesc: 'Search across all backup data with AI-powered semantic understanding',
+      sensitiveDataDesc: 'Identify and manage sensitive information in your backups',
+      contentProfileDesc: 'Analyze content distribution and classification patterns',
+      dataHeatmapDesc: 'Visualize data access patterns and temperature distribution',
+      redundancyDesc: 'Detect and manage duplicate and redundant data',
+      aiChatDesc: 'Chat with AI to query and analyze your backup knowledge base'
+    },
+
     search: {
       title: 'Smart Search',
       placeholder: 'Search files using natural language... (e.g., "find all PDF files modified last week")',

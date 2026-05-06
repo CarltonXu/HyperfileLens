@@ -12,6 +12,7 @@ const Repository = () => import('@/views/Repository.vue')
 const SourceResources = () => import('@/views/SourceResources.vue')
 const Policies = () => import('@/views/Policies.vue')
 const AIInsights = () => import('@/views/AIInsights.vue')
+const InsightOverview = () => import('@/views/InsightOverview.vue')
 const AuditLog = () => import('@/views/AuditLog.vue')
 const EventLog = () => import('@/views/EventLog.vue')
 const Alerts = () => import('@/views/Alerts.vue')
@@ -128,10 +129,14 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'AI Insights' },
         children: [
           {
-            path: '',
+            path: 'overview',
             name: 'AIInsightsOverview',
-            component: AIInsights,
-            meta: { title: 'AI Insights Overview', tab: 'overview' }
+            component: InsightOverview,
+            meta: { title: 'Insight Overview' }
+          },
+          {
+            path: '',
+            redirect: '/ai-insights/overview'
           },
           {
             path: 'smart-search',

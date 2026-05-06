@@ -1295,6 +1295,33 @@ export default {
       weeklyGrowth: '周增长率'
     },
 
+    // 洞察看板页面 (独立的AI Insights汇总页面)
+    insightOverview: {
+      title: '洞察看板',
+      subtitle: 'AI 智能洞察功能全览',
+      lastSync: '上次同步',
+      totalFiles: '文件总数',
+      totalSize: '总大小',
+      sensitiveFiles: '敏感文件',
+      duplicateSize: '重复数据',
+      fileCategories: '文件分类',
+      quickAccess: '快速入口',
+      riskSummary: '风险概览',
+      optimizationSuggestions: '优化建议',
+      sensitiveInfo: '敏感信息',
+      ransomwareRisk: '勒索风险',
+      safe: '安全',
+      coldData: '冷数据',
+      files: '文件',
+      // 功能描述
+      smartSearchDesc: '使用AI语义理解搜索所有备份数据',
+      sensitiveDataDesc: '识别和管理备份中的敏感信息',
+      contentProfileDesc: '分析内容分布和分类模式',
+      dataHeatmapDesc: '可视化数据访问模式和冷热分布',
+      redundancyDesc: '检测和管理重复冗余数据',
+      aiChatDesc: '与AI对话查询和分析备份知识库'
+    },
+
     search: {
       title: '全局智搜',
       placeholder: '使用自然语言搜索文件... (例如：查找上周修改的所有 PDF 文件)',
