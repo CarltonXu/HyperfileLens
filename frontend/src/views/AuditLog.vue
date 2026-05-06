@@ -312,7 +312,7 @@
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <span :class="getActionBadgeClass(log.action)" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                  {{ log.action_display || t(`auditLog.actions.${log.action}`) }}
+                  {{ t(`auditLog.actions.${log.action}`, log.action) }}
                 </span>
               </td>
               <td class="px-4 py-3">
@@ -320,12 +320,12 @@
                   {{ log.resource_name || log.resource_id || '-' }}
                 </div>
                 <div class="text-xs text-slate-500 dark:text-slate-400">
-                  {{ log.resource_type_display || t(`auditLog.resourceTypes.${log.resource_type}`) }}
+                  {{ t(`auditLog.resourceTypes.${log.resource_type}`, log.resource_type) }}
                 </div>
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <span :class="getResultBadgeClass(log.result)" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                  {{ log.result_display || t(`auditLog.results.${log.result}`) }}
+                  {{ t(`auditLog.results.${log.result}`, log.result) }}
                 </span>
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
@@ -443,7 +443,7 @@
                   </label>
                   <div class="text-sm">
                     <span :class="getActionBadgeClass(selectedLog.action)" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                      {{ selectedLog.action_display }}
+                      {{ t(`auditLog.actions.${selectedLog.action}`, selectedLog.action) }}
                     </span>
                   </div>
                 </div>
@@ -453,7 +453,7 @@
                   </label>
                   <div class="text-sm">
                     <span :class="getResultBadgeClass(selectedLog.result)" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                      {{ selectedLog.result_display }}
+                      {{ t(`auditLog.results.${selectedLog.result}`, selectedLog.result) }}
                     </span>
                   </div>
                 </div>
@@ -462,7 +462,7 @@
                     {{ t('auditLog.resource') }}
                   </label>
                   <div class="text-sm text-slate-800 dark:text-white">
-                    {{ selectedLog.resource_type_display }}: {{ selectedLog.resource_name || selectedLog.resource_id }}
+                    {{ t(`auditLog.resourceTypes.${selectedLog.resource_type}`, selectedLog.resource_type) }}: {{ selectedLog.resource_name || selectedLog.resource_id }}
                   </div>
                 </div>
                 <div>

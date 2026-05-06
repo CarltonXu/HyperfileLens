@@ -57,6 +57,7 @@ export default {
     date: '日期',
     actions: '操作',
     details: '详情',
+    detail: '详情',
     description: '描述',
     required: '必填',
     optional: '可选',
@@ -1267,11 +1268,14 @@ export default {
       create: '创建',
       update: '更新',
       delete: '删除',
+      access: '访问',
+      execute: '执行',
       login: '登录',
       logout: '登出',
+      export: '导出',
+      import: '导入',
       enable: '启用',
       disable: '禁用',
-      export: '导出',
       filter: '筛选',
       refresh: '刷新',
       backupCreate: '创建备份',
@@ -1309,7 +1313,10 @@ export default {
       policy: '策略',
       repository: '存储库',
       source_resource: '源资源',
-      license: '许可证'
+      license: '许可证',
+      gateway: '网关',
+      system: '系统',
+      audit_log: '审计日志'
     },
 
     results: {

@@ -59,6 +59,7 @@ export default {
     date: 'Date',
     actions: 'Actions',
     details: 'Details',
+    detail: 'Detail',
     description: 'Description',
     required: 'Required',
     optional: 'Optional',
@@ -1267,11 +1268,14 @@ export default {
       create: 'Create',
       update: 'Update',
       delete: 'Delete',
+      access: 'Access',
+      execute: 'Execute',
       login: 'Login',
       logout: 'Logout',
+      export: 'Export',
+      import: 'Import',
       enable: 'Enable',
       disable: 'Disable',
-      export: 'Export',
       filter: 'Filter',
       refresh: 'Refresh',
       backupCreate: 'Backup Created',
@@ -1309,7 +1313,10 @@ export default {
       policy: 'Policy',
       repository: 'Repository',
       source_resource: 'Source Resource',
-      license: 'License'
+      license: 'License',
+      gateway: 'Gateway',
+      system: 'System',
+      audit_log: 'Audit Log'
     },
 
     results: {
