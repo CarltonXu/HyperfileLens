@@ -140,6 +140,22 @@ class AuditService:
         )
     
     @staticmethod
+    def log_user_register(request, user, result='success', error_message=''):
+        """记录用户注册"""
+        ip_address = AuditService._get_client_ip(request) if request else None
+        return audit_log(
+            request=request,
+            action='register',
+            resource_type='user',
+            resource_id=str(user.id) if user else '',
+            resource_name=user.email if user else '',
+            details=f'用户注册: {user.email if user else "Unknown"}',
+            result=result,
+            ip_address=ip_address,
+            error_message=error_message,
+        )
+    
+    @staticmethod
     def log_password_reset(request, user, result='success', error_message=''):
         """记录密码重置"""
         return audit_log(

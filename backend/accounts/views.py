@@ -1031,12 +1031,24 @@ class RegisterView(APIView):
             )
         
         if len(password) < 6:
+            AuditService.log_user_register(
+                request, 
+                type('User', (), {'id': '', 'email': email})(),
+                result='failure',
+                error_message='Password must be at least 6 characters'
+            )
             return Response(
                 {'error': 'Password must be at least 6 characters'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         if User.objects.filter(email=email).exists():
+            AuditService.log_user_register(
+                request,
+                type('User', (), {'id': '', 'email': email})(),
+                result='failure',
+                error_message='Email already registered'
+            )
             return Response(
                 {'error': 'Email already registered'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -1086,11 +1098,11 @@ class RegisterView(APIView):
             # Generate token
             token, _ = Token.objects.get_or_create(user=user)
             
-            # Record audit log
-            AuditService.log_user_create(request, user)
+            # Record audit log - user registration
+            AuditService.log_user_register(request, user)
         
         response_data = UserProfileSerializer(user).data
-        response_data['token'] = api_token.key
+        response_data['token'] = token.key
         
         return Response(response_data, status=status.HTTP_201_CREATED)
 
