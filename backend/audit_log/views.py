@@ -44,6 +44,33 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-timestamp']
     search_fields = ['user_email', 'user_name', 'resource_name', 'resource_id', 'details']
     
+    def list(self, request, *args, **kwargs):
+        """重写 list 方法以支持自定义 page_size"""
+        # get_queryset 已经应用了所有过滤和权限控制
+        queryset = self.get_queryset()
+        
+        # 应用排序（从 filter_queryset 中获取排序功能）
+        ordering = request.query_params.get('ordering', '-timestamp')
+        queryset = queryset.order_by(ordering)
+        
+        # 获取分页参数
+        page_size = request.query_params.get('page_size', 10)
+        
+        # 创建分页器并配置
+        from rest_framework.pagination import PageNumberPagination
+        paginator = PageNumberPagination()
+        paginator.page_size = int(page_size)
+        paginator.page_size_query_param = 'page_size'
+        paginator.max_page_size = 100
+        
+        # 应用分页
+        page_obj = paginator.paginate_queryset(queryset, request, view=self)
+        
+        # 序列化数据
+        serializer = self.get_serializer(page_obj, many=True)
+        
+        return paginator.get_paginated_response(serializer.data)
+    
     def get_serializer_class(self):
         """根据动作选择序列化器"""
         if self.action == 'list':
