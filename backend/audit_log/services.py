@@ -362,6 +362,51 @@ class AuditService:
             error_message=error_message
         )
     
+    @staticmethod
+    def log_proxy_register(user, proxy, result='success', error_message=''):
+        """记录代理注册（WebSocket连接时）"""
+        return audit_log(
+            request=None,
+            user=user,
+            action='execute',
+            resource_type='proxy',
+            resource_id=str(proxy.id) if proxy else '',
+            resource_name=proxy.name if proxy else '',
+            details=f'代理注册上线: {proxy.name if proxy else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_proxy_online(user, proxy, result='success', error_message=''):
+        """记录代理上线"""
+        return audit_log(
+            request=None,
+            user=user,
+            action='execute',
+            resource_type='proxy',
+            resource_id=str(proxy.id) if proxy else '',
+            resource_name=proxy.name if proxy else '',
+            details=f'代理上线: {proxy.name if proxy else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_proxy_offline(user, proxy, result='success', error_message=''):
+        """记录代理下线"""
+        return audit_log(
+            request=None,
+            user=user,
+            action='execute',
+            resource_type='proxy',
+            resource_id=str(proxy.id) if proxy else '',
+            resource_name=proxy.name if proxy else '',
+            details=f'代理下线: {proxy.name if proxy else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
     # ==================== 网关相关 ====================
     
     @staticmethod

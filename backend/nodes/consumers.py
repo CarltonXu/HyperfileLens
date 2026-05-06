@@ -11,6 +11,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from asgiref.sync import sync_to_async
+from audit_log.services import AuditService
 
 
 class ProxyConsumer(AsyncWebsocketConsumer):
@@ -312,6 +313,16 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             else:
                 proxy.status = ProxyNode.NodeStatus.OFFLINE
             proxy.save(update_fields=['status', 'registered_at', 'updated_at'])
+            
+            # Record audit log for online/offline status
+            # Use the first superuser as the actor for system-triggered events
+            from accounts.models import User
+            system_user = User.objects.filter(is_superuser=True).first()
+            if system_user:
+                if online:
+                    AuditService.log_proxy_online(system_user, proxy)
+                else:
+                    AuditService.log_proxy_offline(system_user, proxy)
         except ProxyNode.DoesNotExist:
             pass
 
@@ -368,6 +379,14 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 proxy.capabilities = proxy_info.get('capabilities', {})
 
             proxy.save()
+            
+            # Record audit log for proxy registration
+            # Use the first superuser as the actor for system-triggered events
+            from accounts.models import User
+            system_user = User.objects.filter(is_superuser=True).first()
+            if system_user:
+                AuditService.log_proxy_register(system_user, proxy)
+            
             return True
         except ProxyNode.DoesNotExist:
             return False
