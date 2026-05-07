@@ -467,7 +467,7 @@ logging:
 
         # Average uptime for active proxies
         avg_uptime = 0
-        active_proxies = queryset.filter(status=ProxyNode.NodeStatus.ACTIVE)
+        active_proxies = queryset.filter(status=ProxyNode.NodeStatus.ONLINE)
         if active_proxies.exists():
             total_uptime = sum(
                 (timezone.now() - p.registered_at).total_seconds()
@@ -582,7 +582,7 @@ logging:
             )
         
         # Check if proxy is online
-        if proxy.status != ProxyNode.NodeStatus.ACTIVE:
+        if proxy.status != ProxyNode.NodeStatus.ONLINE:
             return Response(
                 {'error': 'Proxy is not online.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -1061,7 +1061,7 @@ logging:
         proxy.disk_total = data.get('disk_total')
         if data.get('capabilities'):
             proxy.capabilities = data['capabilities']
-        proxy.status = ProxyNode.NodeStatus.ACTIVE
+        proxy.status = ProxyNode.NodeStatus.ONLINE
         proxy.install_token_used = True  # Mark install token as used
         proxy.save()
         

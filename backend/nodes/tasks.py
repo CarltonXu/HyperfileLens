@@ -27,7 +27,7 @@ def check_all_nodes_health(self):
     try:
         now = timezone.now()
         nodes = Node.objects.filter(
-            status__in=[Node.NodeStatus.ACTIVE, Node.NodeStatus.PENDING]
+            status__in=[Node.NodeStatus.ONLINE, Node.NodeStatus.PENDING]
         )
 
         inactive_count = 0

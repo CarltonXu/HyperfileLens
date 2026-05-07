@@ -194,7 +194,7 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'error_code': 'NO_BOUND_NODE'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        if repo.bound_node.status != Node.NodeStatus.ACTIVE:
+        if repo.bound_node.status != Node.NodeStatus.ONLINE:
             logger.warning(
                 f"[Connection Test] FAILED for '{repo.name}': Bound node '{repo.bound_node.name}' "
                 f"is not active (status: {repo.bound_node.get_status_display()})"
@@ -754,7 +754,7 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Check bound node status
-        if repo.bound_node.status != Node.NodeStatus.ACTIVE:
+        if repo.bound_node.status != Node.NodeStatus.ONLINE:
             return Response({
                 'success': False,
                 'message': f'Bound node is {repo.bound_node.get_status_display()}. Node must be active.',
@@ -909,7 +909,7 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             }, status=status.HTTP_404_NOT_FOUND)
         
         # Check node status
-        if node.status != Node.NodeStatus.ACTIVE:
+        if node.status != Node.NodeStatus.ONLINE:
             return Response({
                 'success': False,
                 'message': f'Node is {node.get_status_display()}. Node must be active.',

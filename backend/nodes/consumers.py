@@ -390,7 +390,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         try:
             proxy = ProxyNode.objects.get(id=self.proxy_id)
             if online:
-                proxy.status = ProxyNode.NodeStatus.ACTIVE
+                proxy.status = ProxyNode.NodeStatus.ONLINE
                 if not proxy.registered_at:
                     proxy.registered_at = timezone.now()
             else:
@@ -445,7 +445,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         try:
             proxy = ProxyNode.objects.get(id=self.proxy_id, install_token=install_token)
             proxy.install_token = ''  # Clear token after use
-            proxy.status = ProxyNode.NodeStatus.ACTIVE
+            proxy.status = ProxyNode.NodeStatus.ONLINE
             proxy.registered_at = timezone.now()
             proxy.installed_at = timezone.now()
 

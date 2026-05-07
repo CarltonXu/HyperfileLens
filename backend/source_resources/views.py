@@ -216,7 +216,7 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             }, status=status.HTTP_404_NOT_FOUND)
         
         # Check node status
-        if node.status != Node.NodeStatus.ACTIVE:
+        if node.status != Node.NodeStatus.ONLINE:
             return Response({
                 'success': False,
                 'message': f'Node "{node.name}" is not active.',
