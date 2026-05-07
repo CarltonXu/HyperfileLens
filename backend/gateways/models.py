@@ -382,3 +382,78 @@ curl -sSL https://get.hyperfilelens.com/install-gateway.sh | bash -s -- \\
             'registered_at': self.registered_at.isoformat() if self.registered_at else None,
             'installed_at': self.installed_at.isoformat() if self.installed_at else None,
         }
+
+
+class GatewayHeartbeat(models.Model):
+    """
+    Gateway Heartbeat history for monitoring and analytics.
+    Stores periodic metrics from gateway nodes.
+    """
+
+    gateway = models.ForeignKey(
+        Gateway,
+        on_delete=models.CASCADE,
+        related_name='heartbeats',
+        help_text='Gateway this heartbeat belongs to'
+    )
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When this heartbeat was received'
+    )
+
+    # System metrics
+    cpu_usage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='CPU usage percentage at this heartbeat'
+    )
+    memory_usage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Memory usage percentage at this heartbeat'
+    )
+    disk_usage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Disk usage percentage at this heartbeat'
+    )
+
+    # Mount info
+    active_mounts = models.IntegerField(
+        default=0,
+        help_text='Number of active mounts at this heartbeat'
+    )
+
+    # Network metrics
+    network_bytes_sent = models.BigIntegerField(
+        default=0,
+        help_text='Network bytes sent since last heartbeat'
+    )
+    network_bytes_recv = models.BigIntegerField(
+        default=0,
+        help_text='Network bytes received since last heartbeat'
+    )
+
+    # Additional metrics
+    load_average = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='System load average (1, 5, 15 min)'
+    )
+    process_count = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text='Number of running processes'
+    )
+
+    class Meta:
+        db_table = 'gateways_heartbeat'
+        verbose_name = 'Gateway Heartbeat'
+        verbose_name_plural = 'Gateway Heartbeats'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['gateway', '-timestamp']),
+        ]
+
+    def __str__(self):
+        return f'{self.gateway.name} - {self.timestamp}'

@@ -91,10 +91,21 @@ const newGateway = ref({
 // Detail Drawer
 const showDetailDrawer = ref(false)
 const selectedGateway = ref<Gateway | null>(null)
-const detailTab = ref<'overview' | 'install' | 'mounts'>('overview')
+const detailTab = ref<'overview' | 'install' | 'mounts' | 'monitoring'>('overview')
 const installCommand = ref('')
 const isLoadingCommand = ref(false)
 const commandCopied = ref(false)
+
+// Monitoring data
+const monitoringData = ref<Array<{
+  timestamp: string
+  cpu_usage: number | null
+  memory_usage: number | null
+  disk_usage: number | null
+  active_mounts: number
+}>>([])
+const isLoadingMonitoring = ref(false)
+const monitoringHours = ref(24)
 
 // Status colors
 const statusColors: Record<string, string> = {
@@ -269,10 +280,57 @@ function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString()
 }
 
+async function loadMonitoringData() {
+  if (!selectedGateway.value) return
+  
+  isLoadingMonitoring.value = true
+  try {
+    const res = await gatewaysApi.monitoring(selectedGateway.value.id, monitoringHours.value)
+    monitoringData.value = res.data.data || []
+  } catch (error) {
+    console.error('Failed to load monitoring data:', error)
+    monitoringData.value = []
+  } finally {
+    isLoadingMonitoring.value = false
+  }
+}
+
+// Chart computed values
+const chartData = computed(() => {
+  if (!monitoringData.value.length) return null
+  
+  const MAX_POINTS = 48
+  const data = monitoringData.value
+  
+  // Sample data if too many points
+  let sampledData = data
+  if (data.length > MAX_POINTS) {
+    const step = Math.ceil(data.length / MAX_POINTS)
+    sampledData = data.filter((_, i) => i % step === 0)
+  }
+  
+  return {
+    labels: sampledData.map(d => new Date(d.timestamp).toLocaleTimeString()),
+    cpu: sampledData.map(d => d.cpu_usage || 0),
+    memory: sampledData.map(d => d.memory_usage || 0),
+    disk: sampledData.map(d => d.disk_usage || 0)
+  }
+})
+
 // Watch tab changes
 watch(detailTab, (newTab) => {
   if (newTab === 'install' && selectedGateway.value?.status === 'pending') {
     loadInstallCommand()
+  }
+  if (newTab === 'monitoring') {
+    loadMonitoringData()
+  }
+})
+
+// Watch monitoring hours change
+watch(monitoringHours, () => {
+  if (detailTab.value === 'monitoring') {
+    loadMonitoringData()
   }
 })
 
@@ -551,7 +609,7 @@ onMounted(() => {
         <div class="border-b border-slate-200 dark:border-slate-700">
           <div class="flex px-6">
             <button
-              v-for="tab in (['overview', 'install', 'mounts'] as const)"
+              v-for="tab in (['overview', 'install', 'mounts', 'monitoring'] as const)"
               :key="tab"
               @click="detailTab = tab"
               :class="['px-4 py-3 text-sm font-medium border-b-2 -mb-px', detailTab === tab ? 'border-violet-500 text-violet-600 dark:text-violet-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300']"
@@ -756,6 +814,143 @@ onMounted(() => {
             <p class="text-sm text-slate-500 dark:text-slate-400 text-center">
               {{ t('gateways.mountDetailsNote') }}
             </p>
+          </div>
+
+          <!-- Monitoring Tab -->
+          <div v-if="detailTab === 'monitoring'" class="space-y-6">
+            <!-- Time Range Selector -->
+            <div class="flex items-center gap-4">
+              <select
+                v-model="monitoringHours"
+                class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300"
+              >
+                <option :value="1">1 {{ t('gateways.hour') }}</option>
+                <option :value="6">6 {{ t('gateways.hours') }}</option>
+                <option :value="12">12 {{ t('gateways.hours') }}</option>
+                <option :value="24">24 {{ t('gateways.hours') }}</option>
+              </select>
+              <button
+                @click="loadMonitoringData"
+                class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+              >
+                <ArrowPathIcon class="w-5 h-5" />
+              </button>
+            </div>
+
+            <!-- Loading State -->
+            <div v-if="isLoadingMonitoring" class="flex items-center justify-center py-12">
+              <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+            </div>
+
+            <!-- No Data State -->
+            <div v-else-if="!chartData || chartData.labels.length === 0" class="text-center py-12">
+              <CircleStackIcon class="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+              <p class="text-slate-500 dark:text-slate-400">{{ t('gateways.noMonitoringData') }}</p>
+            </div>
+
+            <!-- Charts -->
+            <div v-else class="space-y-6">
+              <!-- CPU Usage Chart -->
+              <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+                <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                  {{ t('gateways.cpuUsage') }}
+                </h4>
+                <div class="h-32 relative">
+                  <svg viewBox="0 0 400 100" class="w-full h-full" preserveAspectRatio="none">
+                    <!-- Grid lines -->
+                    <line x1="0" y1="0" x2="400" y2="0" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="25" x2="400" y2="25" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="50" x2="400" y2="50" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="75" x2="400" y2="75" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="100" x2="400" y2="100" stroke="currentColor" stroke-opacity="0.1" />
+                    
+                    <!-- CPU Line -->
+                    <polyline
+                      :points="(chartData?.cpu ?? []).map((v, i) => `${(i / Math.max((chartData?.cpu?.length ?? 1) - 1, 1)) * 400},${100 - v}`).join(' ')"
+                      fill="none"
+                      stroke="#3b82f6"
+                      stroke-width="2"
+                    />
+                  </svg>
+                  <div class="absolute right-0 top-0 text-xs text-slate-400">100%</div>
+                  <div class="absolute right-0 bottom-0 text-xs text-slate-400">0%</div>
+                </div>
+                <div class="flex items-center justify-between mt-2 text-sm">
+                  <span class="text-slate-500 dark:text-slate-400">{{ chartData?.labels?.[0] || '-' }}</span>
+                  <span class="text-slate-500 dark:text-slate-400">{{ chartData?.labels?.[(chartData?.labels?.length ?? 1) - 1] || '-' }}</span>
+                </div>
+              </div>
+
+              <!-- Memory Usage Chart -->
+              <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+                <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                  {{ t('gateways.memoryUsage') }}
+                </h4>
+                <div class="h-32 relative">
+                  <svg viewBox="0 0 400 100" class="w-full h-full" preserveAspectRatio="none">
+                    <!-- Grid lines -->
+                    <line x1="0" y1="0" x2="400" y2="0" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="25" x2="400" y2="25" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="50" x2="400" y2="50" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="75" x2="400" y2="75" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="100" x2="400" y2="100" stroke="currentColor" stroke-opacity="0.1" />
+                    
+                    <!-- Memory Line -->
+                    <polyline
+                      :points="(chartData?.memory ?? []).map((v, i) => `${(i / Math.max((chartData?.memory?.length ?? 1) - 1, 1)) * 400},${100 - v}`).join(' ')"
+                      fill="none"
+                      stroke="#10b981"
+                      stroke-width="2"
+                    />
+                  </svg>
+                  <div class="absolute right-0 top-0 text-xs text-slate-400">100%</div>
+                  <div class="absolute right-0 bottom-0 text-xs text-slate-400">0%</div>
+                </div>
+              </div>
+
+              <!-- Disk Usage Chart -->
+              <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+                <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                  {{ t('gateways.diskUsage') }}
+                </h4>
+                <div class="h-32 relative">
+                  <svg viewBox="0 0 400 100" class="w-full h-full" preserveAspectRatio="none">
+                    <!-- Grid lines -->
+                    <line x1="0" y1="0" x2="400" y2="0" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="25" x2="400" y2="25" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="50" x2="400" y2="50" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="75" x2="400" y2="75" stroke="currentColor" stroke-opacity="0.1" />
+                    <line x1="0" y1="100" x2="400" y2="100" stroke="currentColor" stroke-opacity="0.1" />
+                    
+                    <!-- Disk Line -->
+                    <polyline
+                      :points="(chartData?.disk ?? []).map((v, i) => `${(i / Math.max((chartData?.disk?.length ?? 1) - 1, 1)) * 400},${100 - v}`).join(' ')"
+                      fill="none"
+                      stroke="#f59e0b"
+                      stroke-width="2"
+                    />
+                  </svg>
+                  <div class="absolute right-0 top-0 text-xs text-slate-400">100%</div>
+                  <div class="absolute right-0 bottom-0 text-xs text-slate-400">0%</div>
+                </div>
+              </div>
+
+              <!-- Legend -->
+              <div class="flex items-center justify-center gap-6 text-sm">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span class="text-slate-600 dark:text-slate-400">{{ t('gateways.cpu') }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                  <span class="text-slate-600 dark:text-slate-400">{{ t('gateways.memory') }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                  <span class="text-slate-600 dark:text-slate-400">{{ t('gateways.disk') }}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

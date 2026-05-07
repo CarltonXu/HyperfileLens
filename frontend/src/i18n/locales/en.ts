@@ -2023,8 +2023,17 @@ export default {
     tabs: {
       overview: 'Overview',
       install: 'Install',
-      mounts: 'Mounts'
+      mounts: 'Mounts',
+      monitoring: 'Monitoring'
     },
+    
+    // Monitoring
+    hour: 'hour',
+    hours: 'hours',
+    noMonitoringData: 'No monitoring data available',
+    cpuUsage: 'CPU Usage',
+    memoryUsage: 'Memory Usage',
+    diskUsage: 'Disk Usage',
     
     // Install
     installInstructions: 'Run the following command on an Ubuntu 22.04 server to install and register the gateway.',

@@ -2025,8 +2025,17 @@ export default {
     tabs: {
       overview: '概览',
       install: '安装',
-      mounts: '挂载'
+      mounts: '挂载',
+      monitoring: '监控'
     },
+    
+    // Monitoring
+    hour: '小时',
+    hours: '小时',
+    noMonitoringData: '暂无监控数据',
+    cpuUsage: 'CPU 使用率',
+    memoryUsage: '内存使用率',
+    diskUsage: '磁盘使用率',
     
     // Install
     installInstructions: '在 Ubuntu 22.04 服务器上运行以下命令安装并注册网关。',

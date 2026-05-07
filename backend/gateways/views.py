@@ -208,6 +208,30 @@ class GatewayViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             gateway.update_heartbeat(serializer.validated_data)
             
+            # Create heartbeat history record
+            from .models import GatewayHeartbeat
+            GatewayHeartbeat.objects.create(
+                gateway=gateway,
+                cpu_usage=serializer.validated_data.get('cpu_usage'),
+                memory_usage=serializer.validated_data.get('memory_usage'),
+                disk_usage=serializer.validated_data.get('disk_usage'),
+                active_mounts=serializer.validated_data.get('active_mounts', 0),
+                network_bytes_sent=serializer.validated_data.get('network_bytes_sent', 0),
+                network_bytes_recv=serializer.validated_data.get('network_bytes_recv', 0),
+                load_average=serializer.validated_data.get('load_average'),
+                process_count=serializer.validated_data.get('process_count'),
+            )
+            
+            # Clean up old heartbeats (keep last 24 hours = 1440 records at 1-minute interval)
+            # Assuming heartbeat_interval is 60 seconds
+            from django.utils import timezone
+            from datetime import timedelta
+            cutoff = timezone.now() - timedelta(hours=24)
+            GatewayHeartbeat.objects.filter(
+                gateway=gateway,
+                timestamp__lt=cutoff
+            ).delete()
+            
             # Update status to active if it was offline
             if gateway.status in ['offline', 'pending']:
                 gateway.status = 'active'
@@ -218,3 +242,55 @@ class GatewayViewSet(viewsets.ModelViewSet):
             return Response({'status': 'ok'})
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def monitoring(self, request, pk=None):
+        """Get monitoring data for a gateway (heartbeat history)."""
+        gateway = self.get_object()
+        
+        # Get time range from query params
+        hours = int(request.query_params.get('hours', 24))
+        
+        from django.utils import timezone
+        from datetime import timedelta
+        from .models import GatewayHeartbeat
+        
+        cutoff = timezone.now() - timedelta(hours=hours)
+        heartbeats = GatewayHeartbeat.objects.filter(
+            gateway=gateway,
+            timestamp__gte=cutoff
+        ).order_by('timestamp')
+        
+        # Serialize heartbeat data
+        data = [{
+            'timestamp': hb.timestamp.isoformat(),
+            'cpu_usage': hb.cpu_usage,
+            'memory_usage': hb.memory_usage,
+            'disk_usage': hb.disk_usage,
+            'active_mounts': hb.active_mounts,
+            'network_bytes_sent': hb.network_bytes_sent,
+            'network_bytes_recv': hb.network_bytes_recv,
+        } for hb in heartbeats]
+        
+        return Response({
+            'gateway_id': str(gateway.id),
+            'gateway_name': gateway.name,
+            'hours': hours,
+            'data_points': len(data),
+            'data': data
+        })
+    
+    @action(detail=True, methods=['get'])
+    def mounts(self, request, pk=None):
+        """Get active mounts for a gateway."""
+        gateway = self.get_object()
+        
+        # TODO: Implement actual mount listing from gateway
+        # For now, return placeholder data
+        return Response({
+            'gateway_id': str(gateway.id),
+            'active_mounts': gateway.active_mounts,
+            'max_mounts': gateway.max_concurrent_mounts,
+            'mount_base_path': gateway.mount_base_path,
+            'mounts': []  # Will be populated from gateway agent
+        })

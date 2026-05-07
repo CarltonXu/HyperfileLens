@@ -682,7 +682,15 @@ export const gatewaysApi = {
   
   // Regenerate API token
   regenerateToken: (id: string) =>
-    api.post(`/api/v1/gateways/${id}/regenerate_token/`)
+    api.post(`/api/v1/gateways/${id}/regenerate_token/`),
+  
+  // Get monitoring data (heartbeat history)
+  monitoring: (id: string, hours?: number) =>
+    api.get(`/api/v1/gateways/${id}/monitoring/`, { params: { hours: hours || 24 } }),
+  
+  // Get active mounts
+  mounts: (id: string) =>
+    api.get(`/api/v1/gateways/${id}/mounts/`)
 }
 
 // Export api instance
