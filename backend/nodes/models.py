@@ -281,6 +281,10 @@ class ProxyNode(models.Model):
         elapsed = (timezone.now() - self.last_heartbeat).total_seconds()
         return elapsed > (self.heartbeat_interval * 3)
 
+    def is_online(self) -> bool:
+        """Check if the proxy is currently online (status is ONLINE)."""
+        return self.status == self.NodeStatus.ONLINE
+
     def update_status_based_on_heartbeat(self) -> bool:
         """
         Update proxy status based on heartbeat timeout.
