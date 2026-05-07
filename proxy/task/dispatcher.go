@@ -423,7 +423,7 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 	case "nas", "nfs":
 		// Test NAS/NFS connectivity
 		server := getString(msg.Payload, "server", "")
-		path := getString(msg.Payload, "path", "")
+		_ = getString(msg.Payload, "path", "") // path for future use
 		mountType := getString(msg.Payload, "mount_type", "nfs") // nfs or smb
 
 		if server == "" {
@@ -618,7 +618,6 @@ func (d *Dispatcher) sendRepoInitResult(msgID, taskID, repositoryID string, resu
 			ID:   msgID,
 			Payload: map[string]interface{}{
 				"task_id":       taskID,
-				"repository_id": repositoryID,
 				"success":       true,
 				"repository_id": result.RepositoryID,
 				"path":          result.Path,
