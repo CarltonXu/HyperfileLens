@@ -376,10 +376,11 @@ export default {
 
     status: {
       pending: 'Pending',
-      active: 'Active',
-      inactive: 'Inactive',
+      online: 'Online',
+      offline: 'Offline',
       error: 'Error',
-      maintenance: 'Maintenance'
+      maintenance: 'Maintenance',
+      installing: 'Installing'
     },
 
     detail: {
@@ -1985,8 +1986,7 @@ export default {
     // Status
     statusPending: 'Pending',
     statusInstalling: 'Installing',
-    statusActive: 'Active',
-    statusInactive: 'Inactive',
+    statusOnline: 'Online',
     statusOffline: 'Offline',
     statusError: 'Error',
     statusMaintenance: 'Maintenance',

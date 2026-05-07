@@ -116,8 +116,7 @@ const monitoringHours = ref(24)
 const statusColors: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
   installing: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  inactive: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
+  online: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
   offline: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   error: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   maintenance: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
@@ -333,8 +332,7 @@ function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     pending: t('gateways.statusPending'),
     installing: t('gateways.statusInstalling'),
-    active: t('gateways.statusActive'),
-    inactive: t('gateways.statusInactive'),
+    online: t('gateways.statusOnline'),
     offline: t('gateways.statusOffline'),
     error: t('gateways.statusError'),
     maintenance: t('gateways.statusMaintenance')
@@ -499,7 +497,7 @@ onMounted(() => {
         class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
       >
         <option value="all">{{ t('gateways.allStatus') }}</option>
-        <option value="active">{{ t('gateways.statusActive') }}</option>
+        <option value="online">{{ t('gateways.statusOnline') }}</option>
         <option value="offline">{{ t('gateways.statusOffline') }}</option>
         <option value="pending">{{ t('gateways.statusPending') }}</option>
         <option value="error">{{ t('gateways.statusError') }}</option>

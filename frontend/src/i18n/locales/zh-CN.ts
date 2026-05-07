@@ -370,10 +370,11 @@ export default {
 
     status: {
       pending: '待处理',
-      active: '活跃',
-      inactive: '不活跃',
+      online: '在线',
+      offline: '离线',
       error: '错误',
-      maintenance: '维护中'
+      maintenance: '维护中',
+      installing: '安装中'
     },
 
     detail: {
@@ -1987,8 +1988,7 @@ export default {
     // Status
     statusPending: '待安装',
     statusInstalling: '安装中',
-    statusActive: '活跃',
-    statusInactive: '未激活',
+    statusOnline: '在线',
     statusOffline: '离线',
     statusError: '错误',
     statusMaintenance: '维护中',
