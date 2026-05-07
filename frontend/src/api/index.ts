@@ -379,7 +379,7 @@ export const repositoriesApi = {
     api.post(`/api/v1/repositories/${id}/test_connection/`),
   
   initKopia: (id: number | string) =>
-    api.post(`/api/v1/repositories/${id}/init-kopia/`),
+    api.post(`/api/v1/repositories/${id}/initialize/`),
   
   bindNode: (id: number | string, nodeId: number | string) =>
     api.post(`/api/v1/repositories/${id}/bind-node/`, { node_id: nodeId }),

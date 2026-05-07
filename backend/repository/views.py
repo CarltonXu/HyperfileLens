@@ -647,8 +647,8 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         ProxyTask.objects.create(
             id=task_id,
             proxy=repo.bound_node,
-            task_type='test_storage',
-            payload={
+            task_type=ProxyTask.TaskType.TEST_STORAGE,
+            parameters={
                 'repository_id': str(repo.id),
                 'storage_type': storage_type,
                 'storage_config': storage_config,
@@ -781,8 +781,8 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         ProxyTask.objects.create(
             id=task_id,
             proxy=repo.bound_node,
-            task_type='init_repository',
-            payload={
+            task_type=ProxyTask.TaskType.INIT_REPOSITORY,
+            parameters={
                 'repository_id': str(repo.id),
                 'repository_config': repository_config,
             },

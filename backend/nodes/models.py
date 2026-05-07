@@ -444,6 +444,8 @@ class ProxyTask(models.Model):
         UNMOUNT = 'unmount', 'Unmount'
         SNAPSHOT_LIST = 'snapshot_list', 'Snapshot List'
         VERIFY = 'verify', 'Verify'
+        TEST_STORAGE = 'test_storage', 'Test Storage'
+        INIT_REPOSITORY = 'init_repository', 'Init Repository'
 
     class TaskStatus(models.TextChoices):
         PENDING = 'pending', 'Pending'
