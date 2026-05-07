@@ -93,6 +93,7 @@ export default {
     optional: '可选',
     settings: '设置',
     close: '关闭',
+    finish: '完成',
     collapse: '收起',
     expand: '展开',
     never: '从未',
@@ -1996,6 +1997,7 @@ export default {
     enableAI: '启用 AI 洞察',
     
     // Info
+    gatewayId: '网关 ID',
     hostname: '主机名',
     internalIp: '内网 IP',
     osVersion: '操作系统版本',
@@ -2044,6 +2046,25 @@ export default {
     copied: '已复制！',
     installNote: '网关安装完成后将自动连接到控制端。',
     alreadyInstalled: '此网关已完成安装。',
+    
+    // Install Wizard
+    installWizard: {
+      title: '安装网关',
+      step1Title: '网关已创建',
+      step1Desc: '网关信息已创建成功，接下来需要在目标服务器上安装网关代理。',
+      step1Note: '请在 Ubuntu 22.04 服务器上执行安装命令。安装完成后网关将自动连接上线。',
+      step2Title: '复制安装命令',
+      step2Desc: '复制以下命令到目标服务器执行，完成网关安装和注册。',
+      step2Note: '请确保目标服务器可以访问控制端服务地址，并且已安装 Python 3.8+ 和 Kopia。',
+      noCommand: '无法生成安装命令',
+      step3Title: '等待注册',
+      step3Desc: '安装命令已执行，等待网关连接注册...',
+      waitingForRegistration: '等待网关连接上线...',
+      checklist: '安装检查清单',
+      checklist1: '复制安装命令到目标服务器',
+      checklist2: '执行安装命令',
+      checklist3: '等待网关自动注册上线'
+    },
     
     // Mounts
     mountStatus: '挂载状态',

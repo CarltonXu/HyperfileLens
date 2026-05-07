@@ -664,7 +664,18 @@ export const gatewaysApi = {
   stats: () =>
     api.get('/api/v1/gateways/stats/'),
   
-  // Get installation command
+  // Generate installation command (creates a pending gateway)
+  generateInstall: (data: {
+    name: string
+    description?: string
+    ai_enabled?: boolean
+    tags?: Record<string, unknown>
+    labels?: string[]
+    server_url?: string
+  }) =>
+    api.post('/api/v1/gateways/generate_install/', data),
+  
+  // Get installation command for existing gateway
   installCommand: (id: string) =>
     api.get(`/api/v1/gateways/${id}/install_command/`),
   

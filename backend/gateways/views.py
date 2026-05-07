@@ -2,17 +2,23 @@
 Gateway ViewSets for HyperFileLens
 """
 
+import secrets
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from django.utils import timezone
+from django.conf import settings
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 
 from .models import Gateway
 from .serializers import (
     GatewaySerializer,
     GatewayCreateSerializer,
-    GatewayHeartbeatSerializer
+    GatewayHeartbeatSerializer,
+    GatewayInstallSerializer
 )
 from accounts.models import User
 from audit_log.services import AuditService
@@ -28,6 +34,7 @@ class GatewayViewSet(viewsets.ModelViewSet):
     - Run on Ubuntu 22.04
     """
     
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status']
     search_fields = ['name', 'hostname', 'internal_ip']
@@ -51,14 +58,185 @@ class GatewayViewSet(viewsets.ModelViewSet):
         """Return appropriate serializer based on action."""
         if self.action == 'create':
             return GatewayCreateSerializer
+        if self.action == 'generate_install':
+            return GatewayInstallSerializer
         return GatewaySerializer
     
     def perform_create(self, serializer):
         """Set owner and tenant when creating a gateway."""
         user: User = self.request.user
-        gateway = serializer.save(owner=user, tenant=user.tenant)
+        gateway = serializer.save(
+            owner=user, 
+            tenant=user.tenant,
+            api_token=secrets.token_urlsafe(32),
+            install_token=secrets.token_urlsafe(32)
+        )
+        
+        # Generate installation command
+        self._generate_install_command(gateway)
+        
         # Record audit log
         AuditService.log_gateway_create(self.request, gateway, result='success')
+    
+    def _generate_install_command(self, gateway):
+        """Generate installation command for the gateway."""
+        server_url = getattr(settings, 'GATEWAY_SERVER_URL', None)
+        if not server_url:
+            server_url = self.request.build_absolute_uri('/').rstrip('/')
+        
+        install_command = self._build_install_command(
+            server_url=server_url,
+            gateway_id=gateway.id,
+            install_token=gateway.install_token,
+            name=gateway.name
+        )
+        
+        gateway.install_command = install_command
+        gateway.installed_by = self.request.user
+        gateway.save(update_fields=['install_command', 'installed_by'])
+    
+    def _build_install_command(self, server_url, gateway_id, install_token, name):
+        """Build the installation command string for Ubuntu 22.04."""
+        return f'''# Gateway Installation Script for Ubuntu 22.04
+# Run this script on your Ubuntu 22.04 server
+
+# 1. Update system
+sudo apt update && sudo apt upgrade -y
+
+# 2. Install dependencies
+sudo apt install -y curl wget unzip python3 python3-pip python3-venv
+
+# 3. Download and run the Gateway installer
+curl -sSL {server_url}/static/downloads/install-gateway.sh | bash -s -- \\
+  --gateway-id {gateway_id} \\
+  --server {server_url} \\
+  --token {install_token} \\
+  --name "{name}"
+
+# After installation, the gateway will automatically register with the control plane.
+# You can check the status with:
+# systemctl status hyperfilelens-gateway
+'''
+    
+    def _build_config_yaml(self, server_url, gateway_id, install_token, name):
+        """Generate config YAML for manual installation."""
+        return f'''# HyperFileLens Gateway Configuration
+# Save this as /opt/hyperfilelens/gateway/config.yaml
+
+version: "1.0.0"
+
+gateway:
+  id: "{gateway_id}"
+  name: "{name}"
+
+server:
+  url: "{server_url}"
+  ws_url: "{server_url.replace('http://', 'ws://').replace('https://', 'wss://')}"
+  api_token: "{install_token}"
+
+paths:
+  kopia: "/usr/local/bin/kopia"
+  mount_base: "/mnt/kopia"
+  cache: "/var/lib/hyperfilelens/gateway/cache"
+  logs: "/var/log/hyperfilelens/gateway"
+
+logging:
+  level: "info"
+  file: "/var/log/hyperfilelens/gateway/gateway.log"
+'''
+    
+    @extend_schema(
+        summary='Generate installation command',
+        description='Generate installation command for a new gateway. Creates a pending gateway and returns the installation command.',
+        request=GatewayInstallSerializer,
+        responses={200: OpenApiResponse(
+            description='Installation information',
+            response={
+                'type': 'object',
+                'properties': {
+                    'gateway_id': {'type': 'string'},
+                    'name': {'type': 'string'},
+                    'install_token': {'type': 'string'},
+                    'install_command': {'type': 'string'},
+                    'config_yaml': {'type': 'string'},
+                    'expires_at': {'type': 'string'},
+                }
+            }
+        )}
+    )
+    @action(detail=False, methods=['post'])
+    def generate_install(self, request):
+        """
+        Generate installation command for a new gateway.
+        
+        This creates a pending gateway and returns the installation command.
+        """
+        serializer = GatewayInstallSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        data = serializer.validated_data
+        
+        # Check if name already exists
+        if Gateway.objects.filter(name=data['name']).exists():
+            return Response(
+                {'error': f'Gateway with name "{data["name"]}" already exists'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create the gateway
+        gateway = Gateway.objects.create(
+            name=data['name'],
+            description=data.get('description', ''),
+            ai_enabled=data.get('ai_enabled', True),
+            tags=data.get('tags', {}),
+            labels=data.get('labels', []),
+            status=Gateway.GatewayStatus.PENDING,
+            api_token=secrets.token_urlsafe(32),
+            install_token=secrets.token_urlsafe(32),
+            owner=request.user,
+            tenant=getattr(request.user, 'tenant', None),
+        )
+        
+        # Get server URL
+        server_url = data.get('server_url') or getattr(
+            settings, 'GATEWAY_SERVER_URL',
+            request.build_absolute_uri('/').rstrip('/')
+        )
+        
+        # Build commands
+        install_command = self._build_install_command(
+            server_url=server_url,
+            gateway_id=gateway.id,
+            install_token=gateway.install_token,
+            name=gateway.name
+        )
+        
+        # Generate config YAML
+        config_yaml = self._build_config_yaml(
+            server_url=server_url,
+            gateway_id=gateway.id,
+            install_token=gateway.install_token,
+            name=gateway.name
+        )
+        
+        gateway.install_command = install_command
+        gateway.installed_by = request.user
+        gateway.save()
+        
+        # Record audit log
+        AuditService.log_gateway_create(request, gateway, result='success')
+        
+        response_data = {
+            'gateway_id': str(gateway.id),
+            'name': gateway.name,
+            'install_token': gateway.install_token,
+            'api_token': gateway.api_token,
+            'install_command': install_command,
+            'config_yaml': config_yaml,
+            'expires_at': timezone.now() + timezone.timedelta(hours=24)
+        }
+        
+        return Response(response_data)
     
     def perform_update(self, serializer):
         """Update a gateway with audit logging."""

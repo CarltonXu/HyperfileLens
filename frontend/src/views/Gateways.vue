@@ -88,6 +88,13 @@ const newGateway = ref({
   ai_enabled: true
 })
 
+// Install Wizard (after creation)
+const showInstallWizard = ref(false)
+const createdGateway = ref<Gateway | null>(null)
+const wizardStep = ref(1) // 1: info, 2: command, 3: waiting
+const wizardInstallCommand = ref('')
+const isLoadingWizardCommand = ref(false)
+
 // Detail Drawer
 const showDetailDrawer = ref(false)
 const selectedGateway = ref<Gateway | null>(null)
@@ -161,14 +168,69 @@ async function createGateway() {
   
   isCreating.value = true
   try {
-    await gatewaysApi.create(newGateway.value)
+    const res = await gatewaysApi.create(newGateway.value)
     showCreateModal.value = false
-    resetNewGateway()
+    createdGateway.value = res.data
+    wizardStep.value = 1
+    showInstallWizard.value = true
+    
+    // Load install command
+    await loadWizardInstallCommand()
+    
     await fetchGateways()
   } catch (error) {
     console.error('Failed to create gateway:', error)
   } finally {
     isCreating.value = false
+  }
+}
+
+async function loadWizardInstallCommand() {
+  if (!createdGateway.value) return
+  
+  isLoadingWizardCommand.value = true
+  try {
+    const res = await gatewaysApi.installCommand(createdGateway.value.id)
+    wizardInstallCommand.value = res.data.install_command
+  } catch (error) {
+    console.error('Failed to get install command:', error)
+    wizardInstallCommand.value = ''
+  } finally {
+    isLoadingWizardCommand.value = false
+  }
+}
+
+async function copyWizardCommand() {
+  if (!wizardInstallCommand.value) return
+  
+  try {
+    await navigator.clipboard.writeText(wizardInstallCommand.value)
+    commandCopied.value = true
+    setTimeout(() => {
+      commandCopied.value = false
+    }, 2000)
+  } catch (error) {
+    console.error('Failed to copy:', error)
+  }
+}
+
+function closeInstallWizard() {
+  showInstallWizard.value = false
+  createdGateway.value = null
+  wizardInstallCommand.value = ''
+  wizardStep.value = 1
+  resetNewGateway()
+}
+
+function nextWizardStep() {
+  if (wizardStep.value < 3) {
+    wizardStep.value++
+  }
+}
+
+function prevWizardStep() {
+  if (wizardStep.value > 1) {
+    wizardStep.value--
   }
 }
 
@@ -580,6 +642,148 @@ onMounted(() => {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Install Wizard Modal -->
+    <div v-if="showInstallWizard && createdGateway" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl p-6">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-semibold text-slate-800 dark:text-white">{{ t('gateways.installWizard.title') }}</h2>
+          <button @click="closeInstallWizard" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <XMarkIcon class="w-6 h-6" />
+          </button>
+        </div>
+
+        <!-- Steps Indicator -->
+        <div class="flex items-center justify-center mb-8">
+          <div class="flex items-center">
+            <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium', wizardStep >= 1 ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500']">1</div>
+            <div :class="['w-16 h-1', wizardStep >= 2 ? 'bg-violet-600' : 'bg-slate-200 dark:bg-slate-700']" />
+            <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium', wizardStep >= 2 ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500']">2</div>
+            <div :class="['w-16 h-1', wizardStep >= 3 ? 'bg-violet-600' : 'bg-slate-200 dark:bg-slate-700']" />
+            <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium', wizardStep >= 3 ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500']">3</div>
+          </div>
+        </div>
+
+        <!-- Step 1: Gateway Info -->
+        <div v-if="wizardStep === 1" class="space-y-4">
+          <h3 class="text-lg font-medium text-slate-800 dark:text-white">{{ t('gateways.installWizard.step1Title') }}</h3>
+          <p class="text-slate-500 dark:text-slate-400">{{ t('gateways.installWizard.step1Desc') }}</p>
+          
+          <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 space-y-3">
+            <div class="flex justify-between">
+              <span class="text-slate-500 dark:text-slate-400">{{ t('gateways.gatewayName') }}</span>
+              <span class="font-medium text-slate-800 dark:text-white">{{ createdGateway.name }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500 dark:text-slate-400">{{ t('gateways.gatewayId') }}</span>
+              <span class="font-mono text-sm text-slate-800 dark:text-white">{{ createdGateway.id }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500 dark:text-slate-400">{{ t('gateways.status') }}</span>
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300">{{ t('gateways.statusPending') }}</span>
+            </div>
+          </div>
+
+          <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+            <p class="text-sm text-blue-700 dark:text-blue-300">{{ t('gateways.installWizard.step1Note') }}</p>
+          </div>
+        </div>
+
+        <!-- Step 2: Install Command -->
+        <div v-if="wizardStep === 2" class="space-y-4">
+          <h3 class="text-lg font-medium text-slate-800 dark:text-white">{{ t('gateways.installWizard.step2Title') }}</h3>
+          <p class="text-slate-500 dark:text-slate-400">{{ t('gateways.installWizard.step2Desc') }}</p>
+          
+          <div v-if="isLoadingWizardCommand" class="flex items-center justify-center py-8">
+            <ArrowPathIcon class="w-6 h-6 text-slate-400 animate-spin" />
+          </div>
+          
+          <div v-else class="space-y-4">
+            <div class="relative">
+              <pre class="bg-slate-900 text-slate-100 rounded-lg p-4 text-sm overflow-x-auto whitespace-pre-wrap">{{ wizardInstallCommand || t('gateways.installWizard.noCommand') }}</pre>
+              <button
+                @click="copyWizardCommand"
+                class="absolute top-2 right-2 p-2 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
+              >
+                <ClipboardDocumentIcon class="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+              <p class="text-sm text-yellow-700 dark:text-yellow-300">{{ t('gateways.installWizard.step2Note') }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Waiting for Registration -->
+        <div v-if="wizardStep === 3" class="space-y-4">
+          <h3 class="text-lg font-medium text-slate-800 dark:text-white">{{ t('gateways.installWizard.step3Title') }}</h3>
+          <p class="text-slate-500 dark:text-slate-400">{{ t('gateways.installWizard.step3Desc') }}</p>
+          
+          <div class="flex flex-col items-center py-8">
+            <div class="w-16 h-16 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center mb-4">
+              <ArrowPathIcon class="w-8 h-8 text-violet-600 dark:text-violet-400 animate-spin" />
+            </div>
+            <p class="text-slate-600 dark:text-slate-300">{{ t('gateways.installWizard.waitingForRegistration') }}</p>
+          </div>
+
+          <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-slate-800 dark:text-white mb-2">{{ t('gateways.installWizard.checklist') }}</h4>
+            <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+              <li class="flex items-center gap-2">
+                <CheckCircleIcon class="w-4 h-4 text-emerald-500" />
+                {{ t('gateways.installWizard.checklist1') }}
+              </li>
+              <li class="flex items-center gap-2">
+                <CheckCircleIcon class="w-4 h-4 text-emerald-500" />
+                {{ t('gateways.installWizard.checklist2') }}
+              </li>
+              <li class="flex items-center gap-2">
+                <CheckCircleIcon class="w-4 h-4 text-emerald-500" />
+                {{ t('gateways.installWizard.checklist3') }}
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex justify-between pt-6 mt-6 border-t border-slate-200 dark:border-slate-700">
+          <button
+            v-if="wizardStep > 1"
+            @click="prevWizardStep"
+            class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+          >
+            {{ t('common.previous') }}
+          </button>
+          <div v-else />
+          
+          <div class="flex gap-3">
+            <button
+              @click="closeInstallWizard"
+              class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+            >
+              {{ t('common.close') }}
+            </button>
+            <button
+              v-if="wizardStep < 3"
+              @click="nextWizardStep"
+              :disabled="wizardStep === 2 && !wizardInstallCommand"
+              class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {{ t('common.next') }}
+            </button>
+            <button
+              v-else
+              @click="closeInstallWizard"
+              class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
+            >
+              {{ t('common.finish') }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

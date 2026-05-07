@@ -80,6 +80,16 @@ class GatewayInstallCommandSerializer(serializers.Serializer):
     install_command = serializers.CharField()
 
 
+class GatewayInstallSerializer(serializers.Serializer):
+    """Serializer for generating installation command for a new gateway."""
+    name = serializers.CharField(max_length=255)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    ai_enabled = serializers.BooleanField(required=False, default=True)
+    tags = serializers.DictField(required=False, default=dict)
+    labels = serializers.ListField(required=False, default=list)
+    server_url = serializers.URLField(required=False)
+
+
 class GatewayHeartbeatSerializer(serializers.Serializer):
     """Serializer for gateway heartbeat."""
     hostname = serializers.CharField(required=False)

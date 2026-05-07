@@ -95,6 +95,7 @@ export default {
     optional: 'Optional',
     settings: 'Settings',
     close: 'Close',
+    finish: 'Finish',
     collapse: 'Collapse',
     expand: 'Expand',
     never: 'Never',
@@ -1994,6 +1995,7 @@ export default {
     enableAI: 'Enable AI Insights',
     
     // Info
+    gatewayId: 'Gateway ID',
     hostname: 'Hostname',
     internalIp: 'Internal IP',
     osVersion: 'OS Version',
@@ -2042,6 +2044,25 @@ export default {
     copied: 'Copied!',
     installNote: 'The gateway will automatically connect to the control plane after installation.',
     alreadyInstalled: 'This gateway has already been installed.',
+    
+    // Install Wizard
+    installWizard: {
+      title: 'Install Gateway',
+      step1Title: 'Gateway Created',
+      step1Desc: 'Gateway information has been created. Next, install the gateway agent on the target server.',
+      step1Note: 'Please run the installation command on an Ubuntu 22.04 server. The gateway will automatically connect after installation.',
+      step2Title: 'Copy Install Command',
+      step2Desc: 'Copy the following command and run it on the target server to complete the installation.',
+      step2Note: 'Ensure the target server can access the control plane and has Python 3.8+ and Kopia installed.',
+      noCommand: 'Unable to generate install command',
+      step3Title: 'Waiting for Registration',
+      step3Desc: 'Installation command executed. Waiting for gateway to register...',
+      waitingForRegistration: 'Waiting for gateway to come online...',
+      checklist: 'Installation Checklist',
+      checklist1: 'Copy install command to target server',
+      checklist2: 'Execute install command',
+      checklist3: 'Wait for gateway to register automatically'
+    },
     
     // Mounts
     mountStatus: 'Mount Status',
