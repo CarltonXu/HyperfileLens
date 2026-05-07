@@ -25,7 +25,11 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 django_asgi_app = get_asgi_application()
 
 # Import WebSocket URL patterns after Django is set up
-from nodes.routing import websocket_urlpatterns
+from nodes.routing import websocket_urlpatterns as nodes_websocket_urlpatterns
+from gateways.routing import websocket_urlpatterns as gateways_websocket_urlpatterns
+
+# Combine all WebSocket URL patterns
+all_websocket_urlpatterns = nodes_websocket_urlpatterns + gateways_websocket_urlpatterns
 
 # Application definition
 application = ProtocolTypeRouter({
@@ -35,7 +39,7 @@ application = ProtocolTypeRouter({
     # WebSocket connections
     'websocket': AuthMiddlewareStack(
         URLRouter(
-            websocket_urlpatterns
+            all_websocket_urlpatterns
         )
     ),
 })

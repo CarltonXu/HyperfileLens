@@ -22,10 +22,15 @@ class GatewaySerializer(serializers.ModelSerializer):
             'cpu_cores', 'memory_total', 'disk_total',
             'cpu_usage', 'memory_usage', 'disk_usage', 'active_mounts',
             'mount_base_path', 'max_concurrent_mounts',
+            # Kopia Server
+            'kopia_server_status', 'kopia_server_port', 'kopia_server_tls',
+            # AI & Index
             'ai_enabled', 'indexer_status', 'last_index_time',
+            'index_status', 'index_total_files', 'indexed_files',
+            # Status
             'last_heartbeat', 'heartbeat_interval', 'is_online',
             'uptime_seconds', 'memory_total_gb', 'disk_total_gb',
-            'tags', 'labels', 'metadata',
+            'tags', 'labels', 'metadata', 'capabilities',
             'created_at', 'updated_at', 'registered_at', 'installed_at'
         ]
         read_only_fields = [

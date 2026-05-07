@@ -843,6 +843,206 @@ class AuditService:
             error_message=error_message
         )
     
+    # ==================== Gateway 相关 ====================
+    
+    @staticmethod
+    def log_gateway_create(request, gateway, result='success', error_message=''):
+        """记录 Gateway 创建"""
+        return audit_log(
+            request=request,
+            action='create',
+            resource_type='gateway',
+            resource_id=str(gateway.id) if gateway else '',
+            resource_name=gateway.name if gateway else '',
+            details=f'创建 Gateway: {gateway.name if gateway else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_update(request, gateway, changed_fields=None, result='success', error_message=''):
+        """记录 Gateway 更新"""
+        details = f'更新 Gateway: {gateway.name if gateway else "Unknown"}'
+        if changed_fields:
+            details += f' (变更字段: {", ".join(changed_fields)})'
+        return audit_log(
+            request=request,
+            action='update',
+            resource_type='gateway',
+            resource_id=str(gateway.id) if gateway else '',
+            resource_name=gateway.name if gateway else '',
+            details=details,
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_delete(request, gateway, result='success', error_message=''):
+        """记录 Gateway 删除"""
+        return audit_log(
+            request=request,
+            action='delete',
+            resource_type='gateway',
+            resource_id=str(gateway.id) if gateway else '',
+            resource_name=gateway.name if gateway else '',
+            details=f'删除 Gateway: {gateway.name if gateway else "Unknown"}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_register(gateway):
+        """记录 Gateway 注册"""
+        return audit_log(
+            request=None,
+            action='register',
+            resource_type='gateway',
+            resource_id=str(gateway.id),
+            resource_name=gateway.name,
+            details=f'Gateway 注册: {gateway.name} ({gateway.hostname})',
+            result='success'
+        )
+    
+    @staticmethod
+    def log_gateway_online(gateway):
+        """记录 Gateway 上线"""
+        return event_log(
+            event_type='gateway',
+            event_name='gateway.online',
+            message=f'Gateway {gateway.name} is online',
+            details={'gateway_id': str(gateway.id), 'hostname': gateway.hostname}
+        )
+    
+    @staticmethod
+    def log_gateway_offline(gateway):
+        """记录 Gateway 下线"""
+        return event_log(
+            event_type='gateway',
+            event_name='gateway.offline',
+            message=f'Gateway {gateway.name} is offline',
+            details={'gateway_id': str(gateway.id), 'hostname': gateway.hostname}
+        )
+    
+    @staticmethod
+    def log_gateway_mount(repo, mount_point, result='success', error_message=''):
+        """记录 Gateway 挂载"""
+        return audit_log(
+            request=None,
+            action='execute',
+            resource_type='repository',
+            resource_id=str(repo.id),
+            resource_name=repo.name,
+            details=f'Gateway 挂载仓库: {repo.name} -> {mount_point}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_mount_failed(repo, error_message=''):
+        """记录 Gateway 挂载失败"""
+        return audit_log(
+            request=None,
+            action='execute',
+            resource_type='repository',
+            resource_id=str(repo.id),
+            resource_name=repo.name,
+            details=f'Gateway 挂载仓库失败: {repo.name}',
+            result='failure',
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_unmount(repo, result='success', error_message=''):
+        """记录 Gateway 卸载"""
+        return audit_log(
+            request=None,
+            action='execute',
+            resource_type='repository',
+            resource_id=str(repo.id),
+            resource_name=repo.name,
+            details=f'Gateway 卸载仓库: {repo.name}',
+            result=result,
+            error_message=error_message
+        )
+    
+    @staticmethod
+    def log_gateway_mount_command(gateway_id, repository_id, mount_point):
+        """记录 Gateway 挂载命令发送"""
+        return audit_log(
+            request=None,
+            action='execute',
+            resource_type='gateway',
+            resource_id=gateway_id,
+            resource_name='mount',
+            details=f'发送挂载命令: gateway={gateway_id}, repo={repository_id}, mount={mount_point}',
+            result='success'
+        )
+    
+    @staticmethod
+    def log_gateway_unmount_command(gateway_id, repository_id):
+        """记录 Gateway 卸载命令发送"""
+        return audit_log(
+            request=None,
+            action='execute',
+            resource_type='gateway',
+            resource_id=gateway_id,
+            resource_name='unmount',
+            details=f'发送卸载命令: gateway={gateway_id}, repo={repository_id}',
+            result='success'
+        )
+    
+    @staticmethod
+    def log_gateway_server_start(gateway_id, port):
+        """记录 Gateway Kopia Server 启动"""
+        return audit_log(
+            request=None,
+            action='execute',
+            resource_type='gateway',
+            resource_id=gateway_id,
+            resource_name='kopia_server',
+            details=f'启动 Kopia Server: gateway={gateway_id}, port={port}',
+            result='success'
+        )
+    
+    @staticmethod
+    def log_gateway_server_stop(gateway_id):
+        """记录 Gateway Kopia Server 停止"""
+        return audit_log(
+            request=None,
+            action='execute',
+            resource_type='gateway',
+            resource_id=gateway_id,
+            resource_name='kopia_server',
+            details=f'停止 Kopia Server: gateway={gateway_id}',
+            result='success'
+        )
+    
+    @staticmethod
+    def log_gateway_kopia_command(gateway_id, command):
+        """记录 Gateway Kopia 命令执行"""
+        return audit_log(
+            request=None,
+            action='execute',
+            resource_type='gateway',
+            resource_id=gateway_id,
+            resource_name='kopia_command',
+            details=f'执行 Kopia 命令: gateway={gateway_id}, command={command}',
+            result='success'
+        )
+    
+    @staticmethod
+    def log_gateway_ai_query(gateway_id, query):
+        """记录 Gateway AI 查询"""
+        return audit_log(
+            request=None,
+            action='execute',
+            resource_type='gateway',
+            resource_id=gateway_id,
+            resource_name='ai_query',
+            details=f'AI 查询: gateway={gateway_id}, query={query[:100]}...',
+            result='success'
+        )
+    
     # ==================== 通用方法 ====================
     
     @staticmethod

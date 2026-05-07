@@ -158,6 +158,37 @@ class Gateway(models.Model):
         help_text='Maximum concurrent mounts allowed'
     )
 
+    # === Kopia Server Configuration ===
+    kopia_server_status = models.CharField(
+        max_length=20,
+        default='stopped',
+        help_text='Kopia server status (running/stopped)'
+    )
+    kopia_server_port = models.IntegerField(
+        default=51515,
+        help_text='Kopia server port'
+    )
+    kopia_server_tls = models.BooleanField(
+        default=True,
+        help_text='Whether TLS is enabled for Kopia server'
+    )
+
+    # === Indexing Status ===
+    index_status = models.CharField(
+        max_length=20,
+        blank=True,
+        default='idle',
+        help_text='Indexing status (idle/indexing/completed/error)'
+    )
+    index_total_files = models.BigIntegerField(
+        default=0,
+        help_text='Total files to index'
+    )
+    indexed_files = models.BigIntegerField(
+        default=0,
+        help_text='Number of indexed files'
+    )
+
     # === Capabilities ===
     capabilities = models.JSONField(
         default=dict,

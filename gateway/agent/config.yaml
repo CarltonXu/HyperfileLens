@@ -1,0 +1,44 @@
+# HyperFileLens Gateway Agent Configuration
+# Copy this file to /etc/hyperfilelens/gateway/config.yaml
+
+# Gateway identification
+gateway:
+  id: ""  # Set after registration or leave empty for auto-generated
+  name: "gateway-01"
+  install_token: ""  # Set during installation
+
+# Connection settings
+server:
+  url: "http://control.hyperfilelens.com"
+  api_token: ""  # Set after registration
+  ws_protocol: "ws"  # "ws" or "wss"
+  reconnect_delay: 5  # seconds
+  heartbeat_interval: 10  # seconds
+
+# Kopia settings
+kopia:
+  path: "/usr/bin/kopia"
+  mount_base_path: "/mnt/kopia"
+  max_concurrent_mounts: 10
+  repository_path: "/var/lib/hyperfilelens/repository"
+  password: ""  # Repository password
+
+# Index settings
+index:
+  enabled: true
+  index_path: "/var/lib/hyperfilelens/index"
+  batch_size: 1000
+  update_interval: 60  # seconds
+
+# AI settings
+ai:
+  enabled: false
+  api_endpoint: "http://localhost:8001"
+  model: "default"
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "/var/log/hyperfilelens/gateway.log"
+  max_size: "10MB"
+  backup_count: 5
