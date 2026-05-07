@@ -415,6 +415,29 @@ onMounted(() => {
 })
 </script>
 
+<style scoped>
+/* Drawer Transition */
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.drawer-enter-active .absolute.top-0.right-0,
+.drawer-leave-active .absolute.top-0.right-0 {
+  transition: transform 0.3s ease;
+}
+
+.drawer-enter-from,
+.drawer-leave-to {
+  opacity: 0;
+}
+
+.drawer-enter-from .absolute.top-0.right-0,
+.drawer-leave-to .absolute.top-0.right-0 {
+  transform: translateX(100%);
+}
+</style>
+
 <template>
   <div class="p-6">
     <!-- Header -->
@@ -642,9 +665,9 @@ onMounted(() => {
         <div class="flex items-center justify-center mb-8">
           <div class="flex items-center">
             <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium', wizardStep >= 1 ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500']">1</div>
-            <div :class="['w-16 h-1', wizardStep >= 2 ? 'bg-violet-600' : 'bg-slate-200 dark:bg-slate-700']" />
+            <div :class="['w-16 h-1', wizardStep >= 2 ? 'bg-violet-600' : 'bg-slate-200 dark:bg-slate-700']"></div>
             <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium', wizardStep >= 2 ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500']">2</div>
-            <div :class="['w-16 h-1', wizardStep >= 3 ? 'bg-violet-600' : 'bg-slate-200 dark:bg-slate-700']" />
+            <div :class="['w-16 h-1', wizardStep >= 3 ? 'bg-violet-600' : 'bg-slate-200 dark:bg-slate-700']"></div>
             <div :class="['w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium', wizardStep >= 3 ? 'bg-violet-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500']">3</div>
           </div>
         </div>
@@ -770,107 +793,147 @@ onMounted(() => {
     </div>
 
     <!-- Detail Drawer -->
-    <div v-if="showDetailDrawer && selectedGateway" class="fixed inset-0 z-50">
-      <div class="absolute inset-0 bg-black/50" @click="showDetailDrawer = false" />
-      <div class="absolute right-0 top-0 bottom-0 w-full max-w-2xl bg-white dark:bg-slate-800 shadow-xl overflow-y-auto">
-        <!-- Drawer Header -->
-        <div class="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
-          <div class="flex items-center justify-between">
+    <Transition name="drawer">
+      <div v-if="showDetailDrawer && selectedGateway" class="fixed inset-0 z-50">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50" @click="showDetailDrawer = false" />
+        <!-- Drawer Panel -->
+        <div class="absolute top-0 right-0 h-full w-[640px] max-w-[90vw] bg-white dark:bg-slate-800 shadow-2xl flex flex-col">
+          <!-- Header -->
+          <div class="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex-shrink-0">
             <div class="flex items-center gap-3">
-              <div :class="['w-10 h-10 rounded-lg flex items-center justify-center', selectedGateway.is_online ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-slate-100 dark:bg-slate-700']">
-                <ServerIcon :class="['w-5 h-5', selectedGateway.is_online ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400']" />
+              <div :class="[
+                'w-10 h-10 rounded-xl flex items-center justify-center',
+                selectedGateway.is_online
+                  ? 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                  : 'bg-gradient-to-br from-slate-400 to-slate-500'
+              ]">
+                <ServerIcon class="w-5 h-5 text-white" />
               </div>
               <div>
                 <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedGateway.name }}</h2>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ selectedGateway.hostname || selectedGateway.internal_ip || '-' }}</p>
+                <div class="flex items-center gap-2 mt-1">
+                  <span :class="['px-2 py-0.5 rounded-full text-xs font-medium', statusColors[selectedGateway.status]]">
+                    {{ getStatusLabel(selectedGateway.status) }}
+                  </span>
+                  <span v-if="selectedGateway.is_online" class="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-xs font-medium">
+                    {{ t('gateways.online') }}
+                  </span>
+                  <span v-else class="px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full text-xs font-medium">
+                    {{ t('gateways.offline') }}
+                  </span>
+                </div>
               </div>
             </div>
-            <button @click="showDetailDrawer = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-              <XMarkIcon class="w-6 h-6" />
+            <button @click="showDetailDrawer = false" class="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+              <XMarkIcon class="w-5 h-5" />
             </button>
           </div>
-        </div>
 
-        <!-- Tabs -->
-        <div class="border-b border-slate-200 dark:border-slate-700">
-          <div class="flex px-6">
-            <button
-              v-for="tab in (['overview', 'install', 'mounts', 'monitoring'] as const)"
-              :key="tab"
-              @click="detailTab = tab"
-              :class="['px-4 py-3 text-sm font-medium border-b-2 -mb-px', detailTab === tab ? 'border-violet-500 text-violet-600 dark:text-violet-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300']"
-            >
-              {{ t(`gateways.tabs.${tab}`) }}
-            </button>
+          <!-- Tabs -->
+          <div class="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 px-5 flex-shrink-0">
+            <nav class="flex gap-1 -mb-px">
+              <button
+                @click="detailTab = 'overview'"
+                :class="[
+                  'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+                  detailTab === 'overview'
+                    ? 'border-violet-500 text-violet-600'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600'
+                ]"
+              >
+                {{ t('gateways.tabs.overview') }}
+              </button>
+              <button
+                v-if="selectedGateway.status === 'pending'"
+                @click="detailTab = 'install'"
+                :class="[
+                  'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+                  detailTab === 'install'
+                    ? 'border-violet-500 text-violet-600'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600'
+                ]"
+              >
+                {{ t('gateways.tabs.install') }}
+              </button>
+              <button
+                @click="detailTab = 'mounts'"
+                :class="[
+                  'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+                  detailTab === 'mounts'
+                    ? 'border-violet-500 text-violet-600'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600'
+                ]"
+              >
+                {{ t('gateways.tabs.mounts') }}
+              </button>
+              <button
+                @click="detailTab = 'monitoring'"
+                :class="[
+                  'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+                  detailTab === 'monitoring'
+                    ? 'border-violet-500 text-violet-600'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600'
+                ]"
+              >
+                {{ t('gateways.tabs.monitoring') }}
+              </button>
+            </nav>
           </div>
-        </div>
 
-        <!-- Tab Content -->
-        <div class="p-6">
-          <!-- Overview Tab -->
-          <div v-if="detailTab === 'overview'" class="space-y-6">
-            <!-- Status -->
-            <div class="flex items-center gap-3">
-              <span :class="['px-3 py-1 text-sm font-medium rounded-full', statusColors[selectedGateway.status]]">
-                {{ getStatusLabel(selectedGateway.status) }}
-              </span>
-              <span v-if="selectedGateway.is_online" class="text-sm text-emerald-600 dark:text-emerald-400">
-                {{ t('gateways.online') }}
-              </span>
-              <span v-else class="text-sm text-red-600 dark:text-red-400">
-                {{ t('gateways.offline') }}
-              </span>
-            </div>
-
-            <!-- Info Grid -->
-            <div class="grid grid-cols-2 gap-4">
-              <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('gateways.hostname') }}</p>
-                <p class="text-base font-medium text-slate-800 dark:text-white mt-1">{{ selectedGateway.hostname || '-' }}</p>
-              </div>
-              <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('gateways.internalIp') }}</p>
-                <p class="text-base font-medium text-slate-800 dark:text-white mt-1">{{ selectedGateway.internal_ip || '-' }}</p>
-              </div>
-              <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('gateways.osVersion') }}</p>
-                <p class="text-base font-medium text-slate-800 dark:text-white mt-1">{{ selectedGateway.os_version || 'Ubuntu 22.04' }}</p>
-              </div>
-              <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('gateways.kopiaVersion') }}</p>
-                <p class="text-base font-medium text-slate-800 dark:text-white mt-1">{{ selectedGateway.kopia_version || '-' }}</p>
-              </div>
-            </div>
-
-            <!-- Resources -->
-            <div>
-              <h3 class="text-sm font-semibold text-slate-800 dark:text-white mb-3">{{ t('gateways.resources') }}</h3>
-              <div class="grid grid-cols-3 gap-4">
+          <!-- Tab Content -->
+          <div class="flex-1 overflow-y-auto p-6">
+            <!-- Overview Tab -->
+            <div v-if="detailTab === 'overview'" class="space-y-6">
+              <!-- Info Grid -->
+              <div class="grid grid-cols-2 gap-4">
                 <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
-                  <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
-                    <CpuChipIcon class="w-4 h-4" />
-                    <span class="text-sm">{{ t('gateways.cpu') }}</span>
-                  </div>
-                  <p class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedGateway.cpu_cores || '-' }} {{ t('gateways.cores') }}</p>
-                  <p v-if="selectedGateway.cpu_usage" class="text-sm text-slate-500 dark:text-slate-400">{{ selectedGateway.cpu_usage }}% {{ t('gateways.used') }}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('gateways.hostname') }}</p>
+                  <p class="text-base font-medium text-slate-800 dark:text-white mt-1">{{ selectedGateway.hostname || '-' }}</p>
                 </div>
                 <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
-                  <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
-                    <CircleStackIcon class="w-4 h-4" />
-                    <span class="text-sm">{{ t('gateways.memory') }}</span>
-                  </div>
-                  <p class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedGateway.memory_total ? formatBytes(selectedGateway.memory_total) : '-' }}</p>
-                  <p v-if="selectedGateway.memory_usage" class="text-sm text-slate-500 dark:text-slate-400">{{ selectedGateway.memory_usage }}% {{ t('gateways.used') }}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('gateways.internalIp') }}</p>
+                  <p class="text-base font-medium text-slate-800 dark:text-white mt-1">{{ selectedGateway.internal_ip || '-' }}</p>
                 </div>
                 <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
-                  <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
-                    <CircleStackIcon class="w-4 h-4" />
-                    <span class="text-sm">{{ t('gateways.disk') }}</span>
-                  </div>
-                  <p class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedGateway.disk_total ? formatBytes(selectedGateway.disk_total) : '-' }}</p>
-                  <p v-if="selectedGateway.disk_usage" class="text-sm text-slate-500 dark:text-slate-400">{{ selectedGateway.disk_usage }}% {{ t('gateways.used') }}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('gateways.osVersion') }}</p>
+                  <p class="text-base font-medium text-slate-800 dark:text-white mt-1">{{ selectedGateway.os_version || 'Ubuntu 22.04' }}</p>
+                </div>
+                <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('gateways.kopiaVersion') }}</p>
+                  <p class="text-base font-medium text-slate-800 dark:text-white mt-1">{{ selectedGateway.kopia_version || '-' }}</p>
                 </div>
               </div>
+
+              <!-- Resources -->
+              <div>
+                <h3 class="text-sm font-semibold text-slate-800 dark:text-white mb-3">{{ t('gateways.resources') }}</h3>
+                <div class="grid grid-cols-3 gap-4">
+                  <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
+                      <CpuChipIcon class="w-4 h-4" />
+                      <span class="text-sm">{{ t('gateways.cpu') }}</span>
+                    </div>
+                    <p class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedGateway.cpu_cores || '-' }} {{ t('gateways.cores') }}</p>
+                    <p v-if="selectedGateway.cpu_usage" class="text-sm text-slate-500 dark:text-slate-400">{{ selectedGateway.cpu_usage }}% {{ t('gateways.used') }}</p>
+                  </div>
+                  <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
+                      <CircleStackIcon class="w-4 h-4" />
+                      <span class="text-sm">{{ t('gateways.memory') }}</span>
+                    </div>
+                    <p class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedGateway.memory_total ? formatBytes(selectedGateway.memory_total) : '-' }}</p>
+                    <p v-if="selectedGateway.memory_usage" class="text-sm text-slate-500 dark:text-slate-400">{{ selectedGateway.memory_usage }}% {{ t('gateways.used') }}</p>
+                  </div>
+                  <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
+                      <CircleStackIcon class="w-4 h-4" />
+                      <span class="text-sm">{{ t('gateways.disk') }}</span>
+                    </div>
+                    <p class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedGateway.disk_total ? formatBytes(selectedGateway.disk_total) : '-' }}</p>
+                    <p v-if="selectedGateway.disk_usage" class="text-sm text-slate-500 dark:text-slate-400">{{ selectedGateway.disk_usage }}% {{ t('gateways.used') }}</p>
+                  </div>
+                </div>
             </div>
 
             <!-- Mount Info -->
@@ -1140,6 +1203,7 @@ onMounted(() => {
           </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </div>
+</div>
 </template>

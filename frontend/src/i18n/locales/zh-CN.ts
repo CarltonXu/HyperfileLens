@@ -307,7 +307,13 @@ export default {
       viewNodes: '查看节点',
       viewReports: '查看报告',
       aiInsights: '智能洞察',
-      manageProxies: '管理代理'
+      manageProxies: '管理代理',
+      manageGateways: '管理网关'
+    },
+
+    nodes: {
+      empty: '暂无节点',
+      emptyDesc: '请先添加代理或网关节点'
     },
 
     taskTypes: {

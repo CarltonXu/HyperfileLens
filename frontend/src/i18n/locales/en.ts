@@ -313,7 +313,13 @@ export default {
       viewNodes: 'View Nodes',
       viewReports: 'View Reports',
       aiInsights: 'AI Insights',
-      manageProxies: 'Manage Proxies'
+      manageProxies: 'Manage Proxies',
+      manageGateways: 'Manage Gateways'
+    },
+
+    nodes: {
+      empty: 'No nodes found',
+      emptyDesc: 'Please add proxies or gateways first'
     },
 
     taskTypes: {
