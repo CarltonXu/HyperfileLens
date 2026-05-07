@@ -7,7 +7,7 @@ export interface ProxyNode {
   id: string
   name: string
   role: 'agent' | 'sync'
-  status: 'active' | 'pending' | 'offline' | 'error' | 'maintenance' | 'installing'
+  status: 'online' | 'pending' | 'offline' | 'error' | 'maintenance' | 'installing'
   
   // Owner info
   owner: string | null
@@ -32,7 +32,7 @@ export interface ProxyNode {
   disk_usage: number | null
   
   // Status info
-  is_online: boolean
+  is_online: boolean  // Computed from status === 'online'
   last_heartbeat: string | null
   uptime_seconds: number | null
   

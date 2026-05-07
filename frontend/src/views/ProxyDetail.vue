@@ -374,7 +374,7 @@ onUnmounted(() => {
                 </span>
                 <span :class="[
                   'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                  proxy.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
+                  proxy.status === 'online' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
                   proxy.status === 'error' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
                   proxy.status === 'pending' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
                   'bg-slate-100 dark:bg-slate-700 text-slate-600'
@@ -388,7 +388,7 @@ onUnmounted(() => {
       </div>
       <div v-if="proxy" class="flex items-center gap-2">
         <button
-          v-if="proxy.status === 'active'"
+          v-if="proxy.status === 'online'"
           @click="updateStatus('maintenance')"
           class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-amber-600 dark:text-amber-400 border border-amber-200 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30"
         >
@@ -397,7 +397,7 @@ onUnmounted(() => {
         </button>
         <button
           v-else-if="proxy.status === 'maintenance'"
-          @click="updateStatus('active')"
+          @click="updateStatus('online')"
           class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-200 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
         >
           <PlayIcon class="w-4 h-4" />
@@ -429,7 +429,7 @@ onUnmounted(() => {
       <!-- Status Banner -->
       <div :class="[
         'rounded-xl border p-4 flex items-center gap-4',
-        proxy.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' :
+        proxy.status === 'online' ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' :
         proxy.status === 'error' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800' :
         proxy.status === 'pending' ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800' :
         proxy.status === 'maintenance' ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800' :
@@ -439,17 +439,17 @@ onUnmounted(() => {
           :is="getStatusIcon(proxy.status)"
           :class="[
             'w-6 h-6',
-            proxy.status === 'active' ? 'text-emerald-500' :
+            proxy.status === 'online' ? 'text-emerald-500' :
             proxy.status === 'error' ? 'text-red-500' :
             proxy.status === 'pending' ? 'text-blue-500' : 'text-amber-500'
           ]"
         />
         <div class="flex-1">
-          <p class="font-medium" :class="proxy.status === 'active' ? 'text-emerald-800 dark:text-emerald-200' : proxy.status === 'error' ? 'text-red-800 dark:text-red-200' : proxy.status === 'pending' ? 'text-blue-800 dark:text-blue-200' : 'text-amber-800 dark:text-amber-200'">
+          <p class="font-medium" :class="proxy.status === 'online' ? 'text-emerald-800 dark:text-emerald-200' : proxy.status === 'error' ? 'text-red-800 dark:text-red-200' : proxy.status === 'pending' ? 'text-blue-800 dark:text-blue-200' : 'text-amber-800 dark:text-amber-200'">
             {{ t(`proxies.status.${proxy.status}`) }}
             <span v-if="proxy.status === 'pending'">- {{ t('proxies.detail.pendingHint') }}</span>
           </p>
-          <p class="text-sm" :class="proxy.status === 'active' ? 'text-emerald-600 dark:text-emerald-400' : proxy.status === 'error' ? 'text-red-600 dark:text-red-400' : proxy.status === 'pending' ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'">
+          <p class="text-sm" :class="proxy.status === 'online' ? 'text-emerald-600 dark:text-emerald-400' : proxy.status === 'error' ? 'text-red-600 dark:text-red-400' : proxy.status === 'pending' ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'">
             {{ proxy.is_online ? t('proxies.detail.currentlyOnline') : t('proxies.detail.currentlyOffline') }}
           </p>
         </div>
@@ -612,7 +612,7 @@ onUnmounted(() => {
               <p class="text-xs text-slate-500 mb-1">{{ t('proxies.detail.status') }}</p>
               <span :class="[
                 'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                proxy.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
+                proxy.status === 'online' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
                 proxy.status === 'error' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
                 'bg-slate-100 dark:bg-slate-700 text-slate-600'
               ]">

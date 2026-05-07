@@ -31,8 +31,7 @@ class ProxyNode(models.Model):
         """Node status enumeration."""
         PENDING = 'pending', 'Pending Installation'
         INSTALLING = 'installing', 'Installing'
-        ACTIVE = 'active', 'Active'
-        INACTIVE = 'inactive', 'Inactive'
+        ONLINE = 'online', 'Online'
         OFFLINE = 'offline', 'Offline'
         ERROR = 'error', 'Error'
         MAINTENANCE = 'maintenance', 'Maintenance'
@@ -275,12 +274,12 @@ class ProxyNode(models.Model):
     def __str__(self):
         return f'{self.name} ({self.role})'
 
-    def is_online(self) -> bool:
-        """Check if the proxy is currently online based on heartbeat."""
+    def _is_heartbeat_timeout(self) -> bool:
+        """Check if heartbeat has timed out (more than heartbeat_interval * 3 seconds)."""
         if not self.last_heartbeat:
-            return False
+            return True
         elapsed = (timezone.now() - self.last_heartbeat).total_seconds()
-        return elapsed <= (self.heartbeat_interval * 3)
+        return elapsed > (self.heartbeat_interval * 3)
 
     def update_status_based_on_heartbeat(self) -> bool:
         """
@@ -297,20 +296,17 @@ class ProxyNode(models.Model):
         ]:
             return False
         
-        is_currently_online = self.is_online()
+        is_timeout = self._is_heartbeat_timeout()
         
-        # If offline but status is active/inactive, update to offline
-        if not is_currently_online and self.status in [
-            self.NodeStatus.ACTIVE,
-            self.NodeStatus.INACTIVE,
-        ]:
+        # If heartbeat timeout, set status to offline
+        if is_timeout and self.status == self.NodeStatus.ONLINE:
             self.status = self.NodeStatus.OFFLINE
             self.save(update_fields=['status', 'updated_at'])
             return True
         
-        # If online but status is offline, update to active
-        if is_currently_online and self.status == self.NodeStatus.OFFLINE:
-            self.status = self.NodeStatus.ACTIVE
+        # If heartbeat recovered, set status to online
+        if not is_timeout and self.status == self.NodeStatus.OFFLINE:
+            self.status = self.NodeStatus.ONLINE
             self.save(update_fields=['status', 'updated_at'])
             return True
         
@@ -333,11 +329,14 @@ class ProxyNode(models.Model):
         self.last_heartbeat = timezone.now()
 
         if self.status == self.NodeStatus.PENDING:
-            self.status = self.NodeStatus.ACTIVE
+            self.status = self.NodeStatus.ONLINE
             if not self.registered_at:
                 self.registered_at = timezone.now()
             if not self.installed_at:
                 self.installed_at = timezone.now()
+
+        if self.status == self.NodeStatus.OFFLINE:
+            self.status = self.NodeStatus.ONLINE
 
         if data:
             # Only update fields that have non-None values

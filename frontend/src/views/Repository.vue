@@ -491,12 +491,11 @@ function resetForm() {
   currentPath.value = ''
 }
 
-// Available Sync Proxies (online + sync role + actually connected)
+// Available Sync Proxies (online + sync role)
 const availableSyncProxies = computed(() => {
   return nodes.value.filter(node => 
     node.role === 'sync' && 
-    node.status === 'active' &&
-    node.is_online === true  // Only show proxies that are actually connected via WebSocket
+    node.status === 'online'
   )
 })
 
@@ -2097,7 +2096,7 @@ onMounted(() => {
             <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
               <p class="text-xs text-slate-500 mb-1">{{ t('sourceResources.boundNode') }}</p>
               <div class="flex items-center gap-2">
-                <div :class="['w-2 h-2 rounded-full', getNodeStatus(selectedRepo.bound_node) === 'active' ? 'bg-emerald-500' : 'bg-slate-300']" />
+                <div :class="['w-2 h-2 rounded-full', getNodeStatus(selectedRepo.bound_node) === 'online' ? 'bg-emerald-500' : 'bg-slate-300']" />
                 <span class="text-sm text-slate-700 dark:text-slate-200">{{ getNodeName(selectedRepo.bound_node) }}</span>
                 <span v-if="getNode(selectedRepo.bound_node)?.role" class="text-xs text-slate-400 dark:text-slate-500">({{ getNode(selectedRepo.bound_node)?.role }})</span>
               </div>

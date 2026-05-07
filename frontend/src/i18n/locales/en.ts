@@ -465,7 +465,7 @@ export default {
     },
 
     status: {
-      active: 'Active',
+      online: 'Online',
       pending: 'Pending',
       offline: 'Offline',
       error: 'Error',

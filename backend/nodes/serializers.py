@@ -95,8 +95,8 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
         ]
 
     def get_is_online(self, obj):
-        """Check if proxy is online."""
-        return obj.is_online()
+        """Check if proxy is online based on status field."""
+        return obj.status == ProxyNode.NodeStatus.ONLINE
 
     def get_uptime_seconds(self, obj):
         """Calculate uptime since registration."""

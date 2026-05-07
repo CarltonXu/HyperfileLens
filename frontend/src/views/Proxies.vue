@@ -1428,7 +1428,7 @@ onUnmounted(() => {
                 </button>
                 <hr class="my-1 border-slate-100 dark:border-slate-700" />
                 <button
-                  v-if="proxy.status === 'active'"
+                  v-if="proxy.status === 'online'"
                   @click="updateProxyStatus(proxy, 'maintenance'); openMenuId = null"
                   class="w-full px-4 py-2 text-left text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 flex items-center gap-2"
                 >
@@ -1437,7 +1437,7 @@ onUnmounted(() => {
                 </button>
                 <button
                   v-else-if="proxy.status === 'maintenance'"
-                  @click="updateProxyStatus(proxy, 'active'); openMenuId = null"
+                  @click="updateProxyStatus(proxy, 'online'); openMenuId = null"
                   class="w-full px-4 py-2 text-left text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 flex items-center gap-2"
                 >
                   <PlayIcon class="w-4 h-4" />
@@ -1496,7 +1496,7 @@ onUnmounted(() => {
               :is="getStatusIcon(proxy.status)"
               :class="[
                 'w-4 h-4',
-                proxy.status === 'active' ? 'text-emerald-500' :
+                proxy.status === 'online' ? 'text-emerald-500' :
                 proxy.status === 'error' ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'
               ]"
             />
@@ -1690,7 +1690,7 @@ onUnmounted(() => {
                           </button>
                           <hr class="my-1 border-slate-100 dark:border-slate-700" />
                           <button
-                            v-if="proxy.status === 'active'"
+                            v-if="proxy.status === 'online'"
                             @click="updateProxyStatus(proxy, 'maintenance'); openMenuId = null"
                             class="w-full px-4 py-2 text-left text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 flex items-center gap-2"
                           >
@@ -1699,7 +1699,7 @@ onUnmounted(() => {
                           </button>
                           <button
                             v-else-if="proxy.status === 'maintenance'"
-                            @click="updateProxyStatus(proxy, 'active'); openMenuId = null"
+                            @click="updateProxyStatus(proxy, 'online'); openMenuId = null"
                             class="w-full px-4 py-2 text-left text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 flex items-center gap-2"
                           >
                             <PlayIcon class="w-4 h-4" />

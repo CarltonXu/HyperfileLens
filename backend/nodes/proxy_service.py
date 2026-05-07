@@ -37,46 +37,30 @@ class ProxyService:
     @staticmethod
     def is_proxy_online(proxy_id: str) -> bool:
         """
-        Check if a proxy is currently connected via WebSocket.
+        Check if a proxy is currently online.
         
-        This checks the actual WebSocket connection status, not just the database status.
-        Also updates the proxy status if heartbeat timeout is detected.
+        This checks the database status field, which is automatically updated
+        based on heartbeat timeout.
         
         Args:
             proxy_id: UUID of the proxy node
             
         Returns:
-            bool: True if proxy has an active WebSocket connection
+            bool: True if proxy status is ONLINE
         """
         from .models import ProxyNode
         
         try:
             proxy = ProxyNode.objects.get(id=proxy_id)
             
-            # First, update status based on heartbeat (this may change status to OFFLINE)
+            # Update status based on heartbeat (may change to OFFLINE if timeout)
             proxy.update_status_based_on_heartbeat()
             
             # Refresh from database if status was updated
             proxy.refresh_from_db()
             
-            # Check database status
-            if proxy.status not in [ProxyNode.NodeStatus.ACTIVE]:
-                return False
-            
-            # Check if last heartbeat is within expected interval
-            if proxy.last_heartbeat:
-                heartbeat_interval = proxy.heartbeat_interval or 30  # Default 30 seconds
-                # Allow 3x heartbeat interval as timeout
-                timeout_seconds = heartbeat_interval * 3
-                time_since_heartbeat = (timezone.now() - proxy.last_heartbeat).total_seconds()
-                if time_since_heartbeat > timeout_seconds:
-                    logger.warning(
-                        f"[ProxyService] Proxy {proxy_id} heartbeat timeout: "
-                        f"{time_since_heartbeat:.0f}s > {timeout_seconds}s"
-                    )
-                    return False
-            
-            return True
+            # Check if status is ONLINE
+            return proxy.status == ProxyNode.NodeStatus.ONLINE
             
         except ProxyNode.DoesNotExist:
             logger.warning(f"[ProxyService] Proxy {proxy_id} not found")
@@ -108,42 +92,18 @@ class ProxyService:
                 raise ValueError(error_msg)
             return False, error_msg
         
-        # First, update status based on heartbeat (this may change status to OFFLINE)
+        # Update status based on heartbeat (may change to OFFLINE if timeout)
         proxy.update_status_based_on_heartbeat()
         proxy.refresh_from_db()
         
-        # Check status
-        if proxy.status not in [ProxyNode.NodeStatus.ACTIVE]:
-            error_msg = f"Proxy '{proxy.name}' is not active (status: {proxy.get_status_display()})"
+        # Check if status is ONLINE
+        if proxy.status != ProxyNode.NodeStatus.ONLINE:
+            error_msg = f"Proxy '{proxy.name}' is not online (status: {proxy.get_status_display()})"
             if raise_exception:
                 raise ValueError(error_msg)
             return False, error_msg
         
-        # Check heartbeat
-        if proxy.last_heartbeat:
-            heartbeat_interval = proxy.heartbeat_interval or 30
-            timeout_seconds = heartbeat_interval * 3
-            time_since_heartbeat = (timezone.now() - proxy.last_heartbeat).total_seconds()
-            if time_since_heartbeat > timeout_seconds:
-                error_msg = (
-                    f"Proxy '{proxy.name}' appears to be offline "
-                    f"(no heartbeat for {time_since_heartbeat:.0f}s)"
-                )
-                if raise_exception:
-                    raise ValueError(error_msg)
-                return False, error_msg
-        
-        # Check WebSocket connection via channel layer
-        channel_layer = ProxyService.get_channel_layer()
-        if channel_layer:
-            group_name = f'proxy_{proxy_id}'
-            try:
-                # Check if the group has any members by trying to send a ping
-                # This is a best-effort check; actual delivery is async
-                logger.info(f"[ProxyService] Proxy {proxy_id} ({proxy.name}) connectivity check passed")
-            except Exception as e:
-                logger.warning(f"[ProxyService] Channel layer check failed: {e}")
-        
+        logger.info(f"[ProxyService] Proxy {proxy_id} ({proxy.name}) connectivity check passed")
         return True, ""
     
     @staticmethod

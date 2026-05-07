@@ -298,7 +298,7 @@ async function activateGateway(gateway: Gateway) {
     await gatewaysApi.activate(gateway.id)
     await fetchGateways()
     if (selectedGateway.value?.id === gateway.id) {
-      selectedGateway.value = { ...selectedGateway.value, status: 'active' }
+      selectedGateway.value = { ...selectedGateway.value, status: 'online' }
     }
   } catch (error) {
     console.error('Failed to activate gateway:', error)
@@ -975,7 +975,7 @@ onMounted(() => {
             <!-- Actions -->
             <div class="flex items-center gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
               <button
-                v-if="selectedGateway.status !== 'active'"
+                v-if="selectedGateway.status !== 'online'"
                 @click="activateGateway(selectedGateway)"
                 class="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
               >
@@ -983,7 +983,7 @@ onMounted(() => {
                 {{ t('gateways.activate') }}
               </button>
               <button
-                v-if="selectedGateway.status === 'active'"
+                v-if="selectedGateway.status === 'online'"
                 @click="deactivateGateway(selectedGateway)"
                 class="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700"
               >

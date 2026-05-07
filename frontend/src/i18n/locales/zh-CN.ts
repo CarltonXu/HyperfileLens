@@ -459,7 +459,7 @@ export default {
     },
 
     status: {
-      active: '活跃',
+      online: '在线',
       pending: '待安装',
       offline: '离线',
       error: '错误',
