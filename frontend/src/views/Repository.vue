@@ -491,10 +491,12 @@ function resetForm() {
   currentPath.value = ''
 }
 
-// Available Sync Proxies (online + sync role)
+// Available Sync Proxies (online + sync role + actually connected)
 const availableSyncProxies = computed(() => {
   return nodes.value.filter(node => 
-    node.role === 'sync' && node.status === 'active'
+    node.role === 'sync' && 
+    node.status === 'active' &&
+    node.is_online === true  // Only show proxies that are actually connected via WebSocket
   )
 })
 
@@ -1830,11 +1832,14 @@ onMounted(() => {
                 >
                   <option class="bg-white dark:bg-slate-700" value="">{{ t('repository.selectSyncProxy') }}</option>
                   <option class="bg-white dark:bg-slate-700" v-for="proxy in availableSyncProxies" :key="proxy.id" :value="proxy.id">
-                    {{ proxy.name }} ({{ proxy.hostname || proxy.id }})
+                    {{ proxy.name }} ({{ proxy.hostname || proxy.id }}) - {{ proxy.is_online ? '🟢 ' + t('proxy.online') : '🔴 ' + t('proxy.offline') }}
                   </option>
                 </select>
                 <p v-if="formErrors.bound_node" class="mt-1 text-xs text-red-500">{{ formErrors.bound_node }}</p>
                 <p class="text-xs text-slate-500 mt-1">{{ t('repository.boundSyncProxyHint') }}</p>
+                <p v-if="availableSyncProxies.length === 0" class="text-xs text-amber-600 mt-1">
+                  {{ t('repository.noOnlineSyncProxy') || 'No online Sync Proxies available. Please ensure your Sync Proxy is connected.' }}
+                </p>
               </div>
             </div>
 
@@ -1859,11 +1864,14 @@ onMounted(() => {
                 >
                   <option class="bg-white dark:bg-slate-700" value="">{{ t('repository.selectSyncProxy') }}</option>
                   <option class="bg-white dark:bg-slate-700" v-for="proxy in availableSyncProxies" :key="proxy.id" :value="proxy.id">
-                    {{ proxy.name }} ({{ proxy.hostname || proxy.id }})
+                    {{ proxy.name }} ({{ proxy.hostname || proxy.id }}) - 🟢 {{ t('proxy.online') }}
                   </option>
                 </select>
                 <p v-if="formErrors.bound_node" class="mt-1 text-xs text-red-500">{{ formErrors.bound_node }}</p>
                 <p class="text-xs text-slate-500 mt-1">{{ t('repository.boundSyncProxyHint') }}</p>
+                <p v-if="availableSyncProxies.length === 0" class="text-xs text-amber-600 mt-1">
+                  {{ t('repository.noOnlineSyncProxy') || 'No online Sync Proxies available. Please ensure your Sync Proxy is connected.' }}
+                </p>
               </div>
 
               <!-- Directory Browser -->

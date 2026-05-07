@@ -205,8 +205,21 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'error_code': 'NODE_NOT_ACTIVE'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # TODO: 通过 WebSocket 向 Node 发送测试命令
-        # 目前模拟测试结果
+        # Check real-time proxy connectivity
+        from nodes.proxy_service import ProxyService
+        is_online, error_msg = ProxyService.check_proxy_connectivity(str(repo.bound_node.id))
+        if not is_online:
+            logger.warning(
+                f"[Connection Test] FAILED for '{repo.name}': Bound node '{repo.bound_node.name}' "
+                f"is not reachable: {error_msg}"
+            )
+            return Response({
+                'success': False,
+                'message': f'Bound node "{repo.bound_node.name}" is not reachable: {error_msg}',
+                'error_code': 'NODE_OFFLINE'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Send test command to proxy via WebSocket
         return self._test_node_connection(repo)
     
     def _test_s3_connection(self, repo):
@@ -736,7 +749,29 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         if not repo.bound_node:
             return Response({
                 'success': False,
-                'message': 'No bound node configured. Please bind a node first.'
+                'message': 'No bound node configured. Please bind a node first.',
+                'error_code': 'NO_BOUND_NODE'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check bound node status
+        if repo.bound_node.status != Node.NodeStatus.ACTIVE:
+            return Response({
+                'success': False,
+                'message': f'Bound node is {repo.bound_node.get_status_display()}. Node must be active.',
+                'error_code': 'NODE_NOT_ACTIVE'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check real-time proxy connectivity before sending command
+        is_online, error_msg = ProxyService.check_proxy_connectivity(str(repo.bound_node.id))
+        if not is_online:
+            logger.warning(
+                f"[Repository Initialize] FAILED for '{repo.name}': Bound node '{repo.bound_node.name}' "
+                f"is not reachable: {error_msg}"
+            )
+            return Response({
+                'success': False,
+                'message': f'Bound node "{repo.bound_node.name}" is not reachable: {error_msg}',
+                'error_code': 'NODE_OFFLINE'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = RepositoryInitSerializer(data=request.data)
@@ -851,7 +886,11 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     def bind_node(self, request, pk=None):
         """
         Bind or change the Node for this repository.
+        
+        Only allows binding to nodes that are online and active.
         """
+        from nodes.proxy_service import ProxyService
+        
         repo = self.get_object()
         node_id = request.data.get('node_id')
         
@@ -869,10 +908,21 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'message': 'Node not found.'
             }, status=status.HTTP_404_NOT_FOUND)
         
+        # Check node status
         if node.status != Node.NodeStatus.ACTIVE:
             return Response({
                 'success': False,
-                'message': f'Node is {node.get_status_display()}. Node must be active.'
+                'message': f'Node is {node.get_status_display()}. Node must be active.',
+                'error_code': 'NODE_NOT_ACTIVE'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check node connectivity (real-time online check)
+        is_online, error_msg = ProxyService.check_proxy_connectivity(str(node.id))
+        if not is_online:
+            return Response({
+                'success': False,
+                'message': f'Node "{node.name}" is not reachable: {error_msg}',
+                'error_code': 'NODE_OFFLINE'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         old_node = repo.bound_node

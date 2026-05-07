@@ -1095,6 +1095,7 @@ export default {
     boundSyncProxy: 'Bind Sync Proxy',
     selectSyncProxy: 'Select Sync Proxy',
     boundSyncProxyHint: 'Only Sync Proxy can operate this repository',
+    noOnlineSyncProxy: 'No online Sync Proxies available. Please ensure your Sync Proxy is connected.',
     initKopia: 'Initialize Kopia',
     kopiaInitialized: 'Kopia Initialized',
     kopiaNotInitialized: 'Kopia Not Initialized',

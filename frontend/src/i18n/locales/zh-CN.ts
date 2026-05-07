@@ -1089,6 +1089,7 @@ export default {
     boundSyncProxy: '绑定 Sync Proxy',
     selectSyncProxy: '选择 Sync Proxy',
     boundSyncProxyHint: '只有 Sync Proxy 才能操作此仓库',
+    noOnlineSyncProxy: '没有可用的在线 Sync Proxy，请确保您的 Sync Proxy 已连接。',
     initKopia: '初始化 Kopia',
     kopiaInitialized: 'Kopia 已初始化',
     kopiaNotInitialized: 'Kopia 未初始化',

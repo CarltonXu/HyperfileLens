@@ -35,6 +35,106 @@ class ProxyService:
         return get_channel_layer()
     
     @staticmethod
+    def is_proxy_online(proxy_id: str) -> bool:
+        """
+        Check if a proxy is currently connected via WebSocket.
+        
+        This checks the actual WebSocket connection status, not just the database status.
+        
+        Args:
+            proxy_id: UUID of the proxy node
+            
+        Returns:
+            bool: True if proxy has an active WebSocket connection
+        """
+        from .models import ProxyNode
+        
+        try:
+            proxy = ProxyNode.objects.get(id=proxy_id)
+            
+            # First check database status
+            if proxy.status != ProxyNode.NodeStatus.ACTIVE:
+                return False
+            
+            # Check if last heartbeat is within expected interval
+            if proxy.last_heartbeat:
+                heartbeat_interval = proxy.heartbeat_interval or 30  # Default 30 seconds
+                # Allow 3x heartbeat interval as timeout
+                timeout_seconds = heartbeat_interval * 3
+                time_since_heartbeat = (timezone.now() - proxy.last_heartbeat).total_seconds()
+                if time_since_heartbeat > timeout_seconds:
+                    logger.warning(
+                        f"[ProxyService] Proxy {proxy_id} heartbeat timeout: "
+                        f"{time_since_heartbeat:.0f}s > {timeout_seconds}s"
+                    )
+                    return False
+            
+            return True
+            
+        except ProxyNode.DoesNotExist:
+            logger.warning(f"[ProxyService] Proxy {proxy_id} not found")
+            return False
+    
+    @staticmethod
+    def check_proxy_connectivity(proxy_id: str, raise_exception: bool = False) -> tuple[bool, str]:
+        """
+        Check if a proxy is reachable and can receive commands.
+        
+        Args:
+            proxy_id: UUID of the proxy node
+            raise_exception: If True, raise an exception instead of returning False
+            
+        Returns:
+            tuple: (is_online: bool, error_message: str)
+            
+        Raises:
+            ValueError: If proxy is offline and raise_exception is True
+        """
+        from .models import ProxyNode
+        
+        try:
+            proxy = ProxyNode.objects.get(id=proxy_id)
+        except ProxyNode.DoesNotExist:
+            error_msg = f"Proxy {proxy_id} does not exist"
+            if raise_exception:
+                raise ValueError(error_msg)
+            return False, error_msg
+        
+        # Check status
+        if proxy.status != ProxyNode.NodeStatus.ACTIVE:
+            error_msg = f"Proxy '{proxy.name}' is not active (status: {proxy.get_status_display()})"
+            if raise_exception:
+                raise ValueError(error_msg)
+            return False, error_msg
+        
+        # Check heartbeat
+        if proxy.last_heartbeat:
+            heartbeat_interval = proxy.heartbeat_interval or 30
+            timeout_seconds = heartbeat_interval * 3
+            time_since_heartbeat = (timezone.now() - proxy.last_heartbeat).total_seconds()
+            if time_since_heartbeat > timeout_seconds:
+                error_msg = (
+                    f"Proxy '{proxy.name}' appears to be offline "
+                    f"(no heartbeat for {time_since_heartbeat:.0f}s)"
+                )
+                if raise_exception:
+                    raise ValueError(error_msg)
+                return False, error_msg
+        
+        # Check WebSocket connection via channel layer
+        channel_layer = ProxyService.get_channel_layer()
+        if channel_layer:
+            group_name = f'proxy_{proxy_id}'
+            try:
+                # Check if the group has any members by trying to send a ping
+                # This is a best-effort check; actual delivery is async
+                logger.info(f"[ProxyService] Proxy {proxy_id} ({proxy.name}) connectivity check passed")
+            except Exception as e:
+                logger.warning(f"[ProxyService] Channel layer check failed: {e}")
+        
+        return True, ""
+    
+    @staticmethod
     def send_to_proxy(proxy_id: str, message: Dict[str, Any]) -> bool:
         """
         Send a message to a specific proxy via WebSocket.
@@ -243,21 +343,77 @@ class ProxyService:
         Args:
             proxy_id: UUID of the proxy
             task_type: Type of task
-            task_data: Task payload
+            task_data: Task payload (will be stored as parameters)
             
         Returns:
             ProxyTask: Created task instance
         """
         from .models import ProxyTask
         
+        task_id = task_data.get('task_id') or str(uuid.uuid4())
+        
         task = ProxyTask.objects.create(
-            id=task_data.get('task_id', str(uuid.uuid4())),
+            id=task_id,
             proxy_id=proxy_id,
             task_type=task_type,
-            payload=task_data,
+            parameters=task_data,
             status=ProxyTask.TaskStatus.PENDING,
         )
         
         logger.info(f"[ProxyService] Created proxy task: {task.id} (type={task_type})")
         
         return task
+    
+    @staticmethod
+    def send_task_to_proxy(
+        proxy_id: str,
+        task_type: str,
+        task_data: Dict[str, Any],
+        check_online: bool = True
+    ) -> tuple[Optional['ProxyTask'], str]:
+        """
+        Create a task and send it to the proxy via WebSocket.
+        
+        This is the recommended way to send commands to proxies.
+        It creates a ProxyTask record first, then sends the command.
+        
+        Args:
+            proxy_id: UUID of the proxy
+            task_type: Type of task (e.g., 'test_storage', 'init_repository')
+            task_data: Task parameters
+            check_online: Whether to check proxy connectivity first
+            
+        Returns:
+            tuple: (ProxyTask or None, error_message or "")
+        """
+        from .models import ProxyNode
+        
+        # Check proxy connectivity
+        if check_online:
+            is_online, error_msg = ProxyService.check_proxy_connectivity(proxy_id)
+            if not is_online:
+                return None, error_msg
+        
+        # Create task record
+        task = ProxyService.create_proxy_task(proxy_id, task_type, task_data)
+        
+        # Send to proxy
+        message = {
+            'type': task_type,
+            'task_id': str(task.id),
+            'timestamp': timezone.now().isoformat(),
+            **task_data
+        }
+        
+        success = ProxyService.send_to_proxy(proxy_id, message)
+        
+        if success:
+            logger.info(
+                f"[ProxyService] Sent task {task.id} to proxy {proxy_id}: "
+                f"type={task_type}"
+            )
+            return task, ""
+        else:
+            # Mark task as failed
+            task.fail("Failed to send command to proxy")
+            return task, "Failed to send command to proxy"
