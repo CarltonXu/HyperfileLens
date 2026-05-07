@@ -761,7 +761,7 @@ onMounted(() => {
           >
             {{ t('common.previous') }}
           </button>
-          <div v-else></div>
+          <div v-else />
           
           <div class="flex gap-3">
             <button
@@ -794,7 +794,7 @@ onMounted(() => {
     <Transition name="drawer">
       <div v-if="showDetailDrawer && selectedGateway" class="fixed inset-0 z-50">
         <!-- Backdrop -->
-        <div class="absolute inset-0 bg-black/50" @click="showDetailDrawer = false"></div>
+        <div class="absolute inset-0 bg-black/50" @click="showDetailDrawer = false" />
         <!-- Drawer Panel -->
         <div class="absolute top-0 right-0 h-full w-[640px] max-w-[90vw] bg-white dark:bg-slate-800 shadow-2xl flex flex-col">
           <!-- Header -->
@@ -1046,10 +1046,10 @@ onMounted(() => {
                 <span class="text-lg font-semibold text-slate-800 dark:text-white">{{ selectedGateway.active_mounts }} / {{ selectedGateway.max_concurrent_mounts }}</span>
               </div>
               <div class="h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                <div
+                <div 
                   class="h-full bg-violet-500 rounded-full transition-all"
                   :style="{ width: `${(selectedGateway.active_mounts / selectedGateway.max_concurrent_mounts) * 100}%` }"
-                ></div>
+                />
               </div>
             </div>
 
@@ -1201,7 +1201,7 @@ onMounted(() => {
           </div>
         </div>
       </div>
-      </div>
     </Transition>
   </div>
+</div>
 </template>
