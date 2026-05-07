@@ -285,8 +285,7 @@ async function copyToClipboard(text: string, label: string) {
 
 function getStatusIcon(status: string) {
   const icons: Record<string, any> = {
-    active: CheckCircleIcon,
-    inactive: XCircleIcon,
+    online: CheckCircleIcon,
     offline: XCircleIcon,
     error: XCircleIcon,
     maintenance: WrenchScrewdriverIcon,
