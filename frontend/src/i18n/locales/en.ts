@@ -1988,7 +1988,12 @@ export default {
     
     // Form
     gatewayName: 'Gateway Name',
+    gatewayNamePlaceholder: 'Enter gateway name',
     description: 'Description',
+    descriptionPlaceholder: 'Enter gateway description (optional)',
+    labels: 'Labels',
+    labelsPlaceholder: 'production, beijing',
+    labelsHint: 'Separate multiple labels with commas',
     sshPort: 'SSH Port',
     maxMounts: 'Max Mounts',
     mountBasePath: 'Mount Base Path',

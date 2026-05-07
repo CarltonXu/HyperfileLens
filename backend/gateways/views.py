@@ -286,13 +286,23 @@ logging:
         """Get installation command for a gateway."""
         gateway = self.get_object()
         
-        if gateway.status != 'pending':
-            return Response({
-                'error': 'Install command only available for pending gateways'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        # Generate command if not exists
+        if not gateway.install_command:
+            server_url = getattr(settings, 'GATEWAY_SERVER_URL', None)
+            if not server_url:
+                server_url = request.build_absolute_uri('/').rstrip('/')
+            
+            install_command = self._build_install_command(
+                server_url=server_url,
+                gateway_id=gateway.id,
+                install_token=gateway.install_token,
+                name=gateway.name
+            )
+            gateway.install_command = install_command
+            gateway.save(update_fields=['install_command'])
         
         return Response({
-            'install_command': gateway.get_install_command()
+            'install_command': gateway.install_command
         })
     
     @action(detail=True, methods=['post'])

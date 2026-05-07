@@ -82,10 +82,8 @@ const isCreating = ref(false)
 const newGateway = ref({
   name: '',
   description: '',
-  ssh_port: 22,
-  mount_base_path: '/mnt/kopia',
-  max_concurrent_mounts: 10,
-  ai_enabled: true
+  labels: [] as string[],
+  tags: {} as Record<string, string>
 })
 
 // Install Wizard (after creation)
@@ -168,7 +166,24 @@ async function createGateway() {
   
   isCreating.value = true
   try {
-    const res = await gatewaysApi.create(newGateway.value)
+    // Prepare data - convert labels string to array if needed
+    const data = {
+      name: newGateway.value.name.trim(),
+      description: newGateway.value.description || '',
+      labels: typeof newGateway.value.labels === 'string' 
+        ? (newGateway.value.labels as string).split(',').map(l => l.trim()).filter(Boolean)
+        : newGateway.value.labels,
+      tags: newGateway.value.tags || {}
+    }
+    
+    const res = await gatewaysApi.create(data)
+    console.log('Create gateway response:', res.data)
+    
+    // Ensure we have the gateway id
+    if (!res.data || !res.data.id) {
+      throw new Error('Invalid response from server: missing gateway id')
+    }
+    
     showCreateModal.value = false
     createdGateway.value = res.data
     wizardStep.value = 1
@@ -238,10 +253,8 @@ function resetNewGateway() {
   newGateway.value = {
     name: '',
     description: '',
-    ssh_port: 22,
-    mount_base_path: '/mnt/kopia',
-    max_concurrent_mounts: 10,
-    ai_enabled: true
+    labels: [],
+    tags: {}
   }
 }
 
@@ -565,6 +578,7 @@ onMounted(() => {
               type="text"
               required
               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+              :placeholder="t('gateways.gatewayNamePlaceholder')"
             />
           </div>
 
@@ -576,53 +590,21 @@ onMounted(() => {
               v-model="newGateway.description"
               rows="2"
               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+              :placeholder="t('gateways.descriptionPlaceholder')"
             />
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                {{ t('gateways.sshPort') }}
-              </label>
-              <input
-                v-model.number="newGateway.ssh_port"
-                type="number"
-                class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                {{ t('gateways.maxMounts') }}
-              </label>
-              <input
-                v-model.number="newGateway.max_concurrent_mounts"
-                type="number"
-                class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
-              />
-            </div>
           </div>
 
           <div>
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              {{ t('gateways.mountBasePath') }}
+              {{ t('gateways.labels') }}
             </label>
             <input
-              v-model="newGateway.mount_base_path"
+              v-model="newGateway.labels"
               type="text"
               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+              :placeholder="t('gateways.labelsPlaceholder')"
             />
-          </div>
-
-          <div class="flex items-center gap-2">
-            <input
-              v-model="newGateway.ai_enabled"
-              type="checkbox"
-              id="ai_enabled"
-              class="w-4 h-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
-            />
-            <label for="ai_enabled" class="text-sm text-slate-700 dark:text-slate-300">
-              {{ t('gateways.enableAI') }}
-            </label>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ t('gateways.labelsHint') }}</p>
           </div>
 
           <div class="flex justify-end gap-3 pt-4">

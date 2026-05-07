@@ -1990,7 +1990,12 @@ export default {
     
     // Form
     gatewayName: '网关名称',
+    gatewayNamePlaceholder: '请输入网关名称',
     description: '描述',
+    descriptionPlaceholder: '请输入网关描述（可选）',
+    labels: '标签',
+    labelsPlaceholder: '生产环境, 北京',
+    labelsHint: '多个标签用逗号分隔',
     sshPort: 'SSH 端口',
     maxMounts: '最大挂载数',
     mountBasePath: '挂载基础路径',
