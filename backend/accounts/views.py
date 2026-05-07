@@ -77,6 +77,7 @@ class UserRegistrationView(generics.CreateAPIView):
 
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -187,6 +188,9 @@ class LoginView(APIView):
     Authenticates user and returns session/token.
     """
 
+    # Only use SessionAuthentication, not TokenAuthentication
+    # This prevents issues with invalid tokens in localStorage
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -350,7 +354,7 @@ class CSRFTokenView(APIView):
 
     Required for session-based authentication.
     """
-
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -886,6 +890,7 @@ class CaptchaView(APIView):
     """
     API endpoint for captcha generation.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -930,6 +935,7 @@ class CaptchaValidateView(APIView):
     """
     API endpoint for captcha validation.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -981,6 +987,7 @@ class RegisterView(APIView):
     """
     API endpoint for user registration.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -1115,6 +1122,7 @@ class ForgotPasswordView(APIView):
     """
     API endpoint for requesting password reset.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -1181,6 +1189,7 @@ class VerifyResetCodeView(APIView):
     """
     API endpoint for verifying password reset code.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -1240,6 +1249,7 @@ class ResetPasswordView(APIView):
     """
     API endpoint for resetting password.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
@@ -1449,6 +1459,7 @@ class MFAVerifyView(APIView):
     """
     API endpoint for MFA verification during login.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     @extend_schema(
