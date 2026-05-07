@@ -282,6 +282,40 @@ class ProxyNode(models.Model):
         elapsed = (timezone.now() - self.last_heartbeat).total_seconds()
         return elapsed <= (self.heartbeat_interval * 3)
 
+    def update_status_based_on_heartbeat(self) -> bool:
+        """
+        Update proxy status based on heartbeat timeout.
+        
+        Returns True if status was changed, False otherwise.
+        """
+        # Don't auto-update pending, installing, maintenance, or error status
+        if self.status in [
+            self.NodeStatus.PENDING,
+            self.NodeStatus.INSTALLING,
+            self.NodeStatus.MAINTENANCE,
+            self.NodeStatus.ERROR,
+        ]:
+            return False
+        
+        is_currently_online = self.is_online()
+        
+        # If offline but status is active/inactive, update to offline
+        if not is_currently_online and self.status in [
+            self.NodeStatus.ACTIVE,
+            self.NodeStatus.INACTIVE,
+        ]:
+            self.status = self.NodeStatus.OFFLINE
+            self.save(update_fields=['status', 'updated_at'])
+            return True
+        
+        # If online but status is offline, update to active
+        if is_currently_online and self.status == self.NodeStatus.OFFLINE:
+            self.status = self.NodeStatus.ACTIVE
+            self.save(update_fields=['status', 'updated_at'])
+            return True
+        
+        return False
+
     def generate_install_token(self) -> str:
         """Generate a one-time installation token."""
         self.install_token = secrets.token_urlsafe(32)

@@ -72,8 +72,22 @@ class ProxyViewSet(viewsets.ModelViewSet):
         ]
     )
     def list(self, request, *args, **kwargs):
-        """List all proxies."""
+        """List all proxies with status sync."""
+        # Sync status based on heartbeat before returning
+        queryset = self.filter_queryset(self.get_queryset())
+        for proxy in queryset:
+            proxy.update_status_based_on_heartbeat()
         return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        summary='Get a specific proxy',
+        description='Retrieve detailed information about a specific proxy.'
+    )
+    def retrieve(self, request, *args, **kwargs):
+        """Get a specific proxy with status sync."""
+        proxy = self.get_object()
+        proxy.update_status_based_on_heartbeat()
+        return super().retrieve(request, *args, **kwargs)
 
     @extend_schema(
         summary='Create a new proxy',

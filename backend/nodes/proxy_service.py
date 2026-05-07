@@ -40,6 +40,7 @@ class ProxyService:
         Check if a proxy is currently connected via WebSocket.
         
         This checks the actual WebSocket connection status, not just the database status.
+        Also updates the proxy status if heartbeat timeout is detected.
         
         Args:
             proxy_id: UUID of the proxy node
@@ -52,8 +53,14 @@ class ProxyService:
         try:
             proxy = ProxyNode.objects.get(id=proxy_id)
             
-            # First check database status
-            if proxy.status != ProxyNode.NodeStatus.ACTIVE:
+            # First, update status based on heartbeat (this may change status to OFFLINE)
+            proxy.update_status_based_on_heartbeat()
+            
+            # Refresh from database if status was updated
+            proxy.refresh_from_db()
+            
+            # Check database status
+            if proxy.status not in [ProxyNode.NodeStatus.ACTIVE]:
                 return False
             
             # Check if last heartbeat is within expected interval
@@ -79,6 +86,7 @@ class ProxyService:
     def check_proxy_connectivity(proxy_id: str, raise_exception: bool = False) -> tuple[bool, str]:
         """
         Check if a proxy is reachable and can receive commands.
+        Also updates the proxy status if heartbeat timeout is detected.
         
         Args:
             proxy_id: UUID of the proxy node
@@ -100,8 +108,12 @@ class ProxyService:
                 raise ValueError(error_msg)
             return False, error_msg
         
+        # First, update status based on heartbeat (this may change status to OFFLINE)
+        proxy.update_status_based_on_heartbeat()
+        proxy.refresh_from_db()
+        
         # Check status
-        if proxy.status != ProxyNode.NodeStatus.ACTIVE:
+        if proxy.status not in [ProxyNode.NodeStatus.ACTIVE]:
             error_msg = f"Proxy '{proxy.name}' is not active (status: {proxy.get_status_display()})"
             if raise_exception:
                 raise ValueError(error_msg)
