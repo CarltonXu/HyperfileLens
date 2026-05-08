@@ -158,6 +158,57 @@ class ProxyNode(models.Model):
         help_text='Number of active tasks'
     )
 
+    # === Performance and Resource Control ===
+    max_concurrent_tasks = models.IntegerField(
+        default=3,
+        help_text='Maximum number of concurrent tasks allowed'
+    )
+    bandwidth_limit_kbps = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text='Default bandwidth limit in KB/s (0 = no limit)'
+    )
+
+    # === Health and Reliability ===
+    health_score = models.IntegerField(
+        default=100,
+        help_text='Health score (0-100, higher is better)'
+    )
+    last_health_check = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Last health check timestamp'
+    )
+    health_status = models.CharField(
+        max_length=20,
+        default='unknown',
+        choices=[
+            ('healthy', 'Healthy'),
+            ('warning', 'Warning'),
+            ('error', 'Error'),
+            ('unknown', 'Unknown')
+        ],
+        help_text='Overall health status'
+    )
+
+    # === Statistics ===
+    total_tasks_completed = models.IntegerField(
+        default=0,
+        help_text='Total number of tasks completed'
+    )
+    total_tasks_failed = models.IntegerField(
+        default=0,
+        help_text='Total number of tasks failed'
+    )
+    total_data_backed_up = models.BigIntegerField(
+        default=0,
+        help_text='Total data backed up in bytes'
+    )
+    uptime_seconds = models.BigIntegerField(
+        default=0,
+        help_text='Total uptime in seconds'
+    )
+
     # === Capabilities ===
     capabilities = models.JSONField(
         default=dict,

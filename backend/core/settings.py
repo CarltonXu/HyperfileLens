@@ -8,6 +8,7 @@ Core configuration module for Django settings, Celery, and periodic task registr
 
 import os
 from pathlib import Path
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -15,18 +16,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get(
     'DJANGO_SECRET_KEY',
-    'django-insecure-dev-key-change-in-production-hyperfilelens-2024'
+    os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-in-production-hyperfilelens-2024')
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
+DEBUG = os.environ.get('DJANGO_DEBUG', os.environ.get('DEBUG', 'True')).lower() in ('true', '1', 'yes')
 
-# Allowed hosts configuration - allow all hosts for development
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
 # CSRF trusted origins - allow coze.site domain and localhost
 CSRF_TRUSTED_ORIGINS = [
+    'http://10.147.18.11:5001',
     'http://localhost:5000',
+    'http://localhost:5005',
     'http://localhost:8000',
     'https://' + os.environ.get('COZE_PROJECT_DOMAIN_DEFAULT', '').replace('https://', '').replace('http://', ''),
 ]
@@ -69,6 +71,9 @@ PROJECT_APPS = [
     'recovery_tasks',
     'repository',
     'policies',
+    'schedules',     # 定时任务调度
+    'alerts',       # 告警管理
+    'checkpoints',   # 断点续传检查点
     'ai_query',
     'audit_log',
     'system_settings',  # System settings & SMTP config
@@ -110,24 +115,34 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-DATABASES = {
-    'default': {
-        'ENGINE': os.environ.get(
-            'DJANGO_DB_ENGINE',
-            'django.db.backends.postgresql' if os.environ.get('USE_POSTGRES', 'false').lower() == 'true'
-            else 'django.db.backends.sqlite3'
-        ),
-        'NAME': os.environ.get(
-            'DJANGO_DB_NAME',
-            BASE_DIR / 'db.sqlite3' if os.environ.get('USE_POSTGRES', 'false').lower() != 'true'
-            else 'hyperfilelens'
-        ),
-        'USER': os.environ.get('DJANGO_DB_USER', 'hyperfilelens'),
-        'PASSWORD': os.environ.get('DJANGO_DB_PASSWORD', 'hyperfilelens'),
-        'HOST': os.environ.get('DJANGO_DB_HOST', 'postgres'),
-        'PORT': os.environ.get('DJANGO_DB_PORT', '5432'),
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=os.environ.get('DB_SSL_REQUIRE', 'false').lower() in ('true', '1', 'yes'),
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': os.environ.get(
+                'DJANGO_DB_ENGINE',
+                'django.db.backends.postgresql' if os.environ.get('USE_POSTGRES', 'false').lower() == 'true'
+                else 'django.db.backends.sqlite3'
+            ),
+            'NAME': os.environ.get(
+                'DJANGO_DB_NAME',
+                BASE_DIR / 'db.sqlite3' if os.environ.get('USE_POSTGRES', 'false').lower() != 'true'
+                else 'hyperfilelens'
+            ),
+            'USER': os.environ.get('DJANGO_DB_USER', 'hyperfilelens'),
+            'PASSWORD': os.environ.get('DJANGO_DB_PASSWORD', 'hyperfilelens'),
+            'HOST': os.environ.get('DJANGO_DB_HOST', 'postgres'),
+            'PORT': os.environ.get('DJANGO_DB_PORT', '5432'),
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

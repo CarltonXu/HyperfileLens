@@ -598,10 +598,10 @@ def audit_log(request=None, action='', resource_type='', resource_id='',
               error_message='', user=None):
     """
     便捷的审计日志记录函数
-    
+
     使用示例:
         from audit_log.models import audit_log
-        
+
         # 记录创建操作
         audit_log(
             request=request,
@@ -611,7 +611,7 @@ def audit_log(request=None, action='', resource_type='', resource_id='',
             resource_name=user.email,
             details=f'创建用户: {user.email}'
         )
-        
+
         # 记录更新操作
         audit_log(
             request=request,
@@ -627,37 +627,59 @@ def audit_log(request=None, action='', resource_type='', resource_id='',
     user_agent = ''
     request_method = ''
     request_path = ''
+    request_query = {}
+    request_body = {}
     tenant_id = None
     session_id = ''
-    
+
     if request:
         if user is None:
             user = getattr(request, 'user', None)
             if user and not user.is_authenticated:
                 user = None
-        
+
         # 获取真实IP
         ip_address = request.META.get('HTTP_X_FORWARDED_FOR', '')
         if ip_address:
             ip_address = ip_address.split(',')[0].strip()
         else:
             ip_address = request.META.get('REMOTE_ADDR')
-        
+
         user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
         request_method = request.method
         request_path = request.path[:1000]
-        
+
+        # 获取查询参数
+        try:
+            if hasattr(request, 'GET'):
+                request_query = dict(request.GET)
+        except Exception:
+            request_query = {}
+
+        # 获取请求体（排除敏感字段）
+        try:
+            if hasattr(request, 'data') and request.data:
+                request_body = _sanitize_request_body(request.data)
+            elif hasattr(request, 'body') and request.body:
+                import json
+                try:
+                    request_body = _sanitize_request_body(json.loads(request.body.decode('utf-8')))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    request_body = {'raw': '[无法解析]'}
+        except Exception:
+            request_body = {}
+
         if user and hasattr(user, 'tenant_id') and user.tenant_id:
             tenant_id = str(user.tenant_id)
-        
+
         session_id = request.session.session_key or ''
-    
+
     user_email = ''
     user_name = ''
     if user:
         user_email = user.email
         user_name = f"{user.first_name} {user.last_name}".strip()
-    
+
     return AuditLog.objects.create(
         tenant_id=tenant_id,
         user=user,
@@ -675,5 +697,38 @@ def audit_log(request=None, action='', resource_type='', resource_id='',
         error_message=error_message,
         request_method=request_method,
         request_path=request_path,
+        request_query=request_query,
+        request_body=request_body,
         session_id=session_id
     )
+
+
+def _sanitize_request_body(data):
+    """
+    清理请求体，移除敏感字段。
+
+    Args:
+        data: 原始请求数据
+
+    Returns:
+        清理后的数据
+    """
+    # 敏感字段列表
+    sensitive_fields = {'password', 'token', 'secret', 'key', 'api_key', 'access_token',
+                      'refresh_token', 'authorization', 'api_secret', 'private_key',
+                      'pass', 'pwd', 'credential', 'captcha_code', 'captcha_key'}
+
+    if isinstance(data, dict):
+        sanitized = {}
+        for key, value in data.items():
+            if key.lower() in sensitive_fields:
+                sanitized[key] = '[已隐藏]'
+            elif isinstance(value, (dict, list)):
+                sanitized[key] = _sanitize_request_body(value)
+            else:
+                sanitized[key] = value
+        return sanitized
+    elif isinstance(data, list):
+        return [_sanitize_request_body(item) if isinstance(item, (dict, list)) else item for item in data]
+    else:
+        return data

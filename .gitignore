@@ -148,6 +148,8 @@ uploads/
 # Static files
 staticfiles/
 static/
+!backend/static/
+!backend/static/.gitkeep
 
 # Coverage
 htmlcov/

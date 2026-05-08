@@ -98,12 +98,19 @@ class UserRegistrationView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Generate token for automatic login after registration
-        token, _ = Token.objects.get_or_create(user=user)
+        # Create token for automatic login after registration
+        import secrets
+        token_key = secrets.token_urlsafe(32)
+        api_token = APIToken.objects.create(
+            user=user,
+            name='Registration API Token',
+            key=token_key,
+            prefix=token_key[:8]
+        )
 
         response_serializer = UserProfileSerializer(user)
         response_data = response_serializer.data
-        response_data['token'] = token.key
+        response_data['token'] = api_token.key
 
         return Response(response_data, status=status.HTTP_201_CREATED)
 
@@ -317,8 +324,7 @@ class LogoutView(APIView):
         Removes user session and deletes token.
         """
         user = request.user
-        ip_address = self._get_client_ip(request)
-        
+
         try:
             # Delete API token
             APIToken.objects.filter(user=user).delete()
@@ -329,10 +335,7 @@ class LogoutView(APIView):
         logout(request)
 
         # Log logout
-        AuditService.log_user_logout(
-            user=user,
-            ip_address=ip_address
-        )
+        AuditService.log_user_logout(user=user, request=request)
 
         return Response({
             'message': 'Logged out successfully.'
@@ -1086,30 +1089,43 @@ class RegisterView(APIView):
             )
             
             # Create default license for new tenant
-            from licenses.models import License
+            from licenses.models import License, generate_machine_code
             from django.utils import timezone
             import secrets
-            
+
+            # Generate machine code for the tenant/user
+            machine_code, _ = generate_machine_code(str(tenant.id), str(user.id))
+
             License.objects.create(
                 tenant=tenant,
                 license_key=f"FREE-{secrets.token_hex(8).upper()}",
                 status='active',
+                activated_by=user,
+                machine_code=machine_code,
                 max_tenants=1,
                 max_users=5,
                 max_proxies=5,
                 max_storage_gb=100,
                 issued_at=timezone.now(),
-                expires_at=None
+                expires_at=None,
+                signature=f"FREE-LICENSE-{secrets.token_hex(16).upper()}"
             )
             
             # Generate token
-            token, _ = Token.objects.get_or_create(user=user)
-            
+            import secrets
+            token_key = secrets.token_urlsafe(32)
+            api_token = APIToken.objects.create(
+                user=user,
+                name='Registration API Token',
+                key=token_key,
+                prefix=token_key[:8]
+            )
+
             # Record audit log - user registration
             AuditService.log_user_register(request, user)
-        
+
         response_data = UserProfileSerializer(user).data
-        response_data['token'] = token.key
+        response_data['token'] = api_token.key
         
         return Response(response_data, status=status.HTTP_201_CREATED)
 
@@ -1307,7 +1323,7 @@ class ResetPasswordView(APIView):
             PasswordResetService.invalidate_code(email)
             
             # Invalidate all auth tokens (force re-login)
-            Token.objects.filter(user=user).delete()
+            APIToken.objects.filter(user=user).delete()
             
             return Response({
                 'message': 'Password reset successfully'

@@ -163,27 +163,29 @@ class ProxyService:
             str: Task ID for tracking the operation
         """
         task_id = task_id or str(uuid.uuid4())
-        
+
         message = {
             'type': 'test_storage',
             'id': str(uuid.uuid4()),
-            'task_id': task_id,
-            'repository_id': repository_id,
-            'storage_type': storage_type,
-            'test_write': test_write,
-            'timestamp': timezone.now().isoformat(),
+            'payload': {
+                'task_id': task_id,
+                'repository_id': repository_id,
+                'storage_type': storage_type,
+                'test_write': test_write,
+                'timestamp': timezone.now().isoformat(),
+            }
         }
-        
-        # Add storage-specific configuration
+
+        # Add storage-specific configuration to payload
         if storage_type in ('nas', 'nfs'):
-            message.update({
+            message['payload'].update({
                 'server': storage_config.get('server', ''),
                 'path': storage_config.get('path', ''),
                 'mount_type': storage_config.get('mount_type', 'nfs'),
                 'mount_path': storage_config.get('mount_path', ''),
             })
         elif storage_type == 'smb':
-            message.update({
+            message['payload'].update({
                 'server': storage_config.get('server', ''),
                 'share': storage_config.get('share', ''),
                 'username': storage_config.get('username', ''),
@@ -191,11 +193,11 @@ class ProxyService:
                 'mount_path': storage_config.get('mount_path', ''),
             })
         elif storage_type == 'local':
-            message.update({
+            message['payload'].update({
                 'path': storage_config.get('path', ''),
             })
         elif storage_type == 's3':
-            message.update({
+            message['payload'].update({
                 'endpoint': storage_config.get('endpoint', ''),
                 'bucket': storage_config.get('bucket', ''),
                 'region': storage_config.get('region', 'us-east-1'),
@@ -234,17 +236,19 @@ class ProxyService:
             str: Task ID for tracking the operation
         """
         task_id = task_id or str(uuid.uuid4())
-        
+
         message = {
             'type': 'init_repository',
             'id': str(uuid.uuid4()),
-            'task_id': task_id,
-            'repository_id': repository_id,
-            'repository': repository_config,
-            'password': password,
-            'timestamp': timezone.now().isoformat(),
+            'payload': {
+                'task_id': task_id,
+                'repository_id': repository_id,
+                'repository': repository_config,
+                'password': password,
+                'timestamp': timezone.now().isoformat(),
+            }
         }
-        
+
         ProxyService.send_to_proxy(proxy_id, message)
         
         logger.info(
@@ -274,30 +278,34 @@ class ProxyService:
             str: Task ID for tracking the operation
         """
         task_id = task_id or str(uuid.uuid4())
-        
-        message = {
-            'type': 'mount',
-            'id': str(uuid.uuid4()),
+
+        payload = {
             'task_id': task_id,
             'mount_type': mount_type,
             'timestamp': timezone.now().isoformat(),
         }
-        
+
         if mount_type == 'nfs':
-            message.update({
+            payload.update({
                 'server': mount_config.get('server', ''),
                 'path': mount_config.get('path', ''),
                 'target': mount_config.get('target', ''),
             })
         elif mount_type == 'smb':
-            message.update({
+            payload.update({
                 'server': mount_config.get('server', ''),
                 'share': mount_config.get('share', ''),
                 'target': mount_config.get('target', ''),
                 'username': mount_config.get('username', ''),
                 'password': mount_config.get('password', ''),
             })
-        
+
+        message = {
+            'type': 'mount',
+            'id': str(uuid.uuid4()),
+            'payload': payload,
+        }
+
         ProxyService.send_to_proxy(proxy_id, message)
         
         logger.info(

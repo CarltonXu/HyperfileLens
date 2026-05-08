@@ -1,188 +1,224 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import api from '@/api'
 import {
   ServerIcon,
-  CheckCircleIcon,
+  BoltIcon,
   CircleStackIcon,
+  ChartBarIcon,
   CloudArrowUpIcon,
   ArrowUturnLeftIcon,
+  ArrowTrendingUpIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
   SparklesIcon,
-  BoltIcon,
+  ShieldExclamationIcon,
+  FolderIcon,
+  DocumentDuplicateIcon,
+  FireIcon,
   ArrowRightIcon,
-  DocumentIcon,
-  PhotoIcon,
-  FilmIcon,
-  MusicalNoteIcon,
-  ArchiveBoxIcon,
-  MagnifyingGlassIcon,
-  Squares2X2Icon,
-  Bars3Icon,
-  ArrowPathIcon,
-  GlobeAltIcon
+  InformationCircleIcon,
+  ExclamationCircleIcon
 } from '@heroicons/vue/24/outline'
-import { proxiesApi, gatewaysApi } from '@/api'
 
 const router = useRouter()
 const { t } = useI18n()
 
-// View mode
-const viewMode = ref<'card' | 'list'>('card')
+interface Stats {
+  total_nodes: number
+  online_nodes: number
+  active_tasks: number
+  storage_used: number
+  storage_total: number
+  total_backups: number
+  success_rate: number
+  running_tasks: number
+  pending_tasks: number
+  failed_tasks: number
+}
 
-// Loading states
+interface AIInsight {
+  category: string
+  percentage: number
+  size: string
+}
+
+interface Risk {
+  type: string
+  count: number
+  severity: 'critical' | 'warning' | 'info'
+}
+
+interface Optimization {
+  type: string
+  size: string
+  description: string
+}
+
+interface Alert {
+  id: string
+  time: string
+  message: string
+  severity: 'critical' | 'warning' | 'info'
+  source: string
+}
+
+interface ActiveTask {
+  id: string
+  type: 'backup' | 'recovery' | 'ai'
+  name: string
+  progress: number
+  status: string
+}
+
 const isLoading = ref(true)
-
-// Stats
-const stats = ref({
+const stats = ref<Stats>({
   total_nodes: 0,
   online_nodes: 0,
-  total_proxies: 0,
-  online_proxies: 0,
-  total_gateways: 0,
-  online_gateways: 0,
   active_tasks: 0,
+  storage_used: 0,
+  storage_total: 0,
+  total_backups: 0,
+  success_rate: 0,
   running_tasks: 0,
   pending_tasks: 0,
-  storage_used: 0,
-  storage_total: 1,
-  success_rate: 0
+  failed_tasks: 0
 })
 
-// Proxies list
-const proxies = ref<any[]>([])
+const recentTasks = ref<any[]>([])
 
-// Gateways list
-const gateways = ref<any[]>([])
-
-// AI Insights
-const lastSyncTime = ref('5分钟前')
-const aiInsights = ref([
-  { category: 'Documents', count: 1234, percentage: 45, icon: 'document' },
-  { category: 'Images', count: 567, percentage: 21, icon: 'image' },
-  { category: 'Videos', count: 234, percentage: 9, icon: 'video' },
-  { category: 'Music', count: 123, percentage: 5, icon: 'music' },
-  { category: 'Archives', count: 567, percentage: 20, icon: 'archive' }
+// AI Insights 数据
+const aiInsights = ref<AIInsight[]>([
+  { category: 'documents', percentage: 45, size: '23 TB' },
+  { category: 'images', percentage: 20, size: '10 TB' },
+  { category: 'archives', percentage: 15, size: '8 TB' },
+  { category: 'videos', percentage: 12, size: '6 TB' },
+  { category: 'others', percentage: 8, size: '4 TB' }
 ])
 
-// Pagination
-const currentPage = ref(1)
-const itemsPerPage = 9
+const risks = ref<Risk[]>([
+  { type: 'sensitive', count: 12, severity: 'warning' },
+  { type: 'ransomware', count: 0, severity: 'info' },
+  { type: 'permission', count: 32, severity: 'warning' }
+])
 
-// Search
-const searchQuery = ref('')
-const selectedStatus = ref('')
+const optimizations = ref<Optimization[]>([
+  { type: 'duplicate', size: '1.2 TB', description: '建议清理' },
+  { type: 'cold', size: '4.5 TB', description: '建议归档' },
+  { type: 'growth', size: '/var/log', description: '周增 200%' }
+])
 
-// Computed
-const filteredProxies = computed(() => {
-  let result = proxies.value
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(p => 
-      p.name.toLowerCase().includes(query) ||
-      p.hostname?.toLowerCase().includes(query) ||
-      p.ip_address?.includes(query)
-    )
-  }
-  if (selectedStatus.value) {
-    result = result.filter(p => p.status === selectedStatus.value)
-  }
-  return result
-})
+// 监控数据
+const alerts = ref<Alert[]>([
+  { id: '1', time: '16:20', message: 'Linux-03 离线', severity: 'critical', source: 'Proxy' },
+  { id: '2', time: '15:10', message: 'S3 存储连接超时', severity: 'warning', source: 'Storage' },
+  { id: '3', time: '14:00', message: '策略 A 执行失败', severity: 'warning', source: 'Policy' },
+  { id: '4', time: '昨天', message: '存储空间 > 80%', severity: 'info', source: 'System' },
+  { id: '5', time: '2天前', message: '备份任务超时', severity: 'warning', source: 'Backup' }
+])
 
-const filteredGateways = computed(() => {
-  let result = gateways.value
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(g => 
-      g.name.toLowerCase().includes(query) ||
-      g.hostname?.toLowerCase().includes(query)
-    )
-  }
-  if (selectedStatus.value) {
-    result = result.filter(g => g.status === selectedStatus.value)
-  }
-  return result
-})
+const activeTasks = ref<ActiveTask[]>([
+  { id: '1', type: 'backup', name: '财务数据备份', progress: 80, status: 'running' },
+  { id: '2', type: 'recovery', name: '研发归档恢复', progress: 12, status: 'running' },
+  { id: '3', type: 'ai', name: '文件扫描', progress: 45, status: 'running' },
+  { id: '4', type: 'backup', name: '邮件系统备份', progress: 99, status: 'running' }
+])
 
-const paginatedProxies = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage
-  return filteredProxies.value.slice(start, start + itemsPerPage)
-})
+const lastSyncTime = ref('2026-04-23 10:00')
 
-const paginatedGateways = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage
-  return filteredGateways.value.slice(start, start + itemsPerPage)
-})
-
-// Methods
-function formatBytes(bytes: number) {
+function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-function getStatusColor(status: string) {
-  const colors: Record<string, string> = {
-    online: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    offline: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    maintenance: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    pending: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+function getCategoryLabel(category: string): string {
+  const labels: Record<string, string> = {
+    documents: t('aiInsights.categories.documents'),
+    images: t('aiInsights.categories.images'),
+    archives: t('aiInsights.categories.archives'),
+    videos: t('aiInsights.categories.videos'),
+    others: t('aiInsights.categories.others')
   }
-  return colors[status] || 'bg-slate-100 text-slate-700'
+  return labels[category] || category
 }
 
-function getRoleColor(role: string) {
-  const colors: Record<string, string> = {
-    agent: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
-    sync: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+function getRiskLabel(type: string): string {
+  const labels: Record<string, string> = {
+    sensitive: t('aiInsights.risks.sensitive'),
+    ransomware: t('aiInsights.risks.ransomware'),
+    permission: t('aiInsights.risks.permission')
   }
-  return colors[role] || 'bg-slate-100 text-slate-700'
+  return labels[type] || type
 }
 
-function viewProxyDetail(proxy: any) {
-  router.push(`/proxies?id=${proxy.id}`)
+function getOptimizationLabel(type: string): string {
+  const labels: Record<string, string> = {
+    duplicate: t('aiInsights.optimizations.duplicate'),
+    cold: t('aiInsights.optimizations.cold'),
+    growth: t('aiInsights.optimizations.growth')
+  }
+  return labels[type] || type
 }
 
-function viewGatewayDetail(gateway: any) {
-  router.push(`/gateways?id=${gateway.id}`)
+function getTaskTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    backup: t('dashboard.taskTypes.backup'),
+    recovery: t('dashboard.taskTypes.recovery'),
+    ai: t('dashboard.taskTypes.ai')
+  }
+  return labels[type] || type
+}
+
+function getSeverityColor(severity: string): string {
+  const colors: Record<string, string> = {
+    critical: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
+    warning: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
+    info: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+  }
+  return colors[severity] || colors.info
+}
+
+function getSeverityIcon(severity: string) {
+  const icons: Record<string, any> = {
+    critical: ExclamationCircleIcon,
+    warning: ExclamationTriangleIcon,
+    info: InformationCircleIcon
+  }
+  return icons[severity] || InformationCircleIcon
 }
 
 async function fetchDashboardData() {
   isLoading.value = true
   try {
-    // Fetch proxies stats
-    const proxiesStatsRes = await proxiesApi.stats()
-    if (proxiesStatsRes.data) {
-      stats.value.total_proxies = proxiesStatsRes.data.total || 0
-      stats.value.online_proxies = proxiesStatsRes.data.online || 0
+    const [proxiesRes, tasksRes] = await Promise.all([
+      api.get('/api/v1/proxies/stats/'),
+      api.get('/api/v1/backup-tasks/tasks/?ordering=-created_at&page_size=5')
+    ])
+
+    const tasksData = tasksRes.data.results || []
+    const runningCount = tasksData.filter((t: any) => t.status === 'running').length
+    const pendingCount = tasksData.filter((t: any) => t.status === 'pending').length
+    const failedCount = tasksData.filter((t: any) => t.status === 'failed').length
+
+    stats.value = {
+      total_nodes: proxiesRes.data.total_proxies || proxiesRes.data.total_nodes || 0,
+      online_nodes: proxiesRes.data.active_proxies || proxiesRes.data.active_nodes || proxiesRes.data.online_nodes || 0,
+      active_tasks: tasksRes.data.count || 0,
+      storage_used: 161061273600, // 150GB
+      storage_total: 1099511627776, // 1TB
+      total_backups: 24,
+      success_rate: 97.5,
+      running_tasks: runningCount,
+      pending_tasks: pendingCount,
+      failed_tasks: failedCount
     }
-    
-    // Fetch proxies list
-    const proxiesRes = await proxiesApi.list()
-    if (proxiesRes.data?.results) {
-      proxies.value = proxiesRes.data.results
-    }
-    
-    // Fetch gateways stats
-    const gatewaysStatsRes = await gatewaysApi.stats()
-    if (gatewaysStatsRes.data) {
-      stats.value.total_gateways = gatewaysStatsRes.data.total || 0
-      stats.value.online_gateways = gatewaysStatsRes.data.online || 0
-    }
-    
-    // Fetch gateways list
-    const gatewaysRes = await gatewaysApi.list()
-    if (gatewaysRes.data?.results) {
-      gateways.value = gatewaysRes.data.results
-    }
-    
-    // Update nodes count from proxies + gateways
-    stats.value.total_nodes = stats.value.total_proxies + stats.value.total_gateways
-    stats.value.online_nodes = stats.value.online_proxies + stats.value.online_gateways
+
+    recentTasks.value = tasksData
   } catch (error) {
     console.error('Failed to fetch dashboard data:', error)
   } finally {
@@ -190,18 +226,8 @@ async function fetchDashboardData() {
   }
 }
 
-// Lifecycle
-let refreshInterval: number | null = null
-
 onMounted(() => {
   fetchDashboardData()
-  refreshInterval = window.setInterval(fetchDashboardData, 30000)
-})
-
-onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
 })
 </script>
 
@@ -213,383 +239,324 @@ onUnmounted(() => {
         <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ t('dashboard.title') }}</h1>
         <p class="text-slate-500 dark:text-slate-400 mt-1">{{ t('dashboard.subtitle') }}</p>
       </div>
-      <div class="flex items-center gap-3">
-        <button
-          @click="fetchDashboardData"
-          class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm"
-        >
-          <ArrowPathIcon class="w-4 h-4" />
-          {{ t('common.refresh') }}
-        </button>
-      </div>
+      <button
+        @click="fetchDashboardData"
+        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        {{ t('common.refresh') }}
+      </button>
     </div>
 
-    <!-- Stats Cards - Proxies Style -->
+    <!-- Stats Grid -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <!-- Total Nodes -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 rounded-lg flex items-center justify-center">
-            <ServerIcon class="w-5 h-5 text-slate-600 dark:text-slate-300" />
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ t('dashboard.stats.totalNodes') }}</p>
+            <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ stats.total_nodes }}</p>
+            <div class="flex items-center gap-1.5 mt-2">
+              <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+              <span class="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{{ stats.online_nodes }} {{ t('common.active') }}</span>
+            </div>
           </div>
-          <div>
-            <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('dashboard.stats.totalNodes') }}</p>
-            <p class="text-xl font-bold text-slate-800 dark:text-white">{{ stats.total_nodes }}</p>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Online Nodes -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
-            <CheckCircleIcon class="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div>
-            <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('dashboard.stats.onlineNodes') }}</p>
-            <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">{{ stats.online_nodes }}</p>
+          <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+            <ServerIcon class="w-5 h-5 text-white" />
           </div>
         </div>
       </div>
-      
+
       <!-- Active Tasks -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
-            <BoltIcon class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ t('dashboard.stats.activeTasks') }}</p>
+            <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ stats.active_tasks }}</p>
+            <div class="flex items-center gap-2 mt-2 text-xs">
+              <span class="text-blue-600 dark:text-blue-400">{{ stats.running_tasks }} {{ t('backupTasks.status.running') }}</span>
+              <span class="text-slate-300 dark:text-slate-600">|</span>
+              <span class="text-amber-600 dark:text-amber-400">{{ stats.pending_tasks }} {{ t('backupTasks.status.pending') }}</span>
+            </div>
           </div>
-          <div>
-            <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('dashboard.stats.activeTasks') }}</p>
-            <p class="text-xl font-bold text-slate-800 dark:text-white">{{ stats.active_tasks }}</p>
+          <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+            <BoltIcon class="w-5 h-5 text-white" />
           </div>
         </div>
       </div>
-      
+
       <!-- Storage Used -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-            <CircleStackIcon class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ t('dashboard.stats.storageUsed') }}</p>
+            <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ formatBytes(stats.storage_used) }}</p>
+            <div class="mt-2">
+              <div class="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
+                  :style="{ width: `${Math.round(stats.storage_used / stats.storage_total * 100)}%` }"
+                />
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ Math.round(stats.storage_used / stats.storage_total * 100) }}% {{ t('dashboard.stats.used') }}</p>
+            </div>
           </div>
-          <div>
-            <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('dashboard.stats.storageUsed') }}</p>
-            <p class="text-xl font-bold text-slate-800 dark:text-white">{{ formatBytes(stats.storage_used) }}</p>
+          <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+            <CircleStackIcon class="w-5 h-5 text-white" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Success Rate -->
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ t('dashboard.stats.successRate') }}</p>
+            <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ stats.success_rate }}%</p>
+            <div class="flex items-center gap-1 mt-2 text-emerald-600 dark:text-emerald-400">
+              <ArrowTrendingUpIcon class="w-3.5 h-3.5" />
+              <span class="text-xs font-medium">+2.5%</span>
+            </div>
+          </div>
+          <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center shadow-md">
+            <ChartBarIcon class="w-5 h-5 text-white" />
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Main Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Nodes Section (Proxies + Gateways) -->
-      <div class="lg:col-span-2 space-y-6">
-        <!-- Filters - Proxies Style -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
-          <div class="flex flex-wrap items-center gap-3">
-            <div class="relative flex-1 min-w-[200px]">
-              <MagnifyingGlassIcon class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
-              <input
-                v-model="searchQuery"
-                type="text"
-                :placeholder="t('common.search')"
-                class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-            </div>
-            <select
-              v-model="selectedStatus"
-              class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">{{ t('common.allStatus') }}</option>
-              <option value="online">{{ t('common.online') }}</option>
-              <option value="offline">{{ t('common.offline') }}</option>
-            </select>
-            <!-- View Toggle -->
-            <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
-              <button
-                @click="viewMode = 'card'"
-                :class="[
-                  'p-1.5 rounded-md transition-colors',
-                  viewMode === 'card' ? 'bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300'
-                ]"
-                :title="t('proxies.viewModes.card')"
-              >
-                <Squares2X2Icon class="w-4 h-4" />
-              </button>
-              <button
-                @click="viewMode = 'list'"
-                :class="[
-                  'p-1.5 rounded-md transition-colors',
-                  viewMode === 'list' ? 'bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300'
-                ]"
-                :title="t('proxies.viewModes.list')"
-              >
-                <Bars3Icon class="w-4 h-4" />
-              </button>
-            </div>
+    <!-- AI Insights Section -->
+    <div class="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/30 dark:via-purple-950/30 dark:to-pink-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50 overflow-hidden">
+      <div class="px-5 py-4 flex items-center justify-between border-b border-indigo-100 dark:border-indigo-900/50 bg-white/50 dark:bg-slate-900/30">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+            <SparklesIcon class="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 class="text-base font-semibold text-slate-800 dark:text-white">{{ t('dashboard.aiInsights.title') }}</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('dashboard.aiInsights.syncTime', { time: lastSyncTime }) }}</p>
           </div>
         </div>
-
-        <!-- Nodes Card View -->
-        <template v-if="viewMode === 'card'">
-          <div v-if="isLoading" class="flex items-center justify-center py-12">
-            <div class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-          </div>
-
-          <div v-else-if="filteredProxies.length === 0 && filteredGateways.length === 0" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
-            <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ServerIcon class="w-8 h-8 text-slate-400 dark:text-slate-500" />
-            </div>
-            <h3 class="text-lg font-medium text-slate-800 dark:text-white mb-1">{{ t('dashboard.nodes.empty') }}</h3>
-            <p class="text-slate-500 dark:text-slate-400">{{ t('dashboard.nodes.emptyDesc') }}</p>
-          </div>
-
-          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- Proxy Cards -->
-            <div
-              v-for="proxy in paginatedProxies"
-              :key="'proxy-' + proxy.id"
-              class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all group cursor-pointer"
-              @click="viewProxyDetail(proxy)"
-            >
-              <div class="flex items-start justify-between mb-3">
-                <div class="flex items-center gap-3">
-                  <div :class="[
-                    'w-10 h-10 rounded-lg flex items-center justify-center',
-                    proxy.role === 'agent'
-                      ? 'bg-gradient-to-br from-indigo-500 to-blue-600'
-                      : 'bg-gradient-to-br from-purple-500 to-violet-600'
-                  ]">
-                    <ServerIcon class="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 class="font-semibold text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors">{{ proxy.name }}</h3>
-                    <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
-                      {{ proxy.role === 'agent' ? 'Agent' : 'Sync' }}
-                    </span>
-                  </div>
-                </div>
-                <span :class="['inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', getStatusColor(proxy.is_online ? 'online' : 'offline')]">
-                  {{ proxy.is_online ? t('common.online') : t('common.offline') }}
-                </span>
-              </div>
-              <div class="space-y-2 text-sm">
-                <div class="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                  <span>{{ t('proxies.list.hostname') }}</span>
-                  <span class="font-medium text-slate-800 dark:text-white">{{ proxy.hostname || '-' }}</span>
-                </div>
-                <div class="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                  <span>{{ t('proxies.list.ip') }}</span>
-                  <span class="font-medium text-slate-800 dark:text-white">{{ proxy.ip_address || '-' }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Gateway Cards -->
-            <div
-              v-for="gateway in paginatedGateways"
-              :key="'gateway-' + gateway.id"
-              class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all group cursor-pointer"
-              @click="viewGatewayDetail(gateway)"
-            >
-              <div class="flex items-start justify-between mb-3">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                    <GlobeAltIcon class="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 class="font-semibold text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors">{{ gateway.name }}</h3>
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
-                      Gateway
-                    </span>
-                  </div>
-                </div>
-                <span :class="['inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', getStatusColor(gateway.is_online ? 'online' : 'offline')]">
-                  {{ gateway.is_online ? t('common.online') : t('common.offline') }}
-                </span>
-              </div>
-              <div class="space-y-2 text-sm">
-                <div class="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                  <span>{{ t('gateways.list.hostname') }}</span>
-                  <span class="font-medium text-slate-800 dark:text-white">{{ gateway.hostname || '-' }}</span>
-                </div>
-                <div class="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                  <span>{{ t('gateways.list.mounts') }}</span>
-                  <span class="font-medium text-slate-800 dark:text-white">{{ gateway.active_mounts || 0 }} / {{ gateway.max_mounts || 10 }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-
-        <!-- Nodes List View -->
-        <template v-else>
-          <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-            <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-              <thead class="bg-slate-50 dark:bg-slate-900/50">
-                <tr>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ t('common.name') }}</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ t('common.type') }}</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ t('common.status') }}</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ t('proxies.list.hostname') }}</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ t('proxies.list.ip') }}</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
-                <tr v-for="proxy in paginatedProxies" :key="'proxy-' + proxy.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer" @click="viewProxyDetail(proxy)">
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <div class="flex items-center gap-2">
-                      <div :class="['w-8 h-8 rounded-lg flex items-center justify-center', proxy.role === 'agent' ? 'bg-indigo-100 dark:bg-indigo-900/30' : 'bg-purple-100 dark:bg-purple-900/30']">
-                        <ServerIcon :class="['w-4 h-4', proxy.role === 'agent' ? 'text-indigo-600' : 'text-purple-600']" />
-                      </div>
-                      <span class="font-medium text-slate-800 dark:text-white">{{ proxy.name }}</span>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', getRoleColor(proxy.role)]">
-                      {{ proxy.role === 'agent' ? 'Agent' : 'Sync' }}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <span :class="['inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', getStatusColor(proxy.is_online ? 'online' : 'offline')]">
-                      {{ proxy.is_online ? t('common.online') : t('common.offline') }}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{{ proxy.hostname || '-' }}</td>
-                  <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{{ proxy.ip_address || '-' }}</td>
-                </tr>
-                <tr v-for="gateway in paginatedGateways" :key="'gateway-' + gateway.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer" @click="viewGatewayDetail(gateway)">
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <div class="flex items-center gap-2">
-                      <div class="w-8 h-8 bg-teal-100 dark:bg-teal-900/30 rounded-lg flex items-center justify-center">
-                        <GlobeAltIcon class="w-4 h-4 text-teal-600" />
-                      </div>
-                      <span class="font-medium text-slate-800 dark:text-white">{{ gateway.name }}</span>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
-                      Gateway
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <span :class="['inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', getStatusColor(gateway.is_online ? 'online' : 'offline')]">
-                      {{ gateway.is_online ? t('common.online') : t('common.offline') }}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{{ gateway.hostname || '-' }}</td>
-                  <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{{ gateway.ip_address || '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </template>
-
-        <!-- Quick Actions - Proxies Style -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button
-            @click="router.push('/backup-tasks')"
-            class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
-          >
-            <CloudArrowUpIcon class="w-5 h-5" />
-            {{ t('dashboard.actions.newBackup') }}
-          </button>
-          <button
-            @click="router.push('/recovery-tasks')"
-            class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-          >
-            <ArrowUturnLeftIcon class="w-5 h-5 text-slate-500 dark:text-slate-400" />
-            {{ t('dashboard.actions.newRecovery') }}
-          </button>
-          <button
-            @click="router.push('/ai-insights')"
-            class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-          >
-            <SparklesIcon class="w-5 h-5 text-purple-500" />
-            {{ t('dashboard.actions.aiInsights') }}
-          </button>
-          <button
-            @click="router.push('/gateways')"
-            class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-          >
-            <GlobeAltIcon class="w-5 h-5 text-teal-500" />
-            {{ t('dashboard.actions.manageGateways') }}
-          </button>
-        </div>
+        <button
+          @click="router.push('/ai-insights')"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+        >
+          {{ t('dashboard.aiInsights.viewDetails') }}
+          <ArrowRightIcon class="w-4 h-4" />
+        </button>
       </div>
-
-      <!-- Right Sidebar -->
-      <div class="space-y-6">
-        <!-- AI Insights Section -->
-        <div class="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/30 dark:via-purple-950/30 dark:to-pink-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50 overflow-hidden">
-          <div class="px-5 py-4 flex items-center justify-between border-b border-indigo-100 dark:border-indigo-900/50 bg-white/50 dark:bg-slate-900/30">
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-                <SparklesIcon class="w-5 h-5 text-white" />
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-indigo-100 dark:bg-indigo-900/50">
+        <!-- File Categories -->
+        <div class="bg-white dark:bg-slate-800 p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <FolderIcon class="w-4 h-4 text-indigo-500" />
+            <h3 class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('dashboard.aiInsights.fileCategories') }}</h3>
+          </div>
+          <div class="space-y-2">
+            <div v-for="item in aiInsights" :key="item.category" class="flex items-center justify-between">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <div class="w-2 h-2 rounded-full" :class="{
+                  'bg-indigo-500': item.category === 'documents',
+                  'bg-pink-500': item.category === 'images',
+                  'bg-amber-500': item.category === 'archives',
+                  'bg-purple-500': item.category === 'videos',
+                  'bg-slate-400': item.category === 'others'
+                }"></div>
+                <span class="text-sm text-slate-600 dark:text-slate-400 truncate">{{ getCategoryLabel(item.category) }}</span>
               </div>
-              <div>
-                <h2 class="text-base font-semibold text-slate-800 dark:text-white">{{ t('dashboard.aiInsights.title') }}</h2>
-                <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('dashboard.aiInsights.syncTime', { time: lastSyncTime }) }}</p>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="font-medium text-slate-800 dark:text-white">{{ item.percentage }}%</span>
+                <span class="text-slate-400">({{ item.size }})</span>
               </div>
             </div>
-          </div>
-          
-          <div class="p-4 space-y-2 bg-white dark:bg-slate-800">
-            <div v-for="item in aiInsights" :key="item.category" class="flex items-center justify-between py-2">
-              <div class="flex items-center gap-2">
-                <DocumentIcon v-if="item.icon === 'document'" class="w-4 h-4 text-blue-500" />
-                <PhotoIcon v-else-if="item.icon === 'image'" class="w-4 h-4 text-green-500" />
-                <FilmIcon v-else-if="item.icon === 'video'" class="w-4 h-4 text-purple-500" />
-                <MusicalNoteIcon v-else-if="item.icon === 'music'" class="w-4 h-4 text-pink-500" />
-                <ArchiveBoxIcon v-else class="w-4 h-4 text-amber-500" />
-                <span class="text-sm text-slate-700 dark:text-slate-300">{{ item.category }}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-slate-800 dark:text-white">{{ item.count.toLocaleString() }}</span>
-                <div class="w-16 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div class="h-full bg-indigo-500 rounded-full" :style="{ width: `${item.percentage}%` }" />
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="px-4 py-3 bg-white/50 dark:bg-slate-900/30 border-t border-indigo-100 dark:border-indigo-900/50">
-            <button
-              @click="router.push('/ai-insights')"
-              class="w-full flex items-center justify-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
-            >
-              {{ t('dashboard.aiInsights.viewDetails') }}
-              <ArrowRightIcon class="w-4 h-4" />
-            </button>
           </div>
         </div>
 
-        <!-- Compliance & License -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
-            <div class="flex items-center gap-2">
-              <CheckCircleIcon class="w-5 h-5 text-emerald-500" />
-              <h2 class="text-base font-semibold text-slate-800 dark:text-white">{{ t('dashboard.compliance.title') }}</h2>
-            </div>
+        <!-- Risk Monitoring -->
+        <div class="bg-white dark:bg-slate-800 p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <ShieldExclamationIcon class="w-4 h-4 text-red-500" />
+            <h3 class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('dashboard.aiInsights.riskMonitoring') }}</h3>
           </div>
-          <div class="p-4 space-y-2">
-            <div class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/50">
-              <span class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.compliance.licenseStatus') }}</span>
-              <span class="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                <CheckCircleIcon class="w-4 h-4" />
-                {{ t('dashboard.compliance.normal') }}
+          <div class="space-y-2">
+            <div v-for="risk in risks" :key="risk.type" class="flex items-center justify-between px-3 py-2 rounded-lg" :class="{
+              'bg-amber-50 dark:bg-amber-900/20': risk.severity === 'warning',
+              'bg-emerald-50 dark:bg-emerald-900/20': risk.severity === 'info',
+              'bg-red-50 dark:bg-red-900/20': risk.severity === 'critical'
+            }">
+              <span class="text-sm text-slate-600 dark:text-slate-400">{{ getRiskLabel(risk.type) }}</span>
+              <span class="text-sm font-medium" :class="{
+                'text-amber-600 dark:text-amber-400': risk.severity === 'warning',
+                'text-emerald-600 dark:text-emerald-400': risk.severity === 'info',
+                'text-red-600 dark:text-red-400': risk.severity === 'critical'
+              }">
+                {{ risk.count > 0 ? `${risk.count} ${t('dashboard.aiInsights.items')}` : t('dashboard.aiInsights.safe') }}
               </span>
             </div>
-            <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
-              <span class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.compliance.storageQuota') }}</span>
-              <span class="text-sm font-medium text-slate-800 dark:text-white">{{ t('dashboard.compliance.quotaRemaining', { amount: '1.2 TB' }) }}</span>
-            </div>
-            <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
-              <span class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.compliance.expiryDate') }}</span>
-              <span class="text-sm font-medium text-slate-800 dark:text-white">2027-01-01</span>
+          </div>
+        </div>
+
+        <!-- Storage Optimization -->
+        <div class="bg-white dark:bg-slate-800 p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <FireIcon class="w-4 h-4 text-amber-500" />
+            <h3 class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('dashboard.aiInsights.storageOptimization') }}</h3>
+          </div>
+          <div class="space-y-2">
+            <div v-for="opt in optimizations" :key="opt.type" class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <DocumentDuplicateIcon v-if="opt.type === 'duplicate'" class="w-4 h-4 text-slate-400" />
+                <CircleStackIcon v-else-if="opt.type === 'cold'" class="w-4 h-4 text-blue-400" />
+                <ArrowTrendingUpIcon v-else class="w-4 h-4 text-red-400" />
+                <span class="text-sm text-slate-600 dark:text-slate-400">{{ getOptimizationLabel(opt.type) }}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-sm font-medium text-slate-800 dark:text-white">{{ opt.size }}</span>
+                <p class="text-xs text-slate-400">{{ opt.description }}</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Monitoring & Compliance Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Alerts -->
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <ExclamationTriangleIcon class="w-5 h-5 text-amber-500" />
+              <h2 class="text-base font-semibold text-slate-800 dark:text-white">{{ t('dashboard.alerts.title') }}</h2>
+            </div>
+            <span class="px-2 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full">{{ alerts.length }}</span>
+          </div>
+        </div>
+        <div class="divide-y divide-slate-100 dark:divide-slate-700">
+          <div
+            v-for="alert in alerts"
+            :key="alert.id"
+            class="px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+          >
+            <div class="flex items-start gap-3">
+              <div :class="['w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0', getSeverityColor(alert.severity)]">
+                <component :is="getSeverityIcon(alert.severity)" class="w-3.5 h-3.5" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-slate-800 dark:text-white truncate">{{ alert.message }}</p>
+                <p class="text-xs text-slate-400 mt-0.5">[{{ alert.time }}] {{ alert.source }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Tasks -->
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <BoltIcon class="w-5 h-5 text-blue-500" />
+              <h2 class="text-base font-semibold text-slate-800 dark:text-white">{{ t('dashboard.activeTasks.title') }}</h2>
+            </div>
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">{{ activeTasks.length }}</span>
+          </div>
+        </div>
+        <div class="divide-y divide-slate-100 dark:divide-slate-700">
+          <div
+            v-for="task in activeTasks"
+            :key="task.id"
+            class="px-5 py-3"
+          >
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span :class="['text-xs font-medium px-1.5 py-0.5 rounded', task.type === 'backup' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' : task.type === 'recovery' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400']">
+                  {{ getTaskTypeLabel(task.type) }}
+                </span>
+                <span class="text-sm text-slate-800 dark:text-white truncate">{{ task.name }}</span>
+              </div>
+              <span class="text-sm font-medium text-slate-600 dark:text-slate-400">{{ task.progress }}%</span>
+            </div>
+            <div class="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div
+                class="h-full rounded-full transition-all duration-300"
+                :class="task.type === 'backup' ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : task.type === 'recovery' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-purple-500 to-pink-500'"
+                :style="{ width: `${task.progress}%` }"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compliance & License -->
+      <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+          <div class="flex items-center gap-2">
+            <CheckCircleIcon class="w-5 h-5 text-emerald-500" />
+            <h2 class="text-base font-semibold text-slate-800 dark:text-white">{{ t('dashboard.compliance.title') }}</h2>
+          </div>
+        </div>
+        <div class="p-5 space-y-3">
+          <div class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/50">
+            <span class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.compliance.licenseStatus') }}</span>
+            <span class="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+              <CheckCircleIcon class="w-4 h-4" />
+              {{ t('dashboard.compliance.normal') }}
+            </span>
+          </div>
+          <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
+            <span class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.compliance.storageQuota') }}</span>
+            <span class="text-sm font-medium text-slate-800 dark:text-white">{{ t('dashboard.compliance.quotaRemaining', { amount: '1.2 TB' }) }}</span>
+          </div>
+          <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
+            <span class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.compliance.expiryDate') }}</span>
+            <span class="text-sm font-medium text-slate-800 dark:text-white">2027-01-01</span>
+          </div>
+          <div class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/50">
+            <span class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.compliance.drill') }}</span>
+            <span class="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
+              <ExclamationTriangleIcon class="w-4 h-4" />
+              {{ t('dashboard.compliance.drillOverdue') }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <button
+        @click="router.push('/backup-tasks')"
+        class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+      >
+        <CloudArrowUpIcon class="w-5 h-5" />
+        {{ t('dashboard.actions.newBackup') }}
+      </button>
+      <button
+        @click="router.push('/recovery-tasks')"
+        class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm"
+      >
+        <ArrowUturnLeftIcon class="w-5 h-5 text-slate-500 dark:text-slate-400" />
+        {{ t('dashboard.actions.newRecovery') }}
+      </button>
+      <button
+        @click="router.push('/ai-insights')"
+        class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm"
+      >
+        <SparklesIcon class="w-5 h-5 text-purple-500" />
+        {{ t('dashboard.actions.aiInsights') }}
+      </button>
+      <button
+        @click="router.push('/proxies')"
+        class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm"
+      >
+        <ServerIcon class="w-5 h-5 text-slate-500 dark:text-slate-400" />
+        {{ t('dashboard.actions.manageProxies') }}
+      </button>
     </div>
   </div>
 </template>

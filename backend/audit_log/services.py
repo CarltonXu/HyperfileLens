@@ -22,10 +22,22 @@ from .event_models import EventLog, event_log
 class AuditService:
     """
     审计日志服务
-    
+
     提供统一的审计日志记录接口，封装常用操作。
     """
-    
+
+    @staticmethod
+    def _get_client_ip(request):
+        """Get client IP address from request."""
+        if not request:
+            return None
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR', '')
+        return ip
+
     # ==================== 用户相关 ====================
     
     @staticmethod
@@ -33,6 +45,7 @@ class AuditService:
         """记录用户创建"""
         return audit_log(
             request=request,
+            user=user,
             action='create',
             resource_type='user',
             resource_id=str(user.id) if user else '',
@@ -57,9 +70,10 @@ class AuditService:
         details = f'更新用户: {user.email if user else "Unknown"}'
         if changed_fields:
             details += f' (变更字段: {", ".join(changed_fields)})'
-        
+
         return audit_log(
             request=request,
+            user=user,
             action='update',
             resource_type='user',
             resource_id=str(user.id) if user else '',
@@ -79,6 +93,7 @@ class AuditService:
         """记录用户删除"""
         return audit_log(
             request=request,
+            user=user,
             action='delete',
             resource_type='user',
             resource_id=str(user.id) if user else '',
@@ -98,6 +113,7 @@ class AuditService:
         """记录用户登录"""
         return audit_log(
             request=request,
+            user=user,
             action='login',
             resource_type='session',
             resource_id=str(user.id) if user else '',
@@ -127,31 +143,30 @@ class AuditService:
         )
     
     @staticmethod
-    def log_user_logout(user, ip_address=None):
+    def log_user_logout(user, request=None):
         """记录用户登出"""
         return audit_log(
+            request=request,
             user=user,
             action='logout',
             resource_type='user',
             resource_id=str(user.id) if user else '',
             resource_name=user.email if user else '',
             result='success',
-            ip_address=ip_address,
         )
     
     @staticmethod
     def log_user_register(request, user, result='success', error_message=''):
         """记录用户注册"""
-        ip_address = AuditService._get_client_ip(request) if request else None
         return audit_log(
             request=request,
+            user=user,
             action='register',
             resource_type='user',
             resource_id=str(user.id) if user else '',
             resource_name=user.email if user else '',
             details=f'用户注册: {user.email if user else "Unknown"}',
             result=result,
-            ip_address=ip_address,
             error_message=error_message,
         )
     

@@ -158,11 +158,21 @@ class ProxyConsumer(AsyncWebsocketConsumer):
     async def handle_task_update(self, data):
         """
         Handle task update message from proxy.
+
+        Proxy format: {type: 'task_update', payload: {task_id, status, progress, message}}
+        Legacy format: {type: 'task_update', task_id, status, progress, message}
         """
-        task_id = data.get('task_id')
-        status = data.get('status')
-        progress = data.get('progress', 0)
-        message = data.get('message', '')
+        payload = data.get('payload', {})
+        if payload:
+            task_id = payload.get('task_id')
+            status = payload.get('status')
+            progress = payload.get('progress', 0)
+            message = payload.get('message', '')
+        else:
+            task_id = data.get('task_id')
+            status = data.get('status')
+            progress = data.get('progress', 0)
+            message = data.get('message', '')
 
         await self.update_task_status(task_id, status, progress, message)
 
@@ -183,12 +193,23 @@ class ProxyConsumer(AsyncWebsocketConsumer):
     async def handle_task_result(self, data):
         """
         Handle task result message from proxy.
+
+        Proxy format: {type: 'task_result', payload: {task_id, task_type, success, result, error}}
+        Legacy format: {type: 'task_result', task_id, task_type, success, result, error}
         """
-        task_id = data.get('task_id')
-        task_type = data.get('task_type')
-        success = data.get('success', False)
-        result = data.get('result', {})
-        error = data.get('error')
+        payload = data.get('payload', {})
+        if payload:
+            task_id = payload.get('task_id')
+            task_type = payload.get('task_type')
+            success = payload.get('success', False)
+            result = payload.get('result', {})
+            error = payload.get('error')
+        else:
+            task_id = data.get('task_id')
+            task_type = data.get('task_type')
+            success = data.get('success', False)
+            result = data.get('result', {})
+            error = data.get('error')
 
         await self.complete_task(task_id, success, result, error)
 
@@ -210,98 +231,174 @@ class ProxyConsumer(AsyncWebsocketConsumer):
     async def handle_log(self, data):
         """
         Handle log message from proxy.
+
+        Proxy format: {type: 'log', payload: {level, message, context}}
+        Legacy format: {type: 'log', level, message, context}
         """
-        level = data.get('level', 'info')
-        message = data.get('message')
-        context = data.get('context', {})
+        payload = data.get('payload', {})
+        if payload:
+            level = payload.get('level', 'info')
+            message = payload.get('message')
+            context = payload.get('context', {})
+        else:
+            level = data.get('level', 'info')
+            message = data.get('message')
+            context = data.get('context', {})
 
         await self.store_log(level, message, context)
 
     async def handle_status(self, data):
         """
         Handle status report from proxy.
+
+        Proxy format: {type: 'status', payload: {data: {...}}}
+        Legacy format: {type: 'status', data: {...}}
         """
-        status_data = data.get('data', {})
+        payload = data.get('payload', {})
+        if payload:
+            status_data = payload.get('data', {})
+        else:
+            status_data = data.get('data', {})
         await self.update_proxy_status(status_data)
 
     async def handle_backup_result(self, data):
         """
         Handle backup task result from proxy.
+
+        Proxy format: {type: 'backup_result', payload: {task_id, snapshot_id, stats, error}}
+        Legacy format: {type: 'backup_result', task_id, snapshot_id, stats, error}
         """
-        task_id = data.get('task_id')
-        snapshot_id = data.get('snapshot_id')
-        stats = data.get('stats', {})
-        error = data.get('error')
+        payload = data.get('payload', {})
+        if payload:
+            task_id = payload.get('task_id')
+            snapshot_id = payload.get('snapshot_id')
+            stats = payload.get('stats', {})
+            error = payload.get('error')
+        else:
+            task_id = data.get('task_id')
+            snapshot_id = data.get('snapshot_id')
+            stats = data.get('stats', {})
+            error = data.get('error')
 
         await self.update_backup_result(task_id, snapshot_id, stats, error)
 
     async def handle_restore_result(self, data):
         """
         Handle restore task result from proxy.
+
+        Proxy format: {type: 'restore_result', payload: {task_id, stats, error}}
+        Legacy format: {type: 'restore_result', task_id, stats, error}
         """
-        task_id = data.get('task_id')
-        stats = data.get('stats', {})
-        error = data.get('error')
+        payload = data.get('payload', {})
+        if payload:
+            task_id = payload.get('task_id')
+            stats = payload.get('stats', {})
+            error = payload.get('error')
+        else:
+            task_id = data.get('task_id')
+            stats = data.get('stats', {})
+            error = data.get('error')
 
         await self.update_restore_result(task_id, stats, error)
 
     async def handle_mount_result(self, data):
         """
         Handle mount result from sync proxy.
+
+        Proxy format: {type: 'mount_result', payload: {repository_id, mount_point, success, error}}
+        Legacy format: {type: 'mount_result', repository_id, mount_point, success, error}
         """
-        repository_id = data.get('repository_id')
-        mount_point = data.get('mount_point')
-        success = data.get('success', False)
-        error = data.get('error')
+        payload = data.get('payload', {})
+        if payload:
+            repository_id = payload.get('repository_id')
+            mount_point = payload.get('mount_point')
+            success = payload.get('success', False)
+            error = payload.get('error')
+        else:
+            repository_id = data.get('repository_id')
+            mount_point = data.get('mount_point')
+            success = data.get('success', False)
+            error = data.get('error')
 
         await self.update_mount_status(repository_id, mount_point, success, error)
 
     async def handle_snapshot_list_result(self, data):
         """
         Handle snapshot list result from proxy.
+
+        Proxy format: {type: 'snapshot_list_result', payload: {task_id, snapshots, error}}
+        Legacy format: {type: 'snapshot_list_result', task_id, snapshots, error}
         """
-        task_id = data.get('task_id')
-        snapshots = data.get('snapshots', [])
-        error = data.get('error')
+        payload = data.get('payload', {})
+        if payload:
+            task_id = payload.get('task_id')
+            snapshots = payload.get('snapshots', [])
+            error = payload.get('error')
+        else:
+            task_id = data.get('task_id')
+            snapshots = data.get('snapshots', [])
+            error = data.get('error')
 
         await self.update_snapshot_list_result(task_id, snapshots, error)
 
     async def handle_test_connection_result(self, data):
         """
         Handle connection test result from proxy.
+
+        Proxy format: {type: 'test_connection_result', payload: {resource_type, resource_id, success, error, details}}
+        Legacy format: {type: 'test_connection_result', resource_type, resource_id, success, error, details}
         """
-        resource_type = data.get('resource_type')
-        resource_id = data.get('resource_id')
-        success = data.get('success', False)
-        error = data.get('error')
-        details = data.get('details', {})
+        payload = data.get('payload', {})
+        if payload:
+            resource_type = payload.get('resource_type')
+            resource_id = payload.get('resource_id')
+            success = payload.get('success', False)
+            error = payload.get('error')
+            details = payload.get('details', {})
+        else:
+            resource_type = data.get('resource_type')
+            resource_id = data.get('resource_id')
+            success = data.get('success', False)
+            error = data.get('error')
+            details = data.get('details', {})
 
         await self.update_connection_status(resource_type, resource_id, success, error, details)
 
     async def handle_test_storage_result(self, data):
         """
         Handle storage test result from sync proxy.
-        
+
         Expected data format:
         {
             'type': 'test_storage_result',
-            'task_id': 'uuid',
-            'success': True/False,
-            'result': {
-                'storage_type': 'nas/s3/local',
-                'repository_id': 'uuid',
-                'connectivity': {...},
-                'write_test': {...},
-                'space_info': {...}
-            },
-            'error': 'error message if failed',
-            'timestamp': 'iso timestamp'
+            'payload': {
+                'task_id': 'uuid',
+                'success': True/False,
+                'result': {
+                    'storage_type': 'nas/s3/local',
+                    'repository_id': 'uuid',
+                    'connectivity': {...},
+                    'write_test': {...},
+                    'space_info': {...}
+                },
+                'error': 'error message if failed',
+                'timestamp': 'iso timestamp'
+            }
         }
         """
-        task_id = data.get('task_id')
-        success = data.get('success', False)
-        result = data.get('result', {})
-        error = data.get('error')
+        # Extract data from payload if present (proxy format)
+        payload = data.get('payload', {})
+        if payload:
+            task_id = payload.get('task_id')
+            success = payload.get('success', False)
+            result = payload.get('result', {})
+            error = payload.get('error')
+        else:
+            # Legacy format (data at top level)
+            task_id = data.get('task_id')
+            success = data.get('success', False)
+            result = data.get('result', {})
+            error = data.get('error')
         repository_id = result.get('repository_id')
 
         # Update repository connection test status
@@ -325,21 +422,32 @@ class ProxyConsumer(AsyncWebsocketConsumer):
     async def handle_init_repository_result(self, data):
         """
         Handle repository initialization result from sync proxy.
-        
+
         Expected data format:
         {
             'type': 'init_repository_result',
-            'task_id': 'uuid',
-            'repository_id': 'uuid',
-            'success': True/False,
-            'error': 'error message if failed',
-            'timestamp': 'iso timestamp'
+            'payload': {
+                'task_id': 'uuid',
+                'repository_id': 'uuid',
+                'success': True/False,
+                'error': 'error message if failed',
+                'timestamp': 'iso timestamp'
+            }
         }
         """
-        task_id = data.get('task_id')
-        repository_id = data.get('repository_id')
-        success = data.get('success', False)
-        error = data.get('error')
+        # Extract data from payload if present (proxy format)
+        payload = data.get('payload', {})
+        if payload:
+            task_id = payload.get('task_id')
+            repository_id = payload.get('repository_id')
+            success = payload.get('success', False)
+            error = payload.get('error')
+        else:
+            # Legacy format (data at top level)
+            task_id = data.get('task_id')
+            repository_id = data.get('repository_id')
+            success = data.get('success', False)
+            error = data.get('error')
 
         # Update repository initialization status
         await self.update_repository_init_result(repository_id, task_id, success, error)

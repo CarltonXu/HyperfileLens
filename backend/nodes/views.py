@@ -304,6 +304,9 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
         proxy.installed_by = request.user
         proxy.save()
 
+        # Record audit log
+        AuditService.log_proxy_create(request, proxy, result='success')
+
         response_data = {
             'proxy_id': proxy.id,
             'name': proxy.name,

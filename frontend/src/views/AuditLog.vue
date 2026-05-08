@@ -879,10 +879,20 @@ const handlePageSizeChange = () => {
   fetchLogs()
 }
 
-const showDetail = (log: AuditLogItem) => {
+const showDetail = async (log: AuditLogItem) => {
+  // 先显示基本信息（列表中的数据）
   selectedLog.value = log
   showRequestDetails.value = false
   showDetailModal.value = true
+
+  // 然后异步获取详情（包含 request_query 和 request_body）
+  try {
+    const response = await auditLogApi.retrieve(log.id)
+    selectedLog.value = response.data
+  } catch (error) {
+    console.error('Failed to fetch audit log detail:', error)
+    // 失败时仍然显示列表中的基本信息
+  }
 }
 
 const exportLogs = async (format: 'json' | 'csv') => {

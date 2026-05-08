@@ -30,9 +30,25 @@ const (
 
 // Task represents a task
 type Task struct {
-	ID      string                 `json:"id"`
-	Type    string                 `json:"type"`
-	Payload map[string]interface{} `json:"payload"`
+	ID            string                 `json:"id"`
+	Type          string                 `json:"type"`
+	Priority      TaskPriority           `json:"priority"`
+	Status        TaskStatus             `json:"status"`
+	Payload       map[string]interface{} `json:"payload"`
+	Progress      float64                `json:"progress"`
+	Message       string                 `json:"message"`
+	Error         string                 `json:"error,omitempty"`
+	CreatedAt     time.Time              `json:"created_at"`
+	StartedAt     time.Time              `json:"started_at,omitempty"`
+	CompletedAt   time.Time              `json:"completed_at,omitempty"`
+	TimeoutAt     time.Time              `json:"timeout_at,omitempty"`
+	RetryCount    int                    `json:"retry_count"`
+	MaxRetries    int                    `json:"max_retries"`
+	DependsOn     []string               `json:"depends_on"`
+	BlockedBy     []string               `json:"blocked_by"`
+	OnComplete    func(result map[string]interface{}) error `json:"-"`
+	OnFailure     func(err error) error                     `json:"-"`
+	mu            sync.RWMutex
 }
 
 // Status represents task status

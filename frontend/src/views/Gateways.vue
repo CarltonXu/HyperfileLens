@@ -1201,7 +1201,7 @@ onMounted(() => {
           </div>
         </div>
       </div>
+      </div>
     </Transition>
   </div>
-</div>
 </template>

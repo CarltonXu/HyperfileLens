@@ -178,8 +178,100 @@ class Repository(models.Model):
         default=False,
         help_text="Repository is read-only"
     )
-    
-    # Statistics (updated by Node reports)
+
+    # === Quota Management ===
+    quota_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable quota management"
+    )
+    quota_bytes = models.BigIntegerField(
+        null=True,
+        blank=True,
+        help_text="Quota limit in bytes (0 = unlimited)"
+    )
+    quota_warning_threshold = models.IntegerField(
+        default=80,
+        help_text="Warning threshold percentage (default: 80%)"
+    )
+
+    # === Health Monitoring ===
+    last_health_check = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last health check timestamp"
+    )
+    health_status = models.CharField(
+        max_length=20,
+        default='unknown',
+        choices=[
+            ('healthy', 'Healthy'),
+            ('warning', 'Warning'),
+            ('error', 'Error'),
+            ('unknown', 'Unknown')
+        ],
+        help_text="Overall health status"
+    )
+    health_score = models.IntegerField(
+        default=100,
+        help_text="Health score (0-100)"
+    )
+    health_check_results = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Last health check results"
+    )
+
+    # === Auto Cleanup ===
+    auto_cleanup_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable automatic cleanup of old snapshots"
+    )
+    cleanup_threshold_percent = models.IntegerField(
+        default=90,
+        help_text="Cleanup threshold percentage"
+    )
+    cleanup_retention_days = models.IntegerField(
+        default=90,
+        help_text="Retention days for snapshots"
+    )
+    last_cleanup_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last cleanup timestamp"
+    )
+
+    # === Replication ===
+    replication_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable replication to secondary storage"
+    )
+    replication_target = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='replica_sources',
+        help_text="Target repository for replication"
+    )
+    replication_status = models.CharField(
+        max_length=20,
+        default='disabled',
+        choices=[
+            ('disabled', 'Disabled'),
+            ('pending', 'Pending'),
+            ('syncing', 'Syncing'),
+            ('error', 'Error'),
+            ('uptodate', 'Up to date')
+        ],
+        help_text="Replication status"
+    )
+    last_replication_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last successful replication timestamp"
+    )
+
+    # === Statistics ===
     snapshot_count = models.IntegerField(
         default=0,
         help_text="Number of snapshots in repository"

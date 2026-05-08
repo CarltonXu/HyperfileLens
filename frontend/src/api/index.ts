@@ -447,6 +447,81 @@ export const policiesApi = {
     api.post(`/api/v1/policies/policies/${id}/disable/`)
 }
 
+// ============== Alerts API ==============
+export const alertsApi = {
+  listRules: (params?: Record<string, unknown>) =>
+    api.get('/api/v1/alerts/rules/', { params }),
+
+  createRule: (data: Record<string, unknown>) =>
+    api.post('/api/v1/alerts/rules/', data),
+
+  updateRule: (id: string, data: Record<string, unknown>) =>
+    api.patch(`/api/v1/alerts/rules/${id}/`, data),
+
+  deleteRule: (id: string) =>
+    api.delete(`/api/v1/alerts/rules/${id}/`),
+
+  toggleRule: (id: string) =>
+    api.post(`/api/v1/alerts/rules/${id}/toggle/`),
+
+  testRule: (id: string, testValue: number) =>
+    api.post(`/api/v1/alerts/rules/${id}/test/`, { rule_id: id, test_value: testValue }),
+
+  listRuleRecords: (id: string, params?: Record<string, unknown>) =>
+    api.get(`/api/v1/alerts/rules/${id}/records/`, { params }),
+
+  acknowledgeRecord: (id: string, note = '') =>
+    api.post(`/api/v1/alerts/records/${id}/acknowledge/`, { note }),
+
+  resolveRecord: (id: string, note = '') =>
+    api.post(`/api/v1/alerts/records/${id}/resolve/`, { note }),
+
+  batchAcknowledge: (alertIds: string[], note = '') =>
+    api.post('/api/v1/alerts/records/batch_acknowledge/', { alert_ids: alertIds, note }),
+}
+
+// ============== Schedules API ==============
+export const schedulesApi = {
+  list: (params?: Record<string, unknown>) =>
+    api.get('/api/v1/schedules/backups/', { params }),
+
+  create: (data: Record<string, unknown>) =>
+    api.post('/api/v1/schedules/backups/', data),
+
+  update: (id: string, data: Record<string, unknown>) =>
+    api.patch(`/api/v1/schedules/backups/${id}/`, data),
+
+  delete: (id: string) =>
+    api.delete(`/api/v1/schedules/backups/${id}/`),
+
+  pause: (id: string) =>
+    api.post(`/api/v1/schedules/backups/${id}/pause/`),
+
+  resume: (id: string) =>
+    api.post(`/api/v1/schedules/backups/${id}/resume/`),
+
+  runNow: (id: string) =>
+    api.post(`/api/v1/schedules/backups/${id}/run_now/`),
+
+  executions: (id: string, params?: Record<string, unknown>) =>
+    api.get(`/api/v1/schedules/backups/${id}/executions/`, { params }),
+}
+
+// ============== Checkpoints API ==============
+export const checkpointsApi = {
+  listBackups: (params?: Record<string, unknown>) =>
+    api.get('/api/v1/checkpoints/backups/', { params }),
+
+  resume: (id: string) =>
+    api.post(`/api/v1/checkpoints/backups/${id}/resume/`),
+
+  deleteCheckpoint: (id: string) =>
+    api.post(`/api/v1/checkpoints/backups/${id}/delete_checkpoint/`),
+
+  cleanupExpired: () =>
+    api.post('/api/v1/checkpoints/backups/cleanup_expired/'),
+}
+
 // ============== AI Insights API ==============
 // AI-powered file intelligence platform
 export const gateway = {

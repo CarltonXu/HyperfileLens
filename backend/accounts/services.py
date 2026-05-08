@@ -101,22 +101,31 @@ class CaptchaService:
         
         # Image dimensions
         width, height = 120, 40
-        
+
         # Create image
         image = Image.new('RGB', (width, height), color=(255, 255, 255))
         draw = ImageDraw.Draw(image)
-        
-        # Try to use a font, fall back to default
+
+        # Try to use a font with larger size for better readability
         try:
-            font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 24)
+            font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 28)
         except (OSError, IOError):
-            font = ImageFont.load_default()
+            try:
+                # Try macOS system font
+                font = ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 28)
+            except (OSError, IOError):
+                try:
+                    # Try Windows system font
+                    font = ImageFont.truetype('arial.ttf', 28)
+                except (OSError, IOError):
+                    # Last resort: use default font (note: will be small)
+                    font = ImageFont.load_default()
         
-        # Draw background noise (dots)
-        for _ in range(100):
+        # Draw background noise (dots) - reduced for better readability
+        for _ in range(50):
             x = random.randint(0, width)
             y = random.randint(0, height)
-            draw.point((x, y), fill=(random.randint(150, 255), random.randint(150, 255), random.randint(150, 255)))
+            draw.point((x, y), fill=(random.randint(180, 255), random.randint(180, 255), random.randint(180, 255)))
         
         # Draw lines
         for _ in range(3):
@@ -126,27 +135,26 @@ class CaptchaService:
             y2 = random.randint(0, height)
             draw.line((x1, y1, x2, y2), fill=(random.randint(100, 200), random.randint(100, 200), random.randint(100, 200)))
         
-        # Draw text
-        text_color = (random.randint(0, 100), random.randint(0, 100), random.randint(0, 100))
+        # Draw text with darker color for better readability
+        text_color = (random.randint(0, 60), random.randint(0, 60), random.randint(0, 60))
         text_x = 15
         text_y = 5
-        
+
         for i, char in enumerate(code):
             # Add some rotation to each character
             char_image = Image.new('RGBA', (30, 35), (255, 255, 255, 0))
             char_draw = ImageDraw.Draw(char_image)
             char_draw.text((0, 0), char, font=font, fill=text_color)
-            
+
             # Rotate
             angle = random.randint(-15, 15)
             char_image = char_image.rotate(angle, expand=False)
-            
+
             # Paste onto main image
             image.paste(char_image, (text_x + i * 20, text_y), char_image)
-        
-        # Apply slight blur
-        image = image.filter(ImageFilter.SMOOTH)
-        
+
+        # No blur filter - keep text sharp and readable
+
         # Convert to bytes
         buffer = io.BytesIO()
         image.save(buffer, format='PNG')
