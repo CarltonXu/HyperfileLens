@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django.utils import timezone
-from django.db.models import Count, Avg
+from django.db.models import Count, Avg, Q
 from django.conf import settings
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 
@@ -24,6 +24,10 @@ from .serializers import (
     ProxyTaskCreateSerializer, NodeConnectionSerializer,
     ProxyStatsSerializer, ProxyHeartbeatCreateSerializer,
     ProxyRegisterSerializer, InstallCommandSerializer, InstallCommandResponseSerializer
+)
+from .query_optimizations import (
+    get_proxy_statistics, get_proxy_summary, get_task_list,
+    get_alert_list, invalidate_cache
 )
 from audit_log.services import AuditService
 
@@ -42,15 +46,16 @@ class ProxyViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Return proxies filtered by user's access permissions."""
+        """Return proxies filtered by user's access permissions with optimized query."""
         user = self.request.user
+        base_queryset = ProxyNode.objects.select_related('owner', 'tenant')
         if user.is_superuser:
-            return ProxyNode.objects.all()
+            return base_queryset
         # Filter by tenant if user belongs to one
         if user.tenant:
-            return ProxyNode.objects.filter(tenant=user.tenant)
+            return base_queryset.filter(tenant=user.tenant)
         # Fallback to owner-based filtering
-        return ProxyNode.objects.filter(owner=user)
+        return base_queryset.filter(owner=user)
 
     def get_serializer_class(self):
         """Return appropriate serializer based on action."""
@@ -175,6 +180,8 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
     def perform_destroy(self, instance):
         """Delete a proxy with audit logging."""
         AuditService.log_proxy_delete(self.request, instance, result='success')
+        # Invalidate cache for this proxy
+        invalidate_cache(str(instance.id))
         instance.delete()
 
     def perform_update(self, serializer):
@@ -188,10 +195,13 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
             'status': old_instance.status,
             'labels': old_instance.labels,
         }
-        
+
         # Save the updated instance
         instance = serializer.save()
-        
+
+        # Invalidate cache for this proxy
+        invalidate_cache(str(instance.id))
+
         # Track changed fields
         changed_fields = []
         new_data = {
@@ -201,19 +211,25 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
             'status': instance.status,
             'labels': instance.labels,
         }
-        
+
         for field in old_data.keys():
             if old_data[field] != new_data[field]:
                 changed_fields.append(field)
-        
+
         # Record audit log
         AuditService.log_proxy_update(
-            self.request, instance, 
+            self.request, instance,
             changed_fields=changed_fields,
             before_data=old_data,
             after_data=new_data,
             result='success'
         )
+
+    def perform_create(self, serializer):
+        """Create a proxy with cache invalidation."""
+        # Invalidate all caches when a new proxy is created
+        invalidate_cache()
+        serializer.save()
 
     @extend_schema(
         summary='Get installation command',
@@ -442,25 +458,40 @@ logging:
     )
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        """Get proxy statistics."""
+        """Get proxy statistics using optimized queries."""
+        hours = int(request.query_params.get('hours', 24))
+
+        # Use optimized query from query_optimizations module
         queryset = self.get_queryset()
 
-        total = queryset.count()
-        online = sum(1 for p in queryset if p.is_online())
-        offline = total - online
+        # Get statistics with optimized single query using annotations
+        from django.db.models import Count, Q
 
-        # Group by role
-        agent_count = queryset.filter(role=ProxyNode.Role.AGENT).count()
-        sync_count = queryset.filter(role=ProxyNode.Role.SYNC).count()
+        stats = queryset.annotate(
+            online_count=Count('id', filter=Q(status=ProxyNode.NodeStatus.ONLINE)),
+            offline_count=Count('id', filter=Q(status=ProxyNode.NodeStatus.OFFLINE)),
+            agent_count=Count('id', filter=Q(role=ProxyNode.Role.AGENT)),
+            sync_count=Count('id', filter=Q(role=ProxyNode.Role.SYNC)),
+        ).aggregate(
+            total=Count('id'),
+            online=Count('id', filter=Q(status=ProxyNode.NodeStatus.ONLINE)),
+            offline=Count('id', filter=Q(status=ProxyNode.NodeStatus.OFFLINE)),
+            agent_count=Count('id', filter=Q(role=ProxyNode.Role.AGENT)),
+            sync_count=Count('id', filter=Q(role=ProxyNode.Role.SYNC)),
+        )
 
-        # Group by status
+        total = stats['total']
+        online = stats['online']
+        offline = stats['offline']
+
+        # Group by status (optimized query)
         by_status = dict(
             queryset.values('status')
             .annotate(count=Count('id'))
             .values_list('status', 'count')
         )
 
-        # Group by OS
+        # Group by OS (optimized query)
         by_os = dict(
             queryset.exclude(operating_system='')
             .values('operating_system')
@@ -468,7 +499,7 @@ logging:
             .values_list('operating_system', 'count')
         )
 
-        # Average uptime for active proxies
+        # Average uptime for active proxies (optimized)
         avg_uptime = 0
         active_proxies = queryset.filter(status=ProxyNode.NodeStatus.ONLINE)
         if active_proxies.exists():
@@ -479,7 +510,7 @@ logging:
             )
             avg_uptime = total_uptime / active_proxies.count() if active_proxies.count() > 0 else 0
 
-        # Total active tasks
+        # Total active tasks (optimized query)
         total_tasks = ProxyTask.objects.filter(
             proxy__in=queryset,
             status__in=['pending', 'dispatched', 'accepted', 'running']
@@ -489,12 +520,13 @@ logging:
             'total_proxies': total,
             'online_proxies': online,
             'offline_proxies': offline,
-            'agent_proxies': agent_count,
-            'sync_proxies': sync_count,
+            'agent_proxies': stats['agent_count'],
+            'sync_proxies': stats['sync_count'],
             'proxies_by_status': by_status,
             'proxies_by_os': by_os,
             'average_uptime': avg_uptime,
-            'total_active_tasks': total_tasks
+            'total_active_tasks': total_tasks,
+            'time_range_hours': hours,
         }
 
         return Response(data)
@@ -630,25 +662,29 @@ logging:
     )
     @action(detail=True, methods=['get'])
     def tasks(self, request, pk=None):
-        """Get task history for a proxy."""
+        """Get task history for a proxy with optimized query."""
         proxy = self.get_object()
         limit = int(request.query_params.get('limit', 50))
-        tasks = proxy.tasks.all()[:limit]
-        
-        # Task statistics
-        total_tasks = proxy.tasks.count()
-        completed_tasks = proxy.tasks.filter(status='completed').count()
-        failed_tasks = proxy.tasks.filter(status='failed').count()
-        running_tasks = proxy.tasks.filter(status__in=['pending', 'dispatched', 'accepted', 'running']).count()
-        
+
+        # Use optimized query with annotations for task statistics
+        proxy_with_stats = ProxyNode.objects.filter(id=proxy.id).annotate(
+            total_tasks=Count('tasks'),
+            completed_tasks=Count('tasks', filter=Q(tasks__status='completed')),
+            failed_tasks=Count('tasks', filter=Q(tasks__status='failed')),
+            running_tasks=Count('tasks', filter=Q(tasks__status__in=['pending', 'dispatched', 'accepted', 'running'])),
+        ).first()
+
+        # Get tasks with optimized query using select_related
+        tasks = proxy.tasks.select_related('proxy').order_by('-created_at')[:limit]
+
         serializer = ProxyTaskSerializer(tasks, many=True)
         return Response({
             'tasks': serializer.data,
             'stats': {
-                'total': total_tasks,
-                'completed': completed_tasks,
-                'failed': failed_tasks,
-                'running': running_tasks,
+                'total': proxy_with_stats.total_tasks,
+                'completed': proxy_with_stats.completed_tasks,
+                'failed': proxy_with_stats.failed_tasks,
+                'running': proxy_with_stats.running_tasks,
             }
         })
 
@@ -658,7 +694,7 @@ logging:
     )
     @action(detail=True, methods=['get'])
     def overview(self, request, pk=None):
-        """Get overview data for a proxy."""
+        """Get overview data for a proxy with optimized query."""
         proxy = self.get_object()
         since = timezone.now() - timezone.timedelta(hours=24)
         heartbeats = proxy.heartbeats.filter(timestamp__gte=since).order_by('timestamp')
@@ -668,15 +704,22 @@ logging:
         if proxy.registered_at:
             uptime_seconds = int((timezone.now() - proxy.registered_at).total_seconds())
 
-        # Task statistics
-        total_tasks = proxy.tasks.count()
-        completed_tasks = proxy.tasks.filter(status='completed').count()
-        failed_tasks = proxy.tasks.filter(status='failed').count()
-        running_tasks = proxy.tasks.filter(status__in=['pending', 'dispatched', 'accepted', 'running']).count()
+        # Task statistics - optimized with single query using annotations
+        proxy_with_task_stats = ProxyNode.objects.filter(id=proxy.id).annotate(
+            total_tasks=Count('tasks'),
+            completed_tasks=Count('tasks', filter=Q(tasks__status='completed')),
+            failed_tasks=Count('tasks', filter=Q(tasks__status='failed')),
+            running_tasks=Count('tasks', filter=Q(tasks__status__in=['pending', 'dispatched', 'accepted', 'running'])),
+        ).first()
+
+        total_tasks = proxy_with_task_stats.total_tasks
+        completed_tasks = proxy_with_task_stats.completed_tasks
+        failed_tasks = proxy_with_task_stats.failed_tasks
+        running_tasks = proxy_with_task_stats.running_tasks
 
         # Heartbeat stats - calculate based on actual registration time
         total_heartbeats = heartbeats.count()
-        
+
         # Calculate expected heartbeats based on actual uptime (max 24 hours)
         heartbeat_interval = proxy.heartbeat_interval or 10  # Default 10 seconds
         if proxy.registered_at:
@@ -703,7 +746,7 @@ logging:
             'is_online': proxy.is_online(),
             'owner_name': proxy.owner.username if proxy.owner else None,
             'created_at': proxy.created_at.isoformat() if proxy.created_at else None,
-            
+
             # System info
             'hostname': proxy.hostname,
             'internal_ip': proxy.internal_ip,
@@ -712,7 +755,7 @@ logging:
             'version': proxy.version,
             'kopia_version': proxy.kopia_version,
             'uptime_seconds': uptime_seconds,
-            
+
             # Hardware resources
             'cpu_cores': proxy.cpu_cores,
             'cpu_usage': proxy.cpu_usage,
@@ -720,11 +763,11 @@ logging:
             'memory_usage': proxy.memory_usage,
             'disk_total': proxy.disk_total,
             'disk_usage': proxy.disk_usage,
-            
+
             # Network
             'last_heartbeat': proxy.last_heartbeat.isoformat() if proxy.last_heartbeat else None,
             'heartbeat_interval': proxy.heartbeat_interval,
-            
+
             # Capabilities and labels
             'capabilities': proxy.capabilities or {},
             'labels': proxy.labels or [],
@@ -756,7 +799,7 @@ logging:
     )
     @action(detail=True, methods=['get'])
     def monitor(self, request, pk=None):
-        """Get monitoring statistics for a proxy."""
+        """Get monitoring statistics for a proxy with optimized query."""
         proxy = self.get_object()
         hours = int(request.query_params.get('hours', 24))
         since = timezone.now() - timezone.timedelta(hours=hours)
@@ -767,11 +810,18 @@ logging:
         # Calculate stats
         total_heartbeats = heartbeats.count()
 
-        # Task statistics
-        total_tasks = proxy.tasks.count()
-        completed_tasks = proxy.tasks.filter(status='completed').count()
-        failed_tasks = proxy.tasks.filter(status='failed').count()
-        running_tasks = proxy.tasks.filter(status__in=['pending', 'running']).count()
+        # Task statistics - optimized with single query using annotations
+        proxy_with_task_stats = ProxyNode.objects.filter(id=proxy.id).annotate(
+            total_tasks=Count('tasks'),
+            completed_tasks=Count('tasks', filter=Q(tasks__status='completed')),
+            failed_tasks=Count('tasks', filter=Q(tasks__status='failed')),
+            running_tasks=Count('tasks', filter=Q(tasks__status__in=['pending', 'running'])),
+        ).first()
+
+        total_tasks = proxy_with_task_stats.total_tasks
+        completed_tasks = proxy_with_task_stats.completed_tasks
+        failed_tasks = proxy_with_task_stats.failed_tasks
+        running_tasks = proxy_with_task_stats.running_tasks
 
         # Calculate average values from heartbeats
         avg_cpu = 0
@@ -785,23 +835,23 @@ logging:
 
         # Get last 100 heartbeats for chart data
         chart_heartbeats = list(heartbeats.order_by('-timestamp')[:100])
-        
+
         # Format chart data for each metric
         cpu_usage_data = []
         memory_usage_data = []
         disk_usage_data = []
         network_io_data = []  # {timestamp, interface, bytes_in, bytes_out, packets_in, packets_out, drop_in, errs_in}
         disk_io_data = []  # {timestamp, disk, read_bytes, write_bytes, read_count, write_count, utilization, await}
-        
+
         for h in reversed(chart_heartbeats):
             timestamp = h.timestamp.isoformat()
             cpu_usage_data.append({'timestamp': timestamp, 'value': h.cpu_usage or 0})
             memory_usage_data.append({'timestamp': timestamp, 'value': h.memory_usage or 0})
             disk_usage_data.append({'timestamp': timestamp, 'value': h.disk_usage or 0})
-            
+
             # Extract network and disk IO data from metadata
             metadata = h.metadata or {}
-            
+
             # Flatten network interfaces - each interface as a separate record
             for ni in metadata.get('network_interfaces', []):
                 network_io_data.append({
@@ -816,7 +866,7 @@ logging:
                     'rx_errs': ni.get('errs_in', 0),
                     'tx_errs': ni.get('errs_out', 0),
                 })
-            
+
             # Flatten disk IO stats - each disk as a separate record
             for disk in metadata.get('disk_io_stats', []):
                 disk_io_data.append({
@@ -1216,18 +1266,44 @@ class ProxyHeartbeatView(APIView):
 
 
 class ProxyTaskViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing proxy tasks."""
+    """ViewSet for managing proxy tasks with optimized queries."""
 
     serializer_class = ProxyTaskSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ['proxy', 'task_type', 'status']
 
     def get_queryset(self):
-        """Return tasks for proxies the user has access to."""
+        """Return tasks for proxies the user has access to with optimized query."""
         user = self.request.user
+        base_queryset = ProxyTask.objects.select_related('proxy').order_by('-created_at')
+
         if user.is_superuser:
-            return ProxyTask.objects.all()
-        return ProxyTask.objects.filter(proxy__owner=user)
+            return base_queryset
+        return base_queryset.filter(proxy__owner=user)
+
+    def perform_create(self, serializer):
+        """Create a task with cache invalidation."""
+        task = serializer.save()
+        # Invalidate cache for the proxy
+        if task.proxy:
+            invalidate_cache(str(task.proxy.id))
+        return task
+
+    def perform_update(self, serializer):
+        """Update a task with cache invalidation."""
+        instance = serializer.save()
+        # Invalidate cache for the proxy
+        if instance.proxy:
+            invalidate_cache(str(instance.proxy.id))
+        return instance
+
+    def perform_destroy(self, instance):
+        """Delete a task with cache invalidation."""
+        proxy_id = str(instance.proxy.id) if instance.proxy else None
+        instance.delete()
+        # Invalidate cache for the proxy
+        if proxy_id:
+            invalidate_cache(proxy_id)
 
     @extend_schema(
         summary='Create and dispatch task',
@@ -1267,6 +1343,10 @@ class ProxyTaskViewSet(viewsets.ModelViewSet):
             )
 
         task.cancel()
+
+        # Invalidate cache for the proxy
+        if task.proxy:
+            invalidate_cache(str(task.proxy.id))
 
         # TODO: Send cancel signal via WebSocket
 

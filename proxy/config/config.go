@@ -19,14 +19,17 @@ const (
 
 // Config holds the complete proxy configuration
 type Config struct {
-	Version string `yaml:"version"`
-	Role    Role   `yaml:"role"`
-	Server  Server `yaml:"server"`
-	Agent   Agent  `yaml:"agent"`
-	Kopia   Kopia  `yaml:"kopia"`
-	Mount   Mount  `yaml:"mount"`
-	Logging Logging `yaml:"logging"`
-	
+	Version   string   `yaml:"version"`
+	Role     Role     `yaml:"role"`
+	Server   Server   `yaml:"server"`
+	Agent    Agent    `yaml:"agent"`
+	Kopia    Kopia    `yaml:"kopia"`
+	Mount    Mount    `yaml:"mount"`
+	Logging  Logging  `yaml:"logging"`
+	Performance Performance `yaml:"performance"`
+	Security  Security  `yaml:"security"`
+	Storage   Storage   `yaml:"storage"`
+
 	// Runtime state
 	NodeID   string `yaml:"-"`
 	TenantID string `yaml:"-"` // Assigned by control plane during registration
@@ -39,6 +42,8 @@ type Server struct {
 	WSProtocol       string        `yaml:"ws_protocol"`
 	ReconnectDelay   time.Duration `yaml:"reconnect_delay"`
 	HeartbeatInterval time.Duration `yaml:"heartbeat_interval"`
+	VerifySSL        bool          `yaml:"verify_ssl"`
+	Timeout          time.Duration `yaml:"timeout"`
 }
 
 // Agent holds agent-specific configuration
@@ -84,12 +89,43 @@ type Logging struct {
 	File       string `yaml:"file"`
 	MaxSize    string `yaml:"max_size"`
 	MaxBackups int    `yaml:"max_backups"`
+	Format     string `yaml:"format"` // "text" or "json"
+	Remote     bool   `yaml:"remote"`
+}
+
+// Performance holds performance configuration
+type Performance struct {
+	MaxConcurrentTasks int           `yaml:"max_concurrent_tasks"`
+	TaskTimeoutSeconds int           `yaml:"task_timeout_seconds"`
+	CompressionEnabled  bool         `yaml:"compression_enabled"`
+	CompressionLevel    int           `yaml:"compression_level"`
+	RateLimitKBPS       int64        `yaml:"rate_limit_kbps"`
+	BufferSizeMB        int          `yaml:"buffer_size_mb"`
+	ChunkSizeMB         int          `yaml:"chunk_size_mb"`
+}
+
+// Security holds security configuration
+type Security struct {
+	TLSVerify            bool   `yaml:"tls_verify"`
+	TLSCertPath          string `yaml:"tls_cert_path"`
+	TLSKeyPath           string `yaml:"tls_key_path"`
+	AllowedHosts         []string `yaml:"allowed_hosts"`
+	EnableMetricsAuth    bool   `yaml:"enable_metrics_auth"`
+	MetricsPassword      string `yaml:"metrics_password"`
+}
+
+// Storage holds storage configuration
+type Storage struct {
+	CacheSizeMB      int    `yaml:"cache_size_mb"`
+	TempDirectory     string `yaml:"temp_directory"`
+	TempCleanup       bool   `yaml:"temp_cleanup"`
+	RetentionPolicy    string `yaml:"retention_policy"` // "delete", "archive"
 }
 
 // DefaultConfig returns configuration with sensible defaults
 func DefaultConfig() *Config {
 	hostname, _ := os.Hostname()
-	
+
 	return &Config{
 		Version: "1.0.0",
 		Role:    RoleAgent,
@@ -98,6 +134,8 @@ func DefaultConfig() *Config {
 			WSProtocol:        "ws",
 			ReconnectDelay:    5 * time.Second,
 			HeartbeatInterval: 10 * time.Second,
+			VerifySSL:        true,
+			Timeout:          30 * time.Second,
 		},
 		Agent: Agent{
 			Hostname: hostname,
@@ -114,6 +152,27 @@ func DefaultConfig() *Config {
 			File:       "/var/log/hyperfilelens/proxy.log",
 			MaxSize:    "100MB",
 			MaxBackups: 5,
+			Format:     "text",
+			Remote:     false,
+		},
+		Performance: Performance{
+			MaxConcurrentTasks: 5,
+			TaskTimeoutSeconds: 3600,
+			CompressionEnabled:  true,
+			CompressionLevel:    6,
+			RateLimitKBPS:       0,     // 0 = no limit
+			BufferSizeMB:        100,
+			ChunkSizeMB:         50,
+		},
+		Security: Security{
+			TLSVerify:         true,
+			AllowedHosts:      []string{"localhost", "127.0.0.1"},
+			EnableMetricsAuth: true,
+		},
+		Storage: Storage{
+			CacheSizeMB:   1024,
+			TempDirectory: "/tmp/hyperfilelens",
+			TempCleanup:    true,
 		},
 	}
 }

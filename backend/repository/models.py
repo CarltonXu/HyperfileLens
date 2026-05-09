@@ -127,9 +127,10 @@ class Repository(models.Model):
         blank=True,
         help_text="Storage path or bucket name (deprecated, use config)"
     )
+    # Actual capacity detected from storage (via test connection)
     capacity = models.BigIntegerField(
         default=0,
-        help_text="Total capacity in bytes (0 = unlimited)"
+        help_text="Actual total capacity in bytes detected from storage (0 = not detected)"
     )
     used_space = models.BigIntegerField(
         default=0,
@@ -156,7 +157,12 @@ class Repository(models.Model):
     )
     connection_test_result = models.TextField(
         blank=True,
-        help_text="Connection test result"
+        help_text="Connection test result summary"
+    )
+    connection_test_details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Detailed connection test results (connectivity, write_test, space_info)"
     )
     
     # Features
@@ -180,18 +186,18 @@ class Repository(models.Model):
     )
 
     # === Quota Management ===
+    # User-defined quota for capacity planning and alerts (separate from actual capacity)
     quota_enabled = models.BooleanField(
         default=False,
-        help_text="Enable quota management"
+        help_text="Enable quota management and alerts"
     )
     quota_bytes = models.BigIntegerField(
-        null=True,
-        blank=True,
-        help_text="Quota limit in bytes (0 = unlimited)"
+        default=0,
+        help_text="User-defined quota limit in bytes for capacity planning and alerts (0 = unlimited)"
     )
     quota_warning_threshold = models.IntegerField(
         default=80,
-        help_text="Warning threshold percentage (default: 80%)"
+        help_text="Quota warning threshold percentage (alert when usage >= this % of quota, default: 80%)"
     )
 
     # === Health Monitoring ===

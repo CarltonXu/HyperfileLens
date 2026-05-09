@@ -581,6 +581,11 @@ class ProxyTask(models.Model):
         blank=True,
         help_text='When task was dispatched to proxy'
     )
+    accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When task was accepted by proxy'
+    )
     started_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -604,6 +609,39 @@ class ProxyTask(models.Model):
     progress_message = models.TextField(
         blank=True,
         help_text='Progress status message'
+    )
+    # Detailed progress fields
+    current_file = models.CharField(
+        max_length=512,
+        blank=True,
+        null=True,
+        help_text='Current file being processed'
+    )
+    total_files = models.IntegerField(
+        default=0,
+        help_text='Total number of files to process'
+    )
+    processed_files = models.IntegerField(
+        default=0,
+        help_text='Number of files processed'
+    )
+    processed_bytes = models.BigIntegerField(
+        default=0,
+        help_text='Number of bytes processed'
+    )
+    total_bytes = models.BigIntegerField(
+        default=0,
+        help_text='Total bytes to process'
+    )
+    speed_mbps = models.FloatField(
+        default=0.0,
+        help_text='Current processing speed in MB/s'
+    )
+    eta = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        help_text='Estimated time remaining'
     )
     result = models.JSONField(
         default=dict,

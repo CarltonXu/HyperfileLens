@@ -82,6 +82,11 @@ export default {
     total: '总计',
     name: '名称',
     status: '状态',
+    statusValues: {
+      normal: '正常',
+      warning: '警告',
+      critical: '严重'
+    },
     type: '类型',
     role: '角色',
     date: '日期',
@@ -970,6 +975,11 @@ export default {
       totalCapacity: '总容量',
       usedSpace: '已用空间',
       availableSpace: '可用空间',
+      quota: '配额',
+      unlimited: '无限制',
+      disabled: '未启用',
+      usage: '使用量',
+      quotaLimit: '配额限制',
       snapshots: '快照数',
       lastBackup: '最后备份',
       active: '活跃'
@@ -981,10 +991,13 @@ export default {
       repositoryName: '仓库名称',
       repositoryType: '仓库类型',
       connectionString: '连接字符串',
-      capacity: '存储配额',
-      capacityUnit: 'GB',
-      capacityPlaceholder: '0 表示无限制',
-      capacityHint: '用于容量规划和告警，0 表示不限制',
+      storageQuota: '存储配额（容量规划）',
+      quotaUnit: 'GB',
+      quotaPlaceholder: '0 表示无限制',
+      quotaHint: '用于容量规划和告警，0 表示不限制',
+      quotaEnabled: '启用配额监控',
+      quotaThreshold: '告警阈值 (%)',
+      quotaThresholdHint: '当使用量达到配额的此百分比时发送告警',
       retention: '保留策略',
       path: '路径',
       namePlaceholder: '输入仓库名称',
@@ -1067,6 +1080,7 @@ export default {
       hint: 'NAS 网络存储配置',
       hintDetail: '通过 NFS 或 CIFS/SMB 协议挂载远程网络存储',
       mountType: '挂载类型',
+      nasType: 'NAS 类型',
       server: '服务器地址',
       exportPath: '共享路径',
       mountOptions: '挂载选项',
@@ -1128,7 +1142,8 @@ export default {
     },
 
     errors: {
-      endpointUnreachable: '无法连接到端点。请检查 URL 和网络连通性。'
+      endpointUnreachable: '无法连接到端点。请检查 URL 和网络连通性。',
+      nodeNotActive: 'Sync Proxy 不在线，请先启动 Sync Proxy 服务。'
     },
 
     confirmDelete: '确定要删除此仓库吗？',
@@ -1151,7 +1166,18 @@ export default {
     connectionSuccess: '连通性测试成功',
     connectionFailed: '连通性测试失败',
     bucketExists: 'Bucket 存在且可访问',
-    bucketNotExists: 'Bucket 不存在或无权限访问'
+    bucketNotExists: 'Bucket 不存在或无权限访问',
+    connectivity: '连接状态',
+    reachable: '可达',
+    responseTime: '响应时间',
+    writeTest: '写入测试',
+    writable: '可写',
+    writeSpeed: '写入速度',
+    readSpeed: '读取速度',
+    storageInfo: '存储信息',
+    total: '总计',
+    used: '已使用',
+    free: '可用'
   },
 
   // Source Resources

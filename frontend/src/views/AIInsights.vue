@@ -3,20 +3,20 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
-  FolderIcon,
-  DocumentTextIcon,
-  ShieldExclamationIcon,
-  DocumentDuplicateIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  TrashIcon,
-  ClockIcon,
-  ArrowTrendingUpIcon,
-  MagnifyingGlassIcon,
-  ArrowPathIcon,
-  TagIcon,
-  FireIcon,
-  ServerIcon
+ FolderIcon,
+ DocumentTextIcon,
+ ShieldExclamationIcon,
+ DocumentDuplicateIcon,
+ ExclamationTriangleIcon,
+ CheckCircleIcon,
+ TrashIcon,
+ ClockIcon,
+ ArrowTrendingUpIcon,
+ MagnifyingGlassIcon,
+ ArrowPathIcon,
+ TagIcon,
+ FireIcon,
+ ServerIcon
 } from '@heroicons/vue/24/outline'
 import { aiInsightsApi } from '@/api'
 
@@ -48,608 +48,608 @@ const hasSearched = ref(false)
 
 // Current tab from route
 const currentTab = computed(() => {
-  // Get tab from route meta
-  return (route.meta?.tab as string) || 'overview'
+ // Get tab from route meta
+ return (route.meta?.tab as string) || 'overview'
 })
 
 // Page title based on current tab
 const pageTitle = computed(() => {
-  const titleKeys: Record<string, string> = {
-    overview: 'aiInsights.pageTitles.overview',
-    search: 'aiInsights.pageTitles.search',
-    sensitive: 'aiInsights.pageTitles.sensitive',
-    profile: 'aiInsights.pageTitles.profile',
-    heatmap: 'aiInsights.pageTitles.heatmap',
-    redundancy: 'aiInsights.pageTitles.redundancy',
-    chat: 'aiInsights.pageTitles.chat'
-  }
-  const key = titleKeys[currentTab.value]
-  return key ? t(key) : 'AI Insights'
+ const titleKeys: Record<string, string> = {
+ overview: 'aiInsights.pageTitles.overview',
+ search: 'aiInsights.pageTitles.search',
+ sensitive: 'aiInsights.pageTitles.sensitive',
+ profile: 'aiInsights.pageTitles.profile',
+ heatmap: 'aiInsights.pageTitles.heatmap',
+ redundancy: 'aiInsights.pageTitles.redundancy',
+ chat: 'aiInsights.pageTitles.chat'
+ }
+ const key = titleKeys[currentTab.value]
+ return key ? t(key) : 'AI Insights'
 })
 
 // Format bytes
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+ if (bytes === 0) return '0 B'
+ const k = 1024
+ const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+ const i = Math.floor(Math.log(bytes) / Math.log(k))
+ return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 // Get severity color
 function getSeverityColor(severity: string): string {
-  const colors: Record<string, string> = {
-    high: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    medium: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    low: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-  }
-  return colors[severity] || colors.low
+ const colors: Record<string, string> = {
+ high: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+ medium: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+ low: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+ }
+ return colors[severity] || colors.low
 }
 
 // Fetch data based on current tab
 async function fetchData() {
-  switch (currentTab.value) {
-    case 'overview':
-      await fetchOverview()
-      break
-    case 'sensitive':
-      await fetchSensitiveData()
-      break
-    case 'profile':
-      await fetchContentProfile()
-      break
-    case 'heatmap':
-      await fetchDataHeatmap()
-      break
-    case 'redundancy':
-      await fetchRedundancy()
-      break
-  }
+ switch (currentTab.value) {
+ case 'overview':
+ await fetchOverview()
+ break
+ case 'sensitive':
+ await fetchSensitiveData()
+ break
+ case 'profile':
+ await fetchContentProfile()
+ break
+ case 'heatmap':
+ await fetchDataHeatmap()
+ break
+ case 'redundancy':
+ await fetchRedundancy()
+ break
+ }
 }
 
 async function fetchOverview() {
-  if (overviewData.value) return
-  isLoadingOverview.value = true
-  try {
-    const response = await aiInsightsApi.overview()
-    overviewData.value = response.data
-    gatewayStatus.value = 'online'
-  } catch (error) {
-    console.error('Failed to fetch overview:', error)
-    gatewayStatus.value = 'offline'
-    // Set mock data
-    overviewData.value = {
-      total_files: 125847,
-      total_size: '2.4 TB',
-      file_categories: [
-        { name: 'Documents', name_zh: '文档', percentage: 45, size: '1.1 TB' },
-        { name: 'Images', name_zh: '图片', percentage: 20, size: '480 GB' },
-        { name: 'Archives', name_zh: '压缩包', percentage: 15, size: '360 GB' },
-        { name: 'Videos', name_zh: '视频', percentage: 10, size: '240 GB' },
-        { name: 'Others', name_zh: '其他', percentage: 10, size: '220 GB' }
-      ],
-      risk_summary: {
-        sensitive_files: 12,
-        ransomware_risk: 'safe',
-        permission_issues: 32
-      },
-      optimization_suggestions: {
-        duplicate_files: { count: 1250, size: '1.2 TB' },
-        cold_data: { size: '4.5 TB', percentage: 35 },
-        fastest_growing: { path: '/var/log', growth_rate: '+200%' }
-      }
-    }
-  } finally {
-    isLoadingOverview.value = false
-  }
+ if (overviewData.value) return
+ isLoadingOverview.value = true
+ try {
+ const response = await aiInsightsApi.overview()
+ overviewData.value = response.data
+ gatewayStatus.value = 'online'
+ } catch (error) {
+ console.error('Failed to fetch overview:', error)
+ gatewayStatus.value = 'offline'
+ // Set mock data
+ overviewData.value = {
+ total_files: 125847,
+ total_size: '2.4 TB',
+ file_categories: [
+ { name: 'Documents', name_zh: '文档', percentage: 45, size: '1.1 TB' },
+ { name: 'Images', name_zh: '图片', percentage: 20, size: '480 GB' },
+ { name: 'Archives', name_zh: '压缩包', percentage: 15, size: '360 GB' },
+ { name: 'Videos', name_zh: '视频', percentage: 10, size: '240 GB' },
+ { name: 'Others', name_zh: '其他', percentage: 10, size: '220 GB' }
+ ],
+ risk_summary: {
+ sensitive_files: 12,
+ ransomware_risk: 'safe',
+ permission_issues: 32
+ },
+ optimization_suggestions: {
+ duplicate_files: { count: 1250, size: '1.2 TB' },
+ cold_data: { size: '4.5 TB', percentage: 35 },
+ fastest_growing: { path: '/var/log', growth_rate: '+200%' }
+ }
+ }
+ } finally {
+ isLoadingOverview.value = false
+ }
 }
 
 async function fetchSensitiveData() {
-  if (sensitiveData.value) return
-  isLoadingSensitive.value = true
-  try {
-    const response = await aiInsightsApi.sensitiveData()
-    sensitiveData.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch sensitive data:', error)
-    sensitiveData.value = {
-      last_scan: '2026-04-23 10:30',
-      findings: [
-        {
-          type: 'ID Card Numbers',
-          type_zh: '身份证号',
-          severity: 'high',
-          count: 15,
-          recommendation: '建议对包含身份证号的文件进行加密存储或脱敏处理',
-          files: [{ path: '/data/contracts/contract_001.pdf' }]
-        },
-        {
-          type: 'Phone Numbers',
-          type_zh: '手机号码',
-          severity: 'medium',
-          count: 48,
-          recommendation: '建议检查文件访问权限，确保仅授权人员可访问',
-          files: [{ path: '/data/contacts/customers.xlsx' }]
-        }
-      ]
-    }
-  } finally {
-    isLoadingSensitive.value = false
-  }
+ if (sensitiveData.value) return
+ isLoadingSensitive.value = true
+ try {
+ const response = await aiInsightsApi.sensitiveData()
+ sensitiveData.value = response.data
+ } catch (error) {
+ console.error('Failed to fetch sensitive data:', error)
+ sensitiveData.value = {
+ last_scan: '2026-04-23 10:30',
+ findings: [
+ {
+ type: 'ID Card Numbers',
+ type_zh: '身份证号',
+ severity: 'high',
+ count: 15,
+ recommendation: '建议对包含身份证号的文件进行加密存储或脱敏处理',
+ files: [{ path: '/data/contracts/contract_001.pdf' }]
+ },
+ {
+ type: 'Phone Numbers',
+ type_zh: '手机号码',
+ severity: 'medium',
+ count: 48,
+ recommendation: '建议检查文件访问权限，确保仅授权人员可访问',
+ files: [{ path: '/data/contacts/customers.xlsx' }]
+ }
+ ]
+ }
+ } finally {
+ isLoadingSensitive.value = false
+ }
 }
 
 async function fetchContentProfile() {
-  if (contentProfile.value) return
-  isLoadingProfile.value = true
-  try {
-    const response = await aiInsightsApi.contentProfiling()
-    contentProfile.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch content profile:', error)
-    contentProfile.value = {
-      categories: [
-        { name: 'Contracts', name_zh: '合同', count: 234, size: '45 MB', tags: ['legal', 'business'] },
-        { name: 'Financial Reports', name_zh: '财务报表', count: 89, size: '120 MB', tags: ['finance', 'quarterly'] },
-        { name: 'Technical Docs', name_zh: '技术文档', count: 567, size: '89 MB', tags: ['technical', 'api'] },
-        { name: 'Marketing Materials', name_zh: '营销材料', count: 123, size: '2.1 GB', tags: ['marketing', 'media'] }
-      ]
-    }
-  } finally {
-    isLoadingProfile.value = false
-  }
+ if (contentProfile.value) return
+ isLoadingProfile.value = true
+ try {
+ const response = await aiInsightsApi.contentProfiling()
+ contentProfile.value = response.data
+ } catch (error) {
+ console.error('Failed to fetch content profile:', error)
+ contentProfile.value = {
+ categories: [
+ { name: 'Contracts', name_zh: '合同', count: 234, size: '45 MB', tags: ['legal', 'business'] },
+ { name: 'Financial Reports', name_zh: '财务报表', count: 89, size: '120 MB', tags: ['finance', 'quarterly'] },
+ { name: 'Technical Docs', name_zh: '技术文档', count: 567, size: '89 MB', tags: ['technical', 'api'] },
+ { name: 'Marketing Materials', name_zh: '营销材料', count: 123, size: '2.1 GB', tags: ['marketing', 'media'] }
+ ]
+ }
+ } finally {
+ isLoadingProfile.value = false
+ }
 }
 
 async function fetchDataHeatmap() {
-  if (dataHeatmap.value) return
-  isLoadingHeatmap.value = true
-  try {
-    const response = await aiInsightsApi.dataHeatmap()
-    dataHeatmap.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch data heatmap:', error)
-    dataHeatmap.value = {
-      heatmap: [
-        { category: 'hot', category_zh: '热数据', description: '最近30天内访问', size: '800 GB', percentage: 35, file_count: 45000 },
-        { category: 'warm', category_zh: '温数据', description: '30-90天内访问', size: '1.2 TB', percentage: 50, file_count: 60000 },
-        { category: 'cold', category_zh: '冷数据', description: '超过90天未访问', size: '400 GB', percentage: 15, file_count: 20847 }
-      ],
-      zombie_data: {
-        description: '超过180天未访问的数据',
-        size: '250 GB',
-        file_count: 15000,
-        potential_savings: '预计可节省存储成本 ¥2,500/月'
-      }
-    }
-  } finally {
-    isLoadingHeatmap.value = false
-  }
+ if (dataHeatmap.value) return
+ isLoadingHeatmap.value = true
+ try {
+ const response = await aiInsightsApi.dataHeatmap()
+ dataHeatmap.value = response.data
+ } catch (error) {
+ console.error('Failed to fetch data heatmap:', error)
+ dataHeatmap.value = {
+ heatmap: [
+ { category: 'hot', category_zh: '热数据', description: '最近30天内访问', size: '800 GB', percentage: 35, file_count: 45000 },
+ { category: 'warm', category_zh: '温数据', description: '30-90天内访问', size: '1.2 TB', percentage: 50, file_count: 60000 },
+ { category: 'cold', category_zh: '冷数据', description: '超过90天未访问', size: '400 GB', percentage: 15, file_count: 20847 }
+ ],
+ zombie_data: {
+ description: '超过180天未访问的数据',
+ size: '250 GB',
+ file_count: 15000,
+ potential_savings: '预计可节省存储成本 ¥2,500/月'
+ }
+ }
+ } finally {
+ isLoadingHeatmap.value = false
+ }
 }
 
 async function fetchRedundancy() {
-  if (redundancyData.value) return
-  isLoadingRedundancy.value = true
-  try {
-    const response = await aiInsightsApi.redundancy()
-    redundancyData.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch redundancy:', error)
-    redundancyData.value = {
-      total_duplicates: 1250,
-      duplicate_size: '1.2 TB',
-      potential_savings: '800 GB',
-      duplicate_groups: [
-        { file_name: 'backup_2024.zip', count: 5, locations: ['/backup/q1', '/backup/q2', '/backup/q3', '/backup/q4', '/archive'] },
-        { file_name: 'database_dump.sql', count: 3, locations: ['/db/daily', '/db/weekly', '/db/monthly'] }
-      ]
-    }
-  } finally {
-    isLoadingRedundancy.value = false
-  }
+ if (redundancyData.value) return
+ isLoadingRedundancy.value = true
+ try {
+ const response = await aiInsightsApi.redundancy()
+ redundancyData.value = response.data
+ } catch (error) {
+ console.error('Failed to fetch redundancy:', error)
+ redundancyData.value = {
+ total_duplicates: 1250,
+ duplicate_size: '1.2 TB',
+ potential_savings: '800 GB',
+ duplicate_groups: [
+ { file_name: 'backup_2024.zip', count: 5, locations: ['/backup/q1', '/backup/q2', '/backup/q3', '/backup/q4', '/archive'] },
+ { file_name: 'database_dump.sql', count: 3, locations: ['/db/daily', '/db/weekly', '/db/monthly'] }
+ ]
+ }
+ } finally {
+ isLoadingRedundancy.value = false
+ }
 }
 
 async function handleSearch() {
-  if (!searchQuery.value.trim()) return
-  isSearching.value = true
-  hasSearched.value = true
-  try {
-    const response = await aiInsightsApi.smartSearch({ query: searchQuery.value })
-    searchResults.value = response.data?.results || []
-  } catch (error) {
-    console.error('Search failed:', error)
-    searchResults.value = []
-  } finally {
-    isSearching.value = false
-  }
+ if (!searchQuery.value.trim()) return
+ isSearching.value = true
+ hasSearched.value = true
+ try {
+ const response = await aiInsightsApi.smartSearch({ query: searchQuery.value })
+ searchResults.value = response.data?.results || []
+ } catch (error) {
+ console.error('Search failed:', error)
+ searchResults.value = []
+ } finally {
+ isSearching.value = false
+ }
 }
 
 // Watch route changes
 watch(() => route.meta?.tab, () => {
-  fetchData()
+ fetchData()
 })
 
 onMounted(() => {
-  fetchData()
+ fetchData()
 })
 </script>
 
 <template>
-  <div class="space-y-6">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ pageTitle }}</h1>
-        <p class="text-slate-500 dark:text-slate-400 mt-1">{{ t('aiInsights.subtitle') }}</p>
-      </div>
-      <div class="flex items-center gap-4">
-        <!-- Gateway Status -->
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg">
-          <ServerIcon class="w-4 h-4 text-slate-400" />
-          <span class="text-sm text-slate-600 dark:text-slate-300">Gateway:</span>
-          <span 
-            :class="[
-              'text-sm font-medium',
-              gatewayStatus === 'online' ? 'text-emerald-600 dark:text-emerald-400' : 
-              gatewayStatus === 'offline' ? 'text-red-600 dark:text-red-400' : 'text-slate-400'
-            ]"
-          >
-            {{ gatewayStatus === 'online' ? t('common.online') : 
-               gatewayStatus === 'offline' ? t('common.offline') : t('common.checking') }}
-          </span>
-          <div 
-            :class="[
-              'w-2 h-2 rounded-full',
-              gatewayStatus === 'online' ? 'bg-emerald-500' : 
-              gatewayStatus === 'offline' ? 'bg-red-500' : 'bg-slate-300 animate-pulse'
-            ]"
-          />
-        </div>
-      </div>
-    </div>
+ <div class="space-y-6">
+ <!-- Header -->
+ <div class="flex items-center justify-between">
+ <div>
+ <h1 class="text-2xl font-bold text-foreground">{{ pageTitle }}</h1>
+ <p class="text-foreground-secondary mt-1">{{ t('aiInsights.subtitle') }}</p>
+ </div>
+ <div class="flex items-center gap-4">
+ <!-- Gateway Status -->
+ <div class="flex items-center gap-2 px-3 py-1.5 bg-background-secondary border border-border rounded-lg">
+ <ServerIcon class="w-4 h-4 text-slate-400" />
+ <span class="text-sm text-foreground-secondary">Gateway:</span>
+ <span 
+ :class="[
+ 'text-sm font-medium',
+ gatewayStatus === 'online' ? 'text-emerald-600 dark:text-emerald-400' : 
+ gatewayStatus === 'offline' ? 'text-red-600 dark:text-red-400' : 'text-slate-400'
+ ]"
+ >
+ {{ gatewayStatus === 'online' ? t('common.online') : 
+ gatewayStatus === 'offline' ? t('common.offline') : t('common.checking') }}
+ </span>
+ <div 
+ :class="[
+ 'w-2 h-2 rounded-full',
+ gatewayStatus === 'online' ? 'bg-emerald-500' : 
+ gatewayStatus === 'offline' ? 'bg-red-500' : 'bg-slate-300 animate-pulse'
+ ]"
+ />
+ </div>
+ </div>
+ </div>
 
-    <!-- Content based on current route -->
-    <div class="min-h-[500px]">
-      <!-- Overview -->
-      <div v-if="currentTab === 'overview'" class="space-y-6">
-        <div v-if="isLoadingOverview" class="flex items-center justify-center py-12">
-          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
-        </div>
-        <template v-else-if="overviewData">
-          <!-- Stats Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiInsights.overview.totalFiles') }}</p>
-                  <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ overviewData.total_files?.toLocaleString() }}</p>
-                </div>
-                <div class="w-12 h-12 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center">
-                  <FolderIcon class="w-6 h-6 text-violet-600 dark:text-violet-400" />
-                </div>
-              </div>
-            </div>
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiInsights.overview.totalSize') }}</p>
-                  <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ overviewData.total_size }}</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                  <DocumentTextIcon class="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-              </div>
-            </div>
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiInsights.overview.sensitiveFiles') }}</p>
-                  <p class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{{ overviewData.risk_summary?.sensitive_files }}</p>
-                </div>
-                <div class="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
-                  <ShieldExclamationIcon class="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                </div>
-              </div>
-            </div>
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('aiInsights.overview.duplicateSize') }}</p>
-                  <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{{ overviewData.optimization_suggestions?.duplicate_files?.size }}</p>
-                </div>
-                <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
-                  <DocumentDuplicateIcon class="w-6 h-6 text-red-600 dark:text-red-400" />
-                </div>
-              </div>
-            </div>
-          </div>
+ <!-- Content based on current route -->
+ <div class="min-h-[500px]">
+ <!-- Overview -->
+ <div v-if="currentTab === 'overview'" class="space-y-6">
+ <div v-if="isLoadingOverview" class="flex items-center justify-center py-12">
+ <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+ </div>
+ <template v-else-if="overviewData">
+ <!-- Stats Cards -->
+ <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+ <div class="bg-card rounded-xl border border-border p-5">
+ <div class="flex items-center justify-between">
+ <div>
+ <p class="text-sm text-foreground-secondary">{{ t('aiInsights.overview.totalFiles') }}</p>
+ <p class="text-2xl font-bold text-foreground mt-1">{{ overviewData.total_files?.toLocaleString() }}</p>
+ </div>
+ <div class="w-12 h-12 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center">
+ <FolderIcon class="w-6 h-6 text-violet-600 dark:text-violet-400" />
+ </div>
+ </div>
+ </div>
+ <div class="bg-card rounded-xl border border-border p-5">
+ <div class="flex items-center justify-between">
+ <div>
+ <p class="text-sm text-foreground-secondary">{{ t('aiInsights.overview.totalSize') }}</p>
+ <p class="text-2xl font-bold text-foreground mt-1">{{ overviewData.total_size }}</p>
+ </div>
+ <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+ <DocumentTextIcon class="w-6 h-6 text-blue-600 dark:text-blue-400" />
+ </div>
+ </div>
+ </div>
+ <div class="bg-card rounded-xl border border-border p-5">
+ <div class="flex items-center justify-between">
+ <div>
+ <p class="text-sm text-foreground-secondary">{{ t('aiInsights.overview.sensitiveFiles') }}</p>
+ <p class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{{ overviewData.risk_summary?.sensitive_files }}</p>
+ </div>
+ <div class="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+ <ShieldExclamationIcon class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+ </div>
+ </div>
+ </div>
+ <div class="bg-card rounded-xl border border-border p-5">
+ <div class="flex items-center justify-between">
+ <div>
+ <p class="text-sm text-foreground-secondary">{{ t('aiInsights.overview.duplicateSize') }}</p>
+ <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{{ overviewData.optimization_suggestions?.duplicate_files?.size }}</p>
+ </div>
+ <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+ <DocumentDuplicateIcon class="w-6 h-6 text-red-600 dark:text-red-400" />
+ </div>
+ </div>
+ </div>
+ </div>
 
-          <!-- File Categories & Risk -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- File Categories -->
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-              <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.overview.fileCategories') }}</h3>
-              <div class="space-y-4">
-                <div v-for="cat in overviewData.file_categories" :key="cat.name" class="flex items-center gap-4">
-                  <div class="flex-1">
-                    <div class="flex items-center justify-between mb-1">
-                      <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ locale === 'zh-CN' ? cat.name_zh : cat.name }}</span>
-                      <span class="text-sm text-slate-500">{{ cat.percentage }}%</span>
-                    </div>
-                    <div class="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                      <div 
-                        class="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all"
-                        :style="{ width: `${cat.percentage}%` }"
-                      />
-                    </div>
-                  </div>
-                  <span class="text-sm text-slate-500 w-16 text-right">{{ cat.size }}</span>
-                </div>
-              </div>
-            </div>
+ <!-- File Categories & Risk -->
+ <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+ <!-- File Categories -->
+ <div class="bg-card rounded-xl border border-border p-6">
+ <h3 class="text-lg font-semibold text-foreground mb-4">{{ t('aiInsights.overview.fileCategories') }}</h3>
+ <div class="space-y-4">
+ <div v-for="cat in overviewData.file_categories" :key="cat.name" class="flex items-center gap-4">
+ <div class="flex-1">
+ <div class="flex items-center justify-between mb-1">
+ <span class="text-sm font-medium text-foreground-secondary">{{ locale === 'zh-CN' ? cat.name_zh : cat.name }}</span>
+ <span class="text-sm text-slate-500">{{ cat.percentage }}%</span>
+ </div>
+ <div class="h-2 bg-background-tertiary rounded-full overflow-hidden">
+ <div 
+ class="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all"
+ :style="{ width: `${cat.percentage}%` }"
+ />
+ </div>
+ </div>
+ <span class="text-sm text-slate-500 w-16 text-right">{{ cat.size }}</span>
+ </div>
+ </div>
+ </div>
 
-            <!-- Risk Summary -->
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-              <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.overview.riskMonitoring') }}</h3>
-              <div class="space-y-4">
-                <div class="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                  <div class="flex items-center gap-3">
-                    <ExclamationTriangleIcon class="w-5 h-5 text-amber-500" />
-                    <span class="text-sm text-amber-700 dark:text-amber-300">{{ t('aiInsights.overview.sensitiveInfo') }}</span>
-                  </div>
-                  <span class="text-sm font-semibold text-amber-600 dark:text-amber-400">{{ overviewData.risk_summary?.sensitive_files }} {{ t('aiInsights.overview.files') }}</span>
-                </div>
-                <div class="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                  <div class="flex items-center gap-3">
-                    <CheckCircleIcon class="w-5 h-5 text-emerald-500" />
-                    <span class="text-sm text-emerald-700 dark:text-emerald-300">{{ t('aiInsights.overview.ransomwareRisk') }}</span>
-                  </div>
-                  <span class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{{ t('aiInsights.overview.safe') }}</span>
-                </div>
-                <div class="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <div class="flex items-center gap-3">
-                    <ShieldExclamationIcon class="w-5 h-5 text-blue-500" />
-                    <span class="text-sm text-blue-700 dark:text-blue-300">{{ t('aiInsights.overview.permissionIssues') }}</span>
-                  </div>
-                  <span class="text-sm font-semibold text-blue-600 dark:text-blue-400">{{ overviewData.risk_summary?.permission_issues }} {{ t('aiInsights.overview.places') }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+ <!-- Risk Summary -->
+ <div class="bg-card rounded-xl border border-border p-6">
+ <h3 class="text-lg font-semibold text-foreground mb-4">{{ t('aiInsights.overview.riskMonitoring') }}</h3>
+ <div class="space-y-4">
+ <div class="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+ <div class="flex items-center gap-3">
+ <ExclamationTriangleIcon class="w-5 h-5 text-amber-500" />
+ <span class="text-sm text-amber-700 dark:text-amber-300">{{ t('aiInsights.overview.sensitiveInfo') }}</span>
+ </div>
+ <span class="text-sm font-semibold text-amber-600 dark:text-amber-400">{{ overviewData.risk_summary?.sensitive_files }} {{ t('aiInsights.overview.files') }}</span>
+ </div>
+ <div class="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+ <div class="flex items-center gap-3">
+ <CheckCircleIcon class="w-5 h-5 text-emerald-500" />
+ <span class="text-sm text-emerald-700 dark:text-emerald-300">{{ t('aiInsights.overview.ransomwareRisk') }}</span>
+ </div>
+ <span class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{{ t('aiInsights.overview.safe') }}</span>
+ </div>
+ <div class="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+ <div class="flex items-center gap-3">
+ <ShieldExclamationIcon class="w-5 h-5 text-blue-500" />
+ <span class="text-sm text-blue-700 dark:text-blue-300">{{ t('aiInsights.overview.permissionIssues') }}</span>
+ </div>
+ <span class="text-sm font-semibold text-blue-600 dark:text-blue-400">{{ overviewData.risk_summary?.permission_issues }} {{ t('aiInsights.overview.places') }}</span>
+ </div>
+ </div>
+ </div>
+ </div>
 
-          <!-- Optimization Suggestions -->
-          <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-            <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.overview.optimizationSuggestions') }}</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div class="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
-                <div class="flex items-center gap-2 mb-2">
-                  <TrashIcon class="w-5 h-5 text-red-500" />
-                  <span class="font-medium text-slate-700 dark:text-slate-300">{{ t('aiInsights.overview.duplicateFiles') }}</span>
-                </div>
-                <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ overviewData.optimization_suggestions?.duplicate_files?.size }}</p>
-                <p class="text-sm text-slate-500 mt-1">{{ t('aiInsights.overview.suggestClean') }}</p>
-              </div>
-              <div class="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
-                <div class="flex items-center gap-2 mb-2">
-                  <ClockIcon class="w-5 h-5 text-blue-500" />
-                  <span class="font-medium text-slate-700 dark:text-slate-300">{{ t('aiInsights.overview.coldData') }}</span>
-                </div>
-                <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ overviewData.optimization_suggestions?.cold_data?.size }}</p>
-                <p class="text-sm text-slate-500 mt-1">{{ t('aiInsights.overview.suggestArchive') }}</p>
-              </div>
-              <div class="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
-                <div class="flex items-center gap-2 mb-2">
-                  <ArrowTrendingUpIcon class="w-5 h-5 text-amber-500" />
-                  <span class="font-medium text-slate-700 dark:text-slate-300">{{ t('aiInsights.overview.fastestGrowing') }}</span>
-                </div>
-                <p class="text-lg font-bold text-slate-800 dark:text-white">{{ overviewData.optimization_suggestions?.fastest_growing?.path }}</p>
-                <p class="text-sm text-slate-500 mt-1">{{ t('aiInsights.overview.weeklyGrowth') }}: {{ overviewData.optimization_suggestions?.fastest_growing?.growth_rate }}</p>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
+ <!-- Optimization Suggestions -->
+ <div class="bg-card rounded-xl border border-border p-6">
+ <h3 class="text-lg font-semibold text-foreground mb-4">{{ t('aiInsights.overview.optimizationSuggestions') }}</h3>
+ <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+ <div class="p-4 border border-border rounded-lg">
+ <div class="flex items-center gap-2 mb-2">
+ <TrashIcon class="w-5 h-5 text-red-500" />
+ <span class="font-medium text-foreground-secondary">{{ t('aiInsights.overview.duplicateFiles') }}</span>
+ </div>
+ <p class="text-2xl font-bold text-foreground">{{ overviewData.optimization_suggestions?.duplicate_files?.size }}</p>
+ <p class="text-sm text-slate-500 mt-1">{{ t('aiInsights.overview.suggestClean') }}</p>
+ </div>
+ <div class="p-4 border border-border rounded-lg">
+ <div class="flex items-center gap-2 mb-2">
+ <ClockIcon class="w-5 h-5 text-blue-500" />
+ <span class="font-medium text-foreground-secondary">{{ t('aiInsights.overview.coldData') }}</span>
+ </div>
+ <p class="text-2xl font-bold text-foreground">{{ overviewData.optimization_suggestions?.cold_data?.size }}</p>
+ <p class="text-sm text-slate-500 mt-1">{{ t('aiInsights.overview.suggestArchive') }}</p>
+ </div>
+ <div class="p-4 border border-border rounded-lg">
+ <div class="flex items-center gap-2 mb-2">
+ <ArrowTrendingUpIcon class="w-5 h-5 text-amber-500" />
+ <span class="font-medium text-foreground-secondary">{{ t('aiInsights.overview.fastestGrowing') }}</span>
+ </div>
+ <p class="text-lg font-bold text-foreground">{{ overviewData.optimization_suggestions?.fastest_growing?.path }}</p>
+ <p class="text-sm text-slate-500 mt-1">{{ t('aiInsights.overview.weeklyGrowth') }}: {{ overviewData.optimization_suggestions?.fastest_growing?.growth_rate }}</p>
+ </div>
+ </div>
+ </div>
+ </template>
+ </div>
 
-      <!-- Smart Search -->
-      <div v-if="currentTab === 'search'" class="space-y-6">
-        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-          <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.search.title') }}</h3>
-          <div class="flex gap-4">
-            <div class="flex-1 relative">
-              <MagnifyingGlassIcon class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
-                v-model="searchQuery"
-                type="text"
-                :placeholder="t('aiInsights.search.placeholder')"
-                class="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                @keyup.enter="handleSearch"
-              />
-            </div>
-            <button
-              @click="handleSearch"
-              :disabled="isSearching || !searchQuery.trim()"
-              class="px-6 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              <ArrowPathIcon v-if="isSearching" class="w-5 h-5 animate-spin" />
-              <MagnifyingGlassIcon v-else class="w-5 h-5" />
-              {{ t('aiInsights.search.search') }}
-            </button>
-          </div>
-          
-          <!-- Search Results -->
-          <div v-if="hasSearched" class="mt-6">
-            <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">{{ t('aiInsights.search.results') }}</h4>
-            <div v-if="searchResults.length === 0" class="text-center py-8 text-slate-500">
-              {{ t('aiInsights.search.noResults') }}
-            </div>
-            <div v-else class="space-y-2">
-              <div 
-                v-for="result in searchResults" 
-                :key="result.path"
-                class="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg"
-              >
-                <DocumentTextIcon class="w-5 h-5 text-slate-400" />
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{{ result.path?.split('/').pop() }}</p>
-                  <p class="text-xs text-slate-500 truncate">{{ result.path }}</p>
-                </div>
-                <span class="text-sm text-slate-500">{{ formatBytes(result.size || 0) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+ <!-- Smart Search -->
+ <div v-if="currentTab === 'search'" class="space-y-6">
+ <div class="bg-card rounded-xl border border-border p-6">
+ <h3 class="text-lg font-semibold text-foreground mb-4">{{ t('aiInsights.search.title') }}</h3>
+ <div class="flex gap-4">
+ <div class="flex-1 relative">
+ <MagnifyingGlassIcon class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+ <input
+ v-model="searchQuery"
+ type="text"
+ :placeholder="t('aiInsights.search.placeholder')"
+ class="w-full pl-12 pr-4 py-3 bg-background-secondary border border-border rounded-lg text-foreground placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+ @keyup.enter="handleSearch"
+ />
+ </div>
+ <button
+ @click="handleSearch"
+ :disabled="isSearching || !searchQuery.trim()"
+ class="px-6 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+ >
+ <ArrowPathIcon v-if="isSearching" class="w-5 h-5 animate-spin" />
+ <MagnifyingGlassIcon v-else class="w-5 h-5" />
+ {{ t('aiInsights.search.search') }}
+ </button>
+ </div>
+ 
+ <!-- Search Results -->
+ <div v-if="hasSearched" class="mt-6">
+ <h4 class="text-sm font-medium text-foreground-secondary mb-3">{{ t('aiInsights.search.results') }}</h4>
+ <div v-if="searchResults.length === 0" class="text-center py-8 text-slate-500">
+ {{ t('aiInsights.search.noResults') }}
+ </div>
+ <div v-else class="space-y-2">
+ <div 
+ v-for="result in searchResults" 
+ :key="result.path"
+ class="flex items-center gap-4 p-3 bg-background-secondary rounded-lg"
+ >
+ <DocumentTextIcon class="w-5 h-5 text-slate-400" />
+ <div class="flex-1 min-w-0">
+ <p class="text-sm font-medium text-foreground-secondary truncate">{{ result.path?.split('/').pop() }}</p>
+ <p class="text-xs text-slate-500 truncate">{{ result.path }}</p>
+ </div>
+ <span class="text-sm text-slate-500">{{ formatBytes(result.size || 0) }}</span>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
 
-      <!-- Sensitive Data -->
-      <div v-if="currentTab === 'sensitive'" class="space-y-6">
-        <div v-if="isLoadingSensitive" class="flex items-center justify-center py-12">
-          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
-        </div>
-        <template v-else-if="sensitiveData">
-          <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-            <div class="flex items-center justify-between mb-6">
-              <h3 class="text-lg font-semibold text-slate-800 dark:text-white">{{ t('aiInsights.sensitive.title') }}</h3>
-              <div class="flex items-center gap-2 text-sm text-slate-500">
-                <ClockIcon class="w-4 h-4" />
-                {{ t('aiInsights.sensitive.lastScan') }}: {{ sensitiveData.last_scan }}
-              </div>
-            </div>
-            <div class="space-y-4">
-              <div v-for="finding in sensitiveData.findings" :key="finding.type" class="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
-                <div class="flex items-center justify-between mb-3">
-                  <div class="flex items-center gap-3">
-                    <span :class="['px-2 py-1 text-xs font-medium rounded', getSeverityColor(finding.severity)]">
-                      {{ finding.severity.toUpperCase() }}
-                    </span>
-                    <span class="font-medium text-slate-700 dark:text-slate-300">{{ locale === 'zh-CN' ? finding.type_zh : finding.type }}</span>
-                  </div>
-                  <span class="text-sm text-slate-500">{{ finding.count }} {{ t('aiInsights.sensitive.matches') }}</span>
-                </div>
-                <p class="text-sm text-slate-600 dark:text-slate-400 mb-2">{{ finding.recommendation }}</p>
-                <div class="text-xs text-slate-500">
-                  {{ t('aiInsights.sensitive.files') }}: {{ finding.files.map((f: any) => f.path?.split('/').pop()).join(', ') }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
+ <!-- Sensitive Data -->
+ <div v-if="currentTab === 'sensitive'" class="space-y-6">
+ <div v-if="isLoadingSensitive" class="flex items-center justify-center py-12">
+ <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+ </div>
+ <template v-else-if="sensitiveData">
+ <div class="bg-card rounded-xl border border-border p-6">
+ <div class="flex items-center justify-between mb-6">
+ <h3 class="text-lg font-semibold text-foreground">{{ t('aiInsights.sensitive.title') }}</h3>
+ <div class="flex items-center gap-2 text-sm text-slate-500">
+ <ClockIcon class="w-4 h-4" />
+ {{ t('aiInsights.sensitive.lastScan') }}: {{ sensitiveData.last_scan }}
+ </div>
+ </div>
+ <div class="space-y-4">
+ <div v-for="finding in sensitiveData.findings" :key="finding.type" class="p-4 border border-border rounded-lg">
+ <div class="flex items-center justify-between mb-3">
+ <div class="flex items-center gap-3">
+ <span :class="['px-2 py-1 text-xs font-medium rounded', getSeverityColor(finding.severity)]">
+ {{ finding.severity.toUpperCase() }}
+ </span>
+ <span class="font-medium text-foreground-secondary">{{ locale === 'zh-CN' ? finding.type_zh : finding.type }}</span>
+ </div>
+ <span class="text-sm text-slate-500">{{ finding.count }} {{ t('aiInsights.sensitive.matches') }}</span>
+ </div>
+ <p class="text-sm text-foreground-secondary mb-2">{{ finding.recommendation }}</p>
+ <div class="text-xs text-slate-500">
+ {{ t('aiInsights.sensitive.files') }}: {{ finding.files.map((f: any) => f.path?.split('/').pop()).join(', ') }}
+ </div>
+ </div>
+ </div>
+ </div>
+ </template>
+ </div>
 
-      <!-- Content Profile -->
-      <div v-if="currentTab === 'profile'" class="space-y-6">
-        <div v-if="isLoadingProfile" class="flex items-center justify-center py-12">
-          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
-        </div>
-        <template v-else-if="contentProfile">
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div v-for="cat in contentProfile.categories" :key="cat.name" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <div class="flex items-center gap-3 mb-3">
-                <TagIcon class="w-5 h-5 text-violet-500" />
-                <span class="font-medium text-slate-700 dark:text-slate-300">{{ locale === 'zh-CN' ? cat.name_zh : cat.name }}</span>
-              </div>
-              <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ cat.count }}</p>
-              <p class="text-sm text-slate-500">{{ cat.size }}</p>
-              <div class="flex flex-wrap gap-1 mt-3">
-                <span v-for="tag in cat.tags" :key="tag" class="px-2 py-0.5 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded">
-                  {{ tag }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
+ <!-- Content Profile -->
+ <div v-if="currentTab === 'profile'" class="space-y-6">
+ <div v-if="isLoadingProfile" class="flex items-center justify-center py-12">
+ <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+ </div>
+ <template v-else-if="contentProfile">
+ <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+ <div v-for="cat in contentProfile.categories" :key="cat.name" class="bg-card rounded-xl border border-border p-5">
+ <div class="flex items-center gap-3 mb-3">
+ <TagIcon class="w-5 h-5 text-violet-500" />
+ <span class="font-medium text-foreground-secondary">{{ locale === 'zh-CN' ? cat.name_zh : cat.name }}</span>
+ </div>
+ <p class="text-2xl font-bold text-foreground">{{ cat.count }}</p>
+ <p class="text-sm text-slate-500">{{ cat.size }}</p>
+ <div class="flex flex-wrap gap-1 mt-3">
+ <span v-for="tag in cat.tags" :key="tag" class="px-2 py-0.5 text-xs bg-background-tertiary text-foreground-secondary rounded">
+ {{ tag }}
+ </span>
+ </div>
+ </div>
+ </div>
+ </template>
+ </div>
 
-      <!-- Data Heatmap -->
-      <div v-if="currentTab === 'heatmap'" class="space-y-6">
-        <div v-if="isLoadingHeatmap" class="flex items-center justify-center py-12">
-          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
-        </div>
-        <template v-else-if="dataHeatmap">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div v-for="item in dataHeatmap.heatmap" :key="item.category" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-              <div class="flex items-center gap-3 mb-4">
-                <div :class="[
-                  'w-10 h-10 rounded-lg flex items-center justify-center',
-                  item.category === 'hot' ? 'bg-red-100 dark:bg-red-900/30' :
-                  item.category === 'warm' ? 'bg-amber-100 dark:bg-amber-900/30' :
-                  'bg-blue-100 dark:bg-blue-900/30'
-                ]">
-                  <FireIcon :class="[
-                    'w-5 h-5',
-                    item.category === 'hot' ? 'text-red-500' :
-                    item.category === 'warm' ? 'text-amber-500' :
-                    'text-blue-500'
-                  ]" />
-                </div>
-                <div>
-                  <p class="font-medium text-slate-700 dark:text-slate-300">{{ locale === 'zh-CN' ? item.category_zh : item.category }}</p>
-                  <p class="text-xs text-slate-500">{{ item.description }}</p>
-                </div>
-              </div>
-              <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ item.size }}</p>
-              <div class="flex items-center justify-between mt-2 text-sm text-slate-500">
-                <span>{{ item.percentage }}%</span>
-                <span>{{ item.file_count?.toLocaleString() }} {{ t('aiInsights.heatmap.files') }}</span>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Zombie Data -->
-          <div v-if="dataHeatmap.zombie_data" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-6">
-            <div class="flex items-center gap-3 mb-3">
-              <ExclamationTriangleIcon class="w-5 h-5 text-amber-500" />
-              <span class="font-medium text-amber-700 dark:text-amber-300">{{ t('aiInsights.heatmap.zombieData') }}</span>
-            </div>
-            <p class="text-amber-600 dark:text-amber-400">{{ dataHeatmap.zombie_data.description }}</p>
-            <p class="text-lg font-bold text-amber-700 dark:text-amber-300 mt-2">{{ dataHeatmap.zombie_data.size }} ({{ dataHeatmap.zombie_data.file_count?.toLocaleString() }} {{ t('aiInsights.heatmap.files') }})</p>
-            <p class="text-sm text-amber-600 dark:text-amber-400 mt-1">{{ dataHeatmap.zombie_data.potential_savings }}</p>
-          </div>
-        </template>
-      </div>
+ <!-- Data Heatmap -->
+ <div v-if="currentTab === 'heatmap'" class="space-y-6">
+ <div v-if="isLoadingHeatmap" class="flex items-center justify-center py-12">
+ <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+ </div>
+ <template v-else-if="dataHeatmap">
+ <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+ <div v-for="item in dataHeatmap.heatmap" :key="item.category" class="bg-card rounded-xl border border-border p-6">
+ <div class="flex items-center gap-3 mb-4">
+ <div :class="[
+ 'w-10 h-10 rounded-lg flex items-center justify-center',
+ item.category === 'hot' ? 'bg-red-100 dark:bg-red-900/30' :
+ item.category === 'warm' ? 'bg-amber-100 dark:bg-amber-900/30' :
+ 'bg-blue-100 dark:bg-blue-900/30'
+ ]">
+ <FireIcon :class="[
+ 'w-5 h-5',
+ item.category === 'hot' ? 'text-red-500' :
+ item.category === 'warm' ? 'text-amber-500' :
+ 'text-blue-500'
+ ]" />
+ </div>
+ <div>
+ <p class="font-medium text-foreground-secondary">{{ locale === 'zh-CN' ? item.category_zh : item.category }}</p>
+ <p class="text-xs text-slate-500">{{ item.description }}</p>
+ </div>
+ </div>
+ <p class="text-2xl font-bold text-foreground">{{ item.size }}</p>
+ <div class="flex items-center justify-between mt-2 text-sm text-slate-500">
+ <span>{{ item.percentage }}%</span>
+ <span>{{ item.file_count?.toLocaleString() }} {{ t('aiInsights.heatmap.files') }}</span>
+ </div>
+ </div>
+ </div>
+ 
+ <!-- Zombie Data -->
+ <div v-if="dataHeatmap.zombie_data" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-6">
+ <div class="flex items-center gap-3 mb-3">
+ <ExclamationTriangleIcon class="w-5 h-5 text-amber-500" />
+ <span class="font-medium text-amber-700 dark:text-amber-300">{{ t('aiInsights.heatmap.zombieData') }}</span>
+ </div>
+ <p class="text-amber-600 dark:text-amber-400">{{ dataHeatmap.zombie_data.description }}</p>
+ <p class="text-lg font-bold text-amber-700 dark:text-amber-300 mt-2">{{ dataHeatmap.zombie_data.size }} ({{ dataHeatmap.zombie_data.file_count?.toLocaleString() }} {{ t('aiInsights.heatmap.files') }})</p>
+ <p class="text-sm text-amber-600 dark:text-amber-400 mt-1">{{ dataHeatmap.zombie_data.potential_savings }}</p>
+ </div>
+ </template>
+ </div>
 
-      <!-- Redundancy -->
-      <div v-if="currentTab === 'redundancy'" class="space-y-6">
-        <div v-if="isLoadingRedundancy" class="flex items-center justify-center py-12">
-          <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
-        </div>
-        <template v-else-if="redundancyData">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <p class="text-sm text-slate-500">{{ t('aiInsights.redundancy.duplicateFiles') }}</p>
-              <p class="text-2xl font-bold text-slate-800 dark:text-white mt-1">{{ redundancyData.total_duplicates?.toLocaleString() }}</p>
-            </div>
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <p class="text-sm text-slate-500">{{ t('aiInsights.redundancy.duplicateSize') }}</p>
-              <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{{ redundancyData.duplicate_size }}</p>
-            </div>
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <p class="text-sm text-slate-500">{{ t('aiInsights.redundancy.potentialSavings') }}</p>
-              <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{{ redundancyData.potential_savings }}</p>
-            </div>
-          </div>
-          
-          <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-            <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.redundancy.duplicateGroups') }}</h3>
-            <div class="space-y-3">
-              <div v-for="group in redundancyData.duplicate_groups" :key="group.file_name" class="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                <div class="flex items-center justify-between mb-2">
-                  <span class="font-medium text-slate-700 dark:text-slate-300">{{ group.file_name }}</span>
-                  <span class="text-sm text-slate-500">{{ group.count }} {{ t('aiInsights.redundancy.copies') }}</span>
-                </div>
-                <div class="text-xs text-slate-500">
-                  {{ t('aiInsights.redundancy.locations') }}: {{ group.locations.join(', ') }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
+ <!-- Redundancy -->
+ <div v-if="currentTab === 'redundancy'" class="space-y-6">
+ <div v-if="isLoadingRedundancy" class="flex items-center justify-center py-12">
+ <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
+ </div>
+ <template v-else-if="redundancyData">
+ <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+ <div class="bg-card rounded-xl border border-border p-5">
+ <p class="text-sm text-slate-500">{{ t('aiInsights.redundancy.duplicateFiles') }}</p>
+ <p class="text-2xl font-bold text-foreground mt-1">{{ redundancyData.total_duplicates?.toLocaleString() }}</p>
+ </div>
+ <div class="bg-card rounded-xl border border-border p-5">
+ <p class="text-sm text-slate-500">{{ t('aiInsights.redundancy.duplicateSize') }}</p>
+ <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{{ redundancyData.duplicate_size }}</p>
+ </div>
+ <div class="bg-card rounded-xl border border-border p-5">
+ <p class="text-sm text-slate-500">{{ t('aiInsights.redundancy.potentialSavings') }}</p>
+ <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{{ redundancyData.potential_savings }}</p>
+ </div>
+ </div>
+ 
+ <div class="bg-card rounded-xl border border-border p-6">
+ <h3 class="text-lg font-semibold text-foreground mb-4">{{ t('aiInsights.redundancy.duplicateGroups') }}</h3>
+ <div class="space-y-3">
+ <div v-for="group in redundancyData.duplicate_groups" :key="group.file_name" class="p-4 bg-background-secondary rounded-lg">
+ <div class="flex items-center justify-between mb-2">
+ <span class="font-medium text-foreground-secondary">{{ group.file_name }}</span>
+ <span class="text-sm text-slate-500">{{ group.count }} {{ t('aiInsights.redundancy.copies') }}</span>
+ </div>
+ <div class="text-xs text-slate-500">
+ {{ t('aiInsights.redundancy.locations') }}: {{ group.locations.join(', ') }}
+ </div>
+ </div>
+ </div>
+ </div>
+ </template>
+ </div>
 
-      <!-- AI Chat (Placeholder) -->
-      <div v-if="currentTab === 'chat'" class="space-y-6">
-        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-          <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">{{ t('aiInsights.pageTitles.chat') }}</h3>
-          <p class="text-slate-500">{{ t('common.comingSoon') }}</p>
-        </div>
-      </div>
-    </div>
-  </div>
+ <!-- AI Chat (Placeholder) -->
+ <div v-if="currentTab === 'chat'" class="space-y-6">
+ <div class="bg-card rounded-xl border border-border p-6">
+ <h3 class="text-lg font-semibold text-foreground mb-4">{{ t('aiInsights.pageTitles.chat') }}</h3>
+ <p class="text-slate-500">{{ t('common.comingSoon') }}</p>
+ </div>
+ </div>
+ </div>
+ </div>
 </template>

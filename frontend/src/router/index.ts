@@ -24,8 +24,6 @@ const Licenses = () => import('@/views/Licenses.vue')
 const Gateways = () => import('@/views/Gateways.vue')
 const Register = () => import('@/views/Register.vue')
 const ForgotPassword = () => import('@/views/ForgotPassword.vue')
-const Schedules = () => import('@/views/Schedules.vue')
-const Checkpoints = () => import('@/views/Checkpoints.vue')
 
 // Route types
 declare module 'vue-router' {
@@ -130,18 +128,6 @@ const routes: RouteRecordRaw[] = [
         name: 'Policies',
         component: Policies,
         meta: { title: 'Backup Policies' }
-      },
-      {
-        path: 'schedules',
-        name: 'Schedules',
-        component: Schedules,
-        meta: { title: 'Scheduled Backups' }
-      },
-      {
-        path: 'checkpoints',
-        name: 'Checkpoints',
-        component: Checkpoints,
-        meta: { title: 'Backup Checkpoints' }
       },
       {
         path: 'ai-insights',

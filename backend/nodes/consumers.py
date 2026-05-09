@@ -12,6 +12,14 @@ from channels.db import database_sync_to_async
 from django.utils import timezone
 from asgiref.sync import sync_to_async
 from audit_log.services import AuditService
+from alerts import get_manager
+from .graceful_shutdown import shutdown_manager, websocket_manager, signal_handler
+from .metrics_service import metrics_service
+from core.websocket_validation import validate_and_log, ValidationResult
+
+
+# Global alert manager instance
+alert_manager = get_manager()
 
 
 class ProxyConsumer(AsyncWebsocketConsumer):
@@ -53,8 +61,11 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         # Send connection acknowledgment
         await self.send(text_data=json.dumps({
             'type': 'connection_established',
-            'proxy_id': self.proxy_id,
-            'server_time': timezone.now().isoformat()
+            'id': str(uuid.uuid4()),
+            'timestamp': timezone.now().isoformat(),
+            'payload': {
+                'proxy_id': self.proxy_id,
+            }
         }))
 
     async def disconnect(self, close_code):
@@ -72,6 +83,9 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         # Update proxy connection status
         await self.update_proxy_online_status(False)
 
+        # Check for proxy timeout alert
+        await self.check_proxy_timeout_alert()
+
         # Update connection record
         await self.close_connection_record()
 
@@ -86,12 +100,23 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             message_type = data.get('type')
 
             handlers = {
-                'heartbeat': self.handle_heartbeat,
+                # Control messages
                 'register': self.handle_register,
-                'task_update': self.handle_task_update,
-                'task_result': self.handle_task_result,
+                'heartbeat': self.handle_heartbeat,
+                'ping': self.handle_ping,
+
+                # Task status updates (unified format)
+                'task_start': self.handle_task_start,
+                'task_progress': self.handle_task_progress,
+                'task_complete': self.handle_task_complete,
+
+                # Log and status
                 'log': self.handle_log,
                 'status': self.handle_status,
+
+                # Legacy result handlers (for backwards compatibility)
+                'task_update': self.handle_task_update,  # Legacy
+                'task_result': self.handle_task_result,  # Legacy
                 'backup_result': self.handle_backup_result,
                 'restore_result': self.handle_restore_result,
                 'mount_result': self.handle_mount_result,
@@ -107,35 +132,40 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             else:
                 await self.send(text_data=json.dumps({
                     'type': 'error',
-                    'message': f'Unknown message type: {message_type}'
+                    'id': str(uuid.uuid4()),
+                    'timestamp': timezone.now().isoformat(),
+                    'payload': {
+                        'message': f'Unknown message type: {message_type}'
+                    }
                 }))
         except json.JSONDecodeError:
             await self.send(text_data=json.dumps({
                 'type': 'error',
-                'message': 'Invalid JSON format'
+                'id': str(uuid.uuid4()),
+                'timestamp': timezone.now().isoformat(),
+                'payload': {
+                    'message': 'Invalid JSON format'
+                }
             }))
 
     async def handle_register(self, data):
         """
-        Handle initial registration message from proxy.
+        Handle registration confirmation message from proxy.
+
+        Registration is already done via HTTP API during installation.
+        This message just confirms that the proxy is connecting via WebSocket.
         """
-        install_token = data.get('install_token')
-        proxy_info = data.get('proxy_info', {})
-
-        success = await self.complete_registration(install_token, proxy_info)
-
-        if success:
-            await self.send(text_data=json.dumps({
-                'type': 'register_ack',
+        # The proxy has already been registered via HTTP API
+        # This is just a connection confirmation
+        await self.send(text_data=json.dumps({
+            'type': 'register_ack',
+            'id': str(uuid.uuid4()),
+            'timestamp': timezone.now().isoformat(),
+            'payload': {
                 'status': 'success',
                 'proxy_id': self.proxy_id
-            }))
-        else:
-            await self.send(text_data=json.dumps({
-                'type': 'register_ack',
-                'status': 'failed',
-                'message': 'Invalid install token or proxy already registered'
-            }))
+            }
+        }))
 
     async def handle_heartbeat(self, data):
         """
@@ -146,14 +176,196 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         metrics = data.get('metrics', {})
         await self.update_proxy_heartbeat(metrics)
 
+        # Check for resource alerts
+        await self.check_resource_alerts(metrics)
+
         # Check for pending tasks
         pending_tasks = await self.get_pending_tasks()
 
         await self.send(text_data=json.dumps({
             'type': 'heartbeat_ack',
-            'server_time': timezone.now().isoformat(),
-            'pending_tasks': pending_tasks
+            'id': str(uuid.uuid4()),
+            'timestamp': timezone.now().isoformat(),
+            'payload': {
+                'server_time': timezone.now().isoformat(),
+                'pending_tasks': pending_tasks
+            }
         }))
+
+    async def handle_ping(self, data):
+        """Handle ping message from proxy."""
+        await self.send(text_data=json.dumps({
+            'type': 'pong',
+            'id': str(uuid.uuid4()),
+            'timestamp': timezone.now().isoformat(),
+            'payload': {}
+        }))
+
+    # ==================== Unified Task Status Handlers ====================
+
+    async def handle_task_start(self, data):
+        """
+        Handle task start notification from proxy.
+
+        Expected format:
+        {
+            'type': 'task_start',
+            'payload': {
+                'task_id': 'uuid',
+                'task_type': 'backup|restore|mount|test_storage|init_repository',
+                'timestamp': 'iso timestamp'
+            }
+        }
+        """
+        payload = data.get('payload', {})
+        task_id = payload.get('task_id')
+        task_type = payload.get('task_type')
+
+        # Extract data from payload if present
+        if payload:
+            task_id = payload.get('task_id')
+            task_type = payload.get('task_type')
+        else:
+            # Legacy format
+            task_id = data.get('task_id')
+            task_type = data.get('task_type')
+
+        await self.update_task_status(task_id, 'running', 0, 'Task started')
+
+        # Broadcast to task group
+        if task_id:
+            await self.channel_layer.group_send(
+                f'task_{task_id}',
+                {
+                    'type': 'task_start',
+                    'data': {
+                        'task_id': task_id,
+                        'task_type': task_type,
+                        'status': 'running',
+                        'timestamp': timezone.now().isoformat()
+                    }
+                }
+            )
+
+    async def handle_task_progress(self, data):
+        """
+        Handle task progress update from proxy.
+
+        Expected format:
+        {
+            'type': 'task_progress',
+            'payload': {
+                'task_id': 'uuid',
+                'progress': 50,
+                'message': 'Processing...',
+                'current_file': '/path/to/file',
+                'total_files': 100,
+                'processed_files': 25,
+                'processed_bytes': 1024000,
+                'total_bytes': 4096000,
+                'speed_mbps': 5.2,
+                'eta': '5m 30s',
+                'timestamp': 'iso timestamp'
+            }
+        }
+        """
+        payload = data.get('payload', {})
+        if payload:
+            task_id = payload.get('task_id')
+            progress = payload.get('progress', 0)
+            message = payload.get('message', '')
+        else:
+            # Legacy format
+            task_id = data.get('task_id')
+            progress = data.get('progress', 0)
+            message = data.get('message', '')
+
+        await self.update_task_progress(
+            task_id, progress, message,
+            current_file=payload.get('current_file'),
+            total_files=payload.get('total_files', 0),
+            processed_files=payload.get('processed_files', 0),
+            processed_bytes=payload.get('processed_bytes', 0),
+            total_bytes=payload.get('total_bytes', 0),
+            speed_mbps=payload.get('speed_mbps', 0.0),
+            eta=payload.get('eta', '')
+        )
+
+        # Broadcast to task group
+        if task_id:
+            await self.channel_layer.group_send(
+                f'task_{task_id}',
+                {
+                    'type': 'task_progress',
+                    'data': {
+                        'task_id': task_id,
+                        'status': 'running',
+                        'progress': progress,
+                        'message': message,
+                        'current_file': payload.get('current_file'),
+                        'total_files': payload.get('total_files', 0),
+                        'processed_files': payload.get('processed_files', 0),
+                        'processed_bytes': payload.get('processed_bytes', 0),
+                        'total_bytes': payload.get('total_bytes', 0),
+                        'speed_mbps': payload.get('speed_mbps', 0.0),
+                        'eta': payload.get('eta', ''),
+                    }
+                }
+            )
+
+    async def handle_task_complete(self, data):
+        """
+        Handle task completion notification from proxy.
+
+        Expected format:
+        {
+            'type': 'task_complete',
+            'payload': {
+                'task_id': 'uuid',
+                'task_type': 'backup|restore|mount|test_storage|init_repository',
+                'success': true,
+                'result': {...},
+                'error': 'error message if failed',
+                'timestamp': 'iso timestamp'
+            }
+        }
+        """
+        payload = data.get('payload', {})
+        if payload:
+            task_id = payload.get('task_id')
+            task_type = payload.get('task_type')
+            success = payload.get('success', False)
+            result = payload.get('result', {})
+            error = payload.get('error')
+        else:
+            # Legacy format
+            task_id = data.get('task_id')
+            task_type = data.get('task_type')
+            success = data.get('success', False)
+            result = data.get('result', {})
+            error = data.get('error')
+
+        await self.complete_task(task_id, success, result, error)
+
+        # Create alert for failed tasks
+        if not success and task_id and error:
+            await self.create_task_failed_alert(task_id, error)
+
+        # Broadcast to task group
+        if task_id:
+            await self.channel_layer.group_send(
+                f'task_{task_id}',
+                {
+                    'type': 'task_result',
+                    'data': {
+                        'task_id': task_id,
+                        'task_type': task_type,
+                        'success': success,
+                        'result': result,
+                        'error': error
+                    }
+                }
+            )
 
     async def handle_task_update(self, data):
         """
@@ -651,6 +863,37 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             pass
 
     @sync_to_async
+    def update_task_progress(self, task_id, progress, message,
+                            current_file=None, total_files=None,
+                            processed_files=None, processed_bytes=None,
+                            total_bytes=None, speed_mbps=None, eta=None):
+        """Update task with detailed progress information."""
+        from .models import ProxyTask
+        try:
+            task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
+            task.status = ProxyTask.TaskStatus.RUNNING
+            task.progress = progress
+            task.progress_message = message
+            # Update detailed progress fields if provided
+            if current_file is not None:
+                task.current_file = current_file
+            if total_files is not None:
+                task.total_files = total_files
+            if processed_files is not None:
+                task.processed_files = processed_files
+            if processed_bytes is not None:
+                task.processed_bytes = processed_bytes
+            if total_bytes is not None:
+                task.total_bytes = total_bytes
+            if speed_mbps is not None:
+                task.speed_mbps = speed_mbps
+            if eta is not None:
+                task.eta = eta
+            task.save()
+        except ProxyTask.DoesNotExist:
+            pass
+
+    @sync_to_async
     def complete_task(self, task_id, success, result, error):
         """Complete a task."""
         from .models import ProxyTask
@@ -666,6 +909,37 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             task.completed_at = timezone.now()
             task.save()
         except ProxyTask.DoesNotExist:
+            pass
+
+    @sync_to_async
+    def check_resource_alerts(self, metrics):
+        """Check and create alerts for resource thresholds."""
+        from .models import ProxyNode
+        try:
+            proxy = ProxyNode.objects.get(id=self.proxy_id)
+            alert_manager.check_resource_alerts(proxy, metrics)
+        except ProxyNode.DoesNotExist:
+            pass
+
+    @sync_to_async
+    def create_task_failed_alert(self, task_id, error):
+        """Create an alert for a failed task."""
+        from .models import ProxyTask, ProxyNode
+        try:
+            task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
+            proxy = ProxyNode.objects.get(id=self.proxy_id)
+            alert_manager.check_task_failed(task, error)
+        except (ProxyTask.DoesNotExist, ProxyNode.DoesNotExist):
+            pass
+
+    @sync_to_async
+    def check_proxy_timeout_alert(self):
+        """Check if proxy should trigger timeout alert."""
+        from .models import ProxyNode
+        try:
+            proxy = ProxyNode.objects.get(id=self.proxy_id)
+            alert_manager.check_proxy_timeout(proxy)
+        except ProxyNode.DoesNotExist:
             pass
 
     @sync_to_async
@@ -787,6 +1061,37 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             except SourceResource.DoesNotExist:
                 pass
 
+    def create_quota_alert(self, repo, usage_percentage):
+        """Create a quota exceeded alert for the repository (sync function)."""
+        from alerts.types import AlertType, AlertSeverity
+
+        try:
+            # Create alert using the alert manager
+            alert_manager.create_alert(
+                alert_type=AlertType.REPOSITORY_QUOTA_EXCEEDED.value,
+                severity=AlertSeverity.WARNING,
+                title=f"Repository Quota Warning: {repo.name}",
+                message=f"Repository '{repo.name}' has exceeded {usage_percentage:.1f}% of quota "
+                       f"(used: {repo.used_space / (1024**3):.2f}GB, quota: {repo.quota_bytes / (1024**3):.2f}GB)",
+                entity_type='repository.Repository',
+                entity_id=str(repo.id),
+                entity_name=repo.name,
+                repository=repo,
+                details={
+                    'quota_bytes': repo.quota_bytes,
+                    'used_space': repo.used_space,
+                    'usage_percentage': usage_percentage,
+                    'quota_warning_threshold': repo.quota_warning_threshold,
+                    'capacity': repo.capacity,
+                },
+                metric_value=usage_percentage,
+                threshold_value=repo.quota_warning_threshold,
+                source='repository',
+            )
+            logger.info(f"[Quota Alert] Created alert for repository '{repo.name}' (ID: {repo.id})")
+        except Exception as e:
+            logger.error(f"[Quota Alert] Failed to create alert for repository '{repo.name}': {e}")
+
     @sync_to_async
     def update_storage_test_result(self, repository_id, task_id, success, result, error):
         """Update storage test result for repository."""
@@ -808,34 +1113,87 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             if repository_id:
                 repo = Repository.objects.get(id=repository_id)
                 repo.last_connection_test = timezone.now()
-                
+
+                # Prepare detailed test results
+                test_details = {
+                    'success': success,
+                    'timestamp': timezone.now().isoformat(),
+                    'connectivity': result.get('connectivity', {}),
+                    'write_test': result.get('write_test', {}),
+                    'space_info': result.get('space_info', {}),
+                }
+
                 if success:
-                    repo.connection_test_result = 'Connection test successful'
-                    repo.status = Repository.STATUS_ACTIVE
-                    
-                    # Store connectivity details
+                    # Build summary message
                     connectivity = result.get('connectivity', {})
-                    if connectivity:
-                        repo.connection_test_result = (
-                            f"Connected (response time: {connectivity.get('response_time', 0)}ms)"
-                        )
-                    
-                    # Store space info if available
+                    write_test = result.get('write_test', {})
                     space_info = result.get('space_info', {})
+
+                    summary_parts = []
+                    if connectivity:
+                        if connectivity.get('reachable'):
+                            summary_parts.append(f"Connected (response time: {connectivity.get('response_time', 0)}ms)")
+                        else:
+                            summary_parts.append(f"Not reachable: {connectivity.get('error', 'Unknown error')}")
+
+                    if write_test:
+                        if write_test.get('writable'):
+                            write_speed = write_test.get('write_speed', 0)
+                            read_speed = write_test.get('read_speed', 0)
+                            summary_parts.append(f"Writable (write: {write_speed} KB/s, read: {read_speed} KB/s)")
+                        else:
+                            summary_parts.append(f"Not writable: {write_test.get('error', 'Unknown error')}")
+
+                    repo.connection_test_result = ' | '.join(summary_parts) if summary_parts else 'Connection test successful'
+                    repo.connection_test_details = test_details
+                    repo.status = Repository.STATUS_ACTIVE
+
+                    # Update actual capacity and used space from space_info (NOT the quota!)
+                    # capacity is the actual detected capacity, quota_bytes is user-defined limit
                     if space_info:
-                        repo.total_size = space_info.get('total_bytes', 0)
-                        repo.used_size = space_info.get('used_bytes', 0)
-                        repo.available_size = space_info.get('free_bytes', 0)
+                        actual_capacity = space_info.get('total_bytes', 0)
+                        actual_used = space_info.get('used_bytes', 0)
+
+                        # Only update capacity if we detected a value
+                        if actual_capacity > 0:
+                            repo.capacity = actual_capacity
+
+                        repo.used_space = actual_used
+
+                        # Check if user has quota enabled and check quota warning
+                        if repo.quota_enabled and repo.quota_bytes > 0:
+                            usage_percentage = (actual_used / repo.quota_bytes) * 100
+                            if usage_percentage >= repo.quota_warning_threshold:
+                                logger.warning(
+                                    f"[Quota Alert] Repository '{repo.name}' (ID: {repository_id}) - "
+                                    f"usage {usage_percentage:.1f}% exceeds quota warning threshold "
+                                    f"{repo.quota_warning_threshold}% (used: {actual_used / (1024**3):.2f}GB, "
+                                    f"quota: {repo.quota_bytes / (1024**3):.2f}GB)"
+                                )
+                                # Create quota alert (sync call)
+                                self.create_quota_alert(repo, usage_percentage)
+
+                    logger.info(
+                        f"[Storage Test] Repository '{repo.name}' (ID: {repository_id}) - success={success}, "
+                        f"connectivity={connectivity.get('reachable')}, "
+                        f"writable={write_test.get('writable')}, "
+                        f"actual_capacity_gb={repo.capacity / (1024**3):.2f}, "
+                        f"used_space_gb={repo.used_space / (1024**3):.2f}, "
+                        f"quota_enabled={repo.quota_enabled}, "
+                        f"quota_bytes_gb={repo.quota_bytes / (1024**3):.2f}"
+                    )
                 else:
                     repo.connection_test_result = f"Connection test failed: {error}"
+                    repo.connection_test_details = test_details
                     repo.status = Repository.STATUS_ERROR
                     repo.status_message = error
-                
+
+                    logger.warning(
+                        f"[Storage Test] Repository '{repo.name}' (ID: {repository_id}) - failed: {error}"
+                    )
+
+                # Save repository with updated test results
                 repo.save()
-                logger.info(
-                    f"[Storage Test] Repository '{repo.name}' (ID: {repository_id}) - "
-                    f"success={success}, error={error}"
-                )
         except Repository.DoesNotExist:
             logger.warning(f"[Storage Test] Repository not found: {repository_id}")
         except Exception as e:
@@ -906,7 +1264,11 @@ class TaskConsumer(AsyncWebsocketConsumer):
         task_status = await self.get_task_status()
         await self.send(text_data=json.dumps({
             'type': 'task_status',
-            'data': task_status
+            'id': str(uuid.uuid4()),
+            'timestamp': timezone.now().isoformat(),
+            'payload': {
+                'data': task_status
+            }
         }))
 
     async def disconnect(self, close_code):
@@ -967,7 +1329,11 @@ class StatusConsumer(AsyncWebsocketConsumer):
         initial_status = await self.get_system_status()
         await self.send(text_data=json.dumps({
             'type': 'initial_status',
-            'data': initial_status
+            'id': str(uuid.uuid4()),
+            'timestamp': timezone.now().isoformat(),
+            'payload': {
+                'data': initial_status
+            }
         }))
 
     async def disconnect(self, close_code):

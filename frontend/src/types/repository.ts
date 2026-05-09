@@ -71,9 +71,29 @@ export interface Repository {
   // Connection status
   last_connection_test?: string
   connection_test_result?: string
+  connection_test_details?: {
+    success: boolean
+    timestamp: string
+    connectivity?: {
+      reachable: boolean
+      response_time?: number
+      error?: string
+    }
+    write_test?: {
+      writable?: boolean
+      write_speed?: number
+      read_speed?: number
+      error?: string
+    }
+    space_info?: {
+      total_bytes?: number
+      used_bytes?: number
+      free_bytes?: number
+    }
+  }
   status_message?: string
-  
-  // Storage stats
+
+  // Storage stats (actual detected from storage)
   capacity?: number
   capacity_formatted?: string
   used_space?: number
@@ -81,6 +101,14 @@ export interface Repository {
   available_space_formatted?: string
   usage_percentage?: number
   usage_percentage_formatted?: string
+
+  // Quota management (user-defined limits)
+  quota_enabled?: boolean
+  quota_bytes?: number
+  quota_bytes_formatted?: string
+  quota_warning_threshold?: number
+  quota_usage_percentage?: number
+  quota_status?: 'disabled' | 'unlimited' | 'ok' | 'warning' | 'critical'
   
   // Snapshot stats
   snapshot_count?: number

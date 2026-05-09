@@ -8,7 +8,30 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Use CSS variables for semantic colors
+        background: 'rgb(var(--background-rgb) / <alpha-value>)',
+        'background-secondary': 'rgb(var(--background-secondary-rgb) / <alpha-value>)',
+        'background-tertiary': 'rgb(var(--background-tertiary-rgb) / <alpha-value>)',
+
+        foreground: 'rgb(var(--foreground-rgb) / <alpha-value>)',
+        'foreground-secondary': 'rgb(var(--foreground-secondary-rgb) / <alpha-value>)',
+        'foreground-tertiary': 'rgb(var(--foreground-tertiary-rgb) / <alpha-value>)',
+        'foreground-muted': 'rgb(var(--foreground-muted-rgb) / <alpha-value>)',
+
+        border: 'rgb(var(--border-rgb) / <alpha-value>)',
+        'border-secondary': 'rgb(var(--border-secondary-rgb) / <alpha-value>)',
+
+        card: 'rgb(var(--card-rgb) / <alpha-value>)',
+        'card-secondary': 'rgb(var(--card-secondary-rgb) / <alpha-value>)',
+
+        hover: 'rgb(var(--hover-rgb) / <alpha-value>)',
+        'hover-secondary': 'rgb(var(--hover-secondary-rgb) / <alpha-value>)',
+
         primary: {
+          DEFAULT: 'rgb(var(--primary-rgb) / <alpha-value>)',
+          foreground: 'rgb(var(--primary-foreground-rgb) / <alpha-value>)',
+          light: 'rgb(var(--primary-light-rgb) / <alpha-value>)',
+          // Keep existing shades for compatibility
           50: '#eff6ff',
           100: '#dbeafe',
           200: '#bfdbfe',
@@ -22,6 +45,8 @@ export default {
           950: '#172554'
         },
         success: {
+          DEFAULT: 'rgb(var(--success-rgb) / <alpha-value>)',
+          light: 'rgb(var(--success-light-rgb) / <alpha-value>)',
           50: '#f0fdf4',
           100: '#dcfce7',
           200: '#bbf7d0',
@@ -34,6 +59,8 @@ export default {
           900: '#14532d'
         },
         warning: {
+          DEFAULT: 'rgb(var(--warning-rgb) / <alpha-value>)',
+          light: 'rgb(var(--warning-light-rgb) / <alpha-value>)',
           50: '#fffbeb',
           100: '#fef3c7',
           200: '#fde68a',
@@ -46,6 +73,8 @@ export default {
           900: '#78350f'
         },
         danger: {
+          DEFAULT: 'rgb(var(--danger-rgb) / <alpha-value>)',
+          light: 'rgb(var(--danger-light-rgb) / <alpha-value>)',
           50: '#fef2f2',
           100: '#fee2e2',
           200: '#fecaca',

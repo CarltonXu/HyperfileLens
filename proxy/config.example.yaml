@@ -15,6 +15,8 @@ server:
   ws_protocol: "ws"  # "ws" or "wss"
   reconnect_delay: 5s
   heartbeat_interval: 10s
+  verify_ssl: true  # Verify SSL certificate
+  timeout: 30s      # Request timeout
 
 # Agent settings
 agent:
@@ -41,9 +43,38 @@ mount:
     username: ""
     password: ""
 
+# Performance settings
+performance:
+  max_concurrent_tasks: 5      # Maximum concurrent tasks
+  task_timeout_seconds: 3600   # Task execution timeout
+  compression_enabled: true   # Enable compression
+  compression_level: 6        # Compression level (0-9)
+  rate_limit_kbps: 0         # Network rate limit (0 = no limit)
+  buffer_size_mb: 100        # Buffer size for data transfer
+  chunk_size_mb: 50          # Chunk size for data transfer
+
+# Security settings
+security:
+  tls_verify: true              # Verify TLS certificate
+  tls_cert_path: ""            # Path to TLS certificate
+  tls_key_path: ""             # Path to TLS private key
+  allowed_hosts:               # Allowed server hosts
+    - "localhost"
+    - "127.0.0.1"
+  enable_metrics_auth: true    # Require authentication for metrics
+  metrics_password: ""        # Password for metrics endpoint
+
+# Storage settings
+storage:
+  cache_size_mb: 1024          # Cache size in MB
+  temp_directory: "/tmp/hyperfilelens"  # Temporary directory
+  temp_cleanup: true            # Cleanup temporary files
+
 # Logging
 logging:
   level: "info"  # "debug", "info", "warn", "error"
   file: "/var/log/hyperfilelens/proxy.log"
   max_size: "100MB"
   max_backups: 5
+  format: "text"  # "text" or "json"
+  remote: false    # Send logs to remote server

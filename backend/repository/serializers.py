@@ -51,6 +51,10 @@ class RepositorySerializer(serializers.ModelSerializer):
     is_ready = serializers.ReadOnlyField()
     # Masked credentials for display (access_key visible, secret_key/password masked)
     credentials_masked = serializers.SerializerMethodField()
+    # Quota information
+    quota_bytes_formatted = serializers.SerializerMethodField()
+    quota_usage_percentage = serializers.SerializerMethodField()
+    quota_status = serializers.SerializerMethodField()
     
     class Meta:
         model = Repository
@@ -62,15 +66,17 @@ class RepositorySerializer(serializers.ModelSerializer):
             'capacity', 'capacity_formatted', 'used_space', 'used_space_formatted',
             'available_space_formatted', 'usage_percentage',
             'usage_percentage_formatted',
+            'quota_enabled', 'quota_bytes', 'quota_bytes_formatted', 'quota_warning_threshold',
+            'quota_usage_percentage', 'quota_status',
             'status', 'status_display', 'status_message',
-            'last_connection_test', 'connection_test_result',
+            'last_connection_test', 'connection_test_result', 'connection_test_details',
             'supports_compression', 'supports_encryption', 'compression_type',
             'is_readonly', 'is_ready',
             'snapshot_count', 'last_backup_at', 'last_sync_at',
             'user', 'user_email', 'created_at', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'used_space', 'kopia_initialized', 'kopia_repository_id',
+            'id', 'capacity', 'used_space', 'kopia_initialized', 'kopia_repository_id',
             'status', 'status_message', 'last_connection_test', 'connection_test_result',
             'snapshot_count', 'last_backup_at', 'last_sync_at',
             'user', 'created_at', 'updated_at'
@@ -91,14 +97,41 @@ class RepositorySerializer(serializers.ModelSerializer):
     
     def get_capacity_formatted(self, obj):
         return _format_bytes(obj.capacity) if obj.capacity else 'Unlimited'
-    
+
     def get_used_space_formatted(self, obj):
         return _format_bytes(obj.used_space)
+
+    def get_quota_bytes_formatted(self, obj):
+        """Return formatted quota bytes."""
+        if obj.quota_bytes > 0:
+            return _format_bytes(obj.quota_bytes)
+        return 'Unlimited'
+
+    def get_quota_usage_percentage(self, obj):
+        """Return usage percentage relative to quota."""
+        if obj.quota_bytes > 0 and obj.used_space > 0:
+            return (obj.used_space / obj.quota_bytes) * 100
+        return 0
+
+    def get_quota_status(self, obj):
+        """Return quota status string."""
+        if not obj.quota_enabled:
+            return 'disabled'
+
+        if obj.quota_bytes <= 0:
+            return 'unlimited'
+
+        percentage = (obj.used_space / obj.quota_bytes) * 100
+        if percentage >= obj.quota_warning_threshold:
+            return 'warning'
+        elif percentage >= 90:
+            return 'critical'
+        return 'ok'
 
 
 class RepositoryListSerializer(serializers.ModelSerializer):
     """Simplified serializer for list views."""
-    
+
     repo_type_display = serializers.CharField(
         source='get_repo_type_display',
         read_only=True
@@ -125,7 +158,11 @@ class RepositoryListSerializer(serializers.ModelSerializer):
     config = serializers.JSONField(read_only=True)
     # Include masked credentials (access_key visible, secret_key/password masked)
     credentials_masked = serializers.SerializerMethodField()
-    
+    # Quota information for list views
+    quota_bytes_formatted = serializers.SerializerMethodField()
+    quota_usage_percentage = serializers.SerializerMethodField()
+    quota_status = serializers.SerializerMethodField()
+
     class Meta:
         model = Repository
         fields = [
@@ -134,7 +171,10 @@ class RepositoryListSerializer(serializers.ModelSerializer):
             'bound_node', 'bound_node_name', 'bound_node_status',
             'kopia_initialized', 'status', 'status_display',
             'capacity', 'capacity_formatted', 'used_space', 'used_space_formatted',
-            'usage_percentage_formatted', 'snapshot_count',
+            'usage_percentage_formatted',
+            'quota_enabled', 'quota_bytes', 'quota_bytes_formatted', 'quota_warning_threshold',
+            'quota_usage_percentage', 'quota_status',
+            'snapshot_count',
             'last_backup_at', 'last_connection_test',
             'is_ready', 'created_at', 'updated_at'
         ]
@@ -155,6 +195,33 @@ class RepositoryListSerializer(serializers.ModelSerializer):
     def get_capacity_formatted(self, obj):
         return _format_bytes(obj.capacity) if obj.capacity else 'Unlimited'
 
+    def get_quota_bytes_formatted(self, obj):
+        """Return formatted quota bytes."""
+        if obj.quota_bytes > 0:
+            return _format_bytes(obj.quota_bytes)
+        return 'Unlimited'
+
+    def get_quota_usage_percentage(self, obj):
+        """Return usage percentage relative to quota."""
+        if obj.quota_bytes > 0 and obj.used_space > 0:
+            return (obj.used_space / obj.quota_bytes) * 100
+        return 0
+
+    def get_quota_status(self, obj):
+        """Return quota status string."""
+        if not obj.quota_enabled:
+            return 'disabled'
+
+        if obj.quota_bytes <= 0:
+            return 'unlimited'
+
+        percentage = (obj.used_space / obj.quota_bytes) * 100
+        if percentage >= obj.quota_warning_threshold:
+            return 'warning'
+        elif percentage >= 90:
+            return 'critical'
+        return 'ok'
+
 
 class RepositoryCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating repositories."""
@@ -171,7 +238,9 @@ class RepositoryCreateSerializer(serializers.ModelSerializer):
         model = Repository
         fields = [
             'name', 'description', 'repo_type', 'config', 'credentials',
-            'bound_node', 'capacity', 'encryption_password'
+            'bound_node',
+            'quota_enabled', 'quota_bytes', 'quota_warning_threshold',
+            'encryption_password'
         ]
     
     def validate_name(self, value):
@@ -238,12 +307,13 @@ class RepositoryCreateSerializer(serializers.ModelSerializer):
 
 class RepositoryUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating repositories."""
-    
+
     class Meta:
         model = Repository
         fields = [
             'name', 'description', 'config', 'credentials',
-            'bound_node', 'capacity', 'status'
+            'bound_node',
+            'quota_enabled', 'quota_bytes', 'quota_warning_threshold'
         ]
     
     def validate_name(self, value):

@@ -12,33 +12,34 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hyperfilelens/proxy/logger"
 	"github.com/hyperfilelens/proxy/traffic"
 )
 
 // Client wraps Kopia operations with enhanced features
 type Client struct {
-	binaryPath    string
-	indexPath     string
-	cachePath     string
-	rateLimiter   *traffic.RateLimiter
-	mu            sync.Mutex
-	compression   CompressionConfig
+	binaryPath  string
+	indexPath   string
+	cachePath   string
+	rateLimiter *traffic.RateLimiter
+	mu          sync.Mutex
+	compression CompressionConfig
 }
 
 // CompressionConfig defines compression settings
 type CompressionConfig struct {
-	Enabled  bool
-	Level    int // 0-9, where 0 is no compression, 9 is maximum
+	Enabled   bool
+	Level     int    // 0-9, where 0 is no compression, 9 is maximum
 	Algorithm string // gzip, zstd, lz4
 }
 
 // Snapshot represents a Kopia snapshot
 type Snapshot struct {
-	ID        string            `json:"id"`
-	Manifest  SnapshotManifest  `json:"manifest"`
-	Root      string            `json:"root"`
-	CreatedAt string            `json:"created_at"`
-	Size      int64             `json:"size"`
+	ID        string           `json:"id"`
+	Manifest  SnapshotManifest `json:"manifest"`
+	Root      string           `json:"root"`
+	CreatedAt string           `json:"created_at"`
+	Size      int64            `json:"size"`
 }
 
 // SnapshotManifest represents snapshot file manifest
@@ -97,8 +98,8 @@ func NewClient(binaryPath string, paths ...string) *Client {
 		indexPath:  indexPath,
 		cachePath:  cachePath,
 		compression: CompressionConfig{
-			Enabled:  false,
-			Level:    6,
+			Enabled:   false,
+			Level:     6,
 			Algorithm: "gzip",
 		},
 	}
@@ -138,14 +139,28 @@ func (c *Client) ConnectRepo(repoConfig map[string]interface{}, password string)
 func (c *Client) CreateRepo(repoConfig map[string]interface{}, password string) (*CreateRepoResult, error) {
 	repositoryURL := repositoryURLFromConfig(repoConfig)
 	if repositoryURL == "" {
+		logger.Error("Repository URL is required", nil)
 		return nil, fmt.Errorf("repository url/path is required")
 	}
 
 	args := []string{"repository", "create", repositoryURL, "--password", password}
+	logger.Debug("Executing kopia repository create", map[string]interface{}{
+		"repository_url": repositoryURL,
+		"password":       "[REDACTED]",
+	})
+
 	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
 	if err != nil {
+		logger.Error("Kopia repository creation failed", map[string]interface{}{
+			"error":  err.Error(),
+			"output": string(output),
+		})
 		return nil, fmt.Errorf("failed to create repository: %w, output: %s", err, string(output))
 	}
+
+	logger.Info("Repository created successfully", map[string]interface{}{
+		"output": string(output),
+	})
 
 	return &CreateRepoResult{
 		RepositoryID: stringFromMap(repoConfig, "id", ""),
@@ -158,11 +173,33 @@ func (c *Client) CreateRepo(repoConfig map[string]interface{}, password string) 
 // Backup creates a Kopia snapshot for a source path.
 func (c *Client) Backup(taskID, sourcePath, password string) (*BackupResult, error) {
 	startedAt := time.Now()
+	logger.Debug("Starting Kopia backup", map[string]interface{}{
+		"task_id":     taskID,
+		"source_path": sourcePath,
+		"password":    "[REDACTED]",
+	})
+
 	args := []string{"snapshot", "create", sourcePath}
+	logger.Debug("Executing kopia snapshot create", map[string]interface{}{
+		"source_path": sourcePath,
+	})
+
 	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
 	if err != nil {
+		logger.Error("Kopia backup failed", map[string]interface{}{
+			"task_id":     taskID,
+			"error":       err.Error(),
+			"output":      string(output),
+			"source_path": sourcePath,
+		})
 		return nil, fmt.Errorf("kopia backup failed: %w, output: %s", err, string(output))
 	}
+
+	logger.Info("Backup completed successfully", map[string]interface{}{
+		"task_id":     taskID,
+		"source_path": sourcePath,
+		"output":      string(output),
+	})
 
 	return &BackupResult{
 		TaskID:     taskID,
@@ -176,14 +213,43 @@ func (c *Client) Backup(taskID, sourcePath, password string) (*BackupResult, err
 // Restore restores a Kopia snapshot to a target path.
 func (c *Client) Restore(taskID, snapshotID, targetPath, password string, overwrite bool) (*RestoreResult, error) {
 	startedAt := time.Now()
+	logger.Debug("Starting Kopia restore", map[string]interface{}{
+		"task_id":     taskID,
+		"snapshot_id": snapshotID,
+		"target_path": targetPath,
+		"overwrite":   overwrite,
+		"password":    "[REDACTED]",
+	})
+
 	args := []string{"snapshot", "restore", snapshotID, targetPath}
 	if overwrite {
 		args = append(args, "--overwrite")
 	}
+
+	logger.Debug("Executing kopia snapshot restore", map[string]interface{}{
+		"snapshot_id": snapshotID,
+		"target_path": targetPath,
+		"overwrite":   overwrite,
+	})
+
 	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
 	if err != nil {
+		logger.Error("Kopia restore failed", map[string]interface{}{
+			"task_id":     taskID,
+			"snapshot_id": snapshotID,
+			"target_path": targetPath,
+			"error":       err.Error(),
+			"output":      string(output),
+		})
 		return nil, fmt.Errorf("kopia restore failed: %w, output: %s", err, string(output))
 	}
+
+	logger.Info("Restore completed successfully", map[string]interface{}{
+		"task_id":     taskID,
+		"snapshot_id": snapshotID,
+		"target_path": targetPath,
+		"output":      string(output),
+	})
 
 	return &RestoreResult{
 		TaskID:     taskID,
@@ -197,10 +263,24 @@ func (c *Client) Restore(taskID, snapshotID, targetPath, password string, overwr
 
 // ListSnapshots lists available Kopia snapshots as raw JSON-compatible output.
 func (c *Client) ListSnapshots(password string) (interface{}, error) {
+	logger.Debug("Starting Kopia snapshot list", map[string]interface{}{
+		"password": "[REDACTED]",
+	})
+
 	output, err := exec.CommandContext(context.Background(), c.binaryPath, "snapshot", "list", "--json").CombinedOutput()
 	if err != nil {
+		logger.Error("Failed to list snapshots", map[string]interface{}{
+			"error":  err.Error(),
+			"output": string(output),
+		})
 		return nil, fmt.Errorf("failed to list snapshots: %w, output: %s", err, string(output))
 	}
+
+	logger.Debug("Snapshots listed successfully", map[string]interface{}{
+		"output_length": len(output),
+		"password":      "[REDACTED]",
+	})
+
 	return string(output), nil
 }
 
@@ -213,8 +293,8 @@ func (c *Client) SetCompression(enabled bool, level int, algorithm string) {
 	defer c.mu.Unlock()
 
 	c.compression = CompressionConfig{
-		Enabled:  enabled,
-		Level:    level,
+		Enabled:   enabled,
+		Level:     level,
 		Algorithm: algorithm,
 	}
 }
@@ -229,6 +309,11 @@ func (c *Client) SetRateLimit(kbps int64) {
 
 // Connect connects to a Kopia repository
 func (c *Client) Connect(ctx context.Context, repositoryURL, password string) error {
+	logger.Debug("Starting Kopia repository connection", map[string]interface{}{
+		"repository_url": repositoryURL,
+		"password":       "[REDACTED]",
+	})
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -239,11 +324,27 @@ func (c *Client) Connect(ctx context.Context, repositoryURL, password string) er
 		"--password", password,
 	}
 
+	logger.Debug("Executing kopia repository connect", map[string]interface{}{
+		"repository_url": repositoryURL,
+		"index_path":     c.indexPath,
+		"cache_dir":      c.cachePath,
+		"password":       "[REDACTED]",
+	})
+
 	cmd := exec.CommandContext(ctx, c.binaryPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		logger.Error("Failed to connect to repository", map[string]interface{}{
+			"repository_url": repositoryURL,
+			"error":          err.Error(),
+			"output":         string(output),
+		})
 		return fmt.Errorf("failed to connect to repository: %w, output: %s", err, string(output))
 	}
+
+	logger.Info("Connected to repository successfully", map[string]interface{}{
+		"repository_url": repositoryURL,
+	})
 
 	return nil
 }

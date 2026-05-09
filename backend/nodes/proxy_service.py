@@ -110,11 +110,11 @@ class ProxyService:
     def send_to_proxy(proxy_id: str, message: Dict[str, Any]) -> bool:
         """
         Send a message to a specific proxy via WebSocket.
-        
+
         Args:
             proxy_id: UUID of the proxy node
             message: Message dictionary to send
-            
+
         Returns:
             bool: True if message was sent successfully
         """
@@ -122,9 +122,24 @@ class ProxyService:
         if not channel_layer:
             logger.error("[ProxyService] Channel layer not available")
             return False
-        
+
         group_name = f'proxy_{proxy_id}'
-        
+
+        # Ensure message has consistent format with 'payload' field
+        if 'payload' not in message:
+            # Move non-metadata fields to payload
+            payload = {}
+            metadata_fields = ['type', 'id', 'timestamp']
+            for key, value in message.items():
+                if key not in metadata_fields:
+                    payload[key] = value
+            message = {
+                'type': message.get('type', ''),
+                'id': message.get('id', ''),
+                'timestamp': message.get('timestamp', timezone.now().isoformat()),
+                'payload': payload
+            }
+
         try:
             async_to_sync(channel_layer.group_send)(
                 group_name,
@@ -183,6 +198,7 @@ class ProxyService:
                 'path': storage_config.get('path', ''),
                 'mount_type': storage_config.get('mount_type', 'nfs'),
                 'mount_path': storage_config.get('mount_path', ''),
+                'mount_options': storage_config.get('mount_options', ''),
             })
         elif storage_type == 'smb':
             message['payload'].update({
@@ -191,6 +207,7 @@ class ProxyService:
                 'username': storage_config.get('username', ''),
                 'password': storage_config.get('password', ''),
                 'mount_path': storage_config.get('mount_path', ''),
+                'mount_options': storage_config.get('mount_options', ''),
             })
         elif storage_type == 'local':
             message['payload'].update({
@@ -206,12 +223,13 @@ class ProxyService:
             })
         
         ProxyService.send_to_proxy(proxy_id, message)
-        
+
         logger.info(
             f"[ProxyService] Sent test_storage command to proxy {proxy_id}: "
-            f"repository={repository_id}, type={storage_type}, task_id={task_id}"
+            f"repository={repository_id}, type={storage_type}, task_id={task_id}, "
+            f"payload={message['payload']}"
         )
-        
+
         return task_id
     
     @staticmethod
@@ -376,15 +394,15 @@ class ProxyService:
         
         # Create task record
         task = ProxyService.create_proxy_task(proxy_id, task_type, task_data)
-        
-        # Send to proxy
+
+        # Send to proxy with unified message format
         message = {
             'type': task_type,
-            'task_id': str(task.id),
+            'id': str(uuid.uuid4()),  # Message ID
             'timestamp': timezone.now().isoformat(),
-            **task_data
+            'payload': task_data
         }
-        
+
         success = ProxyService.send_to_proxy(proxy_id, message)
         
         if success:

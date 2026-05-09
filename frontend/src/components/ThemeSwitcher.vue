@@ -39,13 +39,32 @@ function toggleDropdown() {
 function closeDropdown() {
   isOpen.value = false
 }
+
+const vClickOutside = {
+  mounted(el: HTMLElement, binding: { value: () => void }) {
+    const handler = (event: MouseEvent) => {
+      if (!el.contains(event.target as Node)) {
+        binding.value()
+      }
+    }
+
+    ;(el as HTMLElement & { __clickOutsideHandler__?: (event: MouseEvent) => void }).__clickOutsideHandler__ = handler
+    document.addEventListener('click', handler)
+  },
+  unmounted(el: HTMLElement) {
+    const handler = (el as HTMLElement & { __clickOutsideHandler__?: (event: MouseEvent) => void }).__clickOutsideHandler__
+    if (handler) {
+      document.removeEventListener('click', handler)
+    }
+  }
+}
 </script>
 
 <template>
   <div class="relative" v-click-outside="closeDropdown">
     <button
       @click="toggleDropdown"
-      class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+      class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-foreground-secondary hover:bg-hover transition-colors"
       :aria-expanded="isOpen"
       aria-haspopup="true"
     >
@@ -63,15 +82,15 @@ function closeDropdown() {
     >
       <div
         v-if="isOpen"
-        class="absolute right-0 z-50 mt-2 w-36 origin-top-right rounded-lg bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black/5 dark:ring-slate-700 focus:outline-none"
+        class="absolute right-0 z-50 mt-2 w-36 origin-top-right rounded-lg popover-surface shadow-lg ring-1 ring-black/5 dark:ring-slate-700 focus:outline-none"
       >
         <div class="py-1">
           <button
             v-for="theme in themes"
             :key="theme.value"
             @click="selectTheme(theme.value)"
-            class="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-            :class="{ 'bg-slate-50 dark:bg-slate-700/50': currentTheme === theme.value }"
+            class="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-hover transition-colors"
+            :class="{ 'bg-background-secondary': currentTheme === theme.value }"
           >
             <component :is="theme.icon" class="h-4 w-4" />
             <span>{{ theme.label }}</span>

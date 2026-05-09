@@ -638,15 +638,26 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         # Prepare storage configuration based on repository type
         storage_type = 'nas' if repo.repo_type == Repository.TYPE_NAS else 'local'
         storage_config = {}
-        
+
         if repo.repo_type == Repository.TYPE_NAS:
             config = repo.config or {}
+            logger.info(
+                f"[Node Connection Test] Repository config: {config}"
+            )
+            # Handle multiple possible field names for compatibility
+            # Frontend uses: server, export_path, nas_type, mount_options
+            # Legacy uses: nas_server, nas_path, mount_type
             storage_config = {
-                'server': config.get('nas_server', config.get('server', '')),
-                'path': config.get('nas_path', config.get('path', '')),
-                'mount_type': config.get('mount_type', 'nfs'),
+                'server': config.get('server', config.get('nas_server', '')),
+                'path': config.get('export_path', config.get('path', config.get('nas_path', ''))),
+                'mount_type': config.get('nas_type', config.get('mount_type', 'nfs')),
                 'mount_path': config.get('mount_path', ''),
+                'username': config.get('username', ''),
+                'password': config.get('password', ''),
             }
+            logger.info(
+                f"[Node Connection Test] Prepared storage_config: {storage_config}"
+            )
         elif repo.repo_type == Repository.TYPE_LOCAL:
             config = repo.config or {}
             storage_config = {
@@ -678,6 +689,11 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             test_write=True,
             task_id=task_id,
         )
+
+        logger.info(
+            f"[Node Connection Test] Command sent to proxy, task_id={task_id}, "
+            f"storage_type={storage_type}, storage_config={storage_config}"
+        )
         
         if not sent:
             logger.error(
@@ -705,21 +721,100 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             result='success',
             details=f'发送测试连接命令: {repo.name} -> {repo.bound_node.name} (task_id={task_id})'
         )
-        
+
         logger.info(
             f"[Node Connection Test] Command sent to proxy, task_id={task_id}"
         )
-        
-        # Return immediately with task_id for async tracking
+
+        # Wait for test result (up to 10 seconds)
+        import time
+        max_wait_time = 10  # seconds
+        poll_interval = 0.5  # seconds
+        waited_time = 0
+
+        while waited_time < max_wait_time:
+            time.sleep(poll_interval)
+            waited_time += poll_interval
+
+            # Refresh task from database
+            task = ProxyTask.objects.filter(id=task_id).first()
+            if not task:
+                continue
+
+            # If task completed, return the result
+            if task.status in [ProxyTask.TaskStatus.COMPLETED, ProxyTask.TaskStatus.FAILED]:
+                if task.status == ProxyTask.TaskStatus.COMPLETED:
+                    # Get actual test result
+                    result_data = task.result or {}
+                    success = result_data.get('success', False)
+                    error = result_data.get('error')
+
+                    # Prepare detailed response
+                    response_data = {
+                        'success': success,
+                        'message': 'Connection test successful' if success else error or 'Connection test failed',
+                        'task_id': task_id,
+                        'status': task.status,
+                        'details': {
+                            'node': repo.bound_node.name,
+                            'repo_type': repo.repo_type,
+                            'storage_type': storage_type,
+                        }
+                    }
+
+                    # Add connectivity details if available
+                    if 'connectivity' in result_data:
+                        connectivity = result_data['connectivity']
+                        response_data['details']['connectivity'] = connectivity
+                        if success:
+                            response_data['message'] = (
+                                f"Connected (response time: {connectivity.get('response_time', 0)}ms)"
+                            )
+
+                    # Add write test results if available
+                    if 'write_test' in result_data:
+                        response_data['details']['write_test'] = result_data['write_test']
+
+                    # Add space info if available
+                    if 'space_info' in result_data:
+                        space_info = result_data['space_info']
+                        response_data['details']['space_info'] = space_info
+
+                    logger.info(
+                        f"[Node Connection Test] Test completed for '{repo.name}': "
+                        f"success={success}, message={response_data['message']}"
+                    )
+
+                    return Response(response_data)
+
+                else:
+                    # Task failed
+                    error_msg = task.error_message or 'Test failed'
+                    logger.warning(
+                        f"[Node Connection Test] Test failed for '{repo.name}': {error_msg}"
+                    )
+                    return Response({
+                        'success': False,
+                        'message': error_msg,
+                        'task_id': task_id,
+                        'status': task.status,
+                        'error_code': 'TEST_FAILED'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Timeout - return task_id for async tracking
+        logger.info(
+            f"[Node Connection Test] Test timeout for '{repo.name}', task_id={task_id}"
+        )
         return Response({
             'success': True,
-            'message': 'Connection test command sent to proxy',
+            'message': 'Connection test in progress',
             'task_id': task_id,
             'status': 'pending',
             'details': {
                 'node': repo.bound_node.name,
                 'repo_type': repo.repo_type,
                 'storage_type': storage_type,
+                'note': 'Test is running in background. Check task status using task_id.'
             }
         })
     

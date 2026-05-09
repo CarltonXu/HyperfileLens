@@ -84,6 +84,11 @@ export default {
     total: 'Total',
     name: 'Name',
     status: 'Status',
+    statusValues: {
+      normal: 'Normal',
+      warning: 'Warning',
+      critical: 'Critical'
+    },
     type: 'Type',
     role: 'Role',
     date: 'Date',
@@ -976,6 +981,11 @@ export default {
       totalCapacity: 'Total Capacity',
       usedSpace: 'Used Space',
       availableSpace: 'Available Space',
+      quota: 'Quota',
+      unlimited: 'Unlimited',
+      disabled: 'Disabled',
+      usage: 'Usage',
+      quotaLimit: 'Quota Limit',
       snapshots: 'Snapshots',
       lastBackup: 'Last Backup',
       active: 'Active'
@@ -987,10 +997,13 @@ export default {
       repositoryName: 'Repository Name',
       repositoryType: 'Repository Type',
       connectionString: 'Connection String',
-      capacity: 'Storage Quota',
-      capacityUnit: 'GB',
-      capacityPlaceholder: '0 for unlimited',
-      capacityHint: 'For capacity planning and alerts, 0 means unlimited',
+      storageQuota: 'Storage Quota (Capacity Planning)',
+      quotaUnit: 'GB',
+      quotaPlaceholder: '0 for unlimited',
+      quotaHint: 'User-defined quota for capacity planning and alerts (0 = unlimited)',
+      quotaEnabled: 'Enable Quota Monitoring',
+      quotaThreshold: 'Alert Threshold (%)',
+      quotaThresholdHint: 'Send alert when usage reaches this % of quota',
       retention: 'Retention Policy',
       path: 'Path',
       namePlaceholder: 'Enter repository name',
@@ -1073,6 +1086,7 @@ export default {
       hint: 'NAS Network Storage Configuration',
       hintDetail: 'Mount remote network storage via NFS or CIFS/SMB protocol',
       mountType: 'Mount Type',
+      nasType: 'NAS Type',
       server: 'Server Address',
       exportPath: 'Export Path',
       mountOptions: 'Mount Options',
@@ -1146,11 +1160,24 @@ export default {
     deleteFailed: 'Failed to delete repository',
     updateSuccess: 'Repository updated successfully',
     updateFailed: 'Failed to update repository',
+    connectivity: 'Connectivity',
+    reachable: 'Reachable',
+    responseTime: 'Response Time',
+    writeTest: 'Write Test',
+    writable: 'Writable',
+    writeSpeed: 'Write Speed',
+    readSpeed: 'Read Speed',
+    storageInfo: 'Storage Information',
+    total: 'Total',
+    used: 'Used',
+    free: 'Free',
 
     errors: {
-      endpointUnreachable: 'Unable to connect to the endpoint. Please check the URL and network connectivity.'
+      endpointUnreachable: 'Unable to connect to the endpoint. Please check the URL and network connectivity.',
+      nodeNotActive: 'Sync Proxy is offline. Please start the Sync Proxy service first.'
     },
 
+    configInfo: 'Configuration Info',
     confirmDelete: 'Are you sure you want to delete this repository?'
   },
 

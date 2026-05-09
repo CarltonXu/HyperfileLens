@@ -6,11 +6,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hyperfilelens/proxy/agent"
 	"github.com/hyperfilelens/proxy/config"
 	"github.com/hyperfilelens/proxy/kopia"
+	"github.com/hyperfilelens/proxy/logger"
 	"github.com/hyperfilelens/proxy/monitor"
 	"github.com/hyperfilelens/proxy/mount"
 	"github.com/hyperfilelens/proxy/task"
@@ -75,6 +77,53 @@ func main() {
 	// Print banner
 	printBanner(cfg)
 
+	// Initialize logger based on configuration
+	var appLogger *logger.StructuredLogger
+
+	// Try to create file logger if log file path is specified
+	if cfg.Logging.File != "" {
+		appLogger, err = logger.NewFileLogger("proxy", cfg.Logging.File, logger.LevelInfo, cfg.Logging.Format == "json")
+		if err != nil {
+			utils.LogError("Failed to create file logger, falling back to stdout: %v", err)
+			appLogger = logger.NewLogger("proxy", logger.LevelInfo, cfg.Logging.Format == "json")
+		} else {
+			utils.LogInfo("Logging to file: %s", cfg.Logging.File)
+		}
+	} else {
+		appLogger = logger.NewLogger("proxy", logger.LevelInfo, cfg.Logging.Format == "json")
+	}
+
+	// Set log level from configuration
+	logLevel := logger.LevelInfo
+	switch cfg.Logging.Level {
+	case "debug":
+		logLevel = logger.LevelDebug
+	case "info":
+		logLevel = logger.LevelInfo
+	case "warn":
+		logLevel = logger.LevelWarn
+	case "error":
+		logLevel = logger.LevelError
+	}
+	appLogger.SetLevel(logLevel)
+
+	// Replace the global logger with our configured one
+	logger.SetLevel(logLevel)
+	if cfg.Logging.Format == "json" {
+		logger.SetJSONOutput(true)
+	}
+
+	// Log startup information
+	appLogger.Info("HyperFileLens Proxy starting", map[string]interface{}{
+		"version":    Version,
+		"git_commit": GitCommit,
+		"build_time": BuildTime,
+		"role":       cfg.Role,
+		"node_id":    cfg.NodeID,
+		"log_level":  cfg.Logging.Level,
+		"log_file":   cfg.Logging.File,
+	})
+
 	// Create stop channel
 	stopCh := make(chan struct{})
 
@@ -83,6 +132,35 @@ func main() {
 	agentClient := agent.NewClient(cfg, metrics)
 	kopiaClient := kopia.NewClient(cfg.Kopia.Path, cfg.Kopia.CachePath)
 	mountMgr := mount.NewManager()
+
+	// Initialize alert manager
+	alertManager := monitor.NewAlertManager(metrics)
+	// Configure alert callback to use logger
+	alertManager.AddCallback(func(alert *monitor.Alert) {
+		fields := map[string]interface{}{
+			"type":      string(alert.Type),
+			"severity":  string(alert.Severity),
+			"message":   alert.Message,
+			"value":     alert.Value,
+			"threshold": alert.Threshold,
+		}
+		if alert.TaskID != "" {
+			fields["task_id"] = alert.TaskID
+		}
+
+		switch alert.Severity {
+		case monitor.SeverityCritical:
+			logger.Error("Alert triggered", fields)
+		case monitor.SeverityWarning:
+			logger.Warn("Alert triggered", fields)
+		default:
+			logger.Info("Alert triggered", fields)
+		}
+	})
+	logger.Info("Alert manager initialized", nil)
+
+	// Start periodic metrics checking for alerts
+	go startMetricsChecker(alertManager, metrics, stopCh)
 
 	// Check Kopia installation
 	if !kopiaClient.CheckInstalled() {
@@ -145,7 +223,7 @@ func main() {
 	wsClient.Disconnect()
 	agentClient.Unregister()
 	agentClient.Close()
-	
+
 	// Unmount all if Sync Proxy
 	if cfg.IsSyncProxy() {
 		mountMgr.UnmountAll()
@@ -167,4 +245,20 @@ func printBanner(cfg *config.Config) {
 	fmt.Printf("║  Server:  %-30s ║\n", cfg.Server.URL)
 	fmt.Println("╚══════════════════════════════════════════╝")
 	fmt.Println()
+}
+
+// startMetricsChecker periodically checks metrics and triggers alerts
+func startMetricsChecker(alertManager *monitor.AlertManager, metrics *monitor.Collector, stopCh <-chan struct{}) {
+	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			currentMetrics := metrics.GetCurrent()
+			alertManager.CheckMetrics(currentMetrics)
+		case <-stopCh:
+			return
+		}
+	}
 }
