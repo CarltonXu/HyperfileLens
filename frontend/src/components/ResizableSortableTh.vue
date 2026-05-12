@@ -44,7 +44,7 @@ function thAlignClass() {
   <th
     :style="styleValue"
     :class="[
-      'relative bg-background-secondary px-4 py-3 text-xs font-medium uppercase tracking-wider text-foreground-secondary whitespace-nowrap',
+      'relative bg-background-secondary px-4 py-3 text-xs font-medium text-foreground-secondary whitespace-nowrap',
       thAlignClass(),
       sticky === 'left' ? 'sticky left-0 z-10' : '',
       sticky === 'right' ? 'sticky right-0 z-10' : '',
@@ -60,7 +60,7 @@ function thAlignClass() {
         alignClass(),
       ]"
     >
-      <span class="truncate">{{ label }}</span>
+      <span class="truncate uppercase tracking-wider">{{ label }}</span>
       <component
         v-if="sortIcon"
         :is="sortIcon"
@@ -73,7 +73,7 @@ function thAlignClass() {
       />
     </button>
     <div v-else :class="['flex max-w-full items-center gap-1.5', alignClass()]">
-      <span class="truncate">{{ label }}</span>
+      <span class="truncate uppercase tracking-wider">{{ label }}</span>
     </div>
     <span
       role="separator"

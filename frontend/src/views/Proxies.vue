@@ -2549,7 +2549,9 @@ onUnmounted(() => {
                     @click="toggleProxySort(column.key)"
                     class="group/sort inline-flex max-w-full items-center gap-1.5 rounded-md text-left hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
-                    <span class="truncate">{{ column.label }}</span>
+                    <span class="truncate uppercase tracking-wider">{{
+                      column.label
+                    }}</span>
                     <component
                       :is="getProxySortIcon(column.key)"
                       :class="[
@@ -2577,9 +2579,11 @@ onUnmounted(() => {
                 </th>
                 <th
                   :style="proxyColumnStyle('actions')"
-                  class="sticky right-0 bg-background-secondary px-4 py-3 text-right text-xs font-medium text-foreground-secondary uppercase tracking-wider z-10"
+                  class="sticky right-0 bg-background-secondary px-4 py-3 text-right text-xs font-medium text-foreground-secondary z-10"
                 >
-                  {{ t("proxies.list.actions") }}
+                  <span class="uppercase tracking-wider">{{
+                    t("proxies.list.actions")
+                  }}</span>
                 </th>
               </tr>
             </thead>
