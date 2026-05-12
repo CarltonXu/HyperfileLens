@@ -14,11 +14,12 @@ from django.core.cache import cache
 
 from .models import ProxyNode, ProxyTask
 
-# Import Alert from alerts module
+# The global alert center uses generic resource fields rather than direct proxy
+# foreign keys. Keep this import optional for legacy helper compatibility.
 try:
-    from alerts.models import Alert
+    from alerts.models import AlertRecord
 except ImportError:
-    Alert = None
+    AlertRecord = None
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +51,9 @@ def get_online_proxies_with_stats() -> List[Dict[str, Any]]:
         running_count=Count('tasks', filter=Q(tasks__status='running')),
         completed_count=Count('tasks', filter=Q(tasks__status='completed')),
         failed_count=Count('tasks', filter=Q(tasks__status='failed')),
-        active_alert_count=Count('alerts', filter=Q(alerts__status='active')),
-        total_alert_count=Count('alerts'),
+        active_alert_count=Value(0),
+        total_alert_count=Value(0),
     ).select_related(
-        'alerts'
     ).order_by('-created_at')
 
     # Convert to dict
@@ -99,8 +99,8 @@ def get_proxy_summary(proxy_id: str) -> Optional[Dict[str, Any]]:
             running_count=Count('tasks', filter=Q(tasks__status='running')),
             completed_count=Count('tasks', filter=Q(tasks__status='completed')),
             failed_count=Count('tasks', filter=Q(tasks__status='failed')),
-            active_alert_count=Count('alerts', filter=Q(alerts__status='active')),
-            total_alert_count=Count('alerts'),
+            active_alert_count=Value(0),
+            total_alert_count=Value(0),
             total_task_count=Count('tasks'),
         ).select_related().get(id=proxy_id)
 
@@ -208,7 +208,7 @@ def get_alert_list(
 
     Optimized query with select_related.
     """
-    if Alert is None:
+    if AlertRecord is None:
         logger.warning("Alert model not available")
         return []
 
@@ -220,46 +220,37 @@ def get_alert_list(
         return cached
 
     # Build queryset
-    queryset = Alert.objects.select_related('proxy', 'task', 'repository')
+    queryset = AlertRecord.objects.all()
 
     # Apply filters
     if proxy_id:
-        queryset = queryset.filter(proxy_id=proxy_id)
+        queryset = queryset.filter(resource_id=proxy_id)
     if severity:
         queryset = queryset.filter(severity=severity)
     if status:
         queryset = queryset.filter(status=status)
 
     # Order and limit
-    queryset = queryset.order_by('-triggered_at')[:limit]
+    queryset = queryset.order_by('-last_triggered_at', '-created_at')[:limit]
 
     # Optimize fields
-    queryset = queryset.only(
-        'id', 'alert_type', 'severity', 'status',
-        'triggered_at', 'acknowledged_at', 'resolved_at',
-        'title', 'message',
-        'proxy__name', 'task__id', 'task__task_type',
-        'repository__name',
-        'occurrence_count'
-    )
-
     # Convert to dict
     result = [
         {
             'id': str(alert.id),
-            'alert_type': alert.alert_type,
+            'alert_type': alert.type,
             'severity': alert.severity,
             'status': alert.status,
             'title': alert.title,
             'message': alert.message,
-            'triggered_at': alert.triggered_at.isoformat() if alert.triggered_at else None,
+            'triggered_at': alert.first_triggered_at.isoformat() if alert.first_triggered_at else None,
             'acknowledged_at': alert.acknowledged_at.isoformat() if alert.acknowledged_at else None,
             'resolved_at': alert.resolved_at.isoformat() if alert.resolved_at else None,
-            'proxy_name': alert.proxy.name if alert.proxy else None,
-            'task_id': str(alert.task.id) if alert.task else None,
-            'task_type': alert.task.task_type if alert.task else None,
-            'repository_name': alert.repository.name if alert.repository else None,
-            'occurrence_count': alert.occurrence_count,
+            'proxy_name': alert.resource_name if alert.resource_type in ['sync_proxy', 'agent_proxy'] else None,
+            'task_id': str(alert.resource_id) if alert.resource_type == 'job' and alert.resource_id else None,
+            'task_type': (alert.metadata or {}).get('job_type'),
+            'repository_name': alert.resource_name if alert.resource_type == 'backup_repository' else None,
+            'occurrence_count': 1,
         }
         for alert in queryset
     ]
@@ -292,8 +283,8 @@ def get_proxy_statistics(hours: int = 24) -> Dict[str, Any]:
         running_tasks=Count('tasks', filter=Q(tasks__status='running')),
         completed_tasks=Count('tasks', filter=Q(tasks__status='completed')),
         failed_tasks=Count('tasks', filter=Q(tasks__status='failed')),
-        active_alerts=Count('alerts', filter=Q(alerts__status='active')),
-        completed_alerts=Count('alerts', filter=Q(alerts__status='resolved')),
+        active_alerts=Value(0),
+        completed_alerts=Value(0),
     ).filter(
         created_at__gte=cutoff
     ).values('id', 'name', 'status', *[

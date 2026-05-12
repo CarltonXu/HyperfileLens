@@ -27,6 +27,18 @@ app.autodiscover_tasks()
 # These tasks will be registered with django_celery_beat
 # via the register_periodic_tasks management command.
 app.conf.beat_schedule = {
+    'collect-system-metrics': {
+        'task': 'alerts.tasks.collect_system_metrics',
+        'schedule': 60.0,  # Every 60 seconds
+    },
+    'cleanup-old-metrics': {
+        'task': 'alerts.tasks.cleanup_old_metrics',
+        'schedule': crontab(hour=2, minute=0),  # Daily at 2 AM
+    },
+    'evaluate-alert-policies': {
+        'task': 'alerts.tasks.evaluate_alert_policies',
+        'schedule': 60.0,  # Every 60 seconds
+    },
     'check-node-health': {
         'task': 'nodes.tasks.check_all_nodes_health',
         'schedule': crontab(minute='*/5'),  # Every 5 minutes

@@ -692,6 +692,24 @@ func getMap(m map[string]interface{}, key string) map[string]interface{} {
 	return nil
 }
 
+func copyMap(m map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{}, len(m))
+	for key, value := range m {
+		result[key] = value
+	}
+	return result
+}
+
+func safeTaskPrefix(taskID string) string {
+	if len(taskID) >= 8 {
+		return taskID[:8]
+	}
+	if taskID == "" {
+		return "task"
+	}
+	return taskID
+}
+
 func getSlice(m map[string]interface{}, key string) []interface{} {
 	if v, ok := m[key]; ok {
 		if s, ok := v.([]interface{}); ok {
@@ -1070,22 +1088,198 @@ func (d *Dispatcher) executeInitRepository(msg ws.Message) {
 		},
 	})
 
+	steps := make([]map[string]interface{}, 0, 8)
+	sendProgress := func(progress int, step, statusText, detail string) {
+		stepData := map[string]interface{}{
+			"step":      step,
+			"status":    statusText,
+			"message":   detail,
+			"progress":  progress,
+			"timestamp": time.Now(),
+		}
+		steps = append(steps, stepData)
+		d.wsClient.Send(ws.Message{
+			Type: message.MsgTypeTaskProgress,
+			ID:   msg.ID,
+			Payload: map[string]interface{}{
+				"task_id":       taskID,
+				"task_type":     "init_repository",
+				"repository_id": repositoryID,
+				"progress":      progress,
+				"step":          step,
+				"status":        statusText,
+				"message":       detail,
+				"timestamp":     time.Now(),
+			},
+		})
+	}
+
 	if len(repoConfig) == 0 {
 		logger.Error("Repository config is required but empty", nil)
-		d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, "repository config is required")
+		sendProgress(100, "validate", "failed", "Repository config is required")
+		d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, "repository config is required", steps)
+		return
+	}
+
+	repoType := getString(repoConfig, "type", "filesystem")
+	kopiaConfig := copyMap(repoConfig)
+	var mountedPath string
+	var tempMountPath string
+
+	defer func() {
+		if mountedPath != "" {
+			if err := d.mountMgr.Unmount(mountedPath); err != nil {
+				logger.Warn("Failed to unmount temporary repository path", map[string]interface{}{
+					"mount_path": mountedPath,
+					"error":      err.Error(),
+				})
+			}
+		}
+		if tempMountPath != "" {
+			if err := os.RemoveAll(tempMountPath); err != nil {
+				logger.Warn("Failed to remove temporary mount path", map[string]interface{}{
+					"mount_path": tempMountPath,
+					"error":      err.Error(),
+				})
+			}
+		}
+	}()
+
+	sendProgress(5, "validate", "running", "Validating repository configuration")
+	switch repoType {
+	case "nas", "nfs":
+		server := getString(repoConfig, "server", getString(repoConfig, "nas_server", ""))
+		remotePath := getString(repoConfig, "export_path", getString(repoConfig, "nas_path", getString(repoConfig, "path", "")))
+		mountType := getString(repoConfig, "mount_type", "nfs")
+		mountOptions := getString(repoConfig, "mount_options", "")
+		username := getString(repoConfig, "username", "")
+		mountPassword := getString(repoConfig, "password", "")
+
+		if server == "" || remotePath == "" {
+			sendProgress(100, "validate", "failed", "NAS server and export path are required")
+			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, "NAS server and export path are required", steps)
+			return
+		}
+
+		sendProgress(15, "connectivity", "running", "Checking NAS connectivity")
+		var connResult *mount.ConnectivityResult
+		if mountType == "smb" || mountType == "cifs" {
+			connResult = mount.TestSMBConnectivity(server)
+		} else {
+			connResult = mount.TestNFSConnectivity(server)
+		}
+		if !connResult.Reachable {
+			errMsg := fmt.Sprintf("NAS connectivity test failed: %s", connResult.Error)
+			sendProgress(100, "connectivity", "failed", errMsg)
+			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
+			return
+		}
+		sendProgress(25, "connectivity", "completed", "NAS connectivity check passed")
+
+		tempDir, err := os.MkdirTemp("", "hyperfilelens-repo-init-"+safeTaskPrefix(taskID)+"-")
+		if err != nil {
+			errMsg := fmt.Sprintf("failed to create temp mount dir: %v", err)
+			sendProgress(100, "mount_prepare", "failed", errMsg)
+			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
+			return
+		}
+		tempMountPath = tempDir
+
+		sendProgress(35, "mount", "running", "Mounting NAS to a temporary path")
+		var mountErr error
+		if mountType == "smb" || mountType == "cifs" {
+			mountErr = d.mountMgr.MountSMB(server, remotePath, tempMountPath, username, mountPassword, mountOptions)
+		} else {
+			mountErr = d.mountMgr.MountNFS(server, remotePath, tempMountPath, mountOptions)
+		}
+		if mountErr != nil {
+			errMsg := fmt.Sprintf("mount failed: %v", mountErr)
+			sendProgress(100, "mount", "failed", errMsg)
+			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
+			return
+		}
+		mountedPath = tempMountPath
+		sendProgress(50, "mount", "completed", "NAS mounted successfully")
+
+		sendProgress(60, "write_test", "running", "Testing repository write permission")
+		writeResult := mount.TestWriteSimple(mountedPath)
+		if !writeResult.Writable {
+			errMsg := fmt.Sprintf("write test failed: %s", writeResult.Error)
+			sendProgress(100, "write_test", "failed", errMsg)
+			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
+			return
+		}
+		sendProgress(70, "write_test", "completed", "Write test passed")
+
+		kopiaConfig["type"] = "filesystem"
+		kopiaConfig["path"] = mountedPath
+		kopiaConfig["mounted_path"] = mountedPath
+
+	case "local":
+		localPath := getString(repoConfig, "path", "")
+		if localPath == "" {
+			sendProgress(100, "validate", "failed", "Local repository path is required")
+			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, "Local repository path is required", steps)
+			return
+		}
+		if _, err := os.Stat(localPath); err != nil {
+			errMsg := fmt.Sprintf("local path is not accessible: %v", err)
+			sendProgress(100, "validate", "failed", errMsg)
+			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
+			return
+		}
+		sendProgress(60, "write_test", "running", "Testing local repository write permission")
+		writeResult := mount.TestWriteSimple(localPath)
+		if !writeResult.Writable {
+			errMsg := fmt.Sprintf("write test failed: %s", writeResult.Error)
+			sendProgress(100, "write_test", "failed", errMsg)
+			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
+			return
+		}
+		sendProgress(70, "write_test", "completed", "Write test passed")
+		kopiaConfig["type"] = "filesystem"
+
+	case "s3":
+		bucket := getString(repoConfig, "bucket", "")
+		accessKey := getString(repoConfig, "access_key", "")
+		secretKey := getString(repoConfig, "secret_key", "")
+		if bucket == "" || accessKey == "" || secretKey == "" {
+			errMsg := "S3 bucket, access key and secret key are required"
+			sendProgress(100, "validate", "failed", errMsg)
+			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
+			return
+		}
+		sendProgress(70, "validate", "completed", "S3 repository configuration validated")
+	}
+
+	sendProgress(80, "existing_check", "running", "Checking whether Kopia repository already exists")
+	if err := d.kopia.ConnectRepo(kopiaConfig, password); err == nil {
+		result := &kopia.CreateRepoResult{
+			RepositoryID:  repositoryID,
+			Path:          getString(kopiaConfig, "path", ""),
+			Output:        "repository already initialized and password verified",
+			AlreadyExists: true,
+			Steps:         steps,
+			CreatedAt:     time.Now(),
+		}
+		sendProgress(100, "existing_check", "completed", "Repository already exists and password is valid")
+		d.sendRepoInitResult(msg.ID, taskID, repositoryID, result, "")
 		return
 	}
 
 	// Execute repository creation
+	sendProgress(85, "initialize", "running", "Creating Kopia repository")
 	logger.Debug("Creating Kopia repository...", nil)
-	result, err := d.kopia.CreateRepo(repoConfig, password)
+	result, err := d.kopia.CreateRepo(kopiaConfig, password)
 	if err != nil {
 		logger.Error("Failed to create repository", map[string]interface{}{
 			"error": err.Error(),
 		})
-		d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, err.Error())
+		sendProgress(100, "initialize", "failed", err.Error())
+		d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, err.Error(), steps)
 		return
 	}
+	result.Steps = steps
 
 	logger.Debug("Repository created successfully", map[string]interface{}{
 		"repository_id": result.RepositoryID,
@@ -1093,13 +1287,14 @@ func (d *Dispatcher) executeInitRepository(msg ws.Message) {
 		"created_at":    result.CreatedAt,
 	})
 
+	sendProgress(100, "initialize", "completed", "Kopia repository initialized successfully")
 	d.sendRepoInitResult(msg.ID, taskID, repositoryID, result, "")
 
 	logger.Debug("Init repository task end", nil)
 }
 
 // sendRepoInitResult sends repository initialization result to server
-func (d *Dispatcher) sendRepoInitResult(msgID, taskID, repositoryID string, result *kopia.CreateRepoResult, errMsg string) {
+func (d *Dispatcher) sendRepoInitResult(msgID, taskID, repositoryID string, result *kopia.CreateRepoResult, errMsg string, stepHistory ...[]map[string]interface{}) {
 	fields := map[string]interface{}{
 		"message_id":    msgID,
 		"task_id":       taskID,
@@ -1112,10 +1307,15 @@ func (d *Dispatcher) sendRepoInitResult(msgID, taskID, repositoryID string, resu
 	if result != nil {
 		fields["result_path"] = result.Path
 		fields["result_created_at"] = result.CreatedAt
+		fields["already_exists"] = result.AlreadyExists
 	}
 	logger.Debug("Sending repository init result", fields)
 
 	if errMsg != "" {
+		resultPayload := map[string]interface{}{}
+		if len(stepHistory) > 0 {
+			resultPayload["steps"] = stepHistory[0]
+		}
 		d.wsClient.Send(ws.Message{
 			Type: message.MsgTypeInitRepositoryResult,
 			ID:   msgID,
@@ -1124,6 +1324,7 @@ func (d *Dispatcher) sendRepoInitResult(msgID, taskID, repositoryID string, resu
 				"repository_id": repositoryID,
 				"success":       false,
 				"error":         errMsg,
+				"result":        resultPayload,
 				"timestamp":     time.Now(),
 			},
 		})
@@ -1132,12 +1333,21 @@ func (d *Dispatcher) sendRepoInitResult(msgID, taskID, repositoryID string, resu
 			Type: message.MsgTypeInitRepositoryResult,
 			ID:   msgID,
 			Payload: map[string]interface{}{
-				"task_id":       taskID,
-				"success":       true,
-				"repository_id": result.RepositoryID,
-				"path":          result.Path,
-				"created_at":    result.CreatedAt,
-				"timestamp":     time.Now(),
+				"task_id":        taskID,
+				"success":        true,
+				"repository_id":  result.RepositoryID,
+				"path":           result.Path,
+				"created_at":     result.CreatedAt,
+				"already_exists": result.AlreadyExists,
+				"result": map[string]interface{}{
+					"repository_id":  result.RepositoryID,
+					"path":           result.Path,
+					"output":         result.Output,
+					"already_exists": result.AlreadyExists,
+					"steps":          result.Steps,
+					"created_at":     result.CreatedAt,
+				},
+				"timestamp": time.Now(),
 			},
 		})
 	}

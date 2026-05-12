@@ -1,180 +1,37 @@
-"""
-Admin configuration for alerts module.
-
-This module provides Django admin interface for managing
-alerts and alert rules.
-"""
+"""Admin configuration for the global alert center."""
 
 from django.contrib import admin
-from django.utils import timezone
-from django.utils.html import format_html
-from .models import Alert, AlertRule
+
+from .models import AlertPolicy, AlertRecord, NotificationChannel, NotificationLog
 
 
-@admin.register(Alert)
-class AlertAdmin(admin.ModelAdmin):
-    """Admin interface for Alert."""
-
-    list_display = [
-        'id',
-        'alert_type',
-        'severity',
-        'status',
-        'title',
-        'entity_name',
-        'triggered_at',
-        'occurrence_count',
-        'duration',
-        'source',
-    ]
-    list_filter = [
-        'alert_type',
-        'severity',
-        'status',
-        'triggered_at',
-        'source',
-    ]
-    search_fields = [
-        'title',
-        'message',
-        'entity_name',
-        'entity_id',
-    ]
-    readonly_fields = [
-        'id',
-        'triggered_at',
-        'acknowledged_at',
-        'resolved_at',
-        'first_occurrence_at',
-        'last_occurrence_at',
-        'duration_display',
-    ]
-    date_hierarchy = 'triggered_at'
-    actions = ['acknowledge_alerts', 'resolve_alerts']
-
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('id', 'alert_type', 'severity', 'status', 'title')
-        }),
-        ('Related Entity', {
-            'fields': ('entity_type', 'entity_id', 'entity_name', 'source')
-        }),
-        ('Specific Relations', {
-            'fields': ('proxy', 'task', 'backup_task', 'repository')
-        }),
-        ('Content', {
-            'fields': ('message', 'details', 'metric_value', 'threshold_value')
-        }),
-        ('Timestamps', {
-            'fields': ('triggered_at', 'acknowledged_at', 'resolved_at',
-                      'duration_display')
-        }),
-        ('Repetition', {
-            'fields': ('occurrence_count', 'first_occurrence_at', 'last_occurrence_at')
-        }),
-        ('Acknowledgment', {
-            'fields': ('acknowledged_by', 'acknowledgment_note')
-        }),
-        ('Resolution', {
-            'fields': ('resolved_by', 'resolution_note')
-        }),
-        ('Notification', {
-            'fields': ('notification_sent', 'notification_channels')
-        }),
-        ('Silencing', {
-            'fields': ('silenced_until', 'silenced_by')
-        }),
-        ('Metadata', {
-            'fields': ('metadata',)
-        }),
-    )
-
-    def duration(self, obj):
-        """Display alert duration."""
-        return obj.get_duration()
-    duration.short_description = 'Duration (s)'
-
-    def duration_display(self, obj):
-        """Display alert duration in human readable format."""
-        duration = obj.get_duration()
-        if duration:
-            hours = int(duration // 3600)
-            minutes = int((duration % 3600) // 60)
-            seconds = int(duration % 60)
-            return f"{hours}h {minutes}m {seconds}s"
-        return '-'
-    duration_display.short_description = 'Duration'
-
-    def acknowledge_alerts(self, request, queryset):
-        """Acknowledge selected alerts."""
-        count = queryset.update(
-            status=Alert.AlertStatus.ACKNOWLEDGED,
-            acknowledged_at=timezone.now(),
-            acknowledged_by=request.user
-        )
-        self.message_user(request, f'{count} alerts acknowledged.')
-    acknowledge_alerts.short_description = 'Acknowledge selected alerts'
-
-    def resolve_alerts(self, request, queryset):
-        """Resolve selected alerts."""
-        count = queryset.update(
-            status=Alert.AlertStatus.RESOLVED,
-            resolved_at=timezone.now(),
-            resolved_by=request.user
-        )
-        self.message_user(request, f'{count} alerts resolved.')
-    resolve_alerts.short_description = 'Resolve selected alerts'
+@admin.register(AlertPolicy)
+class AlertPolicyAdmin(admin.ModelAdmin):
+    list_display = ["name", "type", "severity", "resource_type", "enabled", "created_at"]
+    list_filter = ["type", "severity", "resource_type", "enabled"]
+    search_fields = ["name", "description"]
+    readonly_fields = ["id", "created_by", "created_at", "updated_at"]
 
 
-@admin.register(AlertRule)
-class AlertRuleAdmin(admin.ModelAdmin):
-    """Admin interface for AlertRule."""
+@admin.register(AlertRecord)
+class AlertRecordAdmin(admin.ModelAdmin):
+    list_display = ["title", "type", "severity", "status", "resource_name", "first_triggered_at", "resolved_at"]
+    list_filter = ["type", "severity", "status", "resource_type"]
+    search_fields = ["title", "message", "resource_name", "fingerprint"]
+    readonly_fields = ["id", "created_at", "updated_at"]
 
-    list_display = [
-        'name',
-        'alert_type',
-        'severity',
-        'enabled',
-        'applies_to_all_entities',
-        'entity_type',
-        'evaluation_interval',
-        'cooldown_period',
-        'last_triggered_at',
-        'source',
-    ]
-    list_filter = [
-        'alert_type',
-        'severity',
-        'enabled',
-        'applies_to_all_entities',
-        'entity_type',
-        'source',
-    ]
-    search_fields = [
-        'name',
-        'description',
-        'alert_type',
-    ]
 
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'description', 'alert_type', 'severity', 'enabled', 'source')
-        }),
-        ('Condition', {
-            'fields': ('condition', 'threshold_value', 'threshold_operator')
-        }),
-        ('Target Scope', {
-            'fields': ('applies_to_all_entities', 'entity_type', 'target_ids')
-        }),
-        ('Timing', {
-            'fields': ('evaluation_interval', 'cooldown_period')
-        }),
-        ('Notification', {
-            'fields': ('notification_enabled', 'notification_channels')
-        }),
-        ('Status', {
-            'fields': ('last_triggered_at', 'created_at', 'updated_at')
-        }),
-    )
+@admin.register(NotificationChannel)
+class NotificationChannelAdmin(admin.ModelAdmin):
+    list_display = ["name", "type", "enabled", "created_at"]
+    list_filter = ["type", "enabled"]
+    search_fields = ["name"]
+    readonly_fields = ["id", "created_at", "updated_at"]
 
-    readonly_fields = ['last_triggered_at', 'created_at', 'updated_at']
+
+@admin.register(NotificationLog)
+class NotificationLogAdmin(admin.ModelAdmin):
+    list_display = ["alert_record_id", "channel_id", "status", "sent_at"]
+    list_filter = ["status"]
+    search_fields = ["alert_record_id", "channel_id", "error_message"]
+    readonly_fields = ["id", "sent_at"]

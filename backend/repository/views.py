@@ -641,6 +641,7 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
 
         if repo.repo_type == Repository.TYPE_NAS:
             config = repo.config or {}
+            credentials = repo.get_decrypted_credentials() or {}
             logger.info(
                 f"[Node Connection Test] Repository config: {config}"
             )
@@ -652,8 +653,8 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'path': config.get('export_path', config.get('path', config.get('nas_path', ''))),
                 'mount_type': config.get('nas_type', config.get('mount_type', 'nfs')),
                 'mount_path': config.get('mount_path', ''),
-                'username': config.get('username', ''),
-                'password': config.get('password', ''),
+                'username': credentials.get('username', config.get('username', '')),
+                'password': credentials.get('password', config.get('password', '')),
             }
             logger.info(
                 f"[Node Connection Test] Prepared storage_config: {storage_config}"
@@ -661,7 +662,7 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         elif repo.repo_type == Repository.TYPE_LOCAL:
             config = repo.config or {}
             storage_config = {
-                'path': config.get('path', repo.storage_path or ''),
+                'path': config.get('path') or repo.path or '',
             }
         
         # Create task for tracking
@@ -872,33 +873,69 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         serializer = RepositoryInitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        password = serializer.validated_data.get('password')
+        password = serializer.validated_data.get('encryption_password')
         
-        # Prepare repository configuration
+        # Prepare repository configuration. Repository.storage_path was removed;
+        # the current schema stores type-specific values in config/credentials
+        # with repo.path kept only as a legacy fallback.
+        config = repo.config or {}
+        credentials = repo.get_decrypted_credentials() or {}
         repository_config = {
+            'id': str(repo.id),
             'type': repo.repo_type,
-            'path': repo.storage_path or '',
         }
-        
-        # Add type-specific configuration
-        if repo.repo_type == Repository.TYPE_NAS:
-            config = repo.config or {}
+
+        if repo.repo_type == Repository.TYPE_LOCAL:
+            repository_path = config.get('path') or repo.path or ''
             repository_config.update({
-                'nas_server': config.get('nas_server', config.get('server', '')),
-                'nas_path': config.get('nas_path', config.get('path', '')),
-                'mount_type': config.get('mount_type', 'nfs'),
-                'mount_path': config.get('mount_path', ''),
+                'path': repository_path,
+            })
+        elif repo.repo_type in (Repository.TYPE_NAS, Repository.TYPE_NFS):
+            server = config.get('server') or config.get('nas_server') or ''
+            export_path = config.get('export_path') or config.get('path') or config.get('nas_path') or repo.path or ''
+            mount_type = config.get('mount_type') or config.get('nas_type') or 'nfs'
+            mount_path = config.get('mount_path') or ''
+            repository_config.update({
+                'path': mount_path or export_path,
+                'server': server,
+                'export_path': export_path,
+                'nas_server': server,
+                'nas_path': export_path,
+                'mount_type': mount_type,
+                'mount_path': mount_path,
+                'mount_options': config.get('mount_options', ''),
+                'username': credentials.get('username', ''),
+                'password': credentials.get('password', ''),
             })
         elif repo.repo_type == Repository.TYPE_S3:
-            config = repo.config or {}
+            bucket = config.get('bucket') or repo.path or ''
+            prefix = (config.get('prefix') or '').strip('/')
+            repository_url = config.get('url') or config.get('repository_url') or (
+                f"s3://{bucket}/{prefix}" if prefix else f"s3://{bucket}"
+            )
             repository_config.update({
+                'path': repository_url,
+                'url': repository_url,
                 'endpoint': config.get('endpoint', ''),
-                'bucket': config.get('bucket', ''),
+                'bucket': bucket,
                 'region': config.get('region', 'us-east-1'),
-                'access_key': config.get('access_key', ''),
-                'secret_key': config.get('secret_key', ''),
-                'prefix': config.get('prefix', ''),
+                'access_key': credentials.get('access_key', config.get('access_key', '')),
+                'secret_key': credentials.get('secret_key', config.get('secret_key', '')),
+                'prefix': prefix,
+                'use_tls': config.get('use_tls', True),
+                'url_style': config.get('url_style', 'virtual'),
             })
+        else:
+            repository_config.update({
+                'path': config.get('path') or repo.path or '',
+            })
+
+        if not repository_config.get('path'):
+            return Response({
+                'success': False,
+                'message': 'Missing repository path configuration.',
+                'error_code': 'MISSING_CONFIG'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Create task for tracking
         task_id = str(uuid.uuid4())
@@ -916,6 +953,7 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'repository_id': str(repo.id),
                 'repository_config': repository_config,
             },
+            repository_id=repo.id,
             status=ProxyTask.TaskStatus.PENDING,
         )
         

@@ -13,6 +13,7 @@ import (
 	"github.com/hyperfilelens/proxy/config"
 	"github.com/hyperfilelens/proxy/kopia"
 	"github.com/hyperfilelens/proxy/logger"
+	"github.com/hyperfilelens/proxy/message"
 	"github.com/hyperfilelens/proxy/monitor"
 	"github.com/hyperfilelens/proxy/mount"
 	"github.com/hyperfilelens/proxy/task"
@@ -132,6 +133,7 @@ func main() {
 	agentClient := agent.NewClient(cfg, metrics)
 	kopiaClient := kopia.NewClient(cfg.Kopia.Path, cfg.Kopia.CachePath)
 	mountMgr := mount.NewManager()
+	var wsClient *ws.Client
 
 	// Initialize alert manager
 	alertManager := monitor.NewAlertManager(metrics)
@@ -146,6 +148,21 @@ func main() {
 		}
 		if alert.TaskID != "" {
 			fields["task_id"] = alert.TaskID
+		}
+		if wsClient != nil && wsClient.IsConnected() {
+			_ = wsClient.Send(ws.Message{
+				Type: message.MsgTypeAlert,
+				Payload: map[string]interface{}{
+					"alert_type": string(alert.Type),
+					"severity":   string(alert.Severity),
+					"title":      alert.Message,
+					"message":    alert.Message,
+					"value":      alert.Value,
+					"threshold":  alert.Threshold,
+					"task_id":    alert.TaskID,
+					"timestamp":  time.Now().Format(time.RFC3339),
+				},
+			})
 		}
 
 		switch alert.Severity {
@@ -198,7 +215,7 @@ func main() {
 	dispatcher := task.NewDispatcher(cfg, kopiaClient, mountMgr, nil)
 
 	// Create WebSocket client with dispatcher handler
-	wsClient := ws.NewClient(cfg, dispatcher.HandleMessage)
+	wsClient = ws.NewClient(cfg, dispatcher.HandleMessage)
 	dispatcher.SetWSClient(wsClient)
 
 	// Connect WebSocket

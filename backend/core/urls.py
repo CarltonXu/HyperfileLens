@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/v1/accounts/', include('accounts.urls')),
     path('api/v1/tenants/', include('tenants.urls')),      # Multi-tenancy
     path('api/v1/licenses/', include('licenses.urls')),    # License management
+    path('api/v1/tasks/', include('nodes.task_management_urls')),
     path('api/v1/proxies/', include('nodes.urls')),
     path('api/v1/gateways/', include('gateways.urls')),    # Gateway nodes for AI Insights
     path('api/v1/source-resources/', include('source_resources.urls')),
@@ -29,6 +30,7 @@ urlpatterns = [
     path('api/v1/policies/', include('policies.urls')),
     path('api/v1/ai-insights/', include('ai_query.urls')),
     path('api/v1/audit/', include('audit_log.urls')),
+    path('api/v1/alerts/', include('alerts.urls')),
     path('api/v1/system/', include('system_settings.urls')),  # System settings & SMTP
 
     # API Documentation

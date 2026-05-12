@@ -38,6 +38,8 @@ class ProxyTaskSerializer(serializers.ModelSerializer):
             'id', 'proxy', 'proxy_name', 'task_type', 'status',
             'parameters', 'created_at', 'dispatched_at', 'started_at',
             'completed_at', 'timeout_seconds', 'progress', 'progress_message',
+            'current_file', 'total_files', 'processed_files', 'processed_bytes',
+            'total_bytes', 'speed_mbps', 'eta',
             'result', 'error_message', 'repository_id', 'source_resource_id',
             'duration_seconds'
         ]

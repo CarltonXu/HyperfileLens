@@ -15,7 +15,12 @@ const AIInsights = () => import('@/views/AIInsights.vue')
 const InsightOverview = () => import('@/views/InsightOverview.vue')
 const AuditLog = () => import('@/views/AuditLog.vue')
 const EventLog = () => import('@/views/EventLog.vue')
-const Alerts = () => import('@/views/Alerts.vue')
+const SystemMonitor = () => import('@/views/SystemMonitor.vue')
+const AlertPolicies = () => import('@/views/alerts/AlertPolicies.vue')
+const AlertPolicyEdit = () => import('@/views/alerts/AlertPolicyEdit.vue')
+const ActiveAlerts = () => import('@/views/alerts/ActiveAlerts.vue')
+const AlertHistory = () => import('@/views/alerts/AlertHistory.vue')
+const NotificationChannels = () => import('@/views/alerts/NotificationChannels.vue')
 const Settings = () => import('@/views/Settings.vue')
 const Layout = () => import('@/views/Layout.vue')
 const Tenants = () => import('@/views/Tenants.vue')
@@ -193,13 +198,47 @@ const routes: RouteRecordRaw[] = [
         path: 'event-log',
         name: 'EventLog',
         component: EventLog,
-        meta: { title: 'Event Log' }
+        meta: { title: 'Task Management' }
       },
       {
         path: 'alerts',
-        name: 'Alerts',
-        component: Alerts,
-        meta: { title: 'Alerts' }
+        redirect: '/alerts/policies'
+      },
+      {
+        path: 'alerts/system-monitor',
+        name: 'SystemMonitor',
+        component: SystemMonitor,
+        meta: { title: 'System Monitor' }
+      },
+      {
+        path: 'alerts/policies',
+        name: 'AlertPolicies',
+        component: AlertPolicies,
+        meta: { title: 'Alert Policies' }
+      },
+      {
+        path: 'alerts/policies/:id/edit',
+        name: 'AlertPolicyEdit',
+        component: AlertPolicyEdit,
+        meta: { title: 'Edit Alert Policy' }
+      },
+      {
+        path: 'alerts/active',
+        name: 'ActiveAlerts',
+        component: ActiveAlerts,
+        meta: { title: 'Active Alerts' }
+      },
+      {
+        path: 'alerts/history',
+        name: 'AlertHistory',
+        component: AlertHistory,
+        meta: { title: 'Alert History' }
+      },
+      {
+        path: 'alerts/notification-channels',
+        name: 'NotificationChannels',
+        component: NotificationChannels,
+        meta: { title: 'Notification Channels' }
       },
       {
         path: 'settings',

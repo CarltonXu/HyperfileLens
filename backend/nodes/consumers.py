@@ -113,6 +113,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 # Log and status
                 'log': self.handle_log,
                 'status': self.handle_status,
+                'alert': self.handle_alert,
 
                 # Legacy result handlers (for backwards compatibility)
                 'task_update': self.handle_task_update,  # Legacy
@@ -459,6 +460,11 @@ class ProxyConsumer(AsyncWebsocketConsumer):
 
         await self.store_log(level, message, context)
 
+    async def handle_alert(self, data):
+        """Handle alert notification from proxy."""
+        payload = data.get('payload', {}) or {}
+        await self.create_proxy_alert(payload)
+
     async def handle_status(self, data):
         """
         Handle status report from proxy.
@@ -653,16 +659,18 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             task_id = payload.get('task_id')
             repository_id = payload.get('repository_id')
             success = payload.get('success', False)
+            result = payload.get('result', {})
             error = payload.get('error')
         else:
             # Legacy format (data at top level)
             task_id = data.get('task_id')
             repository_id = data.get('repository_id')
             success = data.get('success', False)
+            result = data.get('result', {})
             error = data.get('error')
 
         # Update repository initialization status
-        await self.update_repository_init_result(repository_id, task_id, success, error)
+        await self.update_repository_init_result(repository_id, task_id, success, error, result)
 
         # Broadcast to task group for real-time UI updates
         await self.channel_layer.group_send(
@@ -674,6 +682,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                     'task_type': 'init_repository',
                     'repository_id': repository_id,
                     'success': success,
+                    'result': result,
                     'error': error
                 }
             }
@@ -957,6 +966,40 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             logger.info(log_msg, extra=context)
 
     @sync_to_async
+    def create_proxy_alert(self, payload):
+        """Create an alert record from a proxy-originated alert message."""
+        from .models import ProxyNode, ProxyTask
+        try:
+            proxy = ProxyNode.objects.get(id=self.proxy_id)
+        except ProxyNode.DoesNotExist:
+            return
+
+        task = None
+        task_id = payload.get('task_id')
+        if task_id:
+            task = ProxyTask.objects.filter(id=task_id).first()
+
+        severity = payload.get('severity') or 'warning'
+        if severity not in ['info', 'warning', 'critical', 'fatal']:
+            severity = 'warning'
+
+        alert_manager.create_alert(
+            alert_type=payload.get('alert_type') or 'node_error',
+            severity=severity,
+            title=payload.get('title') or payload.get('message') or 'Proxy alert',
+            message=payload.get('message') or payload.get('title') or 'Proxy alert',
+            entity_type='nodes.ProxyNode',
+            entity_id=str(proxy.id),
+            entity_name=proxy.name,
+            proxy=proxy,
+            task=task,
+            details=payload,
+            metric_value=payload.get('value'),
+            threshold_value=payload.get('threshold'),
+            source='proxy',
+        )
+
+    @sync_to_async
     def update_proxy_status(self, status_data):
         """Update proxy status information."""
         from .models import ProxyNode
@@ -1200,20 +1243,27 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             logger.error(f"[Storage Test] Error updating result: {e}")
 
     @sync_to_async
-    def update_repository_init_result(self, repository_id, task_id, success, error):
+    def update_repository_init_result(self, repository_id, task_id, success, error, result=None):
         """Update repository initialization result."""
         from repository.models import Repository
         from .models import ProxyTask
         import logging
         logger = logging.getLogger(__name__)
+        result = result or {}
         
         try:
             # Update task status
             task = ProxyTask.objects.filter(id=task_id).first()
             if task:
                 if success:
-                    task.complete({'repository_id': repository_id})
+                    task.complete({
+                        'repository_id': repository_id,
+                        **result,
+                    })
                 else:
+                    if result:
+                        task.result = result
+                        task.save(update_fields=['result'])
                     task.fail(error or 'Repository initialization failed')
             
             # Update repository status

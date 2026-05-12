@@ -27,8 +27,8 @@ const (
 	// ==================== Control Messages ====================
 	// Backend -> Proxy
 	MsgTypeConnectionEstablished = "connection_established"
-	MsgTypeRegisterAck          = "register_ack"
-	MsgTypeHeartbeatAck         = "heartbeat_ack"
+	MsgTypeRegisterAck           = "register_ack"
+	MsgTypeHeartbeatAck          = "heartbeat_ack"
 	MsgTypePing                  = "ping"
 	MsgTypePong                  = "pong"
 	MsgTypeError                 = "error"
@@ -38,14 +38,14 @@ const (
 	MsgTypeHeartbeat = "heartbeat"
 
 	// ==================== Task Commands (Backend -> Proxy) ====================
-	MsgTypeBackup            = "backup"
-	MsgTypeRestore           = "restore"
-	MsgTypeMount             = "mount"
-	MsgTypeUnmount           = "unmount"
-	MsgTypeListSnapshots     = "list_snapshots"
-	MsgTypeCancel            = "cancel"
-	MsgTypeTestStorage       = "test_storage"
-	MsgTypeInitRepository    = "init_repository"
+	MsgTypeBackup         = "backup"
+	MsgTypeRestore        = "restore"
+	MsgTypeMount          = "mount"
+	MsgTypeUnmount        = "unmount"
+	MsgTypeListSnapshots  = "list_snapshots"
+	MsgTypeCancel         = "cancel"
+	MsgTypeTestStorage    = "test_storage"
+	MsgTypeInitRepository = "init_repository"
 
 	// ==================== Task Status (Proxy -> Backend) ====================
 	// Unified task status messages
@@ -58,17 +58,18 @@ const (
 	MsgTypeTaskResult = "task_result"
 
 	// Legacy result messages (for backwards compatibility)
-	MsgTypeBackupResult           = "backup_result"
-	MsgTypeRestoreResult          = "restore_result"
-	MsgTypeMountResult            = "mount_result"
-	MsgTypeSnapshotListResult     = "snapshot_list_result"
-	MsgTypeTestConnectionResult   = "test_connection_result"
-	MsgTypeTestStorageResult      = "test_storage_result"
-	MsgTypeInitRepositoryResult   = "init_repository_result"
+	MsgTypeBackupResult         = "backup_result"
+	MsgTypeRestoreResult        = "restore_result"
+	MsgTypeMountResult          = "mount_result"
+	MsgTypeSnapshotListResult   = "snapshot_list_result"
+	MsgTypeTestConnectionResult = "test_connection_result"
+	MsgTypeTestStorageResult    = "test_storage_result"
+	MsgTypeInitRepositoryResult = "init_repository_result"
 
 	// ==================== System Messages (Proxy -> Backend) ====================
 	MsgTypeLog    = "log"
 	MsgTypeStatus = "status"
+	MsgTypeAlert  = "alert"
 )
 
 // Task type constants

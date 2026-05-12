@@ -252,6 +252,70 @@ export const proxiesApi = {
     api.get(`/api/v1/proxies/${id}/directories/`, { params: { path } })
 }
 
+// ============== Global Task Management API ==============
+export const taskManagementApi = {
+  list: (params?: { page?: number; page_size?: number; status?: string; source?: string; search?: string; limit?: number }) =>
+    api.get('/api/v1/tasks/', { params }),
+
+  stats: () =>
+    api.get('/api/v1/tasks/stats/'),
+
+  detail: (id: number | string) =>
+    api.get(`/api/v1/tasks/${id}/`),
+
+  cancelProxyTask: (id: number | string) =>
+    api.post(`/api/v1/tasks/${id}/cancel/`),
+}
+
+// ============== Global Alert Center API ==============
+export const alertsApi = {
+  systemMonitor: (params?: { hours?: number; start_at?: string; end_at?: string }) =>
+    api.get('/api/v1/alerts/system/', { params }),
+
+  policies: (params?: Record<string, unknown>) =>
+    api.get('/api/v1/alerts/policies/', { params }),
+  getPolicy: (id: string) =>
+    api.get(`/api/v1/alerts/policies/${id}/`),
+  createPolicy: (data: Record<string, unknown>) =>
+    api.post('/api/v1/alerts/policies/', data),
+  updatePolicy: (id: string, data: Record<string, unknown>) =>
+    api.patch(`/api/v1/alerts/policies/${id}/`, data),
+  deletePolicy: (id: string) =>
+    api.delete(`/api/v1/alerts/policies/${id}/`),
+  enablePolicy: (id: string) =>
+    api.post(`/api/v1/alerts/policies/${id}/enable/`),
+  disablePolicy: (id: string) =>
+    api.post(`/api/v1/alerts/policies/${id}/disable/`),
+  duplicatePolicy: (id: string) =>
+    api.post(`/api/v1/alerts/policies/${id}/duplicate/`),
+
+  records: (params?: Record<string, unknown>) =>
+    api.get('/api/v1/alerts/records/', { params }),
+  getRecord: (id: string) =>
+    api.get(`/api/v1/alerts/records/${id}/`),
+  acknowledgeRecord: (id: string, note = '') =>
+    api.post(`/api/v1/alerts/records/${id}/acknowledge/`, { note }),
+  resolveRecord: (id: string, note = '') =>
+    api.post(`/api/v1/alerts/records/${id}/resolve/`, { note }),
+
+  notificationChannels: (params?: Record<string, unknown>) =>
+    api.get('/api/v1/alerts/notification-channels/', { params }),
+  createNotificationChannel: (data: Record<string, unknown>) =>
+    api.post('/api/v1/alerts/notification-channels/', data),
+  updateNotificationChannel: (id: string, data: Record<string, unknown>) =>
+    api.patch(`/api/v1/alerts/notification-channels/${id}/`, data),
+  deleteNotificationChannel: (id: string) =>
+    api.delete(`/api/v1/alerts/notification-channels/${id}/`),
+  testNotificationChannel: (id: string) =>
+    api.post(`/api/v1/alerts/notification-channels/${id}/test/`),
+
+  metadata: (kind: string, params?: Record<string, unknown>) =>
+    api.get(`/api/v1/alerts/metadata/${kind}/`, { params }),
+
+  metadataResources: (params?: { resource_type?: string }) =>
+    api.get('/api/v1/alerts/metadata/resources/', { params }),
+}
+
 // ============== Legacy Nodes API (alias for backward compatibility) ==============
 /** @deprecated Use proxiesApi instead */
 export const nodesApi = proxiesApi
@@ -378,8 +442,8 @@ export const repositoriesApi = {
   testConnection: (id: number | string) =>
     api.post(`/api/v1/repositories/${id}/test_connection/`),
   
-  initKopia: (id: number | string) =>
-    api.post(`/api/v1/repositories/${id}/initialize/`),
+  initKopia: (id: number | string, data: { encryption_password: string; confirm_password: string }) =>
+    api.post(`/api/v1/repositories/${id}/initialize/`, data),
   
   bindNode: (id: number | string, nodeId: number | string) =>
     api.post(`/api/v1/repositories/${id}/bind-node/`, { node_id: nodeId }),
@@ -445,39 +509,6 @@ export const policiesApi = {
   
   disable: (id: number | string) =>
     api.post(`/api/v1/policies/policies/${id}/disable/`)
-}
-
-// ============== Alerts API ==============
-export const alertsApi = {
-  listRules: (params?: Record<string, unknown>) =>
-    api.get('/api/v1/alerts/rules/', { params }),
-
-  createRule: (data: Record<string, unknown>) =>
-    api.post('/api/v1/alerts/rules/', data),
-
-  updateRule: (id: string, data: Record<string, unknown>) =>
-    api.patch(`/api/v1/alerts/rules/${id}/`, data),
-
-  deleteRule: (id: string) =>
-    api.delete(`/api/v1/alerts/rules/${id}/`),
-
-  toggleRule: (id: string) =>
-    api.post(`/api/v1/alerts/rules/${id}/toggle/`),
-
-  testRule: (id: string, testValue: number) =>
-    api.post(`/api/v1/alerts/rules/${id}/test/`, { rule_id: id, test_value: testValue }),
-
-  listRuleRecords: (id: string, params?: Record<string, unknown>) =>
-    api.get(`/api/v1/alerts/rules/${id}/records/`, { params }),
-
-  acknowledgeRecord: (id: string, note = '') =>
-    api.post(`/api/v1/alerts/records/${id}/acknowledge/`, { note }),
-
-  resolveRecord: (id: string, note = '') =>
-    api.post(`/api/v1/alerts/records/${id}/resolve/`, { note }),
-
-  batchAcknowledge: (alertIds: string[], note = '') =>
-    api.post('/api/v1/alerts/records/batch_acknowledge/', { alert_ids: alertIds, note }),
 }
 
 // ============== Schedules API ==============

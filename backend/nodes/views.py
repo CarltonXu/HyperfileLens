@@ -1265,6 +1265,139 @@ class ProxyHeartbeatView(APIView):
         })
 
 
+def build_global_task_items(request):
+    """Build a normalized task list across proxy, backup, and recovery tasks."""
+    from backup_tasks.models import BackupTask
+    from recovery_tasks.models import RecoveryTask
+
+    user = request.user
+    status_filter = request.query_params.get('status')
+    source_filter = request.query_params.get('source')
+    search = (request.query_params.get('search') or '').lower()
+
+    tasks = []
+
+    def allowed_proxy_queryset():
+        qs = ProxyTask.objects.select_related('proxy').order_by('-created_at')
+        if user.is_superuser:
+            return qs
+        if getattr(user, 'tenant', None):
+            return qs.filter(proxy__tenant=user.tenant)
+        return qs.filter(proxy__owner=user)
+
+    def append_task(item):
+        if status_filter and item['status'] != status_filter:
+            return
+        if source_filter and item['source'] != source_filter:
+            return
+        searchable = item.get('name', '') + item.get('message', '') + item.get('proxy_name', '')
+        if search and search not in searchable.lower():
+            return
+        tasks.append(item)
+
+    for task in allowed_proxy_queryset():
+        append_task({
+            'id': str(task.id),
+            'source': 'proxy',
+            'name': f"{task.get_task_type_display()} - {task.proxy.name}",
+            'task_type': task.task_type,
+            'status': task.status,
+            'progress': task.progress,
+            'message': task.progress_message or task.error_message or '',
+            'proxy_id': str(task.proxy_id),
+            'proxy_name': task.proxy.name,
+            'repository_id': str(task.repository_id) if task.repository_id else None,
+            'source_resource_id': str(task.source_resource_id) if task.source_resource_id else None,
+            'created_at': task.created_at,
+            'started_at': task.started_at,
+            'completed_at': task.completed_at,
+            'duration_seconds': ProxyTaskSerializer().get_duration_seconds(task),
+            'parameters': task.parameters,
+            'result': task.result,
+            'error_message': task.error_message,
+        })
+
+    backup_qs = BackupTask.objects.select_related('source_resource', 'target_repository', 'user').order_by('-created_at')
+    if not user.is_superuser:
+        if getattr(user, 'tenant', None):
+            backup_qs = backup_qs.filter(tenant=user.tenant)
+        else:
+            backup_qs = backup_qs.filter(user=user)
+    for task in backup_qs:
+        execution_node = task.execution_node if task.source_resource else None
+        append_task({
+            'id': str(task.id),
+            'source': 'backup',
+            'name': task.name,
+            'task_type': task.task_type,
+            'status': task.status,
+            'progress': task.progress,
+            'message': task.status_message or task.error_message or '',
+            'proxy_id': str(execution_node.id) if execution_node else None,
+            'proxy_name': execution_node.name if execution_node else '',
+            'repository_id': str(task.target_repository_id),
+            'source_resource_id': str(task.source_resource_id) if task.source_resource_id else None,
+            'created_at': task.created_at,
+            'started_at': task.started_at,
+            'completed_at': task.completed_at,
+            'duration_seconds': task.duration,
+            'parameters': {'backup_paths': task.backup_paths, 'exclude_patterns': task.exclude_patterns},
+            'result': {
+                'total_files': task.total_files,
+                'processed_files': task.backed_up_files,
+                'total_bytes': task.total_size,
+                'processed_bytes': task.backed_up_size,
+                'failed_files': task.failed_files,
+                'skipped_files': task.skipped_files,
+            },
+            'error_message': task.error_message,
+        })
+
+    recovery_qs = RecoveryTask.objects.select_related('snapshot', 'target_node', 'user').order_by('-created_at')
+    if not user.is_superuser:
+        if getattr(user, 'tenant', None):
+            recovery_qs = recovery_qs.filter(tenant=user.tenant)
+        else:
+            recovery_qs = recovery_qs.filter(user=user)
+    for task in recovery_qs:
+        append_task({
+            'id': str(task.id),
+            'source': 'recovery',
+            'name': task.name,
+            'task_type': task.recovery_type,
+            'status': task.status,
+            'progress': task.progress,
+            'message': task.error_message or '',
+            'proxy_id': str(task.target_node_id) if task.target_node_id else None,
+            'proxy_name': task.target_node.name if task.target_node_id else '',
+            'repository_id': str(task.snapshot.repository_id) if task.snapshot_id and getattr(task.snapshot, 'repository_id', None) else None,
+            'source_resource_id': None,
+            'created_at': task.created_at,
+            'started_at': task.started_at,
+            'completed_at': task.completed_at,
+            'duration_seconds': task.duration,
+            'parameters': {'target_path': task.target_path, 'file_patterns': task.file_patterns},
+            'result': {
+                'total_files': task.total_files,
+                'processed_files': task.restored_files,
+                'total_bytes': task.total_size,
+                'processed_bytes': task.restored_size,
+                'failed_files': task.failed_files,
+                'skipped_files': task.skipped_files,
+            },
+            'error_message': task.error_message,
+        })
+
+    tasks.sort(key=lambda item: item['created_at'], reverse=True)
+
+    for item in tasks:
+        for key in ['created_at', 'started_at', 'completed_at']:
+            if item[key]:
+                item[key] = item[key].isoformat()
+
+    return tasks
+
+
 class ProxyTaskViewSet(viewsets.ModelViewSet):
     """ViewSet for managing proxy tasks with optimized queries."""
 
@@ -1350,6 +1483,110 @@ class ProxyTaskViewSet(viewsets.ModelViewSet):
 
         # TODO: Send cancel signal via WebSocket
 
+        return Response(ProxyTaskSerializer(task).data)
+
+    def _get_global_task_items(self, request):
+        """Build a normalized task list across task-producing modules."""
+        return build_global_task_items(request)
+
+
+class TaskManagementViewSet(viewsets.ViewSet):
+    """Global task management API across all task-producing modules."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_pagination_params(self, request):
+        page_param = request.query_params.get('page', 1)
+        page_size_param = request.query_params.get('page_size') or request.query_params.get('limit') or 20
+
+        try:
+            page = max(int(page_param), 1)
+        except (TypeError, ValueError):
+            page = 1
+
+        try:
+            page_size = max(int(page_size_param), 1)
+        except (TypeError, ValueError):
+            page_size = 20
+
+        return page, min(page_size, 500)
+
+    def _build_page_url(self, request, page):
+        params = request.query_params.copy()
+        params['page'] = page
+        return request.build_absolute_uri(f'{request.path}?{params.urlencode()}')
+
+    def list(self, request):
+        """Return global tasks at /api/v1/tasks/."""
+        tasks = build_global_task_items(request)
+        page, page_size = self._get_pagination_params(request)
+        count = len(tasks)
+        start = (page - 1) * page_size
+        end = start + page_size
+        results = tasks[start:end]
+
+        next_url = self._build_page_url(request, page + 1) if end < count else None
+        previous_url = self._build_page_url(request, page - 1) if page > 1 and count > 0 else None
+
+        return Response({
+            'count': count,
+            'next': next_url,
+            'previous': previous_url,
+            'page': page,
+            'page_size': page_size,
+            'results': results,
+        })
+
+    def retrieve(self, request, pk=None):
+        """Return a single normalized task item."""
+        for task in build_global_task_items(request):
+            if task['id'] == str(pk):
+                return Response(task)
+        return Response({'detail': 'Task not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Return global task counters at /api/v1/tasks/stats/."""
+        data = build_global_task_items(request)
+        by_status = {}
+        by_source = {}
+        for task in data:
+            by_status[task['status']] = by_status.get(task['status'], 0) + 1
+            by_source[task['source']] = by_source.get(task['source'], 0) + 1
+        running_statuses = {'pending', 'dispatched', 'accepted', 'running'}
+        return Response({
+            'total': len(data),
+            'running': sum(1 for task in data if task['status'] in running_statuses),
+            'completed': by_status.get('completed', 0),
+            'failed': by_status.get('failed', 0),
+            'cancelled': by_status.get('cancelled', 0),
+            'by_status': by_status,
+            'by_source': by_source,
+        })
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Cancel a ProxyTask through the global task endpoint."""
+        task = ProxyTask.objects.filter(id=pk).select_related('proxy').first()
+        if not task:
+            return Response(
+                {'detail': 'Only proxy tasks can be cancelled from this endpoint.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        if not request.user.is_superuser:
+            if getattr(request.user, 'tenant', None):
+                if task.proxy.tenant_id != request.user.tenant_id:
+                    return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+            elif task.proxy.owner_id != request.user.id:
+                return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if task.status in ['completed', 'failed', 'cancelled']:
+            return Response(
+                {'error': 'Cannot cancel completed or failed task'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        task.cancel()
+        if task.proxy:
+            invalidate_cache(str(task.proxy.id))
         return Response(ProxyTaskSerializer(task).data)
 
 

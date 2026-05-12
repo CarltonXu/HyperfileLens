@@ -254,6 +254,11 @@ class RepositoryCreateSerializer(serializers.ModelSerializer):
         repo_type = data.get('repo_type')
         config = data.get('config', {})
         credentials = data.get('credentials', {})
+
+        if repo_type in [Repository.TYPE_S3, Repository.TYPE_NAS, Repository.TYPE_NFS, Repository.TYPE_LOCAL] and not data.get('bound_node'):
+            raise serializers.ValidationError({
+                'bound_node': 'Sync Proxy is required for repository operations'
+            })
         
         if repo_type == Repository.TYPE_S3:
             if 'bucket' not in config:
@@ -322,6 +327,15 @@ class RepositoryUpdateSerializer(serializers.ModelSerializer):
         if Repository.objects.filter(name=value).exclude(id=instance.id).exists():
             raise serializers.ValidationError("A repository with this name already exists.")
         return value
+
+    def validate(self, data):
+        repo_type = self.instance.repo_type if self.instance else data.get('repo_type')
+        bound_node = data.get('bound_node', self.instance.bound_node if self.instance else None)
+        if repo_type in [Repository.TYPE_S3, Repository.TYPE_NAS, Repository.TYPE_NFS, Repository.TYPE_LOCAL] and not bound_node:
+            raise serializers.ValidationError({
+                'bound_node': 'Sync Proxy is required for repository operations'
+            })
+        return data
     
     def update(self, instance, validated_data):
         """

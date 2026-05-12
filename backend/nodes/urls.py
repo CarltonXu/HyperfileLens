@@ -15,9 +15,9 @@ from .views import (
 
 # Create router for viewsets
 router = DefaultRouter()
-router.register(r'', ProxyViewSet, basename='proxy')
 router.register(r'tasks', ProxyTaskViewSet, basename='proxy-task')
 router.register(r'connections', NodeConnectionViewSet, basename='proxy-connection')
+router.register(r'', ProxyViewSet, basename='proxy')
 
 urlpatterns = [
     # Registration endpoint (handled by ProxyViewSet.register action)

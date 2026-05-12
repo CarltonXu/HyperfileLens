@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,10 +77,12 @@ type RestoreResult struct {
 
 // CreateRepoResult captures repository initialization metadata.
 type CreateRepoResult struct {
-	RepositoryID string    `json:"repository_id"`
-	Path         string    `json:"path"`
-	Output       string    `json:"output"`
-	CreatedAt    time.Time `json:"created_at"`
+	RepositoryID  string                   `json:"repository_id"`
+	Path          string                   `json:"path"`
+	Output        string                   `json:"output"`
+	AlreadyExists bool                     `json:"already_exists"`
+	Steps         []map[string]interface{} `json:"steps,omitempty"`
+	CreatedAt     time.Time                `json:"created_at"`
 }
 
 // NewClient creates a new Kopia client.
@@ -128,25 +132,36 @@ func (c *Client) GetVersion() string {
 
 // ConnectRepo connects Kopia to a repository using the legacy dispatcher payload shape.
 func (c *Client) ConnectRepo(repoConfig map[string]interface{}, password string) error {
-	repositoryURL := repositoryURLFromConfig(repoConfig)
-	if repositoryURL == "" {
-		return fmt.Errorf("repository url/path is required")
+	args, repositoryPath := repositoryCommandArgs("connect", repoConfig, password)
+	if len(args) == 0 {
+		return fmt.Errorf("repository configuration is required")
 	}
-	return c.Connect(context.Background(), repositoryURL, password)
+
+	logger.Debug("Executing kopia repository connect", map[string]interface{}{
+		"repository_path": repositoryPath,
+		"args":            sanitizeArgs(args),
+		"password":        "[REDACTED]",
+	})
+
+	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to connect repository: %w, output: %s", err, string(output))
+	}
+	return nil
 }
 
 // CreateRepo initializes a Kopia repository using the legacy dispatcher payload shape.
 func (c *Client) CreateRepo(repoConfig map[string]interface{}, password string) (*CreateRepoResult, error) {
-	repositoryURL := repositoryURLFromConfig(repoConfig)
-	if repositoryURL == "" {
+	args, repositoryPath := repositoryCommandArgs("create", repoConfig, password)
+	if len(args) == 0 {
 		logger.Error("Repository URL is required", nil)
-		return nil, fmt.Errorf("repository url/path is required")
+		return nil, fmt.Errorf("repository configuration is required")
 	}
 
-	args := []string{"repository", "create", repositoryURL, "--password", password}
 	logger.Debug("Executing kopia repository create", map[string]interface{}{
-		"repository_url": repositoryURL,
-		"password":       "[REDACTED]",
+		"repository_path": repositoryPath,
+		"args":            sanitizeArgs(args),
+		"password":        "[REDACTED]",
 	})
 
 	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
@@ -164,7 +179,7 @@ func (c *Client) CreateRepo(repoConfig map[string]interface{}, password string) 
 
 	return &CreateRepoResult{
 		RepositoryID: stringFromMap(repoConfig, "id", ""),
-		Path:         repositoryURL,
+		Path:         repositoryPath,
 		Output:       string(output),
 		CreatedAt:    time.Now(),
 	}, nil
@@ -488,4 +503,105 @@ func stringFromMap(m map[string]interface{}, key, fallback string) string {
 		}
 	}
 	return fallback
+}
+
+func repositoryCommandArgs(action string, repoConfig map[string]interface{}, password string) ([]string, string) {
+	repoType := stringFromMap(repoConfig, "type", "filesystem")
+	repositoryPath := repositoryURLFromConfig(repoConfig)
+
+	switch repoType {
+	case "nas", "nfs", "local", "filesystem":
+		if repositoryPath == "" {
+			return nil, ""
+		}
+		return []string{"repository", action, "filesystem", "--path", repositoryPath, "--password", password}, repositoryPath
+	case "s3":
+		bucket := stringFromMap(repoConfig, "bucket", "")
+		if bucket == "" {
+			return nil, ""
+		}
+		endpoint := s3EndpointFromConfig(repoConfig, bucket)
+		displayPath := "s3://" + bucket
+		if prefix := stringFromMap(repoConfig, "prefix", ""); prefix != "" {
+			displayPath += "/" + strings.Trim(prefix, "/")
+		}
+		if endpoint != "" {
+			displayPath += " endpoint=" + endpoint
+		}
+		args := []string{"repository", action, "s3", "--bucket", bucket, "--password", password}
+		if endpoint != "" {
+			args = append(args, "--endpoint", endpoint)
+		}
+		if region := stringFromMap(repoConfig, "region", ""); region != "" {
+			args = append(args, "--region", region)
+		}
+		if prefix := stringFromMap(repoConfig, "prefix", ""); prefix != "" {
+			args = append(args, "--prefix", prefix)
+		}
+		if accessKey := stringFromMap(repoConfig, "access_key", ""); accessKey != "" {
+			args = append(args, "--access-key", accessKey)
+		}
+		if secretKey := stringFromMap(repoConfig, "secret_key", ""); secretKey != "" {
+			args = append(args, "--secret-access-key", secretKey)
+		}
+		if !boolFromMap(repoConfig, "use_tls", true) {
+			args = append(args, "--disable-tls")
+		}
+		return args, displayPath
+	default:
+		if repositoryPath == "" {
+			return nil, ""
+		}
+		return []string{"repository", action, "filesystem", "--path", repositoryPath, "--password", password}, repositoryPath
+	}
+}
+
+func s3EndpointFromConfig(repoConfig map[string]interface{}, bucket string) string {
+	endpoint := strings.TrimSpace(stringFromMap(repoConfig, "endpoint", ""))
+	if endpoint == "" {
+		return ""
+	}
+
+	host := endpoint
+	if parsed, err := url.Parse(endpoint); err == nil && parsed.Host != "" {
+		host = parsed.Host
+	} else {
+		host = strings.Trim(endpoint, "/")
+	}
+
+	urlStyle := strings.ToLower(stringFromMap(repoConfig, "url_style", ""))
+	if urlStyle == "virtual" && bucket != "" && !strings.HasPrefix(host, bucket+".") && isCustomS3Endpoint(host) {
+		return bucket + "." + host
+	}
+
+	return host
+}
+
+func boolFromMap(m map[string]interface{}, key string, fallback bool) bool {
+	if value, ok := m[key]; ok {
+		if boolValue, ok := value.(bool); ok {
+			return boolValue
+		}
+	}
+	return fallback
+}
+
+func isCustomS3Endpoint(host string) bool {
+	return !strings.Contains(host, "amazonaws.com") &&
+		!strings.Contains(host, "googleapis.com") &&
+		!strings.Contains(host, "aliyuncs.com")
+}
+
+func sanitizeArgs(args []string) []string {
+	sanitized := make([]string, len(args))
+	copy(sanitized, args)
+
+	for i := 0; i < len(sanitized)-1; i++ {
+		switch sanitized[i] {
+		case "--password", "--access-key", "--secret-access-key", "--session-token":
+			sanitized[i+1] = "[REDACTED]"
+		}
+	}
+
+	return sanitized
 }
