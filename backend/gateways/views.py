@@ -22,6 +22,7 @@ from .serializers import (
 )
 from accounts.models import User
 from audit_log.services import AuditService
+from licenses.quota import enforce_license_quota
 
 
 class GatewayViewSet(viewsets.ModelViewSet):
@@ -65,6 +66,7 @@ class GatewayViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Set owner and tenant when creating a gateway."""
         user: User = self.request.user
+        enforce_license_quota(user.tenant, 'gateways')
         gateway = serializer.save(
             owner=user, 
             tenant=user.tenant,
@@ -175,6 +177,7 @@ logging:
         serializer.is_valid(raise_exception=True)
         
         data = serializer.validated_data
+        enforce_license_quota(getattr(request.user, 'tenant', None), 'gateways')
         
         # Check if name already exists
         if Gateway.objects.filter(name=data['name']).exists():

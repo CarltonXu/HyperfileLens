@@ -14,14 +14,16 @@
         <button
           type="button"
           class="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-hover transition-colors"
-          @click="openInviteDialog">
+          @click="openInviteDialog"
+        >
           <EnvelopeIcon class="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
           {{ t("users.inviteUser") }}
         </button>
         <button
           type="button"
           class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-          @click="openCreateDialog">
+          @click="openCreateDialog"
+        >
           <PlusIcon class="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
           {{ t("users.createUser") }}
         </button>
@@ -34,20 +36,23 @@
         <div class="flex-1 min-w-0">
           <div class="relative">
             <MagnifyingGlassIcon
-              class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
+            />
             <input
               v-model="searchQuery"
               type="text"
               :placeholder="t('common.search')"
               class="block w-full rounded-lg border border-border py-2 pl-10 pr-3 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
-              @input="debouncedSearch" />
+              @input="debouncedSearch"
+            />
           </div>
         </div>
         <div class="flex items-center gap-2">
           <select
             v-model="roleFilter"
             class="rounded-lg border border-border py-2 pl-3 pr-8 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm"
-            @change="fetchUsers">
+            @change="fetchUsers"
+          >
             <option class="bg-background" value="">
               {{ t("common.all") }}
             </option>
@@ -61,7 +66,8 @@
           <select
             v-model="statusFilter"
             class="rounded-lg border border-border py-2 pl-3 pr-8 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm"
-            @change="fetchUsers">
+            @change="fetchUsers"
+          >
             <option class="bg-background" value="">
               {{ t("common.all") }}
             </option>
@@ -83,69 +89,77 @@
           class="animate-spin h-8 w-8 text-indigo-600 mx-auto"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
-          viewBox="0 0 24 24">
+          viewBox="0 0 24 24"
+        >
           <circle
             class="opacity-25"
             cx="12"
             cy="12"
             r="10"
             stroke="currentColor"
-            stroke-width="4"></circle>
+            stroke-width="4"
+          ></circle>
           <path
             class="opacity-75"
             fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
         </svg>
         <p class="mt-2 text-sm text-foreground-secondary">
           {{ t("common.loading") }}
         </p>
       </div>
 
-      <table v-else class="min-w-full divide-y divide-border">
+      <table
+        v-else
+        class="w-full table-fixed divide-y divide-border"
+        :style="{ minWidth: usersTable.tableMinWidth.value }"
+      >
+        <colgroup>
+          <col
+            v-for="column in userColumns"
+            :key="column.key"
+            :style="usersTable.columnStyle(column.key)"
+          />
+        </colgroup>
         <thead class="bg-background-secondary">
           <tr>
-            <th
-              scope="col"
-              class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-foreground sm:pl-6">
-              {{ t("users.user") }}
-            </th>
-            <th
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("users.email") }}
-            </th>
-            <th
-              v-if="isPlatformAdmin"
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("users.tenant") }}
-            </th>
-            <th
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("users.role") }}
-            </th>
-            <th
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("users.status") }}
-            </th>
-            <th
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("users.lastLogin") }}
-            </th>
-            <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
-              <span class="sr-only">{{ t("common.actions") }}</span>
-            </th>
+            <ResizableSortableTh
+              v-for="column in userColumns"
+              :key="column.key"
+              :column-key="column.key"
+              :label="column.label"
+              :style-value="usersTable.columnStyle(column.key)"
+              :sortable="column.sortable !== false"
+              :active="usersTable.sort.value.key === column.key"
+              :align="column.align"
+              :sort-icon="usersTable.getSortIcon(column.key)"
+              :resizing="usersTable.resizingColumn.value === column.key"
+              @sort="usersTable.toggleSort($event as UserColumnKey)"
+              @resize-start="
+                (key, event) =>
+                  usersTable.startResize(key as UserColumnKey, event)
+              "
+              @resize-reset="
+                usersTable.resetColumnWidth($event as UserColumnKey)
+              "
+            />
           </tr>
         </thead>
         <tbody class="divide-y divide-border">
-          <tr v-for="user in users" :key="user.id" class="hover:bg-hover">
-            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
+          <tr
+            v-for="user in usersTable.sortedRows.value"
+            :key="user.id"
+            class="hover:bg-hover"
+          >
+            <td
+              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6"
+              :style="usersTable.columnStyle('user')"
+            >
               <div class="flex items-center">
                 <div
-                  class="h-10 w-10 flex-shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  class="h-10 w-10 flex-shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center"
+                >
                   <span class="text-white font-medium text-sm">
                     {{ getInitials(user) }}
                   </span>
@@ -161,41 +175,58 @@
               </div>
             </td>
             <td
-              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary">
+              :style="usersTable.columnStyle('email')"
+              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary"
+            >
               {{ user.email }}
             </td>
             <td
               v-if="isPlatformAdmin"
-              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary">
+              :style="usersTable.columnStyle('tenant_name')"
+              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary"
+            >
               {{ user.tenant_name || "-" }}
             </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm">
+            <td
+              class="whitespace-nowrap px-3 py-4 text-sm"
+              :style="usersTable.columnStyle('role')"
+            >
               <span
                 :class="getUnifiedRoleClass(user)"
-                class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
+                class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+              >
                 {{ getUnifiedRoleName(user) }}
               </span>
             </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm">
+            <td
+              class="whitespace-nowrap px-3 py-4 text-sm"
+              :style="usersTable.columnStyle('status')"
+            >
               <span
                 :class="
                   user.is_active
                     ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                     : 'bg-gray-100 text-gray-800'
                 "
-                class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
+                class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+              >
                 {{ user.is_active ? t("users.active") : t("users.inactive") }}
               </span>
             </td>
             <td
-              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary">
+              :style="usersTable.columnStyle('last_login_at')"
+              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary"
+            >
               {{ user.last_login_at ? formatDate(user.last_login_at) : "-" }}
             </td>
             <td
-              class="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+              :style="usersTable.columnStyle('actions')"
+              class="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6"
+            >
               <Menu as="div" class="relative inline-block text-left">
                 <MenuButton
-                  class="flex items-center rounded-full bg-background p-1 text-foreground-muted hover:text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  class="flex items-center rounded-full bg-background p-1 text-foreground-muted hover:text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
                   <EllipsisVerticalIcon class="h-5 w-5" aria-hidden="true" />
                 </MenuButton>
                 <transition
@@ -204,9 +235,11 @@
                   enter-to-class="transform opacity-100 scale-100"
                   leave-active-class="transition ease-in duration-75"
                   leave-from-class="transform opacity-100 scale-100"
-                  leave-to-class="transform opacity-0 scale-95">
+                  leave-to-class="transform opacity-0 scale-95"
+                >
                   <MenuItems
-                    class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-md popover-surface shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-md popover-surface shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                  >
                     <div class="py-1">
                       <MenuItem v-slot="{ active }">
                         <button
@@ -216,7 +249,8 @@
                               ? 'bg-hover text-foreground'
                               : 'text-foreground',
                             'block w-full px-4 py-2 text-left text-sm',
-                          ]">
+                          ]"
+                        >
                           {{ t("users.editUser") }}
                         </button>
                       </MenuItem>
@@ -228,13 +262,15 @@
                               ? 'bg-hover text-foreground'
                               : 'text-foreground',
                             'block w-full px-4 py-2 text-left text-sm',
-                          ]">
+                          ]"
+                        >
                           {{ t("users.resetPassword") }}
                         </button>
                       </MenuItem>
                       <MenuItem
                         v-if="isPlatformAdmin && !user.is_superuser"
-                        v-slot="{ active }">
+                        v-slot="{ active }"
+                      >
                         <button
                           @click="toggleSuperuser(user, true)"
                           :class="[
@@ -242,7 +278,8 @@
                               ? 'bg-hover text-foreground'
                               : 'text-foreground',
                             'block w-full px-4 py-2 text-left text-sm',
-                          ]">
+                          ]"
+                        >
                           {{ t("users.setPlatformAdmin") }}
                         </button>
                       </MenuItem>
@@ -252,7 +289,8 @@
                           user.is_superuser &&
                           user.id !== currentUserId
                         "
-                        v-slot="{ active }">
+                        v-slot="{ active }"
+                      >
                         <button
                           @click="toggleSuperuser(user, false)"
                           :class="[
@@ -260,7 +298,8 @@
                               ? 'bg-hover text-foreground'
                               : 'text-foreground',
                             'block w-full px-4 py-2 text-left text-sm',
-                          ]">
+                          ]"
+                        >
                           {{ t("users.removePlatformAdmin") }}
                         </button>
                       </MenuItem>
@@ -272,7 +311,8 @@
                               ? 'bg-hover text-foreground'
                               : 'text-foreground',
                             'block w-full px-4 py-2 text-left text-sm',
-                          ]">
+                          ]"
+                        >
                           {{ t("users.disableUser") }}
                         </button>
                       </MenuItem>
@@ -284,14 +324,16 @@
                               ? 'bg-hover text-foreground'
                               : 'text-foreground',
                             'block w-full px-4 py-2 text-left text-sm',
-                          ]">
+                          ]"
+                        >
                           {{ t("users.enableUser") }}
                         </button>
                       </MenuItem>
                       <div class="border-t border-border my-1"></div>
                       <MenuItem
                         v-if="user.id !== currentUserId"
-                        v-slot="{ active }">
+                        v-slot="{ active }"
+                      >
                         <button
                           @click="openDeleteDialog(user)"
                           :class="[
@@ -299,7 +341,8 @@
                               ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                               : 'text-red-600 dark:text-red-400',
                             'block w-full px-4 py-2 text-left text-sm',
-                          ]">
+                          ]"
+                        >
                           {{ t("users.deleteUser") }}
                         </button>
                       </MenuItem>
@@ -312,7 +355,8 @@
           <tr v-if="users.length === 0">
             <td
               :colspan="isPlatformAdmin ? 7 : 6"
-              class="px-3 py-12 text-center text-foreground-secondary">
+              class="px-3 py-12 text-center text-foreground-secondary"
+            >
               {{ t("common.noData") }}
             </td>
           </tr>
@@ -322,23 +366,27 @@
       <!-- Pagination -->
       <div
         v-if="totalCount > pageSize"
-        class="flex items-center justify-between border-t border-border surface-card px-4 py-3 sm:px-6">
+        class="flex items-center justify-between border-t border-border surface-card px-4 py-3 sm:px-6"
+      >
         <div class="flex flex-1 justify-between sm:hidden">
           <button
             @click="goToPage(currentPage - 1)"
             :disabled="currentPage === 1"
-            class="relative inline-flex items-center rounded-md border border-border-secondary bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed">
+            class="relative inline-flex items-center rounded-md border border-border-secondary bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {{ t("common.previous") }}
           </button>
           <button
             @click="goToPage(currentPage + 1)"
             :disabled="currentPage * pageSize >= totalCount"
-            class="relative ml-3 inline-flex items-center rounded-md border border-border-secondary bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed">
+            class="relative ml-3 inline-flex items-center rounded-md border border-border-secondary bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {{ t("common.next") }}
           </button>
         </div>
         <div
-          class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+          class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between"
+        >
           <div>
             <p class="text-sm text-foreground-secondary">
               {{ t("common.showing") }}
@@ -357,11 +405,13 @@
           <div>
             <nav
               class="isolate inline-flex -space-x-px rounded-md shadow-sm"
-              aria-label="Pagination">
+              aria-label="Pagination"
+            >
               <button
                 @click="goToPage(currentPage - 1)"
                 :disabled="currentPage === 1"
-                class="relative inline-flex items-center rounded-l-lg border border-border px-2 py-2 text-slate-400 hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                class="relative inline-flex items-center rounded-l-lg border border-border px-2 py-2 text-slate-400 hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <span class="sr-only">{{ t("common.previous") }}</span>
                 <ChevronLeftIcon class="h-5 w-5" aria-hidden="true" />
               </button>
@@ -374,13 +424,15 @@
                     ? 'bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
                     : 'text-foreground ring-1 ring-inset ring-border hover:bg-hover',
                   'relative inline-flex items-center px-4 py-2 text-sm font-semibold',
-                ]">
+                ]"
+              >
                 {{ page }}
               </button>
               <button
                 @click="goToPage(currentPage + 1)"
                 :disabled="currentPage * pageSize >= totalCount"
-                class="relative inline-flex items-center rounded-r-lg border border-border px-2 py-2 text-slate-400 hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                class="relative inline-flex items-center rounded-r-lg border border-border px-2 py-2 text-slate-400 hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <span class="sr-only">{{ t("common.next") }}</span>
                 <ChevronRightIcon class="h-5 w-5" aria-hidden="true" />
               </button>
@@ -394,12 +446,15 @@
     <Teleport to="body">
       <div v-if="showCreateDialog" class="fixed inset-0 z-50 overflow-y-auto">
         <div
-          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
+        >
           <div
             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-            @click="closeCreateDialog"></div>
+            @click="closeCreateDialog"
+          ></div>
           <div
-            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6"
+          >
             <div>
               <div class="mt-3 text-center sm:mt-5">
                 <h3 class="text-base font-semibold leading-6 text-foreground">
@@ -415,7 +470,8 @@
                       v-model="createForm.email"
                       type="email"
                       class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
-                      :placeholder="t('users.emailPlaceholder')" />
+                      :placeholder="t('users.emailPlaceholder')"
+                    />
                   </div>
                   <div>
                     <label
@@ -426,7 +482,8 @@
                       v-model="createForm.password"
                       type="password"
                       class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
-                      :placeholder="t('users.passwordPlaceholder')" />
+                      :placeholder="t('users.passwordPlaceholder')"
+                    />
                   </div>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -437,7 +494,8 @@
                       <input
                         v-model="createForm.first_name"
                         type="text"
-                        class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                        class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
                     </div>
                     <div>
                       <label
@@ -447,7 +505,8 @@
                       <input
                         v-model="createForm.last_name"
                         type="text"
-                        class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                        class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
                     </div>
                   </div>
                   <div>
@@ -458,7 +517,8 @@
                     <input
                       v-model="createForm.phone"
                       type="text"
-                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                    />
                   </div>
                   <!-- Tenant selector for platform admin -->
                   <div v-if="isPlatformAdmin">
@@ -469,7 +529,8 @@
                     <select
                       v-model="createForm.tenant_id"
                       class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm"
-                      :disabled="loadingTenants">
+                      :disabled="loadingTenants"
+                    >
                       <option class="bg-background" value="">
                         {{
                           loadingTenants
@@ -481,7 +542,8 @@
                         class="bg-background"
                         v-for="tenant in tenants"
                         :key="tenant.id"
-                        :value="tenant.id">
+                        :value="tenant.id"
+                      >
                         {{ tenant.name }}
                       </option>
                     </select>
@@ -494,11 +556,13 @@
                     >
                     <select
                       v-model="createForm.role"
-                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm">
+                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm"
+                    >
                       <option
                         class="bg-background"
                         v-if="isPlatformAdmin"
-                        value="platform_admin">
+                        value="platform_admin"
+                      >
                         {{ t("users.roles.platformAdmin") }}
                       </option>
                       <option class="bg-background" value="admin">
@@ -513,18 +577,21 @@
               </div>
             </div>
             <div
-              class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
+              class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3"
+            >
               <button
                 type="button"
                 class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 sm:col-start-2"
                 @click="createUser"
-                :disabled="creating">
+                :disabled="creating"
+              >
                 {{ creating ? t("common.saving") : t("common.save") }}
               </button>
               <button
                 type="button"
                 class="mt-3 inline-flex w-full justify-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-hover sm:col-start-1 sm:mt-0 transition-colors"
-                @click="closeCreateDialog">
+                @click="closeCreateDialog"
+              >
                 {{ t("common.cancel") }}
               </button>
             </div>
@@ -537,12 +604,15 @@
     <Teleport to="body">
       <div v-if="showEditDialog" class="fixed inset-0 z-50 overflow-y-auto">
         <div
-          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
+        >
           <div
             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-            @click="closeEditDialog"></div>
+            @click="closeEditDialog"
+          ></div>
           <div
-            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6"
+          >
             <div>
               <div class="mt-3 text-center sm:mt-5">
                 <h3 class="text-base font-semibold leading-6 text-foreground">
@@ -564,7 +634,8 @@
                     <input
                       v-model="editForm.email"
                       type="email"
-                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                    />
                   </div>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -575,7 +646,8 @@
                       <input
                         v-model="editForm.first_name"
                         type="text"
-                        class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                        class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
                     </div>
                     <div>
                       <label
@@ -585,7 +657,8 @@
                       <input
                         v-model="editForm.last_name"
                         type="text"
-                        class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                        class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
                     </div>
                   </div>
                   <div>
@@ -596,7 +669,8 @@
                     <input
                       v-model="editForm.phone"
                       type="text"
-                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                    />
                   </div>
                   <!-- 统一角色选择 -->
                   <div>
@@ -606,11 +680,13 @@
                     >
                     <select
                       v-model="editForm.role"
-                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm">
+                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm"
+                    >
                       <option
                         class="bg-background"
                         v-if="isPlatformAdmin"
-                        value="platform_admin">
+                        value="platform_admin"
+                      >
                         {{ t("users.roles.platformAdmin") }}
                       </option>
                       <option class="bg-background" value="admin">
@@ -625,18 +701,21 @@
               </div>
             </div>
             <div
-              class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
+              class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3"
+            >
               <button
                 type="button"
                 class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 sm:col-start-2"
                 @click="updateUser"
-                :disabled="updating">
+                :disabled="updating"
+              >
                 {{ updating ? t("common.saving") : t("users.updateUser") }}
               </button>
               <button
                 type="button"
                 class="mt-3 inline-flex w-full justify-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-hover sm:col-start-1 sm:mt-0 transition-colors"
-                @click="closeEditDialog">
+                @click="closeEditDialog"
+              >
                 {{ t("common.cancel") }}
               </button>
             </div>
@@ -649,12 +728,15 @@
     <Teleport to="body">
       <div v-if="showInviteDialog" class="fixed inset-0 z-50 overflow-y-auto">
         <div
-          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
+        >
           <div
             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-            @click="closeInviteDialog"></div>
+            @click="closeInviteDialog"
+          ></div>
           <div
-            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6"
+          >
             <div>
               <div class="mt-3 text-center sm:mt-5">
                 <h3 class="text-base font-semibold leading-6 text-foreground">
@@ -670,7 +752,8 @@
                       v-model="inviteForm.email"
                       type="email"
                       class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
-                      :placeholder="t('users.emailPlaceholder')" />
+                      :placeholder="t('users.emailPlaceholder')"
+                    />
                   </div>
                   <div>
                     <label
@@ -679,7 +762,8 @@
                     >
                     <select
                       v-model="inviteForm.role"
-                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm">
+                      class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm"
+                    >
                       <option class="bg-background" value="admin">
                         {{ t("users.roles.admin") }}
                       </option>
@@ -692,18 +776,21 @@
               </div>
             </div>
             <div
-              class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
+              class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3"
+            >
               <button
                 type="button"
                 class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 sm:col-start-2"
                 @click="sendInvite"
-                :disabled="inviting">
+                :disabled="inviting"
+              >
                 {{ inviting ? t("users.sending") : t("users.sendInvite") }}
               </button>
               <button
                 type="button"
                 class="mt-3 inline-flex w-full justify-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-hover sm:col-start-1 sm:mt-0 transition-colors"
-                @click="closeInviteDialog">
+                @click="closeInviteDialog"
+              >
                 {{ t("common.cancel") }}
               </button>
             </div>
@@ -716,14 +803,18 @@
     <Teleport to="body">
       <div
         v-if="showResetPasswordDialog"
-        class="fixed inset-0 z-50 overflow-y-auto">
+        class="fixed inset-0 z-50 overflow-y-auto"
+      >
         <div
-          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
+        >
           <div
             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-            @click="closeResetPasswordDialog"></div>
+            @click="closeResetPasswordDialog"
+          ></div>
           <div
-            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6"
+          >
             <div>
               <div class="mt-3 text-center sm:mt-5">
                 <h3 class="text-base font-semibold leading-6 text-foreground">
@@ -742,7 +833,8 @@
                       v-model="resetPasswordForm.new_password"
                       type="password"
                       class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
-                      :placeholder="t('users.passwordPlaceholder')" />
+                      :placeholder="t('users.passwordPlaceholder')"
+                    />
                   </div>
                   <div>
                     <label
@@ -753,24 +845,28 @@
                       v-model="resetPasswordForm.confirm_password"
                       type="password"
                       class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
-                      :placeholder="t('users.confirmPasswordPlaceholder')" />
+                      :placeholder="t('users.confirmPasswordPlaceholder')"
+                    />
                   </div>
                 </div>
               </div>
             </div>
             <div
-              class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
+              class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3"
+            >
               <button
                 type="button"
                 class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 sm:col-start-2"
                 @click="resetPassword"
-                :disabled="resetting">
+                :disabled="resetting"
+              >
                 {{ resetting ? t("common.saving") : t("users.resetPassword") }}
               </button>
               <button
                 type="button"
                 class="mt-3 inline-flex w-full justify-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-hover sm:col-start-1 sm:mt-0 transition-colors"
-                @click="closeResetPasswordDialog">
+                @click="closeResetPasswordDialog"
+              >
                 {{ t("common.cancel") }}
               </button>
             </div>
@@ -783,18 +879,23 @@
     <Teleport to="body">
       <div v-if="showDeleteDialog" class="fixed inset-0 z-50 overflow-y-auto">
         <div
-          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
+        >
           <div
             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-            @click="closeDeleteDialog"></div>
+            @click="closeDeleteDialog"
+          ></div>
           <div
-            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+            class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6"
+          >
             <div class="sm:flex sm:items-start">
               <div
-                class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
+                class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10"
+              >
                 <ExclamationTriangleIcon
                   class="h-6 w-6 text-red-600 dark:text-red-400"
-                  aria-hidden="true" />
+                  aria-hidden="true"
+                />
               </div>
               <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                 <h3 class="text-base font-semibold leading-6 text-foreground">
@@ -816,13 +917,15 @@
                 type="button"
                 class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
                 @click="deleteUser"
-                :disabled="deleting">
+                :disabled="deleting"
+              >
                 {{ deleting ? t("common.deleting") : t("users.deleteUser") }}
               </button>
               <button
                 type="button"
                 class="mt-3 inline-flex w-full justify-center rounded-md bg-card px-3 py-2 text-sm font-semibold text-foreground shadow-sm ring-1 ring-inset ring-border hover:bg-hover sm:mt-0 sm:w-auto"
-                @click="closeDeleteDialog">
+                @click="closeDeleteDialog"
+              >
                 {{ t("common.cancel") }}
               </button>
             </div>
@@ -850,6 +953,8 @@ import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
 import { usersApi, invitationsApi, tenantsApi } from "@/api";
 import { usePagination } from "@/composables/usePagination";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -901,6 +1006,73 @@ const visiblePages = computed(() => {
     pages.push(i);
   }
   return pages;
+});
+
+type UserColumnKey =
+  | "user"
+  | "email"
+  | "tenant_name"
+  | "role"
+  | "status"
+  | "last_login_at"
+  | "actions";
+
+const userColumns = computed(() => [
+  { key: "user" as const, label: t("users.user"), min: 260, max: 620 },
+  { key: "email" as const, label: t("users.email"), min: 240, max: 520 },
+  ...(isPlatformAdmin.value
+    ? [
+        {
+          key: "tenant_name" as const,
+          label: t("users.tenant"),
+          min: 180,
+          max: 360,
+        },
+      ]
+    : []),
+  { key: "role" as const, label: t("users.role"), min: 140, max: 260 },
+  { key: "status" as const, label: t("users.status"), min: 130, max: 240 },
+  {
+    key: "last_login_at" as const,
+    label: t("users.lastLogin"),
+    min: 190,
+    max: 320,
+  },
+  {
+    key: "actions" as const,
+    label: t("common.actions"),
+    min: 100,
+    max: 180,
+    sortable: false,
+    align: "right" as const,
+  },
+]);
+
+const usersTable = useResizableSortableTable<User, UserColumnKey>({
+  storageKey: "hyperfilelens:users:columnWidths",
+  columns: userColumns,
+  rows: users,
+  defaultSort: { key: "user" },
+  minTableWidth: 980,
+  getSortValue: (user, key) => {
+    if (key === "user") return user.full_name || user.email.split("@")[0] || "";
+    if (key === "role") return getUnifiedRoleName(user);
+    if (key === "status") return user.is_active ? 1 : 0;
+    if (key === "last_login_at")
+      return user.last_login_at ? new Date(user.last_login_at).getTime() : 0;
+    if (key === "actions") return "";
+    return user[key] ?? "";
+  },
+  getColumnText: (user, key) => {
+    if (key === "user") return user.full_name || user.email.split("@")[0] || "";
+    if (key === "role") return getUnifiedRoleName(user);
+    if (key === "status")
+      return user.is_active ? t("users.active") : t("users.inactive");
+    if (key === "last_login_at")
+      return user.last_login_at ? formatDate(user.last_login_at) : "-";
+    if (key === "actions") return t("common.actions");
+    return String(user[key] ?? "");
+  },
 });
 
 // Create dialog
@@ -1089,9 +1261,9 @@ async function createUser() {
     fetchUsers();
   } catch (error: unknown) {
     const err = error as {
-      response?: { data?: { error?: string; field?: string } };
+      response?: { data?: { detail?: string; error?: string; field?: string } };
     };
-    const errorMsg = err.response?.data?.error;
+    const errorMsg = err.response?.data?.detail || err.response?.data?.error;
     if (
       errorMsg?.includes("email already exists") ||
       err.response?.data?.field === "email"

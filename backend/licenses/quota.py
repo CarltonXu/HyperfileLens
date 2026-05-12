@@ -5,10 +5,40 @@ Provides decorators and mixins to check license quotas before creating resources
 """
 from functools import wraps
 from rest_framework.exceptions import PermissionDenied
-from rest_framework import status
-from rest_framework.response import Response
 
 from .models import License
+
+
+class LicenseQuotaExceeded(PermissionDenied):
+    """Raised when a license quota would be exceeded."""
+
+    default_code = 'license_quota_exceeded'
+
+
+def get_quota_license(tenant=None):
+    """Return the license that should be used for quota checks."""
+    if tenant:
+        return License.get_active_license(tenant)
+    return (
+        License.objects
+        .filter(status=License.LicenseStatus.ACTIVE)
+        .select_related('tenant')
+        .order_by('-activated_at')
+        .first()
+    )
+
+
+def enforce_license_quota(tenant, resource_type: str, additional=1):
+    """Enforce license quota and raise a DRF exception when the quota is exceeded."""
+    license_obj = get_quota_license(tenant)
+    if not license_obj:
+        raise PermissionDenied("No active license found. Please activate a license before creating resources.")
+
+    is_allowed, message = license_obj.check_quota(resource_type, additional)
+    if not is_allowed:
+        raise LicenseQuotaExceeded(f"License quota exceeded: {message}")
+
+    return license_obj
 
 
 def check_quota(resource_type: str):
@@ -30,21 +60,7 @@ def check_quota(resource_type: str):
             user = self.request.user
             tenant = getattr(user, 'tenant', None)
             
-            if not tenant:
-                # No tenant, allow creation (or handle differently)
-                return func(self, serializer, *args, **kwargs)
-            
-            # Get the active license
-            license = License.get_active_license(tenant)
-            
-            if not license:
-                raise PermissionDenied("No active license found for this tenant.")
-            
-            # Check quota
-            is_allowed, message = license.check_quota(resource_type)
-            
-            if not is_allowed:
-                raise PermissionDenied(f"License quota exceeded: {message}")
+            enforce_license_quota(tenant, resource_type)
             
             # Execute the original function
             return func(self, serializer, *args, **kwargs)
@@ -75,18 +91,7 @@ class QuotaCheckMixin:
         user = self.request.user
         tenant = getattr(user, 'tenant', None)
         
-        if not tenant:
-            return
-        
-        license = License.get_active_license(tenant)
-        
-        if not license:
-            raise PermissionDenied("No active license found for this tenant.")
-        
-        is_allowed, message = license.check_quota(self.quota_resource_type, additional)
-        
-        if not is_allowed:
-            raise PermissionDenied(f"License quota exceeded: {message}")
+        enforce_license_quota(tenant, self.quota_resource_type, additional)
     
     def perform_create(self, serializer):
         """Override to add quota check before creation."""

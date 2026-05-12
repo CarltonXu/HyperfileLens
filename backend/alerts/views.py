@@ -16,6 +16,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from licenses.quota import enforce_license_quota
+
 from .choices import (
     AVAILABILITY_CHECK_TYPES,
     EVENT_CATEGORIES,
@@ -81,6 +83,14 @@ class AlertPolicyViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(enabled=enabled == "true")
         return queryset.order_by("-created_at")
 
+    def perform_create(self, serializer):
+        enforce_license_quota(getattr(self.request.user, "tenant", None), "policies")
+        serializer.save(
+            created_by=self.request.user.id
+            if self.request.user and self.request.user.is_authenticated
+            else None
+        )
+
     @action(detail=True, methods=["post"])
     def enable(self, request, pk=None):
         policy = self.get_object()
@@ -97,6 +107,7 @@ class AlertPolicyViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def duplicate(self, request, pk=None):
+        enforce_license_quota(getattr(request.user, "tenant", None), "policies")
         policy = self.get_object()
         policy.pk = None
         policy.id = uuid.uuid4()
@@ -193,6 +204,87 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
             return Response(test_channel(channel))
         except Exception as exc:
             return Response({"status": "failed", "error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["get"])
+    def details(self, request, pk=None):
+        """Get channel details including associated alerts."""
+        channel = self.get_object()
+
+        # Get associated alert policies
+        from alerts.models import AlertPolicy, AlertRecord
+
+        # Filter policies in Python since SQLite doesn't support JSONField contains
+        channel_id_str = str(channel.id)
+        all_policies = AlertPolicy.objects.all().order_by('-created_at')
+        alert_policies = [
+            p for p in all_policies
+            if channel_id_str in (p.notification_channel_ids or [])
+        ]
+
+        # Get notification logs for this channel
+        from alerts.models import NotificationLog
+
+        # Get all logs for stats (without slicing)
+        all_notification_logs = NotificationLog.objects.filter(
+            channel_id=str(channel.id)
+        ).order_by('-sent_at')
+
+        # Get recent logs for display (with slicing)
+        notification_logs = all_notification_logs[:20]
+
+        alert_record_ids = [log.alert_record_id for log in notification_logs]
+        recent_records = AlertRecord.objects.filter(
+            id__in=alert_record_ids
+        ).order_by('-created_at')[:10]
+
+        return Response({
+            'channel': {
+                'id': str(channel.id),
+                'name': channel.name,
+                'type': channel.type,
+                'enabled': channel.enabled,
+                'config': channel.config or {},
+                'created_at': channel.created_at.isoformat(),
+                'updated_at': channel.updated_at.isoformat(),
+            },
+            'associated_policies': [
+                {
+                    'id': str(policy.id),
+                    'name': policy.name,
+                    'description': policy.description,
+                    'enabled': policy.enabled,
+                    'created_at': policy.created_at.isoformat(),
+                }
+                for policy in alert_policies
+            ],
+            'recent_alerts': [
+                {
+                    'id': str(record.id),
+                    'title': record.title,
+                    'message': record.message,
+                    'severity': record.severity,
+                    'status': record.status,
+                    'created_at': record.created_at.isoformat(),
+                }
+                for record in recent_records
+            ],
+            'notification_logs': [
+                {
+                    'id': str(log.id),
+                    'status': log.status,
+                    'error_message': log.error_message,
+                    'created_at': log.sent_at.isoformat(),
+                }
+                for log in notification_logs
+            ],
+            'stats': {
+                'policies_count': len(alert_policies),
+                'alerts_count': AlertRecord.objects.filter(id__in=alert_record_ids).count(),
+                'logs_count': all_notification_logs.count(),
+                'logs_success': all_notification_logs.filter(status='success').count(),
+                'logs_failed': all_notification_logs.filter(status='failed').count(),
+            }
+        })
 
 
 class MetadataView(APIView):

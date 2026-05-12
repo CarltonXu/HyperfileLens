@@ -313,6 +313,19 @@ class License(models.Model):
         from policies.models import BackupPolicy
         from tenants.models import Tenant
         from ai_query.models import AIQuery
+        from gateways.models import Gateway
+        from alerts.models import AlertPolicy
+
+        def repository_reserved_storage_gb():
+            total_bytes = 0
+            for repo in Repository.objects.filter(tenant=self.tenant):
+                if repo.quota_enabled and repo.quota_bytes > 0:
+                    total_bytes += repo.quota_bytes
+                elif repo.capacity > 0:
+                    total_bytes += repo.capacity
+                else:
+                    total_bytes += repo.used_space
+            return total_bytes / (1024 ** 3)
         
         # Mapping of resource types to limit fields and query functions
         quota_mapping = {
@@ -333,12 +346,12 @@ class License(models.Model):
             },
             'storage': {
                 'limit': 'max_storage_gb',
-                'current': lambda: 0,  # TODO: Calculate actual storage
+                'current': repository_reserved_storage_gb,
                 'name': 'storage (GB)'
             },
             'gateways': {
                 'limit': 'max_gateways',
-                'current': lambda: 0,  # No Gateway model yet
+                'current': lambda: Gateway.objects.filter(tenant=self.tenant).count(),
                 'name': 'gateways'
             },
             'ai_insights': {
@@ -363,8 +376,11 @@ class License(models.Model):
             },
             'policies': {
                 'limit': 'max_policies',
-                'current': lambda: BackupPolicy.objects.filter(tenant=self.tenant).count(),
-                'name': 'backup policies'
+                'current': lambda: (
+                    BackupPolicy.objects.filter(tenant=self.tenant).count()
+                    + AlertPolicy.objects.count()
+                ),
+                'name': 'policies'
             },
             'repositories': {
                 'limit': 'max_repositories',
@@ -387,7 +403,7 @@ class License(models.Model):
         new_total = current + additional
         
         if new_total > limit:
-            return False, f"Quota exceeded for {mapping['name']}. Current: {current}/{limit}, Requested: +{additional}"
+            return False, f"Quota exceeded for {mapping['name']}. Current: {current:g}/{limit}, Requested: +{additional:g}"
         
         return True, ""
 

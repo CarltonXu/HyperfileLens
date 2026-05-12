@@ -13,6 +13,8 @@ import {
 } from "@heroicons/vue/24/outline";
 import { taskManagementApi } from "@/api";
 import { usePagination } from "@/composables/usePagination";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 
 const { t } = useI18n();
 const { getPageSize, setPageSize } = usePagination();
@@ -133,6 +135,69 @@ const resultSteps = computed<TaskStep[]>(() => {
   return Array.isArray(steps) ? (steps as TaskStep[]) : [];
 });
 
+type TaskColumnKey =
+  | "name"
+  | "source"
+  | "status"
+  | "progress"
+  | "proxy_name"
+  | "created_at";
+
+const taskColumns = computed(() => [
+  { key: "name" as const, label: t("taskManagement.task"), min: 300, max: 720 },
+  {
+    key: "source" as const,
+    label: t("taskManagement.sourceTitle"),
+    min: 130,
+    max: 260,
+  },
+  {
+    key: "status" as const,
+    label: t("taskManagement.statusTitle"),
+    min: 140,
+    max: 260,
+  },
+  {
+    key: "progress" as const,
+    label: t("taskManagement.progress"),
+    min: 170,
+    max: 320,
+  },
+  {
+    key: "proxy_name" as const,
+    label: t("taskManagement.node"),
+    min: 170,
+    max: 360,
+  },
+  {
+    key: "created_at" as const,
+    label: t("taskManagement.time"),
+    min: 190,
+    max: 320,
+  },
+]);
+
+const taskTable = useResizableSortableTable<ManagedTask, TaskColumnKey>({
+  storageKey: "hyperfilelens:task-management:columnWidths",
+  columns: taskColumns,
+  rows: tasks,
+  defaultSort: { key: "created_at", direction: "desc" },
+  minTableWidth: 900,
+  getSortValue: (task, key) => {
+    if (key === "created_at")
+      return task.created_at ? new Date(task.created_at).getTime() : 0;
+    if (key === "progress") return task.progress || 0;
+    return task[key] ?? "";
+  },
+  getColumnText: (task, key) => {
+    if (key === "source") return sourceLabel(task.source);
+    if (key === "status") return t(`taskManagement.status.${task.status}`);
+    if (key === "progress") return `${task.progress || 0}%`;
+    if (key === "created_at") return formatDate(task.created_at);
+    return String(task[key] ?? "");
+  },
+});
+
 async function fetchTasks() {
   loading.value = true;
   try {
@@ -225,7 +290,8 @@ onMounted(fetchTasks);
   <div class="space-y-6">
     <!-- Header -->
     <div
-      class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+    >
       <div>
         <h1 class="text-2xl font-semibold text-foreground">
           {{ t("taskManagement.title") }}
@@ -236,7 +302,8 @@ onMounted(fetchTasks);
       </div>
       <button
         @click="fetchTasks"
-        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:border-indigo-500 transition-colors">
+        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:border-indigo-500 transition-colors"
+      >
         <ArrowPathIcon :class="['w-4 h-4', loading && 'animate-spin']" />
         {{ t("common.refresh") }}
       </button>
@@ -247,14 +314,17 @@ onMounted(fetchTasks);
       <div
         v-for="card in statCards"
         :key="card.label"
-        class="bg-card border border-border rounded-xl p-4">
+        class="bg-card border border-border rounded-xl p-4"
+      >
         <div class="flex items-center gap-3">
           <div
-            class="w-10 h-10 rounded-lg bg-background-secondary flex items-center justify-center">
+            class="w-10 h-10 rounded-lg bg-background-secondary flex items-center justify-center"
+          >
             <component
               :is="card.icon"
               class="w-5 h-5"
-              :class="card.className" />
+              :class="card.className"
+            />
           </div>
           <div>
             <p class="text-xs text-foreground-secondary">{{ card.label }}</p>
@@ -270,17 +340,20 @@ onMounted(fetchTasks);
     <div class="bg-card border border-border rounded-xl overflow-hidden">
       <!-- Filters -->
       <div
-        class="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
+        class="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3"
+      >
         <div class="flex flex-wrap items-center gap-2 flex-1">
           <input
             v-model="search"
             @keyup.enter="refetchFromFirstPage"
             :placeholder="t('taskManagement.searchPlaceholder')"
-            class="flex-1 min-w-[200px] px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            class="flex-1 min-w-[200px] px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
           <select
             v-model="statusFilter"
             @change="refetchFromFirstPage"
-            class="px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground">
+            class="px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground"
+          >
             <option value="">{{ t("taskManagement.allStatus") }}</option>
             <option value="pending">
               {{ t("taskManagement.status.pending") }}
@@ -301,7 +374,8 @@ onMounted(fetchTasks);
           <select
             v-model="sourceFilter"
             @change="refetchFromFirstPage"
-            class="px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground">
+            class="px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground"
+          >
             <option value="">{{ t("taskManagement.allSource") }}</option>
             <option value="backup">
               {{ t("taskManagement.source.backup") }}
@@ -318,56 +392,62 @@ onMounted(fetchTasks);
 
       <!-- Table -->
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-border">
+        <table
+          class="w-full table-fixed divide-y divide-border"
+          :style="{ minWidth: taskTable.tableMinWidth.value }"
+        >
+          <colgroup>
+            <col
+              v-for="column in taskColumns"
+              :key="column.key"
+              :style="taskTable.columnStyle(column.key)"
+            />
+          </colgroup>
           <thead class="bg-background-secondary">
             <tr>
-              <th
-                class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider">
-                {{ t("taskManagement.task") }}
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider">
-                {{ t("taskManagement.sourceTitle") }}
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider">
-                {{ t("taskManagement.statusTitle") }}
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider">
-                {{ t("taskManagement.progress") }}
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider">
-                {{ t("taskManagement.node") }}
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider">
-                {{ t("taskManagement.time") }}
-              </th>
+              <ResizableSortableTh
+                v-for="column in taskColumns"
+                :key="column.key"
+                :column-key="column.key"
+                :label="column.label"
+                :style-value="taskTable.columnStyle(column.key)"
+                :active="taskTable.sort.value.key === column.key"
+                :sort-icon="taskTable.getSortIcon(column.key)"
+                :resizing="taskTable.resizingColumn.value === column.key"
+                @sort="taskTable.toggleSort($event as TaskColumnKey)"
+                @resize-start="
+                  (key, event) =>
+                    taskTable.startResize(key as TaskColumnKey, event)
+                "
+                @resize-reset="
+                  taskTable.resetColumnWidth($event as TaskColumnKey)
+                "
+              />
             </tr>
           </thead>
           <tbody class="divide-y divide-border">
             <tr v-if="loading">
               <td
                 colspan="6"
-                class="px-4 py-10 text-center text-foreground-secondary">
+                class="px-4 py-10 text-center text-foreground-secondary"
+              >
                 {{ t("common.loading") }}
               </td>
             </tr>
             <tr
-              v-for="task in tasks"
+              v-for="task in taskTable.sortedRows.value"
               :key="`${task.source}-${task.id}`"
               class="hover:bg-hover cursor-pointer transition-colors"
-              @click="selectedTask = task">
-              <td class="px-4 py-3">
+              @click="selectedTask = task"
+            >
+              <td class="px-4 py-3" :style="taskTable.columnStyle('name')">
                 <p class="font-medium text-sm">{{ task.name }}</p>
                 <p class="text-xs text-foreground-muted">
                   {{ task.task_type }} ·
                   {{ task.message || task.error_message || "-" }}
                 </p>
               </td>
-              <td class="px-4 py-3">
+              <td class="px-4 py-3" :style="taskTable.columnStyle('source')">
                 <span
                   :class="[
                     'px-2 py-1 text-xs rounded-full',
@@ -376,40 +456,53 @@ onMounted(fetchTasks);
                   >{{ sourceLabel(task.source) }}</span
                 >
               </td>
-              <td class="px-4 py-3">
+              <td class="px-4 py-3" :style="taskTable.columnStyle('status')">
                 <span
                   :class="[
                     'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full',
                     statusClass(task.status),
-                  ]">
+                  ]"
+                >
                   <component :is="statusIcon(task.status)" class="w-3 h-3" />
                   {{ t(`taskManagement.status.${task.status}`) }}
                 </span>
               </td>
-              <td class="px-4 py-3 min-w-36">
+              <td
+                class="px-4 py-3 min-w-36"
+                :style="taskTable.columnStyle('progress')"
+              >
                 <div class="flex items-center gap-2">
                   <div
-                    class="h-2 flex-1 rounded-full bg-background-tertiary overflow-hidden">
+                    class="h-2 flex-1 rounded-full bg-background-tertiary overflow-hidden"
+                  >
                     <div
                       class="h-full bg-primary"
-                      :style="{ width: `${task.progress || 0}%` }" />
+                      :style="{ width: `${task.progress || 0}%` }"
+                    />
                   </div>
                   <span class="text-xs text-foreground-secondary"
                     >{{ task.progress || 0 }}%</span
                   >
                 </div>
               </td>
-              <td class="px-4 py-3 text-sm text-foreground-secondary">
+              <td
+                class="px-4 py-3 text-sm text-foreground-secondary"
+                :style="taskTable.columnStyle('proxy_name')"
+              >
                 {{ task.proxy_name || "-" }}
               </td>
-              <td class="px-4 py-3 text-sm text-foreground-secondary">
+              <td
+                class="px-4 py-3 text-sm text-foreground-secondary"
+                :style="taskTable.columnStyle('created_at')"
+              >
                 {{ formatDate(task.created_at) }}
               </td>
             </tr>
             <tr v-if="!loading && tasks.length === 0">
               <td
                 colspan="6"
-                class="px-4 py-10 text-center text-foreground-secondary">
+                class="px-4 py-10 text-center text-foreground-secondary"
+              >
                 {{ t("common.noData") }}
               </td>
             </tr>
@@ -420,7 +513,8 @@ onMounted(fetchTasks);
       <!-- Pagination -->
       <div
         v-if="pagination.count > 0"
-        class="p-4 border-t border-border flex flex-wrap items-center justify-between gap-4">
+        class="p-4 border-t border-border flex flex-wrap items-center justify-between gap-4"
+      >
         <div class="flex items-center gap-2">
           <span class="text-sm text-foreground-secondary">{{
             t("common.rowsPerPage")
@@ -428,7 +522,8 @@ onMounted(fetchTasks);
           <select
             v-model="pageSize"
             @change="handlePageSizeChange"
-            class="px-2 py-1 text-sm rounded border border-border bg-background text-foreground">
+            class="px-2 py-1 text-sm rounded border border-border bg-background text-foreground"
+          >
             <option :value="10">10</option>
             <option :value="20">20</option>
             <option :value="50">50</option>
@@ -444,13 +539,15 @@ onMounted(fetchTasks);
             <button
               :disabled="pagination.page <= 1"
               @click="changePage(pagination.page - 1)"
-              class="h-8 w-8 flex items-center justify-center rounded border border-border bg-background text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed">
+              class="h-8 w-8 flex items-center justify-center rounded border border-border bg-background text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <ChevronLeftIcon class="w-4 h-4" />
             </button>
             <template v-for="page in visiblePages" :key="page">
               <button
                 v-if="page === '...'"
-                class="h-8 w-8 flex items-center justify-center text-slate-400">
+                class="h-8 w-8 flex items-center justify-center text-slate-400"
+              >
                 ...
               </button>
               <button
@@ -461,14 +558,16 @@ onMounted(fetchTasks);
                   page === pagination.page
                     ? 'bg-indigo-600 text-white'
                     : 'border border-border bg-background text-foreground-secondary hover:bg-hover',
-                ]">
+                ]"
+              >
                 {{ page }}
               </button>
             </template>
             <button
               :disabled="pagination.page >= totalPages"
               @click="changePage(pagination.page + 1)"
-              class="h-8 w-8 flex items-center justify-center rounded border border-border bg-background text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed">
+              class="h-8 w-8 flex items-center justify-center rounded border border-border bg-background text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <ChevronRightIcon class="w-4 h-4" />
             </button>
           </nav>
@@ -480,9 +579,11 @@ onMounted(fetchTasks);
       <div v-if="selectedTask" class="fixed inset-0 z-50 flex justify-end">
         <div
           class="absolute inset-0 bg-black/50"
-          @click="selectedTask = null" />
+          @click="selectedTask = null"
+        />
         <aside
-          class="relative drawer-panel w-full max-w-xl h-full overflow-y-auto border-l border-border p-6">
+          class="relative drawer-panel w-full max-w-[60%] h-full overflow-y-auto border-l border-border p-6"
+        >
           <div class="flex items-start justify-between gap-4">
             <div>
               <h2 class="text-lg font-semibold text-foreground">
@@ -494,7 +595,8 @@ onMounted(fetchTasks);
             </div>
             <button
               @click="selectedTask = null"
-              class="p-2 rounded-lg hover:bg-background-tertiary text-foreground-muted">
+              class="p-2 rounded-lg hover:bg-background-tertiary text-foreground-muted"
+            >
               ×
             </button>
           </div>
@@ -528,7 +630,8 @@ onMounted(fetchTasks);
 
           <div
             v-if="selectedTask.error_message"
-            class="mt-4 flex gap-2 rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300">
+            class="mt-4 flex gap-2 rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300"
+          >
             <ExclamationCircleIcon class="w-5 h-5 flex-shrink-0" />
             {{ selectedTask.error_message }}
           </div>
@@ -556,9 +659,11 @@ onMounted(fetchTasks);
                 <div
                   v-for="(step, index) in resultSteps"
                   :key="index"
-                  class="flex gap-3 rounded-lg bg-background-secondary p-3">
+                  class="flex gap-3 rounded-lg bg-background-secondary p-3"
+                >
                   <InformationCircleIcon
-                    class="w-4 h-4 text-foreground-muted mt-0.5" />
+                    class="w-4 h-4 text-foreground-muted mt-0.5"
+                  />
                   <div>
                     <p class="text-sm text-foreground">
                       {{ step.step }} · {{ step.status }}

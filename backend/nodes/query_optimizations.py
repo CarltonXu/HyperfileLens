@@ -11,6 +11,7 @@ from django.db.models import Prefetch, Subquery, OuterRef
 from django.utils import timezone
 from django.db import transaction
 from django.core.cache import cache
+from django_redis import get_redis_connection
 
 from .models import ProxyNode, ProxyTask
 
@@ -369,18 +370,28 @@ def invalidate_cache(proxy_id: str = None):
     Args:
         proxy_id: Proxy ID to invalidate, or None for all
     """
-    if proxy_id:
-        keys_to_delete = cache.keys(f"{CACHE_PREFIX}*:{proxy_id}*")
-    else:
-        keys_to_delete = cache.keys(f"{CACHE_PREFIX}*")
+    try:
+        # Use Redis client directly to access keys() method
+        redis_client = get_redis_connection("default")
 
-    for key in keys_to_delete:
-        cache.delete(key)
+        if proxy_id:
+            keys_to_delete = redis_client.keys(f"{CACHE_PREFIX}*:{proxy_id}*")
+        else:
+            keys_to_delete = redis_client.keys(f"{CACHE_PREFIX}*")
 
-    logger.info(
-        f"Cache invalidated",
-        extra={'proxy_id': proxy_id, 'keys_count': len(keys_to_delete)}
-    )
+        if keys_to_delete:
+            redis_client.delete(*keys_to_delete)
+
+        logger.info(
+            f"Cache invalidated",
+            extra={'proxy_id': proxy_id, 'keys_count': len(keys_to_delete) if keys_to_delete else 0}
+        )
+    except Exception as e:
+        # Log error but don't fail the operation
+        logger.warning(
+            f"Failed to invalidate cache: {e}",
+            extra={'proxy_id': proxy_id}
+        )
 
 
 def clear_old_cache(minutes: int = 30):

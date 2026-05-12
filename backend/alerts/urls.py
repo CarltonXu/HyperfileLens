@@ -19,6 +19,7 @@ record_resolve = AlertRecordViewSet.as_view({"post": "resolve"})
 channel_list = NotificationChannelViewSet.as_view({"get": "list", "post": "create"})
 channel_detail = NotificationChannelViewSet.as_view({"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"})
 channel_test = NotificationChannelViewSet.as_view({"post": "test"})
+channel_details = NotificationChannelViewSet.as_view({"get": "details"})
 
 
 urlpatterns = [
@@ -35,6 +36,7 @@ urlpatterns = [
     path("notification-channels/", channel_list, name="notification-channel-list"),
     path("notification-channels/<uuid:pk>/", channel_detail, name="notification-channel-detail"),
     path("notification-channels/<uuid:pk>/test/", channel_test, name="notification-channel-test"),
+    path("notification-channels/<uuid:pk>/details/", channel_details, name="notification-channel-details"),
     path("metadata/resources/", MetadataResourcesView.as_view(), name="alert-metadata-resources"),
     path("metadata/<str:kind>/", MetadataView.as_view(), name="alert-metadata"),
 ]

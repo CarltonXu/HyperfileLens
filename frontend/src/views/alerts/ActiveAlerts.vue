@@ -12,6 +12,8 @@ import {
 } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
 import { usePagination } from "@/composables/usePagination";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 import AlertSeverityTag from "@/components/alerts/AlertSeverityTag.vue";
 import AlertStatusTag from "@/components/alerts/AlertStatusTag.vue";
 import AlertTypeTag from "@/components/alerts/AlertTypeTag.vue";
@@ -43,6 +45,104 @@ const stats = computed(() => ({
   acknowledged: alerts.value.filter((item) => item.status === "acknowledged")
     .length,
 }));
+
+type ActiveAlertColumnKey =
+  | "severity"
+  | "title"
+  | "type"
+  | "resource"
+  | "current"
+  | "threshold"
+  | "status"
+  | "duration"
+  | "actions";
+
+const activeAlertColumns = computed(() => [
+  {
+    key: "severity" as const,
+    label: t("alertsCenter.common.severity"),
+    min: 120,
+    max: 240,
+  },
+  {
+    key: "title" as const,
+    label: t("alertsCenter.common.title"),
+    min: 260,
+    max: 620,
+  },
+  {
+    key: "type" as const,
+    label: t("alertsCenter.common.type"),
+    min: 120,
+    max: 240,
+  },
+  {
+    key: "resource" as const,
+    label: t("alertsCenter.common.resource"),
+    min: 180,
+    max: 420,
+  },
+  {
+    key: "current" as const,
+    label: t("alertsCenter.common.current"),
+    min: 120,
+    max: 220,
+  },
+  {
+    key: "threshold" as const,
+    label: t("alertsCenter.common.threshold"),
+    min: 130,
+    max: 240,
+  },
+  {
+    key: "status" as const,
+    label: t("alertsCenter.common.status"),
+    min: 120,
+    max: 240,
+  },
+  {
+    key: "duration" as const,
+    label: t("alertsCenter.common.duration"),
+    min: 130,
+    max: 260,
+  },
+  {
+    key: "actions" as const,
+    label: t("alertsCenter.common.actions"),
+    min: 140,
+    max: 220,
+    sortable: false,
+    align: "right" as const,
+  },
+]);
+
+const activeAlertTable = useResizableSortableTable<any, ActiveAlertColumnKey>({
+  storageKey: "hyperfilelens:active-alerts:columnWidths",
+  columns: activeAlertColumns,
+  rows: alerts,
+  defaultSort: { key: "severity", direction: "desc" },
+  minTableWidth: 1120,
+  getSortValue: (alert, key) => {
+    if (key === "resource")
+      return alert.resource_name || alert.resource_type || "";
+    if (key === "current") return Number(alert.current_value ?? -1);
+    if (key === "threshold") return Number(alert.threshold_value ?? -1);
+    if (key === "duration") return Number(alert.duration_seconds ?? -1);
+    if (key === "actions") return "";
+    return alert[key] ?? "";
+  },
+  getColumnText: (alert, key) => {
+    if (key === "resource")
+      return alert.resource_name || alert.resource_type || "-";
+    if (key === "current")
+      return `${alert.current_value ?? "-"}${alert.unit || ""}`;
+    if (key === "threshold")
+      return `${alert.threshold_value ?? "-"}${alert.unit || ""}`;
+    if (key === "duration") return duration(alert);
+    if (key === "actions") return t("alertsCenter.common.actions");
+    return String(alert[key] ?? "");
+  },
+});
 
 async function fetchAlerts() {
   loading.value = true;
@@ -97,7 +197,8 @@ onMounted(fetchAlerts);
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-start gap-3">
         <div
-          class="flex h-11 w-11 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
+          class="flex h-11 w-11 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm"
+        >
           <BellAlertIcon class="h-6 w-6" />
         </div>
         <div>
@@ -111,13 +212,15 @@ onMounted(fetchAlerts);
       </div>
       <div class="flex gap-2">
         <button
-          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover">
+          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
+        >
           <CheckIcon class="h-4 w-4" />
           {{ t("alertsCenter.active.batchAcknowledge") }}
         </button>
         <button
           @click="fetchAlerts"
-          class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover">
+          class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover"
+        >
           <ArrowPathIcon class="h-4 w-4" />
           {{ $t("common.refresh") }}
         </button>
@@ -188,20 +291,24 @@ onMounted(fetchAlerts);
     </div>
 
     <div
-      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-5">
+      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-5"
+    >
       <div class="relative md:col-span-2">
         <MagnifyingGlassIcon
-          class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-foreground-muted" />
+          class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-foreground-muted"
+        />
         <input
           v-model="filters.search"
           @keyup.enter="applyFilters"
           :placeholder="t('alertsCenter.active.searchPlaceholder')"
-          class="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+          class="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
       </div>
       <select
         v-model="filters.severity"
         @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+      >
         <option value="">{{ t("alertsCenter.common.allSeverity") }}</option>
         <option value="critical">
           {{ t("alertsCenter.values.critical") }}
@@ -212,7 +319,8 @@ onMounted(fetchAlerts);
       <select
         v-model="filters.type"
         @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+      >
         <option value="">{{ t("alertsCenter.common.allTypes") }}</option>
         <option value="metric">{{ t("alertsCenter.values.metric") }}</option>
         <option value="availability">
@@ -225,7 +333,8 @@ onMounted(fetchAlerts);
       <select
         v-model="filters.status"
         @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+      >
         <option value="">{{ t("alertsCenter.active.firing") }}</option>
         <option value="pending">{{ t("alertsCenter.values.pending") }}</option>
         <option value="firing">{{ t("alertsCenter.values.firing") }}</option>
@@ -237,85 +346,132 @@ onMounted(fetchAlerts);
 
     <div class="overflow-hidden rounded-lg border border-border shadow-sm">
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[1120px] text-left text-sm">
+        <table
+          class="w-full table-fixed text-left text-sm"
+          :style="{ minWidth: activeAlertTable.tableMinWidth.value }"
+        >
+          <colgroup>
+            <col
+              v-for="column in activeAlertColumns"
+              :key="column.key"
+              :style="activeAlertTable.columnStyle(column.key)"
+            />
+          </colgroup>
           <thead
-            class="border-b border-border bg-background bg-background-secondary text-xs uppercase text-foreground-secondary">
+            class="border-b border-border bg-background bg-background-secondary text-xs uppercase text-foreground-secondary"
+          >
             <tr>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.severity") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.title") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.type") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.resource") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.current") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.threshold") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.status") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.duration") }}
-              </th>
-              <th class="px-4 py-3 text-right font-medium">
-                {{ t("alertsCenter.common.actions") }}
-              </th>
+              <ResizableSortableTh
+                v-for="column in activeAlertColumns"
+                :key="column.key"
+                :column-key="column.key"
+                :label="column.label"
+                :style-value="activeAlertTable.columnStyle(column.key)"
+                :sortable="column.sortable !== false"
+                :active="activeAlertTable.sort.value.key === column.key"
+                :align="column.align"
+                :sort-icon="activeAlertTable.getSortIcon(column.key)"
+                :resizing="activeAlertTable.resizingColumn.value === column.key"
+                @sort="
+                  activeAlertTable.toggleSort($event as ActiveAlertColumnKey)
+                "
+                @resize-start="
+                  (key, event) =>
+                    activeAlertTable.startResize(
+                      key as ActiveAlertColumnKey,
+                      event,
+                    )
+                "
+                @resize-reset="
+                  activeAlertTable.resetColumnWidth(
+                    $event as ActiveAlertColumnKey,
+                  )
+                "
+              />
             </tr>
           </thead>
           <tbody class="divide-y divide-border">
-            <tr v-for="alert in alerts" :key="alert.id" class="hover:bg-hover">
-              <td class="px-4 py-4">
+            <tr
+              v-for="alert in activeAlertTable.sortedRows.value"
+              :key="alert.id"
+              class="hover:bg-hover"
+            >
+              <td
+                class="px-4 py-4"
+                :style="activeAlertTable.columnStyle('severity')"
+              >
                 <AlertSeverityTag :severity="alert.severity" />
               </td>
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="activeAlertTable.columnStyle('title')"
+              >
                 <div class="font-medium text-foreground">{{ alert.title }}</div>
                 <div class="mt-0.5 text-xs text-foreground-secondary">
                   {{ t("alertsCenter.active.firstTriggered") }}
                   {{ formatDate(alert.first_triggered_at) }}
                 </div>
               </td>
-              <td class="px-4 py-4"><AlertTypeTag :type="alert.type" /></td>
-              <td class="px-4 py-4 text-foreground-secondary">
+              <td
+                class="px-4 py-4"
+                :style="activeAlertTable.columnStyle('type')"
+              >
+                <AlertTypeTag :type="alert.type" />
+              </td>
+              <td
+                class="px-4 py-4 text-foreground-secondary"
+                :style="activeAlertTable.columnStyle('resource')"
+              >
                 {{ alert.resource_name || alert.resource_type || "-" }}
               </td>
-              <td class="px-4 py-4 text-foreground-secondary">
+              <td
+                class="px-4 py-4 text-foreground-secondary"
+                :style="activeAlertTable.columnStyle('current')"
+              >
                 {{ alert.current_value ?? "-" }}{{ alert.unit || "" }}
               </td>
-              <td class="px-4 py-4 text-foreground-secondary">
+              <td
+                class="px-4 py-4 text-foreground-secondary"
+                :style="activeAlertTable.columnStyle('threshold')"
+              >
                 {{ alert.threshold_value ?? "-" }}{{ alert.unit || "" }}
               </td>
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="activeAlertTable.columnStyle('status')"
+              >
                 <AlertStatusTag :status="alert.status" />
               </td>
-              <td class="px-4 py-4 text-foreground-secondary">
+              <td
+                class="px-4 py-4 text-foreground-secondary"
+                :style="activeAlertTable.columnStyle('duration')"
+              >
                 {{ duration(alert) }}
               </td>
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="activeAlertTable.columnStyle('actions')"
+              >
                 <div class="flex justify-end gap-1">
                   <button
                     :title="t('alertsCenter.common.detail')"
                     @click="selected = alert"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground">
+                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground"
+                  >
                     <EyeIcon class="h-4 w-4" />
                   </button>
                   <button
                     :title="t('alertsCenter.common.acknowledge')"
                     @click="acknowledge(alert)"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground">
+                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground"
+                  >
                     <CheckIcon class="h-4 w-4" />
                   </button>
                   <button
                     :title="t('alertsCenter.common.resolve')"
                     @click="resolve(alert)"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground">
+                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground"
+                  >
                     <XMarkIcon class="h-4 w-4" />
                   </button>
                 </div>
@@ -324,7 +480,8 @@ onMounted(fetchAlerts);
             <tr v-if="!loading && alerts.length === 0">
               <td
                 colspan="9"
-                class="px-4 py-12 text-center text-sm text-foreground-secondary">
+                class="px-4 py-12 text-center text-sm text-foreground-secondary"
+              >
                 {{ $t("common.noData") }}
               </td>
             </tr>
@@ -336,7 +493,8 @@ onMounted(fetchAlerts);
     <div v-if="selected" class="fixed inset-0 z-50 flex justify-end">
       <div class="absolute inset-0 bg-black/55" @click="selected = null" />
       <aside
-        class="relative h-full w-full max-w-xl overflow-auto border-l border-border bg-background p-5 shadow-xl">
+        class="relative h-full w-full max-w-xl overflow-auto border-l border-border bg-background p-5 shadow-xl"
+      >
         <div class="flex items-start justify-between gap-4">
           <div>
             <h2 class="text-lg font-semibold text-foreground">
@@ -348,7 +506,8 @@ onMounted(fetchAlerts);
           </div>
           <button
             @click="selected = null"
-            class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground">
+            class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground"
+          >
             <XMarkIcon class="h-5 w-5" />
           </button>
         </div>

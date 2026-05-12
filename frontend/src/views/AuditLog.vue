@@ -1,7 +1,7 @@
 <template>
-  <div class="flex flex-col h-screen overflow-hidden">
+  <div class="space-y-6">
     <!-- Page Header -->
-    <div class="flex-shrink-0 px-6 py-4">
+    <div class="flex-shrink-0">
       <div class="flex justify-between items-center">
         <div>
           <h1 class="text-2xl font-semibold text-foreground">
@@ -14,686 +14,765 @@
         <div class="flex gap-2">
           <button
             @click="exportLogs('json')"
-            class="inline-flex items-center px-3 py-2 border border-border rounded-lg text-sm font-medium text-foreground-secondary bg-background hover:bg-hover transition-colors">
+            class="inline-flex items-center px-3 py-2 border border-border rounded-lg text-sm font-medium text-foreground-secondary bg-background hover:bg-hover transition-colors"
+          >
             <ArrowDownTrayIcon class="h-4 w-4 mr-2" />
             {{ t("auditLog.export") }}
           </button>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Statistics Cards -->
-  <div v-if="statistics" class="flex-shrink-0 px-6 pb-3">
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <div class="bg-card rounded-lg border border-border p-3">
-        <div class="text-xs text-foreground-secondary">
-          {{ t("auditLog.totalLogs") }}
-        </div>
-        <div class="mt-1 text-xl font-semibold text-foreground">
-          {{ statistics.total_count }}
-        </div>
-      </div>
-      <div class="bg-card rounded-lg border border-border p-3">
-        <div class="text-xs text-foreground-secondary">
-          {{ t("auditLog.todayLogs") }}
-        </div>
-        <div class="mt-1 text-xl font-semibold text-foreground">
-          {{ statistics.today_count }}
-        </div>
-      </div>
-      <div class="bg-card rounded-lg border border-border p-3">
-        <div class="text-xs text-foreground-secondary">
-          {{ t("auditLog.successRate") }}
-        </div>
+    <!-- Statistics Cards -->
+    <div v-if="statistics" class="flex-shrink-0">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div
-          class="mt-1 text-xl font-semibold text-green-600 dark:text-green-400">
-          {{ successRate }}%
-        </div>
-      </div>
-      <div class="bg-card rounded-lg border border-border p-3">
-        <div class="text-xs text-foreground-secondary">
-          {{ t("auditLog.failureCount") }}
-        </div>
-        <div class="mt-1 text-xl font-semibold text-red-600 dark:text-red-400">
-          {{ statistics.result_stats?.failure || 0 }}
+          v-for="card in statCards"
+          :key="card.label"
+          class="bg-card rounded-lg border border-border p-4"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-lg bg-background-secondary flex items-center justify-center"
+            >
+              <component
+                :is="card.icon"
+                class="w-5 h-5"
+                :class="card.className"
+              />
+            </div>
+            <div>
+              <p class="text-xs text-foreground-secondary">{{ card.label }}</p>
+              <p :class="['mt-1 text-2xl font-semibold', card.className]">
+                {{ card.value }}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Search & Filters Bar - Compact Design -->
-  <div class="flex-shrink-0 px-6 pb-3">
-    <div class="bg-card rounded-lg border border-border p-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- Search Input with Type Selector -->
-        <div
-          class="flex-1 min-w-[280px] flex rounded-lg overflow-hidden border border-border">
-          <!-- Search Type Dropdown -->
+    <!-- Search & Filters Bar - Compact Design -->
+    <div class="flex-shrink-0">
+      <div class="bg-card rounded-lg border border-border p-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Search Input with Type Selector -->
+          <div
+            class="flex-1 min-w-[280px] flex rounded-lg overflow-hidden border border-border"
+          >
+            <!-- Search Type Dropdown -->
+            <div class="relative">
+              <button
+                @click="showSearchTypeMenu = !showSearchTypeMenu"
+                class="h-9 px-3 bg-background-secondary border-r border-border text-sm text-foreground-secondary hover:bg-hover-secondary flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <span>{{ searchTypeLabel }}</span>
+                <ChevronDownIcon class="w-4 h-4" />
+              </button>
+              <Transition name="dropdown">
+                <div
+                  v-if="showSearchTypeMenu"
+                  class="absolute left-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-20 min-w-[120px]"
+                >
+                  <button
+                    v-for="type in searchTypes"
+                    :key="type.value"
+                    @click="selectSearchType(type.value)"
+                    :class="[
+                      'w-full px-3 py-2 text-left text-sm hover:bg-hover first:rounded-t-lg last:rounded-b-lg',
+                      searchType === type.value
+                        ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
+                        : 'text-foreground-secondary',
+                    ]"
+                  >
+                    {{ type.label }}
+                  </button>
+                </div>
+              </Transition>
+            </div>
+            <!-- Search Input -->
+            <input
+              v-model="searchQuery"
+              type="text"
+              :placeholder="searchPlaceholder"
+              class="flex-1 h-9 px-3 bg-card text-sm text-foreground placeholder-slate-400 focus:outline-none"
+              @keyup.enter="handleSearch"
+            />
+            <button
+              @click="handleSearch"
+              class="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium flex items-center"
+            >
+              <MagnifyingGlassIcon class="w-4 h-4" />
+            </button>
+          </div>
+
+          <!-- Quick Date Filters -->
+          <div class="flex items-center gap-1">
+            <button
+              v-for="preset in datePresets"
+              :key="preset.value"
+              @click="selectDatePreset(preset.value)"
+              :class="[
+                'h-9 px-3 rounded-lg text-sm font-medium transition-colors',
+                datePreset === preset.value
+                  ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+                  : 'bg-background-secondary text-foreground-secondary hover:bg-hover-secondary border border-transparent',
+              ]"
+            >
+              {{ preset.label }}
+            </button>
+          </div>
+
+          <!-- Action Filter -->
           <div class="relative">
             <button
-              @click="showSearchTypeMenu = !showSearchTypeMenu"
-              class="h-9 px-3 bg-background-secondary border-r border-border text-sm text-foreground-secondary hover:bg-hover-secondary flex items-center gap-1.5 whitespace-nowrap">
-              <span>{{ searchTypeLabel }}</span>
+              @click="showActionMenu = !showActionMenu"
+              :class="[
+                'h-9 px-3 rounded-lg text-sm font-medium border flex items-center gap-1.5',
+                filters.action
+                  ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                  : 'bg-background text-foreground-secondary border-border hover:bg-hover',
+              ]"
+            >
+              <FunnelIcon class="w-4 h-4" />
+              <span>{{
+                filters.action
+                  ? t(`auditLog.actions.${filters.action}`)
+                  : t("auditLog.action")
+              }}</span>
               <ChevronDownIcon class="w-4 h-4" />
             </button>
             <Transition name="dropdown">
               <div
-                v-if="showSearchTypeMenu"
-                class="absolute left-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-20 min-w-[120px]">
+                v-if="showActionMenu"
+                class="absolute right-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-20 min-w-[140px]"
+              >
                 <button
-                  v-for="type in searchTypes"
-                  :key="type.value"
-                  @click="selectSearchType(type.value)"
+                  @click="selectAction('')"
                   :class="[
-                    'w-full px-3 py-2 text-left text-sm hover:bg-hover first:rounded-t-lg last:rounded-b-lg',
-                    searchType === type.value
+                    'w-full px-3 py-2 text-left text-sm hover:bg-hover first:rounded-t-lg',
+                    !filters.action
                       ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
                       : 'text-foreground-secondary',
-                  ]">
-                  {{ type.label }}
+                  ]"
+                >
+                  {{ t("common.all") }}
+                </button>
+                <button
+                  v-for="action in actionOptions"
+                  :key="action"
+                  @click="selectAction(action)"
+                  :class="[
+                    'w-full px-3 py-2 text-left text-sm hover:bg-hover last:rounded-b-lg',
+                    filters.action === action
+                      ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
+                      : 'text-foreground-secondary',
+                  ]"
+                >
+                  {{ t(`auditLog.actions.${action}`) }}
                 </button>
               </div>
             </Transition>
           </div>
-          <!-- Search Input -->
-          <input
-            v-model="searchQuery"
-            type="text"
-            :placeholder="searchPlaceholder"
-            class="flex-1 h-9 px-3 bg-card text-sm text-foreground placeholder-slate-400 focus:outline-none"
-            @keyup.enter="handleSearch" />
+
+          <!-- Resource Type Filter -->
+          <div class="relative">
+            <button
+              @click="showResourceMenu = !showResourceMenu"
+              :class="[
+                'h-9 px-3 rounded-lg text-sm font-medium border flex items-center gap-1.5',
+                filters.resource_type
+                  ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                  : 'bg-background text-foreground-secondary border-border hover:bg-hover',
+              ]"
+            >
+              <CubeIcon class="w-4 h-4" />
+              <span>{{
+                filters.resource_type
+                  ? t(`auditLog.resourceTypes.${filters.resource_type}`)
+                  : t("auditLog.resourceType")
+              }}</span>
+              <ChevronDownIcon class="w-4 h-4" />
+            </button>
+            <Transition name="dropdown">
+              <div
+                v-if="showResourceMenu"
+                class="absolute right-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-20 min-w-[140px]"
+              >
+                <button
+                  @click="selectResourceType('')"
+                  :class="[
+                    'w-full px-3 py-2 text-left text-sm hover:bg-hover first:rounded-t-lg',
+                    !filters.resource_type
+                      ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
+                      : 'text-foreground-secondary',
+                  ]"
+                >
+                  {{ t("common.all") }}
+                </button>
+                <button
+                  v-for="type in resourceTypeOptions"
+                  :key="type"
+                  @click="selectResourceType(type)"
+                  :class="[
+                    'w-full px-3 py-2 text-left text-sm hover:bg-hover last:rounded-b-lg',
+                    filters.resource_type === type
+                      ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
+                      : 'text-foreground-secondary',
+                  ]"
+                >
+                  {{ t(`auditLog.resourceTypes.${type}`) }}
+                </button>
+              </div>
+            </Transition>
+          </div>
+
+          <!-- Reset Filters -->
           <button
-            @click="handleSearch"
-            class="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium flex items-center">
-            <MagnifyingGlassIcon class="w-4 h-4" />
+            v-if="hasActiveFilters"
+            @click="resetFilters"
+            class="h-9 px-3 rounded-lg text-sm font-medium text-foreground-secondary hover:text-slate-700 dark:hover:text-slate-200 hover:bg-hover flex items-center gap-1.5"
+          >
+            <XMarkIcon class="w-4 h-4" />
+            {{ t("common.reset") }}
           </button>
         </div>
 
-        <!-- Quick Date Filters -->
-        <div class="flex items-center gap-1">
-          <button
-            v-for="preset in datePresets"
-            :key="preset.value"
-            @click="selectDatePreset(preset.value)"
-            :class="[
-              'h-9 px-3 rounded-lg text-sm font-medium transition-colors',
-              datePreset === preset.value
-                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
-                : 'bg-background-secondary text-foreground-secondary hover:bg-hover-secondary border border-transparent',
-            ]">
-            {{ preset.label }}
-          </button>
-        </div>
-
-        <!-- Action Filter -->
-        <div class="relative">
-          <button
-            @click="showActionMenu = !showActionMenu"
-            :class="[
-              'h-9 px-3 rounded-lg text-sm font-medium border flex items-center gap-1.5',
-              filters.action
-                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
-                : 'bg-background text-foreground-secondary border-border hover:bg-hover',
-            ]">
-            <FunnelIcon class="w-4 h-4" />
-            <span>{{
-              filters.action
-                ? t(`auditLog.actions.${filters.action}`)
-                : t("auditLog.action")
-            }}</span>
-            <ChevronDownIcon class="w-4 h-4" />
-          </button>
-          <Transition name="dropdown">
-            <div
-              v-if="showActionMenu"
-              class="absolute right-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-20 min-w-[140px]">
-              <button
-                @click="selectAction('')"
-                :class="[
-                  'w-full px-3 py-2 text-left text-sm hover:bg-hover first:rounded-t-lg',
-                  !filters.action
-                    ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
-                    : 'text-foreground-secondary',
-                ]">
-                {{ t("common.all") }}
-              </button>
-              <button
-                v-for="action in actionOptions"
-                :key="action"
-                @click="selectAction(action)"
-                :class="[
-                  'w-full px-3 py-2 text-left text-sm hover:bg-hover last:rounded-b-lg',
-                  filters.action === action
-                    ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
-                    : 'text-foreground-secondary',
-                ]">
-                {{ t(`auditLog.actions.${action}`) }}
-              </button>
+        <!-- Custom Date Range (when custom is selected) -->
+        <Transition name="fade">
+          <div
+            v-if="datePreset === 'custom'"
+            class="mt-3 pt-3 border-t border-border flex items-center gap-3"
+          >
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-foreground-secondary">{{
+                t("auditLog.startDate")
+              }}</label>
+              <input
+                v-model="filters.start_date"
+                type="date"
+                class="h-8 px-2 rounded border border-border bg-background text-sm text-foreground"
+              />
             </div>
-          </Transition>
-        </div>
-
-        <!-- Resource Type Filter -->
-        <div class="relative">
-          <button
-            @click="showResourceMenu = !showResourceMenu"
-            :class="[
-              'h-9 px-3 rounded-lg text-sm font-medium border flex items-center gap-1.5',
-              filters.resource_type
-                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
-                : 'bg-background text-foreground-secondary border-border hover:bg-hover',
-            ]">
-            <CubeIcon class="w-4 h-4" />
-            <span>{{
-              filters.resource_type
-                ? t(`auditLog.resourceTypes.${filters.resource_type}`)
-                : t("auditLog.resourceType")
-            }}</span>
-            <ChevronDownIcon class="w-4 h-4" />
-          </button>
-          <Transition name="dropdown">
-            <div
-              v-if="showResourceMenu"
-              class="absolute right-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-20 min-w-[140px]">
-              <button
-                @click="selectResourceType('')"
-                :class="[
-                  'w-full px-3 py-2 text-left text-sm hover:bg-hover first:rounded-t-lg',
-                  !filters.resource_type
-                    ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
-                    : 'text-foreground-secondary',
-                ]">
-                {{ t("common.all") }}
-              </button>
-              <button
-                v-for="type in resourceTypeOptions"
-                :key="type"
-                @click="selectResourceType(type)"
-                :class="[
-                  'w-full px-3 py-2 text-left text-sm hover:bg-hover last:rounded-b-lg',
-                  filters.resource_type === type
-                    ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
-                    : 'text-foreground-secondary',
-                ]">
-                {{ t(`auditLog.resourceTypes.${type}`) }}
-              </button>
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-foreground-secondary">{{
+                t("auditLog.endDate")
+              }}</label>
+              <input
+                v-model="filters.end_date"
+                type="date"
+                class="h-8 px-2 rounded border border-border bg-background text-sm text-foreground"
+              />
             </div>
-          </Transition>
+            <button
+              @click="applyCustomDate"
+              class="h-8 px-3 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
+            >
+              {{ t("common.apply") }}
+            </button>
+          </div>
+        </Transition>
+      </div>
+    </div>
+
+    <!-- Logs Table with Resizable Columns -->
+    <div class="flex-1 overflow-hidden flex flex-col min-h-0">
+      <div
+        class="bg-card rounded-lg border border-border overflow-hidden flex flex-col h-full"
+      >
+        <!-- Single Table with Sticky Header -->
+        <div class="overflow-auto flex-1">
+          <table
+            class="w-full table-fixed"
+            :style="{ minWidth: auditLogTable.tableMinWidth.value }"
+          >
+            <colgroup>
+              <col
+                v-for="col in columns"
+                :key="col.key"
+                :style="auditLogTable.columnStyle(col.key)"
+              />
+            </colgroup>
+            <thead class="bg-background-secondary">
+              <tr>
+                <ResizableSortableTh
+                  v-for="col in columns"
+                  :key="col.key"
+                  :column-key="col.key"
+                  :label="col.label"
+                  :style-value="auditLogTable.columnStyle(col.key)"
+                  :sortable="col.sortable !== false"
+                  :active="auditLogTable.sort.value.key === col.key"
+                  :align="col.align"
+                  :sort-icon="auditLogTable.getSortIcon(col.key)"
+                  :resizing="auditLogTable.resizingColumn.value === col.key"
+                  header-class="sticky top-0 z-10"
+                  @sort="auditLogTable.toggleSort($event as AuditLogColumnKey)"
+                  @resize-start="
+                    (key, event) =>
+                      auditLogTable.startResize(key as AuditLogColumnKey, event)
+                  "
+                  @resize-reset="
+                    auditLogTable.resetColumnWidth($event as AuditLogColumnKey)
+                  "
+                />
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              <tr v-if="loading">
+                <td :colspan="columns.length" class="px-4 py-12 text-center">
+                  <div class="flex flex-col items-center">
+                    <div
+                      class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"
+                    ></div>
+                    <span class="mt-2 text-sm text-foreground-secondary">{{
+                      t("common.loading")
+                    }}</span>
+                  </div>
+                </td>
+              </tr>
+              <tr v-else-if="logs.length === 0">
+                <td :colspan="columns.length" class="px-4 py-12 text-center">
+                  <div class="flex flex-col items-center">
+                    <ClipboardDocumentListIcon
+                      class="w-12 h-12 text-foreground-muted"
+                    />
+                    <span class="mt-2 text-sm text-foreground-secondary">{{
+                      t("common.noData")
+                    }}</span>
+                  </div>
+                </td>
+              </tr>
+              <tr
+                v-for="log in auditLogTable.sortedRows.value"
+                :key="log.id"
+                class="hover:bg-hover transition-colors"
+              >
+                <td
+                  class="px-4 py-3 whitespace-nowrap"
+                  :style="auditLogTable.columnStyle('timestamp')"
+                >
+                  <span class="text-sm text-foreground">
+                    {{ formatDateTime(log.timestamp) }}
+                  </span>
+                </td>
+                <td
+                  class="px-4 py-3"
+                  :style="auditLogTable.columnStyle('user')"
+                >
+                  <div class="flex items-center gap-2">
+                    <div
+                      class="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center flex-shrink-0"
+                    >
+                      <span class="text-xs font-medium text-white">{{
+                        (log.user_display || "S")[0].toUpperCase()
+                      }}</span>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-sm font-medium text-foreground truncate">
+                        {{ log.user_display || t("auditLog.system") }}
+                      </div>
+                      <div class="text-xs text-foreground-secondary truncate">
+                        {{ log.user_email || "-" }}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td
+                  class="px-4 py-3 whitespace-nowrap"
+                  :style="auditLogTable.columnStyle('action')"
+                >
+                  <span
+                    :class="getActionBadgeClass(log.action)"
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                  >
+                    {{ t(`auditLog.actions.${log.action}`, log.action) }}
+                  </span>
+                </td>
+                <td
+                  class="px-4 py-3"
+                  :style="auditLogTable.columnStyle('resource')"
+                >
+                  <div class="text-sm text-foreground truncate max-w-[200px]">
+                    {{ log.resource_name || log.resource_id || "-" }}
+                  </div>
+                  <div class="text-xs text-foreground-secondary">
+                    {{
+                      t(
+                        `auditLog.resourceTypes.${log.resource_type}`,
+                        log.resource_type,
+                      )
+                    }}
+                  </div>
+                </td>
+                <td
+                  class="px-4 py-3 whitespace-nowrap"
+                  :style="auditLogTable.columnStyle('result')"
+                >
+                  <span
+                    :class="getResultBadgeClass(log.result)"
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                  >
+                    {{ t(`auditLog.results.${log.result}`, log.result) }}
+                  </span>
+                </td>
+                <td
+                  class="px-4 py-3 whitespace-nowrap"
+                  :style="auditLogTable.columnStyle('ip')"
+                >
+                  <span class="text-sm text-foreground-secondary font-mono">
+                    {{ log.ip_address || "-" }}
+                  </span>
+                </td>
+                <td
+                  class="px-4 py-3 whitespace-nowrap text-right"
+                  :style="auditLogTable.columnStyle('actions')"
+                >
+                  <button
+                    @click="showDetail(log)"
+                    class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 text-sm font-medium"
+                  >
+                    {{ t("common.detail") }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <!-- Reset Filters -->
-        <button
-          v-if="hasActiveFilters"
-          @click="resetFilters"
-          class="h-9 px-3 rounded-lg text-sm font-medium text-foreground-secondary hover:text-slate-700 dark:hover:text-slate-200 hover:bg-hover flex items-center gap-1.5">
-          <XMarkIcon class="w-4 h-4" />
-          {{ t("common.reset") }}
-        </button>
+        <!-- Pagination (Fixed) -->
+        <div
+          class="px-4 py-3 border-t border-border flex items-center justify-between flex-shrink-0 bg-card"
+        >
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-foreground-secondary">{{
+              t("common.rowsPerPage")
+            }}</span>
+            <select
+              v-model="pageSize"
+              @change="handlePageSizeChange"
+              class="h-8 px-2 rounded border border-border bg-background text-sm text-foreground"
+            >
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="text-sm text-foreground-secondary">
+              {{ t("common.showing") }} {{ startItem }}-{{ endItem }}
+              {{ t("common.of") }} {{ pagination.count }}
+            </span>
+            <nav class="flex items-center gap-1">
+              <button
+                :disabled="pagination.page <= 1"
+                @click="changePage(pagination.page - 1)"
+                class="h-8 w-8 flex items-center justify-center rounded border border-border bg-background text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeftIcon class="w-4 h-4" />
+              </button>
+              <template v-for="page in visiblePages" :key="page">
+                <button
+                  v-if="page === '...'"
+                  class="h-8 w-8 flex items-center justify-center text-slate-400"
+                >
+                  ...
+                </button>
+                <button
+                  v-else
+                  @click="changePage(page as number)"
+                  :class="[
+                    'h-8 w-8 flex items-center justify-center rounded text-sm font-medium',
+                    page === pagination.page
+                      ? 'bg-indigo-600 text-white'
+                      : 'border border-border bg-background text-foreground-secondary hover:bg-hover',
+                  ]"
+                >
+                  {{ page }}
+                </button>
+              </template>
+              <button
+                :disabled="pagination.page >= totalPages"
+                @click="changePage(pagination.page + 1)"
+                class="h-8 w-8 flex items-center justify-center rounded border border-border bg-background text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRightIcon class="w-4 h-4" />
+              </button>
+            </nav>
+          </div>
+        </div>
       </div>
 
-      <!-- Custom Date Range (when custom is selected) -->
-      <Transition name="fade">
-        <div
-          v-if="datePreset === 'custom'"
-          class="mt-3 pt-3 border-t border-border flex items-center gap-3">
-          <div class="flex items-center gap-2">
-            <label class="text-sm text-foreground-secondary">{{
-              t("auditLog.startDate")
-            }}</label>
-            <input
-              v-model="filters.start_date"
-              type="date"
-              class="h-8 px-2 rounded border border-border bg-background text-sm text-foreground" />
+      <!-- Detail Modal -->
+      <Transition name="modal">
+        <div v-if="showDetailModal" class="fixed inset-0 z-50 overflow-y-auto">
+          <div class="flex items-center justify-center min-h-screen px-4">
+            <div
+              class="fixed inset-0 bg-black/50"
+              @click="showDetailModal = false"
+            ></div>
+            <div
+              class="relative modal-surface rounded-xl shadow-xl max-w-2xl w-full"
+            >
+              <div
+                class="flex items-center justify-between px-6 py-4 border-b border-border"
+              >
+                <h3 class="text-lg font-semibold text-foreground">
+                  {{ t("auditLog.detail") }}
+                </h3>
+                <button
+                  @click="showDetailModal = false"
+                  class="p-1 rounded-lg text-slate-400 hover:bg-hover"
+                >
+                  <XMarkIcon class="h-5 w-5" />
+                </button>
+              </div>
+              <div v-if="selectedLog" class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      class="block text-xs font-medium text-foreground-secondary mb-1"
+                    >
+                      {{ t("auditLog.timestamp") }}
+                    </label>
+                    <div class="text-sm text-foreground">
+                      {{ formatDateTime(selectedLog.timestamp) }}
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-medium text-foreground-secondary mb-1"
+                    >
+                      {{ t("auditLog.user") }}
+                    </label>
+                    <div class="text-sm text-foreground">
+                      {{ selectedLog.user_display || "System" }}
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-medium text-foreground-secondary mb-1"
+                    >
+                      {{ t("auditLog.action") }}
+                    </label>
+                    <div class="text-sm">
+                      <span
+                        :class="getActionBadgeClass(selectedLog.action)"
+                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                      >
+                        {{
+                          t(
+                            `auditLog.actions.${selectedLog.action}`,
+                            selectedLog.action,
+                          )
+                        }}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-medium text-foreground-secondary mb-1"
+                    >
+                      {{ t("auditLog.result") }}
+                    </label>
+                    <div class="text-sm">
+                      <span
+                        :class="getResultBadgeClass(selectedLog.result)"
+                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                      >
+                        {{
+                          t(
+                            `auditLog.results.${selectedLog.result}`,
+                            selectedLog.result,
+                          )
+                        }}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-medium text-foreground-secondary mb-1"
+                    >
+                      {{ t("auditLog.resource") }}
+                    </label>
+                    <div class="text-sm text-foreground">
+                      {{
+                        t(
+                          `auditLog.resourceTypes.${selectedLog.resource_type}`,
+                          selectedLog.resource_type,
+                        )
+                      }}:
+                      {{ selectedLog.resource_name || selectedLog.resource_id }}
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-medium text-foreground-secondary mb-1"
+                    >
+                      {{ t("auditLog.ipAddress") }}
+                    </label>
+                    <div class="text-sm text-foreground font-mono">
+                      {{ selectedLog.ip_address || "-" }}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    class="block text-xs font-medium text-foreground-secondary mb-1"
+                  >
+                    {{ t("auditLog.requestPath") }}
+                  </label>
+                  <div
+                    class="text-sm text-foreground font-mono bg-background-secondary px-3 py-2 rounded"
+                  >
+                    <span
+                      :class="getMethodColor(selectedLog.request_method)"
+                      class="font-semibold"
+                      >{{ selectedLog.request_method }}</span
+                    >
+                    {{ selectedLog.request_path }}
+                  </div>
+                </div>
+
+                <!-- Request Details (Collapsible) -->
+                <div class="border border-border rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    @click="showRequestDetails = !showRequestDetails"
+                    class="w-full flex items-center justify-between px-4 py-3 bg-background-secondary hover:bg-hover transition-colors"
+                  >
+                    <span class="text-sm font-medium text-foreground">
+                      {{ t("auditLog.requestDetails") }}
+                    </span>
+                    <ChevronDownIcon
+                      :class="[
+                        'w-4 h-4 text-slate-500 transition-transform',
+                        showRequestDetails ? 'rotate-180' : '',
+                      ]"
+                    />
+                  </button>
+                  <Transition
+                    enter-active-class="transition duration-200 ease-out"
+                    enter-from-class="opacity-0 -translate-y-1"
+                    enter-to-class="opacity-100 translate-y-0"
+                    leave-active-class="transition duration-150 ease-in"
+                    leave-from-class="opacity-100 translate-y-0"
+                    leave-to-class="opacity-0 -translate-y-1"
+                  >
+                    <div
+                      v-show="showRequestDetails"
+                      class="px-4 py-3 space-y-3 bg-card"
+                    >
+                      <!-- Query Parameters -->
+                      <div
+                        v-if="
+                          selectedLog.request_query &&
+                          Object.keys(selectedLog.request_query).length > 0
+                        "
+                      >
+                        <label
+                          class="block text-xs font-medium text-foreground-secondary mb-1"
+                        >
+                          {{ t("auditLog.queryParams") }}
+                        </label>
+                        <pre
+                          class="bg-background-secondary rounded-lg p-3 text-xs overflow-auto max-h-40 font-mono text-foreground"
+                          >{{ formatJson(selectedLog.request_query) }}</pre
+                        >
+                      </div>
+                      <!-- Request Body -->
+                      <div
+                        v-if="
+                          selectedLog.request_body &&
+                          Object.keys(selectedLog.request_body).length > 0
+                        "
+                      >
+                        <label
+                          class="block text-xs font-medium text-foreground-secondary mb-1"
+                        >
+                          {{ t("auditLog.requestBody") }}
+                        </label>
+                        <pre
+                          class="bg-background-secondary rounded-lg p-3 text-xs overflow-auto max-h-60 font-mono text-foreground"
+                          >{{ formatJson(selectedLog.request_body) }}</pre
+                        >
+                      </div>
+                      <!-- User Agent -->
+                      <div v-if="selectedLog.user_agent">
+                        <label
+                          class="block text-xs font-medium text-foreground-secondary mb-1"
+                        >
+                          {{ t("auditLog.userAgent") }}
+                        </label>
+                        <div
+                          class="text-xs text-foreground-secondary bg-background-secondary px-3 py-2 rounded font-mono break-all"
+                        >
+                          {{ selectedLog.user_agent }}
+                        </div>
+                      </div>
+                      <!-- Empty State -->
+                      <div
+                        v-if="
+                          (!selectedLog.request_query ||
+                            Object.keys(selectedLog.request_query).length ===
+                              0) &&
+                          (!selectedLog.request_body ||
+                            Object.keys(selectedLog.request_body).length === 0)
+                        "
+                        class="text-sm text-foreground-secondary italic"
+                      >
+                        {{ t("auditLog.noRequestData") }}
+                      </div>
+                    </div>
+                  </Transition>
+                </div>
+
+                <div v-if="selectedLog.details">
+                  <label
+                    class="block text-xs font-medium text-foreground-secondary mb-1"
+                  >
+                    {{ t("auditLog.description") }}
+                  </label>
+                  <div class="text-sm text-foreground">
+                    {{ selectedLog.details }}
+                  </div>
+                </div>
+
+                <div v-if="selectedLog.error_message">
+                  <label class="block text-xs font-medium text-red-500 mb-1">
+                    {{ t("auditLog.errorMessage") }}
+                  </label>
+                  <div
+                    class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded"
+                  >
+                    {{ selectedLog.error_message }}
+                  </div>
+                </div>
+
+                <div
+                  v-if="
+                    selectedLog.changes &&
+                    Object.keys(selectedLog.changes).length > 0
+                  "
+                >
+                  <label
+                    class="block text-xs font-medium text-foreground-secondary mb-1"
+                  >
+                    {{ t("auditLog.changes") }}
+                  </label>
+                  <pre
+                    class="bg-background-secondary rounded-lg p-3 text-xs overflow-auto max-h-60 font-mono"
+                    >{{ JSON.stringify(selectedLog.changes, null, 2) }}</pre
+                  >
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <label class="text-sm text-foreground-secondary">{{
-              t("auditLog.endDate")
-            }}</label>
-            <input
-              v-model="filters.end_date"
-              type="date"
-              class="h-8 px-2 rounded border border-border bg-background text-sm text-foreground" />
-          </div>
-          <button
-            @click="applyCustomDate"
-            class="h-8 px-3 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium">
-            {{ t("common.apply") }}
-          </button>
         </div>
       </Transition>
     </div>
-  </div>
-
-  <!-- Logs Table with Resizable Columns -->
-  <div class="flex-1 px-6 overflow-hidden flex flex-col min-h-0">
-    <div
-      class="bg-card rounded-lg border border-border overflow-hidden flex flex-col h-full">
-      <!-- Table Header (Fixed) -->
-      <div class="overflow-x-auto flex-shrink-0 border-b border-border">
-        <table ref="tableRef" class="min-w-full">
-          <thead class="bg-background-secondary">
-            <tr>
-              <th
-                v-for="col in columns"
-                :key="col.key"
-                :style="{ width: col.width, minWidth: col.minWidth }"
-                class="relative px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider select-none">
-                <div class="flex items-center justify-between">
-                  <span>{{ col.label }}</span>
-                  <!-- Resize Handle -->
-                  <div
-                    v-if="col.resizable !== false"
-                    class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-400 transition-colors"
-                    :class="{ 'bg-indigo-400': resizingColumn === col.key }"
-                    @mousedown="startResize($event, col.key)" />
-                </div>
-              </th>
-            </tr>
-          </thead>
-        </table>
-      </div>
-
-      <!-- Table Body (Scrollable) -->
-      <div class="overflow-y-auto overflow-x-auto flex-1">
-        <table ref="tableRef" class="min-w-full">
-          <colgroup>
-            <col
-              v-for="col in columns"
-              :key="col.key"
-              :style="{ width: col.width, minWidth: col.minWidth }" />
-          </colgroup>
-          <tbody class="divide-y divide-border">
-            <tr v-if="loading">
-              <td :colspan="columns.length" class="px-4 py-12 text-center">
-                <div class="flex flex-col items-center">
-                  <div
-                    class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                  <span class="mt-2 text-sm text-foreground-secondary">{{
-                    t("common.loading")
-                  }}</span>
-                </div>
-              </td>
-            </tr>
-            <tr v-else-if="logs.length === 0">
-              <td :colspan="columns.length" class="px-4 py-12 text-center">
-                <div class="flex flex-col items-center">
-                  <ClipboardDocumentListIcon
-                    class="w-12 h-12 text-foreground-muted" />
-                  <span class="mt-2 text-sm text-foreground-secondary">{{
-                    t("common.noData")
-                  }}</span>
-                </div>
-              </td>
-            </tr>
-            <tr
-              v-for="log in logs"
-              :key="log.id"
-              class="hover:bg-hover transition-colors">
-              <td class="px-4 py-3 whitespace-nowrap">
-                <span class="text-sm text-foreground">
-                  {{ formatDateTime(log.timestamp) }}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-2">
-                  <div
-                    class="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center flex-shrink-0">
-                    <span class="text-xs font-medium text-white">{{
-                      (log.user_display || "S")[0].toUpperCase()
-                    }}</span>
-                  </div>
-                  <div class="min-w-0">
-                    <div class="text-sm font-medium text-foreground truncate">
-                      {{ log.user_display || t("auditLog.system") }}
-                    </div>
-                    <div class="text-xs text-foreground-secondary truncate">
-                      {{ log.user_email || "-" }}
-                    </div>
-                  </div>
-                </div>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <span
-                  :class="getActionBadgeClass(log.action)"
-                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                  {{ t(`auditLog.actions.${log.action}`, log.action) }}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <div class="text-sm text-foreground truncate max-w-[200px]">
-                  {{ log.resource_name || log.resource_id || "-" }}
-                </div>
-                <div class="text-xs text-foreground-secondary">
-                  {{
-                    t(
-                      `auditLog.resourceTypes.${log.resource_type}`,
-                      log.resource_type,
-                    )
-                  }}
-                </div>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <span
-                  :class="getResultBadgeClass(log.result)"
-                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                  {{ t(`auditLog.results.${log.result}`, log.result) }}
-                </span>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <span class="text-sm text-foreground-secondary font-mono">
-                  {{ log.ip_address || "-" }}
-                </span>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap text-right">
-                <button
-                  @click="showDetail(log)"
-                  class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 text-sm font-medium">
-                  {{ t("common.detail") }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination (Fixed) -->
-      <div
-        class="px-4 py-3 border-t border-border flex items-center justify-between flex-shrink-0 bg-card">
-        <div class="flex items-center gap-2">
-          <span class="text-sm text-foreground-secondary">{{
-            t("common.rowsPerPage")
-          }}</span>
-          <select
-            v-model="pageSize"
-            @change="handlePageSizeChange"
-            class="h-8 px-2 rounded border border-border bg-background text-sm text-foreground">
-            <option :value="10">10</option>
-            <option :value="20">20</option>
-            <option :value="50">50</option>
-            <option :value="100">100</option>
-          </select>
-        </div>
-        <div class="flex items-center gap-4">
-          <span class="text-sm text-foreground-secondary">
-            {{ t("common.showing") }} {{ startItem }}-{{ endItem }}
-            {{ t("common.of") }} {{ pagination.count }}
-          </span>
-          <nav class="flex items-center gap-1">
-            <button
-              :disabled="pagination.page <= 1"
-              @click="changePage(pagination.page - 1)"
-              class="h-8 w-8 flex items-center justify-center rounded border border-border bg-background text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed">
-              <ChevronLeftIcon class="w-4 h-4" />
-            </button>
-            <template v-for="page in visiblePages" :key="page">
-              <button
-                v-if="page === '...'"
-                class="h-8 w-8 flex items-center justify-center text-slate-400">
-                ...
-              </button>
-              <button
-                v-else
-                @click="changePage(page as number)"
-                :class="[
-                  'h-8 w-8 flex items-center justify-center rounded text-sm font-medium',
-                  page === pagination.page
-                    ? 'bg-indigo-600 text-white'
-                    : 'border border-border bg-background text-foreground-secondary hover:bg-hover',
-                ]">
-                {{ page }}
-              </button>
-            </template>
-            <button
-              :disabled="pagination.page >= totalPages"
-              @click="changePage(pagination.page + 1)"
-              class="h-8 w-8 flex items-center justify-center rounded border border-border bg-background text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed">
-              <ChevronRightIcon class="w-4 h-4" />
-            </button>
-          </nav>
-        </div>
-      </div>
-    </div>
-
-    <!-- Detail Modal -->
-    <Transition name="modal">
-      <div v-if="showDetailModal" class="fixed inset-0 z-50 overflow-y-auto">
-        <div class="flex items-center justify-center min-h-screen px-4">
-          <div
-            class="fixed inset-0 bg-black/50"
-            @click="showDetailModal = false"></div>
-          <div
-            class="relative modal-surface rounded-xl shadow-xl max-w-2xl w-full">
-            <div
-              class="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 class="text-lg font-semibold text-foreground">
-                {{ t("auditLog.detail") }}
-              </h3>
-              <button
-                @click="showDetailModal = false"
-                class="p-1 rounded-lg text-slate-400 hover:bg-hover">
-                <XMarkIcon class="h-5 w-5" />
-              </button>
-            </div>
-            <div v-if="selectedLog" class="p-6 space-y-4">
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label
-                    class="block text-xs font-medium text-foreground-secondary mb-1">
-                    {{ t("auditLog.timestamp") }}
-                  </label>
-                  <div class="text-sm text-foreground">
-                    {{ formatDateTime(selectedLog.timestamp) }}
-                  </div>
-                </div>
-                <div>
-                  <label
-                    class="block text-xs font-medium text-foreground-secondary mb-1">
-                    {{ t("auditLog.user") }}
-                  </label>
-                  <div class="text-sm text-foreground">
-                    {{ selectedLog.user_display || "System" }}
-                  </div>
-                </div>
-                <div>
-                  <label
-                    class="block text-xs font-medium text-foreground-secondary mb-1">
-                    {{ t("auditLog.action") }}
-                  </label>
-                  <div class="text-sm">
-                    <span
-                      :class="getActionBadgeClass(selectedLog.action)"
-                      class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                      {{
-                        t(
-                          `auditLog.actions.${selectedLog.action}`,
-                          selectedLog.action,
-                        )
-                      }}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <label
-                    class="block text-xs font-medium text-foreground-secondary mb-1">
-                    {{ t("auditLog.result") }}
-                  </label>
-                  <div class="text-sm">
-                    <span
-                      :class="getResultBadgeClass(selectedLog.result)"
-                      class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                      {{
-                        t(
-                          `auditLog.results.${selectedLog.result}`,
-                          selectedLog.result,
-                        )
-                      }}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <label
-                    class="block text-xs font-medium text-foreground-secondary mb-1">
-                    {{ t("auditLog.resource") }}
-                  </label>
-                  <div class="text-sm text-foreground">
-                    {{
-                      t(
-                        `auditLog.resourceTypes.${selectedLog.resource_type}`,
-                        selectedLog.resource_type,
-                      )
-                    }}:
-                    {{ selectedLog.resource_name || selectedLog.resource_id }}
-                  </div>
-                </div>
-                <div>
-                  <label
-                    class="block text-xs font-medium text-foreground-secondary mb-1">
-                    {{ t("auditLog.ipAddress") }}
-                  </label>
-                  <div class="text-sm text-foreground font-mono">
-                    {{ selectedLog.ip_address || "-" }}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label
-                  class="block text-xs font-medium text-foreground-secondary mb-1">
-                  {{ t("auditLog.requestPath") }}
-                </label>
-                <div
-                  class="text-sm text-foreground font-mono bg-background-secondary px-3 py-2 rounded">
-                  <span
-                    :class="getMethodColor(selectedLog.request_method)"
-                    class="font-semibold"
-                    >{{ selectedLog.request_method }}</span
-                  >
-                  {{ selectedLog.request_path }}
-                </div>
-              </div>
-
-              <!-- Request Details (Collapsible) -->
-              <div class="border border-border rounded-lg overflow-hidden">
-                <button
-                  type="button"
-                  @click="showRequestDetails = !showRequestDetails"
-                  class="w-full flex items-center justify-between px-4 py-3 bg-background-secondary hover:bg-hover transition-colors">
-                  <span class="text-sm font-medium text-foreground">
-                    {{ t("auditLog.requestDetails") }}
-                  </span>
-                  <ChevronDownIcon
-                    :class="[
-                      'w-4 h-4 text-slate-500 transition-transform',
-                      showRequestDetails ? 'rotate-180' : '',
-                    ]" />
-                </button>
-                <Transition
-                  enter-active-class="transition duration-200 ease-out"
-                  enter-from-class="opacity-0 -translate-y-1"
-                  enter-to-class="opacity-100 translate-y-0"
-                  leave-active-class="transition duration-150 ease-in"
-                  leave-from-class="opacity-100 translate-y-0"
-                  leave-to-class="opacity-0 -translate-y-1">
-                  <div
-                    v-show="showRequestDetails"
-                    class="px-4 py-3 space-y-3 bg-card">
-                    <!-- Query Parameters -->
-                    <div
-                      v-if="
-                        selectedLog.request_query &&
-                        Object.keys(selectedLog.request_query).length > 0
-                      ">
-                      <label
-                        class="block text-xs font-medium text-foreground-secondary mb-1">
-                        {{ t("auditLog.queryParams") }}
-                      </label>
-                      <pre
-                        class="bg-background-secondary rounded-lg p-3 text-xs overflow-auto max-h-40 font-mono text-foreground"
-                        >{{ formatJson(selectedLog.request_query) }}</pre
-                      >
-                    </div>
-                    <!-- Request Body -->
-                    <div
-                      v-if="
-                        selectedLog.request_body &&
-                        Object.keys(selectedLog.request_body).length > 0
-                      ">
-                      <label
-                        class="block text-xs font-medium text-foreground-secondary mb-1">
-                        {{ t("auditLog.requestBody") }}
-                      </label>
-                      <pre
-                        class="bg-background-secondary rounded-lg p-3 text-xs overflow-auto max-h-60 font-mono text-foreground"
-                        >{{ formatJson(selectedLog.request_body) }}</pre
-                      >
-                    </div>
-                    <!-- User Agent -->
-                    <div v-if="selectedLog.user_agent">
-                      <label
-                        class="block text-xs font-medium text-foreground-secondary mb-1">
-                        {{ t("auditLog.userAgent") }}
-                      </label>
-                      <div
-                        class="text-xs text-foreground-secondary bg-background-secondary px-3 py-2 rounded font-mono break-all">
-                        {{ selectedLog.user_agent }}
-                      </div>
-                    </div>
-                    <!-- Empty State -->
-                    <div
-                      v-if="
-                        (!selectedLog.request_query ||
-                          Object.keys(selectedLog.request_query).length ===
-                            0) &&
-                        (!selectedLog.request_body ||
-                          Object.keys(selectedLog.request_body).length === 0)
-                      "
-                      class="text-sm text-foreground-secondary italic">
-                      {{ t("auditLog.noRequestData") }}
-                    </div>
-                  </div>
-                </Transition>
-              </div>
-
-              <div v-if="selectedLog.details">
-                <label
-                  class="block text-xs font-medium text-foreground-secondary mb-1">
-                  {{ t("auditLog.description") }}
-                </label>
-                <div class="text-sm text-foreground">
-                  {{ selectedLog.details }}
-                </div>
-              </div>
-
-              <div v-if="selectedLog.error_message">
-                <label class="block text-xs font-medium text-red-500 mb-1">
-                  {{ t("auditLog.errorMessage") }}
-                </label>
-                <div
-                  class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded">
-                  {{ selectedLog.error_message }}
-                </div>
-              </div>
-
-              <div
-                v-if="
-                  selectedLog.changes &&
-                  Object.keys(selectedLog.changes).length > 0
-                ">
-                <label
-                  class="block text-xs font-medium text-foreground-secondary mb-1">
-                  {{ t("auditLog.changes") }}
-                </label>
-                <pre
-                  class="bg-background-secondary rounded-lg p-3 text-xs overflow-auto max-h-60 font-mono"
-                  >{{ JSON.stringify(selectedLog.changes, null, 2) }}</pre
-                >
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -710,10 +789,15 @@ import {
   FunnelIcon,
   CubeIcon,
   ClipboardDocumentListIcon,
+  DocumentTextIcon,
+  ChartBarIcon,
+  XCircleIcon,
 } from "@heroicons/vue/24/outline";
 import { auditLogApi } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { usePagination } from "@/composables/usePagination";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -760,7 +844,6 @@ const statistics = ref<Statistics | null>(null);
 const showDetailModal = ref(false);
 const selectedLog = ref<AuditLogItem | null>(null);
 const showRequestDetails = ref(false);
-const tableRef = ref<HTMLTableElement | null>(null);
 
 // Search & Filters
 const searchQuery = ref("");
@@ -786,18 +869,6 @@ const PAGE_STORAGE_KEY = "audit-log";
 
 watch(pageSize, (newSize) => {
   setPageSize(newSize, PAGE_STORAGE_KEY);
-});
-
-// Column resizing
-const resizingColumn = ref<string | null>(null);
-const columnWidths = ref<Record<string, string>>({
-  timestamp: "160px",
-  user: "180px",
-  action: "100px",
-  resource: "200px",
-  result: "80px",
-  ip: "130px",
-  actions: "80px",
 });
 
 // Search types
@@ -845,52 +916,91 @@ const actionOptions = [
 // Resource type options
 const resourceTypeOptions = ["user", "tenant", "proxy", "license", "session"];
 
+type AuditLogColumnKey =
+  | "timestamp"
+  | "user"
+  | "action"
+  | "resource"
+  | "result"
+  | "ip"
+  | "actions";
+
 // Table columns
 const columns = computed(() => [
   {
-    key: "timestamp",
+    key: "timestamp" as const,
     label: t("auditLog.timestamp"),
-    width: columnWidths.value.timestamp,
-    minWidth: "140px",
+    min: 170,
+    max: 320,
   },
   {
-    key: "user",
+    key: "user" as const,
     label: t("auditLog.user"),
-    width: columnWidths.value.user,
-    minWidth: "160px",
+    min: 210,
+    max: 420,
   },
   {
-    key: "action",
+    key: "action" as const,
     label: t("auditLog.action"),
-    width: columnWidths.value.action,
-    minWidth: "90px",
+    min: 130,
+    max: 240,
   },
   {
-    key: "resource",
+    key: "resource" as const,
     label: t("auditLog.resource"),
-    width: columnWidths.value.resource,
-    minWidth: "180px",
+    min: 240,
+    max: 520,
   },
   {
-    key: "result",
+    key: "result" as const,
     label: t("auditLog.result"),
-    width: columnWidths.value.result,
-    minWidth: "70px",
+    min: 120,
+    max: 220,
   },
   {
-    key: "ip",
+    key: "ip" as const,
     label: t("auditLog.ipAddress"),
-    width: columnWidths.value.ip,
-    minWidth: "110px",
+    min: 150,
+    max: 280,
   },
   {
-    key: "actions",
+    key: "actions" as const,
     label: t("common.actions"),
-    width: columnWidths.value.actions,
-    minWidth: "70px",
-    resizable: false,
+    min: 100,
+    max: 180,
+    sortable: false,
+    align: "right" as const,
   },
 ]);
+
+const auditLogTable = useResizableSortableTable<
+  AuditLogItem,
+  AuditLogColumnKey
+>({
+  storageKey: "hyperfilelens:audit-log:columnWidths",
+  columns,
+  rows: logs,
+  defaultSort: { key: "timestamp", direction: "desc" },
+  minTableWidth: 1120,
+  getSortValue: (log, key) => {
+    if (key === "timestamp") return new Date(log.timestamp).getTime();
+    if (key === "user") return log.user_display || log.user_email || "";
+    if (key === "resource") {
+      return log.resource_name || log.resource_id || log.resource_type || "";
+    }
+    if (key === "ip") return log.ip_address || "";
+    if (key === "actions") return "";
+    return (log as any)[key] ?? "";
+  },
+  getColumnText: (log, key) => {
+    if (key === "timestamp") return formatDateTime(log.timestamp);
+    if (key === "user") return log.user_display || log.user_email || "-";
+    if (key === "resource") return log.resource_name || log.resource_id || "-";
+    if (key === "ip") return log.ip_address || "-";
+    if (key === "actions") return t("common.detail");
+    return String((log as any)[key] ?? "");
+  },
+});
 
 // Computed
 const totalPages = computed(() =>
@@ -912,6 +1022,33 @@ const successRate = computed(() => {
   const success = statistics.value.result_stats?.success || 0;
   return Math.round((success / total) * 100);
 });
+
+const statCards = computed(() => [
+  {
+    label: t("auditLog.totalLogs"),
+    value: statistics.value?.total_count || 0,
+    className: "text-foreground",
+    icon: ClipboardDocumentListIcon,
+  },
+  {
+    label: t("auditLog.todayLogs"),
+    value: statistics.value?.today_count || 0,
+    className: "text-blue-600",
+    icon: ChartBarIcon,
+  },
+  {
+    label: t("auditLog.successRate"),
+    value: `${successRate.value}%`,
+    className: "text-green-600 dark:text-green-400",
+    icon: DocumentTextIcon,
+  },
+  {
+    label: t("auditLog.failureCount"),
+    value: statistics.value?.result_stats?.failure || 0,
+    className: "text-red-600 dark:text-red-400",
+    icon: XCircleIcon,
+  },
+]);
 
 const hasActiveFilters = computed(() => {
   return (
@@ -1154,30 +1291,6 @@ const getMethodColor = (method: string) => {
     DELETE: "text-red-600 dark:text-red-400",
   };
   return colors[method] || "text-foreground-secondary";
-};
-
-// Column resize handlers
-const startResize = (e: MouseEvent, columnKey: string) => {
-  e.preventDefault();
-  resizingColumn.value = columnKey;
-
-  const startX = e.clientX;
-  const startWidth = parseInt(columnWidths.value[columnKey]) || 100;
-
-  const onMouseMove = (moveEvent: MouseEvent) => {
-    const diff = moveEvent.clientX - startX;
-    const newWidth = Math.max(60, startWidth + diff);
-    columnWidths.value[columnKey] = `${newWidth}px`;
-  };
-
-  const onMouseUp = () => {
-    resizingColumn.value = null;
-    document.removeEventListener("mousemove", onMouseMove);
-    document.removeEventListener("mouseup", onMouseUp);
-  };
-
-  document.addEventListener("mousemove", onMouseMove);
-  document.addEventListener("mouseup", onMouseUp);
 };
 
 // Close dropdowns on outside click

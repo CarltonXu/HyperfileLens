@@ -16,7 +16,8 @@
         <button
           type="button"
           class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-          @click="openCreateDialog">
+          @click="openCreateDialog"
+        >
           <PlusIcon class="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
           {{ t("tenants.createTenant") }}
         </button>
@@ -29,20 +30,23 @@
         <div class="flex-1 min-w-0">
           <div class="relative">
             <MagnifyingGlassIcon
-              class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
+            />
             <input
               v-model="searchQuery"
               type="text"
               :placeholder="t('common.search')"
               class="block w-full rounded-lg border border-border py-2 pl-10 pr-3 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
-              @input="debouncedSearch" />
+              @input="debouncedSearch"
+            />
           </div>
         </div>
         <div class="flex items-center gap-2">
           <select
             v-model="statusFilter"
             class="rounded-lg border border-border py-2 pl-3 pr-8 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 text-sm"
-            @change="fetchTenants">
+            @change="fetchTenants"
+          >
             <option class="bg-background" value="">
               {{ t("common.all") || "All Status" }}
             </option>
@@ -62,76 +66,87 @@
 
     <!-- Tenants Table -->
     <div
-      class="bg-card shadow rounded-xl border border-border overflow-visible mb-4">
+      class="bg-card shadow rounded-xl border border-border overflow-visible mb-4"
+    >
       <div v-if="loading" class="p-8 text-center">
         <svg
           class="animate-spin h-8 w-8 text-indigo-600 mx-auto"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
-          viewBox="0 0 24 24">
+          viewBox="0 0 24 24"
+        >
           <circle
             class="opacity-25"
             cx="12"
             cy="12"
             r="10"
             stroke="currentColor"
-            stroke-width="4"></circle>
+            stroke-width="4"
+          ></circle>
           <path
             class="opacity-75"
             fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
         </svg>
         <p class="mt-2 text-sm text-foreground-secondary">
           {{ t("common.loading") }}
         </p>
       </div>
 
-      <table v-else class="min-w-full divide-y divide-border">
+      <table
+        v-else
+        class="w-full table-fixed divide-y divide-border"
+        :style="{ minWidth: tenantTable.tableMinWidth.value }"
+      >
+        <colgroup>
+          <col
+            v-for="column in tenantColumns"
+            :key="column.key"
+            :style="tenantTable.columnStyle(column.key)"
+          />
+        </colgroup>
         <thead class="bg-background-secondary">
           <tr>
-            <th
-              scope="col"
-              class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-foreground sm:pl-6">
-              {{ t("tenants.tenantName") }}
-            </th>
-            <th
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("tenants.status") }}
-            </th>
-            <th
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("tenants.owner") }}
-            </th>
-            <th
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("tenants.userCount") }}
-            </th>
-            <th
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("tenants.proxyCount") }}
-            </th>
-            <th
-              scope="col"
-              class="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-              {{ t("tenants.createdAt") }}
-            </th>
-            <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
-              <span class="sr-only">{{ t("common.actions") }}</span>
-            </th>
+            <ResizableSortableTh
+              v-for="column in tenantColumns"
+              :key="column.key"
+              :column-key="column.key"
+              :label="column.label"
+              :style-value="tenantTable.columnStyle(column.key)"
+              :sortable="column.sortable !== false"
+              :active="tenantTable.sort.value.key === column.key"
+              :align="column.align"
+              :sort-icon="tenantTable.getSortIcon(column.key)"
+              :resizing="tenantTable.resizingColumn.value === column.key"
+              @sort="tenantTable.toggleSort($event as TenantColumnKey)"
+              @resize-start="
+                (key, event) =>
+                  tenantTable.startResize(key as TenantColumnKey, event)
+              "
+              @resize-reset="
+                tenantTable.resetColumnWidth($event as TenantColumnKey)
+              "
+            />
           </tr>
         </thead>
         <tbody class="divide-y divide-border">
-          <tr v-for="tenant in tenants" :key="tenant.id" class="hover:bg-hover">
-            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
+          <tr
+            v-for="tenant in tenantTable.sortedRows.value"
+            :key="tenant.id"
+            class="hover:bg-hover"
+          >
+            <td
+              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6"
+              :style="tenantTable.columnStyle('name')"
+            >
               <div class="flex items-center">
                 <div
-                  class="h-10 w-10 flex-shrink-0 rounded-lg bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
+                  class="h-10 w-10 flex-shrink-0 rounded-lg bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center"
+                >
                   <BuildingOffice2Icon
-                    class="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                    class="h-6 w-6 text-indigo-600 dark:text-indigo-400"
+                  />
                 </div>
                 <div class="ml-4">
                   <div class="font-medium text-foreground">
@@ -141,34 +156,49 @@
                 </div>
               </div>
             </td>
-            <td class="whitespace-nowrap px-3 py-4 text-sm">
+            <td
+              class="whitespace-nowrap px-3 py-4 text-sm"
+              :style="tenantTable.columnStyle('status')"
+            >
               <span
                 :class="getStatusClass(tenant.status)"
-                class="inline-flex rounded-full px-2 py-1 text-xs font-semibold">
+                class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+              >
                 {{ t(`tenants.${tenant.status}`) }}
               </span>
             </td>
             <td
-              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary">
+              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary"
+              :style="tenantTable.columnStyle('owner')"
+            >
               {{ tenant.owner_name || tenant.owner_email || "-" }}
             </td>
             <td
-              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary">
+              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary"
+              :style="tenantTable.columnStyle('user_count')"
+            >
               {{ tenant.user_count || 0 }} / {{ tenant.max_users || "∞" }}
             </td>
             <td
-              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary">
+              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary"
+              :style="tenantTable.columnStyle('proxy_count')"
+            >
               {{ tenant.proxy_count || 0 }} / {{ tenant.max_proxies || "∞" }}
             </td>
             <td
-              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary">
+              class="whitespace-nowrap px-3 py-4 text-sm text-foreground-secondary"
+              :style="tenantTable.columnStyle('created_at')"
+            >
               {{ formatDate(tenant.created_at) }}
             </td>
             <td
-              class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+              class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6"
+              :style="tenantTable.columnStyle('actions')"
+            >
               <Menu as="div" class="relative inline-block text-left">
                 <MenuButton
-                  class="flex items-center rounded-full text-foreground-muted hover:text-slate-600 dark:hover:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  class="flex items-center rounded-full text-foreground-muted hover:text-slate-600 dark:hover:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
                   <span class="sr-only">Open options</span>
                   <EllipsisVerticalIcon class="h-5 w-5" aria-hidden="true" />
                 </MenuButton>
@@ -178,9 +208,11 @@
                   enter-to-class="transform opacity-100 scale-100"
                   leave-active-class="transition ease-in duration-75"
                   leave-from-class="transform opacity-100 scale-100"
-                  leave-to-class="transform opacity-0 scale-95">
+                  leave-to-class="transform opacity-0 scale-95"
+                >
                   <MenuItems
-                    class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-md popover-surface shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-md popover-surface shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                  >
                     <MenuItem v-slot="{ active }">
                       <button
                         @click="openEditDialog(tenant)"
@@ -189,7 +221,8 @@
                             ? 'bg-background-tertiary text-foreground'
                             : 'text-foreground-secondary',
                           'block w-full px-4 py-2 text-left text-sm',
-                        ]">
+                        ]"
+                      >
                         {{ t("common.edit") }}
                       </button>
                     </MenuItem>
@@ -201,7 +234,8 @@
                             ? 'bg-background-tertiary text-foreground'
                             : 'text-foreground-secondary',
                           'block w-full px-4 py-2 text-left text-sm',
-                        ]">
+                        ]"
+                      >
                         {{ t("tenants.manageUsers") }}
                       </button>
                     </MenuItem>
@@ -213,13 +247,15 @@
                             ? 'bg-background-tertiary text-foreground'
                             : 'text-foreground-secondary',
                           'block w-full px-4 py-2 text-left text-sm',
-                        ]">
+                        ]"
+                      >
                         {{ t("tenants.stats") }}
                       </button>
                     </MenuItem>
                     <MenuItem
                       v-if="tenant.status === 'active'"
-                      v-slot="{ active }">
+                      v-slot="{ active }"
+                    >
                       <button
                         @click="deactivateTenant(tenant)"
                         :class="[
@@ -227,7 +263,8 @@
                             ? 'bg-background-tertiary text-foreground'
                             : 'text-foreground-secondary',
                           'block w-full px-4 py-2 text-left text-sm',
-                        ]">
+                        ]"
+                      >
                         {{ t("tenants.deactivate") }}
                       </button>
                     </MenuItem>
@@ -239,7 +276,8 @@
                             ? 'bg-background-tertiary text-foreground'
                             : 'text-foreground-secondary',
                           'block w-full px-4 py-2 text-left text-sm',
-                        ]">
+                        ]"
+                      >
                         {{ t("tenants.activate") }}
                       </button>
                     </MenuItem>
@@ -249,7 +287,8 @@
                         :class="[
                           active ? 'bg-red-100 text-red-900' : 'text-red-700',
                           'block w-full px-4 py-2 text-left text-sm',
-                        ]">
+                        ]"
+                      >
                         {{ t("common.delete") }}
                       </button>
                     </MenuItem>
@@ -261,7 +300,8 @@
           <tr v-if="tenants.length === 0">
             <td
               colspan="7"
-              class="px-6 py-12 text-center text-sm text-foreground-secondary">
+              class="px-6 py-12 text-center text-sm text-foreground-secondary"
+            >
               {{ t("common.noData") || "No tenants found" }}
             </td>
           </tr>
@@ -271,23 +311,27 @@
       <!-- Pagination -->
       <div
         v-if="pagination.total > pagination.pageSize"
-        class="flex items-center justify-between border-t border-border surface-card px-4 py-3 sm:px-6">
+        class="flex items-center justify-between border-t border-border surface-card px-4 py-3 sm:px-6"
+      >
         <div class="flex flex-1 justify-between sm:hidden">
           <button
             @click="prevPage"
             :disabled="pagination.page === 1"
-            class="relative inline-flex items-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover">
+            class="relative inline-flex items-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover"
+          >
             Previous
           </button>
           <button
             @click="nextPage"
             :disabled="pagination.page >= totalPages"
-            class="relative ml-3 inline-flex items-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover">
+            class="relative ml-3 inline-flex items-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover"
+          >
             Next
           </button>
         </div>
         <div
-          class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+          class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between"
+        >
           <div>
             <p class="text-sm text-foreground-secondary">
               {{ t("pagination.showing") }}
@@ -306,11 +350,13 @@
           <div>
             <nav
               class="isolate inline-flex -space-x-px rounded-md shadow-sm"
-              aria-label="Pagination">
+              aria-label="Pagination"
+            >
               <button
                 @click="prevPage"
                 :disabled="pagination.page === 1"
-                class="relative inline-flex items-center rounded-l-lg border border-border px-2 py-2 text-foreground-muted hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                class="relative inline-flex items-center rounded-l-lg border border-border px-2 py-2 text-foreground-muted hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <ChevronLeftIcon class="h-5 w-5" aria-hidden="true" />
               </button>
               <button
@@ -322,13 +368,15 @@
                     ? 'bg-indigo-600 text-white'
                     : 'text-foreground ring-1 ring-inset ring-gray-300 hover:bg-hover',
                   'relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0',
-                ]">
+                ]"
+              >
                 {{ page }}
               </button>
               <button
                 @click="nextPage"
                 :disabled="pagination.page >= totalPages"
-                class="relative inline-flex items-center rounded-r-lg border border-border px-2 py-2 text-foreground-muted hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                class="relative inline-flex items-center rounded-r-lg border border-border px-2 py-2 text-foreground-muted hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <ChevronRightIcon class="h-5 w-5" aria-hidden="true" />
               </button>
             </nav>
@@ -347,14 +395,17 @@
           enter-to="opacity-100"
           leave="duration-200 ease-in"
           leave-from="opacity-100"
-          leave-to="opacity-0">
+          leave-to="opacity-0"
+        >
           <div
-            class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity" />
+            class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity"
+          />
         </TransitionChild>
 
         <div class="fixed inset-0 z-10 overflow-y-auto">
           <div
-            class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
+          >
             <TransitionChild
               as="template"
               enter="duration-300 ease-out"
@@ -362,14 +413,17 @@
               enter-to="opacity-100 translate-y-0 sm:scale-100"
               leave="duration-200 ease-in"
               leave-from="opacity-100 translate-y-0 sm:scale-100"
-              leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+              leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            >
               <DialogPanel
-                class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6"
+              >
                 <div class="absolute right-0 top-0 pr-4 pt-4">
                   <button
                     type="button"
                     class="rounded-lg text-foreground-muted hover:text-slate-500 dark:hover:text-slate-400 focus:outline-none"
-                    @click="closeDialog">
+                    @click="closeDialog"
+                  >
                     <XMarkIcon class="h-6 w-6" aria-hidden="true" />
                   </button>
                 </div>
@@ -377,7 +431,8 @@
                   <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
                     <DialogTitle
                       as="h3"
-                      class="text-base font-semibold leading-6 text-foreground">
+                      class="text-base font-semibold leading-6 text-foreground"
+                    >
                       {{
                         editingTenant
                           ? t("tenants.editTenant")
@@ -398,7 +453,8 @@
                             t('tenants.tenantNamePlaceholder') ||
                             '请输入租户名称'
                           "
-                          class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                          class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                        />
                       </div>
                       <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -415,7 +471,8 @@
                               t('tenants.tenantSlugPlaceholder') ||
                               '例如: my-company'
                             "
-                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
                           <p class="mt-1 text-xs text-foreground-secondary">
                             {{
                               t("tenants.tenantSlugHelp") ||
@@ -433,7 +490,8 @@
                             type="email"
                             required
                             :placeholder="t('tenants.contactEmailPlaceholder')"
-                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
                         </div>
                       </div>
                       <div>
@@ -448,7 +506,8 @@
                             t('tenants.descriptionPlaceholder') ||
                             '请输入租户描述（可选）'
                           "
-                          class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                          class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                        />
                       </div>
                       <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -461,7 +520,8 @@
                             type="number"
                             min="1"
                             :placeholder="t('common.unlimited') || '无限制'"
-                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
                         </div>
                         <div>
                           <label
@@ -473,7 +533,8 @@
                             type="number"
                             min="1"
                             :placeholder="t('common.unlimited') || '无限制'"
-                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
                         </div>
                       </div>
                       <div class="grid grid-cols-2 gap-4">
@@ -487,7 +548,8 @@
                             type="number"
                             min="1"
                             :placeholder="t('common.unlimited') || '无限制'"
-                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
                         </div>
                         <div>
                           <label
@@ -499,20 +561,23 @@
                             type="number"
                             min="1"
                             :placeholder="t('common.unlimited') || '无限制'"
-                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm" />
+                            class="mt-1 block w-full rounded-lg border border-border px-3 py-2 bg-background text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
                         </div>
                       </div>
                       <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
                         <button
                           type="submit"
                           :disabled="saving"
-                          class="inline-flex w-full justify-center rounded-lg bg-indigo-600 dark:bg-indigo-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 dark:hover:bg-indigo-600 sm:ml-3 sm:w-auto disabled:opacity-50 transition-colors">
+                          class="inline-flex w-full justify-center rounded-lg bg-indigo-600 dark:bg-indigo-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 dark:hover:bg-indigo-600 sm:ml-3 sm:w-auto disabled:opacity-50 transition-colors"
+                        >
                           {{ saving ? t("common.saving") : t("common.save") }}
                         </button>
                         <button
                           type="button"
                           class="mt-3 inline-flex w-full justify-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-hover sm:mt-0 sm:w-auto transition-colors"
-                          @click="closeDialog">
+                          @click="closeDialog"
+                        >
                           {{ t("common.cancel") }}
                         </button>
                       </div>
@@ -532,13 +597,16 @@
         <div class="flex min-h-full items-center justify-center p-4">
           <div
             class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-            @click="closeStatsDrawer"></div>
+            @click="closeStatsDrawer"
+          ></div>
 
           <div
-            class="relative modal-surface rounded-lg shadow-xl max-w-2xl w-full">
+            class="relative modal-surface rounded-lg shadow-xl max-w-2xl w-full"
+          >
             <!-- Header -->
             <div
-              class="px-6 py-4 border-b border-border flex items-center justify-between">
+              class="px-6 py-4 border-b border-border flex items-center justify-between"
+            >
               <div>
                 <h3 class="text-lg font-medium text-foreground">
                   {{ t("tenants.stats") }}
@@ -550,7 +618,8 @@
               <button
                 type="button"
                 class="rounded-lg text-foreground-muted hover:text-slate-500 dark:hover:text-slate-400"
-                @click="closeStatsDrawer">
+                @click="closeStatsDrawer"
+              >
                 <XMarkIcon class="h-6 w-6" aria-hidden="true" />
               </button>
             </div>
@@ -562,18 +631,21 @@
                   class="animate-spin h-8 w-8 text-indigo-600 mx-auto"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
-                  viewBox="0 0 24 24">
+                  viewBox="0 0 24 24"
+                >
                   <circle
                     class="opacity-25"
                     cx="12"
                     cy="12"
                     r="10"
                     stroke="currentColor"
-                    stroke-width="4"></circle>
+                    stroke-width="4"
+                  ></circle>
                   <path
                     class="opacity-75"
                     fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
                 </svg>
               </div>
 
@@ -615,7 +687,8 @@
                     </p>
                   </div>
                   <div
-                    class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                    class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4"
+                  >
                     <div class="flex items-center">
                       <CircleStackIcon class="h-8 w-8 text-purple-600" />
                       <div class="ml-3">
@@ -633,7 +706,8 @@
                     </p>
                   </div>
                   <div
-                    class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                    class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4"
+                  >
                     <div class="flex items-center">
                       <CircleStackIcon class="h-8 w-8 text-orange-600" />
                       <div class="ml-3">
@@ -663,7 +737,8 @@
               <button
                 type="button"
                 class="rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-hover transition-colors"
-                @click="closeStatsDrawer">
+                @click="closeStatsDrawer"
+              >
                 {{ t("common.close") || "Close" }}
               </button>
             </div>
@@ -679,17 +754,21 @@
         class="fixed inset-0 z-50 overflow-y-auto"
         aria-labelledby="modal-title"
         role="dialog"
-        aria-modal="true">
+        aria-modal="true"
+      >
         <div class="flex min-h-screen items-center justify-center p-4">
           <div
             class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity"
-            @click="closeUsersDrawer"></div>
+            @click="closeUsersDrawer"
+          ></div>
 
           <div
-            class="relative modal-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+            class="relative modal-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col"
+          >
             <!-- Header -->
             <div
-              class="px-6 py-4 border-b border-border flex items-center justify-between">
+              class="px-6 py-4 border-b border-border flex items-center justify-between"
+            >
               <div>
                 <h3 class="text-lg font-semibold text-foreground">
                   {{ usersTenant?.name }} - {{ t("tenants.manageUsers") }}
@@ -700,7 +779,8 @@
               </div>
               <button
                 @click="closeUsersDrawer"
-                class="text-foreground-muted hover:text-slate-600 dark:hover:text-slate-300">
+                class="text-foreground-muted hover:text-slate-600 dark:hover:text-slate-300"
+              >
                 <XMarkIcon class="h-5 w-5" />
               </button>
             </div>
@@ -711,14 +791,16 @@
               <div class="mb-6">
                 <button
                   @click="showAddUserForm = !showAddUserForm"
-                  class="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                  class="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                >
                   <PlusIcon class="h-4 w-4" />
                   {{ t("tenants.addUser") }}
                 </button>
 
                 <div
                   v-if="showAddUserForm"
-                  class="mt-3 p-4 bg-background-secondary rounded-lg space-y-3">
+                  class="mt-3 p-4 bg-background-secondary rounded-lg space-y-3"
+                >
                   <div class="grid grid-cols-2 gap-3">
                     <div>
                       <label
@@ -729,7 +811,8 @@
                         v-model="newUserEmail"
                         type="email"
                         :placeholder="t('users.emailPlaceholder')"
-                        class="w-full rounded-lg border border-border bg-background text-foreground px-3 py-2 text-sm" />
+                        class="w-full rounded-lg border border-border bg-background text-foreground px-3 py-2 text-sm"
+                      />
                     </div>
                     <div>
                       <label
@@ -738,7 +821,8 @@
                       >
                       <select
                         v-model="newUserRole"
-                        class="w-full rounded-lg border border-border bg-background text-foreground px-3 py-2 text-sm">
+                        class="w-full rounded-lg border border-border bg-background text-foreground px-3 py-2 text-sm"
+                      >
                         <option class="bg-background" value="admin">
                           {{ t("users.roles.admin") }}
                         </option>
@@ -751,13 +835,15 @@
                   <div class="flex justify-end gap-2">
                     <button
                       @click="showAddUserForm = false"
-                      class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 dark:text-slate-400">
+                      class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 dark:text-slate-400"
+                    >
                       {{ t("common.cancel") }}
                     </button>
                     <button
                       @click="handleAddUser"
                       :disabled="!newUserEmail"
-                      class="bg-indigo-600 text-white rounded-md px-3 py-1.5 text-sm hover:bg-indigo-500 disabled:opacity-50">
+                      class="bg-indigo-600 text-white rounded-md px-3 py-1.5 text-sm hover:bg-indigo-500 disabled:opacity-50"
+                    >
                       {{ t("common.add") }}
                     </button>
                   </div>
@@ -771,33 +857,39 @@
                     class="animate-spin h-6 w-6 text-indigo-600 mx-auto"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
-                    viewBox="0 0 24 24">
+                    viewBox="0 0 24 24"
+                  >
                     <circle
                       class="opacity-25"
                       cx="12"
                       cy="12"
                       r="10"
                       stroke="currentColor"
-                      stroke-width="4"></circle>
+                      stroke-width="4"
+                    ></circle>
                     <path
                       class="opacity-75"
                       fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
                   </svg>
                 </div>
                 <div
                   v-else-if="tenantUsers.length === 0"
-                  class="text-center py-8 text-foreground-secondary">
+                  class="text-center py-8 text-foreground-secondary"
+                >
                   {{ t("common.noData") }}
                 </div>
                 <div
                   v-else
                   v-for="user in tenantUsers"
                   :key="user.id"
-                  class="flex items-center justify-between p-4 bg-background rounded-lg border border-border hover:shadow-sm transition-shadow">
+                  class="flex items-center justify-between p-4 bg-background rounded-lg border border-border hover:shadow-sm transition-shadow"
+                >
                   <div class="flex items-center gap-3">
                     <div
-                      class="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-medium text-sm">
+                      class="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-medium text-sm"
+                    >
                       {{ getInitials(user) }}
                     </div>
                     <div>
@@ -805,16 +897,19 @@
                         {{ getDisplayName(user) }}
                       </p>
                       <p
-                        class="text-xs text-foreground-secondary dark:text-slate-400">
+                        class="text-xs text-foreground-secondary dark:text-slate-400"
+                      >
                         {{ user.email }} · ID: {{ user.id }}
                       </p>
                       <div
                         v-if="
                           user.tenant_role === 'admin' && !user.is_superuser
                         "
-                        class="flex items-center gap-2 mt-1">
+                        class="flex items-center gap-2 mt-1"
+                      >
                         <span
-                          class="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
+                          class="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                        >
                           {{ t("users.roles.admin") }}
                         </span>
                       </div>
@@ -832,7 +927,8 @@
                         )
                       "
                       :disabled="user.is_superuser"
-                      class="rounded-md border-border px-2 py-1.5 text-sm disabled:opacity-50">
+                      class="rounded-md border-border px-2 py-1.5 text-sm disabled:opacity-50"
+                    >
                       <option class="bg-background" value="admin">
                         {{ t("users.roles.admin") }}
                       </option>
@@ -851,7 +947,8 @@
                           : user.id === currentUserId
                             ? t('tenants.cannotRemoveSelf')
                             : t('common.remove')
-                      ">
+                      "
+                    >
                       <UserMinusIcon class="h-5 w-5" />
                     </button>
                   </div>
@@ -864,7 +961,8 @@
               <button
                 type="button"
                 class="rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-hover transition-colors"
-                @click="closeUsersDrawer">
+                @click="closeUsersDrawer"
+              >
                 {{ t("common.close") || "Close" }}
               </button>
             </div>
@@ -878,7 +976,8 @@
       <Dialog
         as="div"
         class="relative z-[60]"
-        @close="showRemoveUserConfirm = false">
+        @close="showRemoveUserConfirm = false"
+      >
         <TransitionChild
           as="template"
           enter="duration-300 ease-out"
@@ -886,9 +985,11 @@
           enter-to="opacity-100"
           leave="duration-200 ease-in"
           leave-from="opacity-100"
-          leave-to="opacity-0">
+          leave-to="opacity-0"
+        >
           <div
-            class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity" />
+            class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity"
+          />
         </TransitionChild>
 
         <div class="fixed inset-0 z-[60] overflow-y-auto">
@@ -900,20 +1001,25 @@
               enter-to="opacity-100 translate-y-0 sm:scale-100"
               leave="duration-200 ease-in"
               leave-from="opacity-100 translate-y-0 sm:scale-100"
-              leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+              leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            >
               <DialogPanel
-                class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-sm sm:p-6">
+                class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-sm sm:p-6"
+              >
                 <div>
                   <div
-                    class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                    class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100"
+                  >
                     <ExclamationTriangleIcon
                       class="h-6 w-6 text-red-600"
-                      aria-hidden="true" />
+                      aria-hidden="true"
+                    />
                   </div>
                   <div class="mt-3 text-center sm:mt-5">
                     <DialogTitle
                       as="h3"
-                      class="text-base font-semibold leading-6 text-foreground">
+                      class="text-base font-semibold leading-6 text-foreground"
+                    >
                       {{ t("tenants.confirmRemoveUser") }}
                     </DialogTitle>
                     <div class="mt-2">
@@ -928,17 +1034,20 @@
                   </div>
                 </div>
                 <div
-                  class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
+                  class="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3"
+                >
                   <button
                     type="button"
                     class="mt-3 inline-flex w-full justify-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-hover sm:mt-0 transition-colors"
-                    @click="showRemoveUserConfirm = false">
+                    @click="showRemoveUserConfirm = false"
+                  >
                     {{ t("common.cancel") }}
                   </button>
                   <button
                     type="button"
                     class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
-                    @click="executeRemoveUser">
+                    @click="executeRemoveUser"
+                  >
                     {{ t("common.remove") }}
                   </button>
                 </div>
@@ -959,14 +1068,17 @@
           enter-to="opacity-100"
           leave="duration-200 ease-in"
           leave-from="opacity-100"
-          leave-to="opacity-0">
+          leave-to="opacity-0"
+        >
           <div
-            class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity" />
+            class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity"
+          />
         </TransitionChild>
 
         <div class="fixed inset-0 z-10 overflow-y-auto">
           <div
-            class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
+          >
             <TransitionChild
               as="template"
               enter="duration-300 ease-out"
@@ -974,20 +1086,25 @@
               enter-to="opacity-100 translate-y-0 sm:scale-100"
               leave="duration-200 ease-in"
               leave-from="opacity-100 translate-y-0 sm:scale-100"
-              leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+              leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            >
               <DialogPanel
-                class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                class="relative transform overflow-hidden rounded-xl modal-surface border border-border px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6"
+              >
                 <div class="sm:flex sm:items-start">
                   <div
-                    class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"
+                  >
                     <ExclamationTriangleIcon
                       class="h-6 w-6 text-red-600"
-                      aria-hidden="true" />
+                      aria-hidden="true"
+                    />
                   </div>
                   <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                     <DialogTitle
                       as="h3"
-                      class="text-base font-semibold leading-6 text-foreground">
+                      class="text-base font-semibold leading-6 text-foreground"
+                    >
                       {{ t("common.confirmDelete") }}
                     </DialogTitle>
                     <div class="mt-2">
@@ -1006,13 +1123,15 @@
                     type="button"
                     :disabled="deleting"
                     class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto disabled:opacity-50"
-                    @click="deleteTenant">
+                    @click="deleteTenant"
+                  >
                     {{ deleting ? t("common.deleting") : t("common.delete") }}
                   </button>
                   <button
                     type="button"
                     class="mt-3 inline-flex w-full justify-center rounded-md bg-card px-3 py-2 text-sm font-semibold text-foreground shadow-sm ring-1 ring-inset ring-border hover:bg-hover sm:mt-0 sm:w-auto"
-                    @click="showDeleteConfirm = false">
+                    @click="showDeleteConfirm = false"
+                  >
                     {{ t("common.cancel") }}
                   </button>
                 </div>
@@ -1058,6 +1177,8 @@ import { useToast } from "@/composables/useToast";
 import { useAuthStore } from "@/stores/auth";
 import type { Tenant } from "@/types/tenant";
 import { usePagination } from "@/composables/usePagination";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 
 const { t } = useI18n();
 const { showToast } = useToast();
@@ -1121,6 +1242,72 @@ const displayedPages = computed(() => {
   const end = Math.min(totalPages.value, pagination.value.page + 2);
   for (let i = start; i <= end; i++) pages.push(i);
   return pages;
+});
+
+type TenantColumnKey =
+  | "name"
+  | "status"
+  | "owner"
+  | "user_count"
+  | "proxy_count"
+  | "created_at"
+  | "actions";
+
+const tenantColumns = computed(() => [
+  { key: "name" as const, label: t("tenants.tenantName"), min: 260, max: 620 },
+  { key: "status" as const, label: t("tenants.status"), min: 130, max: 240 },
+  { key: "owner" as const, label: t("tenants.owner"), min: 220, max: 460 },
+  {
+    key: "user_count" as const,
+    label: t("tenants.userCount"),
+    min: 140,
+    max: 260,
+  },
+  {
+    key: "proxy_count" as const,
+    label: t("tenants.proxyCount"),
+    min: 140,
+    max: 260,
+  },
+  {
+    key: "created_at" as const,
+    label: t("tenants.createdAt"),
+    min: 190,
+    max: 320,
+  },
+  {
+    key: "actions" as const,
+    label: t("common.actions"),
+    min: 100,
+    max: 180,
+    sortable: false,
+    align: "right" as const,
+  },
+]);
+
+const tenantTable = useResizableSortableTable<Tenant, TenantColumnKey>({
+  storageKey: "hyperfilelens:tenants:columnWidths",
+  columns: tenantColumns,
+  rows: tenants,
+  defaultSort: { key: "name" },
+  minTableWidth: 980,
+  getSortValue: (tenant, key) => {
+    if (key === "owner") return tenant.owner_name || tenant.owner_email || "";
+    if (key === "created_at")
+      return tenant.created_at ? new Date(tenant.created_at).getTime() : 0;
+    if (key === "actions") return "";
+    return (tenant as any)[key] ?? "";
+  },
+  getColumnText: (tenant, key) => {
+    if (key === "owner") return tenant.owner_name || tenant.owner_email || "-";
+    if (key === "user_count")
+      return `${tenant.user_count || 0} / ${tenant.max_users || "∞"}`;
+    if (key === "proxy_count")
+      return `${tenant.proxy_count || 0} / ${tenant.max_proxies || "∞"}`;
+    if (key === "created_at") return formatDate(tenant.created_at);
+    if (key === "actions") return t("common.actions");
+    return String((tenant as any)[key] ?? "");
+  },
 });
 
 // Methods

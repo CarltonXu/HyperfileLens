@@ -101,20 +101,13 @@ class ProxyViewSet(viewsets.ModelViewSet):
     )
     def create(self, request, *args, **kwargs):
         """Create a new proxy."""
-        # Check license quota
-        from licenses.models import License
-        from rest_framework.exceptions import PermissionDenied
-        
-        user = request.user
-        tenant = getattr(user, 'tenant', None)
-        
-        if tenant:
-            license = License.get_active_license(tenant)
-            if license:
-                is_allowed, message = license.check_quota('proxies')
-                if not is_allowed:
-                    AuditService.log_proxy_create(request, None, result='failure', error_message=f"License quota exceeded: {message}")
-                    raise PermissionDenied(f"License quota exceeded: {message}")
+        from licenses.quota import enforce_license_quota
+
+        try:
+            enforce_license_quota(getattr(request.user, 'tenant', None), 'proxies')
+        except Exception as exc:
+            AuditService.log_proxy_create(request, None, result='failure', error_message=str(exc))
+            raise
         
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -244,19 +237,9 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
 
         This creates a pending proxy and returns the installation command.
         """
-        # Check license quota first
-        from licenses.models import License
-        from rest_framework.exceptions import PermissionDenied
-        
-        user = request.user
-        tenant = getattr(user, 'tenant', None)
-        
-        if tenant:
-            license = License.get_active_license(tenant)
-            if license:
-                is_allowed, message = license.check_quota('proxies')
-                if not is_allowed:
-                    raise PermissionDenied(f"License quota exceeded: {message}")
+        from licenses.quota import enforce_license_quota
+
+        enforce_license_quota(getattr(request.user, 'tenant', None), 'proxies')
         
         serializer = InstallCommandSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

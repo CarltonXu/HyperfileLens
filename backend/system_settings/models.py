@@ -212,9 +212,10 @@ class SMTPConfig(models.Model):
     def get_connection(self):
         """Get Django email connection."""
         from django.core.mail import get_connection as django_get_connection
-        
+
+        # Use custom backend that disables SSL certificate verification
         return django_get_connection(
-            backend='django.core.mail.backends.smtp.EmailBackend',
+            backend='system_settings.email_backend.NoVerifyEmailBackend',
             host=self.host,
             port=self.port,
             username=self.username,

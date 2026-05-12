@@ -133,6 +133,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         """
         from tenants.models import Tenant
         from licenses.models import License
+        from licenses.quota import enforce_license_quota, get_quota_license
         from django.utils import timezone
         import uuid
         import secrets
@@ -146,6 +147,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         # Clean the prefix to be a valid name/slug
         tenant_name = ''.join(c if c.isalnum() or c in '-_' else '-' for c in email_prefix)
         tenant_slug = f"{tenant_name}-{secrets.token_hex(4)}"
+
+        if get_quota_license():
+            enforce_license_quota(None, 'tenants')
 
         # Create tenant
         tenant = Tenant.objects.create(

@@ -1,0 +1,88 @@
+# Generated manually to restore ProxyMetrics model
+
+import django.utils.timezone
+import uuid
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('nodes', '0013_add_proxytask_progress_fields'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='ProxyMetrics',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('timestamp', models.DateTimeField(db_index=True, default=django.utils.timezone.now, help_text='When these metrics were recorded')),
+                ('cpu_usage', models.FloatField(help_text='CPU usage percentage (0-100)')),
+                ('cpu_cores', models.IntegerField(help_text='Number of CPU cores (logical)')),
+                ('cpu_physical', models.IntegerField(blank=True, help_text='Number of physical CPU cores', null=True)),
+                ('memory_usage', models.FloatField(help_text='Memory usage percentage (0-100)')),
+                ('memory_total', models.BigIntegerField(help_text='Total memory in bytes')),
+                ('memory_used', models.BigIntegerField(help_text='Used memory in bytes')),
+                ('memory_free', models.BigIntegerField(help_text='Free memory in bytes')),
+                ('disk_usage', models.FloatField(help_text='Disk usage percentage (0-100)')),
+                ('disk_total', models.BigIntegerField(help_text='Total disk space in bytes')),
+                ('disk_used', models.BigIntegerField(help_text='Used disk space in bytes')),
+                ('disk_free', models.BigIntegerField(help_text='Free disk space in bytes')),
+                ('network_bytes_sent', models.BigIntegerField(default=0, help_text='Total bytes sent')),
+                ('network_bytes_recv', models.BigIntegerField(default=0, help_text='Total bytes received')),
+                ('network_packets_sent', models.IntegerField(default=0, help_text='Total packets sent')),
+                ('network_packets_recv', models.IntegerField(default=0, help_text='Total packets received')),
+                ('uptime', models.BigIntegerField(help_text='System uptime in seconds')),
+                ('goroutines', models.IntegerField(default=0, help_text='Number of goroutines (for Go proxies)')),
+                ('load_average', models.FloatField(blank=True, help_text='System load average (1-minute)', null=True)),
+                ('extra_metrics', models.JSONField(blank=True, default=dict, help_text='Additional custom metrics')),
+                ('proxy', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='metrics', to='nodes.proxynode')),
+            ],
+            options={
+                'verbose_name': 'Proxy Metrics',
+                'verbose_name_plural': 'Proxy Metrics',
+                'ordering': ['-timestamp'],
+                'db_table': 'nodes_proxy_metrics',
+                'indexes': [
+                    models.Index(fields=['proxy', '-timestamp'], name='nodes_proxy_m_proxy_time_idx'),
+                    models.Index(fields=['timestamp'], name='nodes_proxy_m_timestamp_idx'),
+                    models.Index(fields=['proxy', 'timestamp'], name='nodes_proxy_m_proxy_timestamp_idx'),
+                ],
+            },
+        ),
+        migrations.CreateModel(
+            name='MetricsAggregation',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('period', models.CharField(choices=[('hourly', 'Hourly'), ('daily', 'Daily')], db_index=True, max_length=20)),
+                ('period_start', models.DateTimeField(db_index=True, help_text='Start of aggregation period')),
+                ('period_end', models.DateTimeField(help_text='End of aggregation period')),
+                ('cpu_usage_avg', models.FloatField()),
+                ('cpu_usage_min', models.FloatField()),
+                ('cpu_usage_max', models.FloatField()),
+                ('cpu_usage_p50', models.FloatField(blank=True, null=True)),
+                ('cpu_usage_p95', models.FloatField(blank=True, null=True)),
+                ('memory_usage_avg', models.FloatField()),
+                ('memory_usage_min', models.FloatField()),
+                ('memory_usage_max', models.FloatField()),
+                ('disk_usage_avg', models.FloatField()),
+                ('disk_usage_min', models.FloatField()),
+                ('disk_usage_max', models.FloatField()),
+                ('sample_count', models.IntegerField()),
+                ('extra_aggregations', models.JSONField(blank=True, default=dict)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('proxy', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='aggregated_metrics', to='nodes.proxynode')),
+            ],
+            options={
+                'verbose_name': 'Metrics Aggregation',
+                'verbose_name_plural': 'Metrics Aggregations',
+                'ordering': ['-period_start'],
+                'db_table': 'nodes_metrics_aggregation',
+                'indexes': [
+                    models.Index(fields=['proxy', 'period', '-period_start'], name='nodes_metr_agg_proxy_idx'),
+                    models.Index(fields=['period_start'], name='nodes_metr_agg_period_idx'),
+                ],
+                'unique_together': {('proxy', 'period', 'period_start')},
+            },
+        ),
+    ]

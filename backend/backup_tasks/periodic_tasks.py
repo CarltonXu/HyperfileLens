@@ -22,6 +22,7 @@ def schedule_backup_tasks():
     from policies.models import BackupPolicy
     from backup_tasks.models import BackupTask
     from backup_tasks.tasks import execute_backup_task
+    from licenses.quota import enforce_license_quota, LicenseQuotaExceeded
     
     now = timezone.now()
     
@@ -45,6 +46,7 @@ def schedule_backup_tasks():
             if not existing_task:
                 # Create backup task
                 try:
+                    enforce_license_quota(policy.tenant, 'backup_tasks')
                     task = BackupTask.objects.create(
                         name=f"{policy.name} - {now.strftime('%Y-%m-%d %H:%M')}",
                         description=f"Scheduled backup from policy: {policy.name}",
@@ -58,7 +60,8 @@ def schedule_backup_tasks():
                         retention_days=policy.retention_days,
                         max_snapshots=policy.retention_snapshots,
                         schedule=policy,
-                        user=policy.user
+                        user=policy.user,
+                        tenant=policy.tenant
                     )
                     
                     # Execute the task
@@ -68,6 +71,9 @@ def schedule_backup_tasks():
                     logger.info(f"Triggered backup task for policy: {policy.name}")
                     
                 except Exception as e:
+                    if isinstance(e, LicenseQuotaExceeded):
+                        logger.warning(f"Skipped backup task for policy {policy.name}: {e}")
+                        continue
                     logger.error(f"Failed to create backup task for policy {policy.name}: {e}")
     
     return {'policies_checked': policies.count(), 'tasks_triggered': triggered_count}

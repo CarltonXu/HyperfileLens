@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage
 
 from alerts.choices import NotificationChannelType, NotificationStatus
 from alerts.models import AlertPolicy, NotificationChannel, NotificationLog
@@ -35,14 +35,68 @@ def test_channel(channel):
         recipients = config.get("to_emails") or []
         if not recipients:
             raise ValueError("Email channel requires to_emails.")
-        send_mail(
-            subject="HyperFileLens alert channel test",
-            message="This is a test notification from HyperFileLens.",
-            from_email=config.get("from_email"),
-            recipient_list=recipients,
-            fail_silently=False,
-        )
-        return {"status": "success"}
+
+        # Get SMTP configuration from channel config or fall back to database
+        smtp_host = config.get("smtp_host")
+        smtp_port = config.get("smtp_port")
+        smtp_username = config.get("smtp_username")
+        smtp_password = config.get("smtp_password")
+        use_tls = config.get("use_tls", True)
+        use_ssl = config.get("use_ssl", False)
+        from_email = config.get("from_email")
+        email_subject = config.get("email_subject")
+
+        # Auto-detect SSL for port 465 (common for SMTP SSL)
+        if smtp_port == 465:
+            use_ssl = True
+            use_tls = False
+
+        # Use custom email subject if provided, otherwise use default
+        subject = email_subject or "HyperFileLens alert channel test"
+
+        # If channel config has SMTP settings, use them directly
+        if smtp_host and smtp_port:
+            from django.core.mail import get_connection
+            from system_settings.email_backend import NoVerifyEmailBackend
+
+            connection = get_connection(
+                backend='system_settings.email_backend.NoVerifyEmailBackend',
+                host=smtp_host,
+                port=smtp_port,
+                username=smtp_username,
+                password=smtp_password,
+                use_tls=use_tls,
+                use_ssl=use_ssl,
+            )
+
+            email = EmailMessage(
+                subject=subject,
+                body="This is a test notification from HyperFileLens.",
+                from_email=from_email,
+                to=recipients,
+                connection=connection,
+            )
+            email.send()
+            return {"status": "success"}
+        else:
+            # Fall back to database SMTP configuration
+            from system_settings.models import SMTPConfig
+
+            smtp_config = SMTPConfig.objects.filter(is_active=True).first()
+            if not smtp_config:
+                raise ValueError("No SMTP configuration found in channel or System Settings.")
+
+            connection = smtp_config.get_connection()
+
+            email = EmailMessage(
+                subject=subject,
+                body="This is a test notification from HyperFileLens.",
+                from_email=from_email or smtp_config.from_email,
+                to=recipients,
+                connection=connection,
+            )
+            email.send()
+            return {"status": "success"}
 
     if channel.type == NotificationChannelType.WEBHOOK:
         _send_webhook(channel, {"type": "test", "message": "HyperFileLens alert channel test"})
@@ -104,14 +158,63 @@ def _send_email(channel, alert, resolved):
     if not recipients:
         raise ValueError("Email channel requires to_emails.")
 
-    prefix = "Resolved" if resolved else "Alert"
-    send_mail(
-        subject=f"[HyperFileLens] {prefix}: {alert.title}",
-        message=alert.message or alert.title,
-        from_email=config.get("from_email"),
-        recipient_list=recipients,
-        fail_silently=False,
+    # Get SMTP configuration from channel config or fall back to database
+    smtp_host = config.get("smtp_host")
+    smtp_port = config.get("smtp_port")
+    smtp_username = config.get("smtp_username")
+    smtp_password = config.get("smtp_password")
+    use_tls = config.get("use_tls", True)
+    use_ssl = config.get("use_ssl", False)
+    from_email = config.get("from_email")
+    email_subject = config.get("email_subject")
+
+    # Auto-detect SSL for port 465 (common for SMTP SSL)
+    if smtp_port == 465:
+        use_ssl = True
+        use_tls = False
+
+    # Build subject: use custom email_subject if provided, otherwise build default
+    if email_subject:
+        # Replace placeholders in custom subject
+        prefix = "Resolved" if resolved else "Alert"
+        subject = email_subject.replace("{status}", prefix).replace("{title}", alert.title)
+    else:
+        prefix = "Resolved" if resolved else "Alert"
+        subject = f"[HyperFileLens] {prefix}: {alert.title}"
+
+    # If channel config has SMTP settings, use them directly
+    if smtp_host and smtp_port:
+        from django.core.mail import get_connection
+        from system_settings.email_backend import NoVerifyEmailBackend
+
+        connection = get_connection(
+            backend='system_settings.email_backend.NoVerifyEmailBackend',
+            host=smtp_host,
+            port=smtp_port,
+            username=smtp_username,
+            password=smtp_password,
+            use_tls=use_tls,
+            use_ssl=use_ssl,
+        )
+    else:
+        # Fall back to database SMTP configuration
+        from system_settings.models import SMTPConfig
+
+        smtp_config = SMTPConfig.objects.filter(is_active=True).first()
+        if not smtp_config:
+            logger.warning("No active SMTP configuration found")
+            return
+
+        connection = smtp_config.get_connection()
+
+    email = EmailMessage(
+        subject=subject,
+        body=alert.message or alert.title,
+        from_email=from_email,
+        to=recipients,
+        connection=connection,
     )
+    email.send()
 
 
 def _send_webhook(channel, payload):

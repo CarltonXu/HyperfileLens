@@ -17,6 +17,7 @@ from accounts.models import APIToken
 from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from django.utils import timezone
+from django.db.models import Q
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .models import User, Role, APIToken, UserSession
@@ -34,6 +35,7 @@ from .serializers import (
 )
 from audit_log.services import AuditService
 from tenants.models import Tenant
+from licenses.quota import enforce_license_quota
 
 
 class IsTenantAdmin(permissions.BasePermission):
@@ -631,17 +633,21 @@ class UserViewSet(viewsets.ModelViewSet):
                 from tenants.models import Tenant
                 try:
                     tenant = Tenant.objects.get(id=tenant_id)
+                    enforce_license_quota(tenant, 'users')
                     new_user = serializer.save(tenant=tenant)
                     AuditService.log_user_create(self.request, new_user)
                     return
                 except Tenant.DoesNotExist:
                     pass
             # Default to administrator tenant if not specified
+            if user.tenant:
+                enforce_license_quota(user.tenant, 'users')
             new_user = serializer.save(tenant=user.tenant)
         else:
             # Regular tenant admins can only create users in their own tenant
             if not user.tenant:
                 raise ValueError("User must belong to a tenant to create users")
+            enforce_license_quota(user.tenant, 'users')
             new_user = serializer.save(tenant=user.tenant)
         
         AuditService.log_user_create(self.request, new_user)
@@ -834,35 +840,36 @@ class UserViewSet(viewsets.ModelViewSet):
         from backup_tasks.models import BackupTask
         from recovery_tasks.models import RecoveryTask
         from gateways.models import Gateway
+        from alerts.models import AlertPolicy
 
         resource_counts = {}
         
-        # Count resources created by this user
-        proxy_count = ProxyNode.objects.filter(created_by=user).count()
+        # Count resources owned or created by this user.
+        proxy_count = ProxyNode.objects.filter(Q(owner=user) | Q(installed_by=user)).count()
         if proxy_count > 0:
             resource_counts['proxies'] = proxy_count
             
-        repo_count = Repository.objects.filter(created_by=user).count()
+        repo_count = Repository.objects.filter(user=user).count()
         if repo_count > 0:
             resource_counts['repositories'] = repo_count
             
-        source_count = SourceResource.objects.filter(created_by=user).count()
+        source_count = SourceResource.objects.filter(user=user).count()
         if source_count > 0:
             resource_counts['source_resources'] = source_count
             
-        policy_count = BackupPolicy.objects.filter(created_by=user).count()
+        policy_count = BackupPolicy.objects.filter(user=user).count()
         if policy_count > 0:
             resource_counts['policies'] = policy_count
             
-        backup_count = BackupTask.objects.filter(created_by=user).count()
+        backup_count = BackupTask.objects.filter(user=user).count()
         if backup_count > 0:
             resource_counts['backup_tasks'] = backup_count
             
-        recovery_count = RecoveryTask.objects.filter(created_by=user).count()
+        recovery_count = RecoveryTask.objects.filter(user=user).count()
         if recovery_count > 0:
             resource_counts['recovery_tasks'] = recovery_count
             
-        gateway_count = Gateway.objects.filter(created_by=user).count()
+        gateway_count = Gateway.objects.filter(Q(owner=user) | Q(installed_by=user)).count()
         if gateway_count > 0:
             resource_counts['gateways'] = gateway_count
 
@@ -1063,6 +1070,10 @@ class RegisterView(APIView):
                 {'error': 'Email already registered'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        from licenses.quota import get_quota_license
+        if get_quota_license():
+            enforce_license_quota(None, 'tenants')
         
         with transaction.atomic():
             # Create tenant for new user

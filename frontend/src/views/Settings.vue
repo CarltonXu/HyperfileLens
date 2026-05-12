@@ -16,6 +16,7 @@ const { t, locale } = useI18n();
 const authStore = useAuthStore();
 const {
   globalPageSize,
+  getGlobalPageSize,
   setGlobalPageSizeRef,
   resetAllPageSizes,
   DEFAULT_PAGE_SIZE,
@@ -25,7 +26,7 @@ const activeTab = ref("profile");
 
 // Preferences form
 const preferences = ref({
-  defaultPageSize: DEFAULT_PAGE_SIZE,
+  defaultPageSize: getGlobalPageSize(),
 });
 
 // Profile form

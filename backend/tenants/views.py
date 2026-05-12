@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from django.db.models import Count
+from django.db.models import Count, Q
 
 from .models import Tenant, TenantInvitation
 from .serializers import (
@@ -20,6 +20,7 @@ from .serializers import (
 )
 from accounts.models import User
 from audit_log.services import AuditService
+from licenses.quota import enforce_license_quota
 
 
 class IsSuperAdmin(permissions.BasePermission):
@@ -75,6 +76,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         Note: New tenant is created without any users assigned.
         Users need to be explicitly added via user management.
         """
+        enforce_license_quota(getattr(self.request.user, 'tenant', None), 'tenants')
         tenant = serializer.save()
         # Record audit log
         AuditService.log_tenant_create(self.request, tenant)
@@ -318,7 +320,10 @@ class TenantViewSet(viewsets.ModelViewSet):
                 {'error': 'User not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
+
+        if user.tenant_id != tenant.id:
+            enforce_license_quota(tenant, 'users')
+
         user.tenant = tenant
         user.tenant_role = role
         user.is_superuser = is_superuser
@@ -401,31 +406,37 @@ class TenantViewSet(viewsets.ModelViewSet):
 
         resource_counts = {}
         
-        proxy_count = ProxyNode.objects.filter(created_by=user).count()
+        proxy_count = ProxyNode.objects.filter(
+            Q(owner=user) | Q(installed_by=user),
+            tenant=tenant,
+        ).count()
         if proxy_count > 0:
             resource_counts['proxies'] = proxy_count
             
-        repo_count = Repository.objects.filter(created_by=user).count()
+        repo_count = Repository.objects.filter(user=user, tenant=tenant).count()
         if repo_count > 0:
             resource_counts['repositories'] = repo_count
             
-        source_count = SourceResource.objects.filter(created_by=user).count()
+        source_count = SourceResource.objects.filter(user=user, tenant=tenant).count()
         if source_count > 0:
             resource_counts['source_resources'] = source_count
             
-        policy_count = BackupPolicy.objects.filter(created_by=user).count()
+        policy_count = BackupPolicy.objects.filter(user=user, tenant=tenant).count()
         if policy_count > 0:
             resource_counts['policies'] = policy_count
             
-        backup_count = BackupTask.objects.filter(created_by=user).count()
+        backup_count = BackupTask.objects.filter(user=user, tenant=tenant).count()
         if backup_count > 0:
             resource_counts['backup_tasks'] = backup_count
             
-        recovery_count = RecoveryTask.objects.filter(created_by=user).count()
+        recovery_count = RecoveryTask.objects.filter(user=user, tenant=tenant).count()
         if recovery_count > 0:
             resource_counts['recovery_tasks'] = recovery_count
             
-        gateway_count = Gateway.objects.filter(created_by=user).count()
+        gateway_count = Gateway.objects.filter(
+            Q(owner=user) | Q(installed_by=user),
+            tenant=tenant,
+        ).count()
         if gateway_count > 0:
             resource_counts['gateways'] = gateway_count
 
@@ -473,6 +484,7 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.tenant:
             raise ValueError("User must belong to a tenant to send invitations")
+        enforce_license_quota(user.tenant, 'users')
         serializer.save(
             tenant=user.tenant,
             invited_by=user,
@@ -517,6 +529,7 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
             )
 
         # Assign tenant and role
+        enforce_license_quota(invitation.tenant, 'users')
         user.tenant = invitation.tenant
         user.tenant_role = invitation.role
         user.save()

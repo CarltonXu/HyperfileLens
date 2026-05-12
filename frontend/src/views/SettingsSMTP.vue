@@ -362,9 +362,12 @@ const fetchConfigs = async () => {
   loading.value = true;
   try {
     const response = await smtpApi.list();
-    smtpConfigs.value = response.data;
+    const data = response.data as SMTPConfig[] | { results?: SMTPConfig[] };
+    const configs = Array.isArray(data) ? data : data.results || [];
+    smtpConfigs.value = configs.filter(Boolean);
   } catch (error) {
     console.error("Failed to fetch SMTP configs:", error);
+    smtpConfigs.value = [];
   } finally {
     loading.value = false;
   }

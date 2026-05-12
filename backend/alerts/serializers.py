@@ -120,6 +120,33 @@ class NotificationChannelSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Config must be an object.")
         return value
 
+    def update(self, instance, validated_data):
+        """
+        Handle update with special handling for sensitive fields like passwords.
+        If a sensitive field is an empty string in the update, keep the existing value.
+        """
+        config = validated_data.get('config')
+        if config and isinstance(config, dict):
+            # Get existing config to preserve sensitive fields
+            existing_config = instance.config or {}
+
+            # Sensitive fields that should not be overwritten with empty strings
+            sensitive_fields = ['smtp_password', 'token', 'secret', 'authorization', 'api_key']
+
+            # For each sensitive field, if the new value is empty string, keep the old value
+            for field in sensitive_fields:
+                if config.get(field) == '':
+                    if existing_config.get(field):
+                        config[field] = existing_config[field]
+                # Also remove the field if it's None
+                elif config.get(field) is None:
+                    if existing_config.get(field):
+                        config[field] = existing_config[field]
+
+            validated_data['config'] = config
+
+        return super().update(instance, validated_data)
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         config = dict(data.get("config") or {})

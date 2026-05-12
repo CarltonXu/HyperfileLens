@@ -29,7 +29,7 @@ from .serializers import (
 )
 from nodes.models import Node
 from audit_log.services import AuditService
-from licenses.quota import QuotaCheckMixin
+from licenses.quota import QuotaCheckMixin, enforce_license_quota
 from audit_log.services import AuditService
 
 
@@ -148,6 +148,13 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create a new repository."""
         self.check_quota_before_create()
+        quota_bytes = serializer.validated_data.get('quota_bytes') or 0
+        if quota_bytes > 0:
+            enforce_license_quota(
+                getattr(self.request.user, 'tenant', None),
+                'storage',
+                quota_bytes / (1024 ** 3)
+            )
         repository = serializer.save(
             user=self.request.user,
             tenant=self.request.user.tenant
@@ -156,6 +163,15 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     
     def perform_update(self, serializer):
         """Update a repository."""
+        old_quota_bytes = serializer.instance.quota_bytes if serializer.instance else 0
+        new_quota_bytes = serializer.validated_data.get('quota_bytes', old_quota_bytes) or 0
+        additional_bytes = max(new_quota_bytes - old_quota_bytes, 0)
+        if additional_bytes > 0:
+            enforce_license_quota(
+                getattr(self.request.user, 'tenant', None),
+                'storage',
+                additional_bytes / (1024 ** 3)
+            )
         repository = serializer.save()
         changed_fields = list(serializer.validated_data.keys())
         AuditService.log_repository_update(self.request, repository, changed_fields=changed_fields, result='success')
@@ -2025,6 +2041,17 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 if object_count >= max_objects:
                     break
             
+            if (
+                total_size > repo.used_space
+                and not (repo.quota_enabled and repo.quota_bytes > 0)
+                and repo.capacity <= 0
+            ):
+                enforce_license_quota(
+                    getattr(request.user, 'tenant', None),
+                    'storage',
+                    (total_size - repo.used_space) / (1024 ** 3)
+                )
+
             # Update repository used_space
             repo.used_space = total_size
             repo.save(update_fields=['used_space', 'updated_at'])

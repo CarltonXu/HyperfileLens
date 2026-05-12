@@ -14,7 +14,11 @@ import {
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
+import { useAppStore } from "@/stores/app";
+import { getApiErrorMessage } from "@/utils/errors";
 import { usePagination } from "@/composables/usePagination";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 import AlertSeverityTag from "@/components/alerts/AlertSeverityTag.vue";
 import AlertTypeTag from "@/components/alerts/AlertTypeTag.vue";
 import AvailabilityRuleForm from "@/components/alerts/AvailabilityRuleForm.vue";
@@ -42,6 +46,7 @@ interface AlertPolicy {
 
 const router = useRouter();
 const { t } = useI18n();
+const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 const loading = ref(false);
 const saving = ref(false);
@@ -107,6 +112,106 @@ const selectedChannelNames = computed(() => {
   return channels.value
     .filter((channel) => selected.has(channel.id))
     .map((channel) => channel.name);
+});
+
+type AlertPolicyColumnKey =
+  | "name"
+  | "type"
+  | "severity"
+  | "resource_type"
+  | "scope"
+  | "enabled"
+  | "notification_channels"
+  | "actions";
+
+const alertPolicyColumns = computed(() => [
+  {
+    key: "name" as const,
+    label: t("alertsCenter.common.name"),
+    min: 220,
+    max: 520,
+  },
+  {
+    key: "type" as const,
+    label: t("alertsCenter.common.type"),
+    min: 120,
+    max: 240,
+  },
+  {
+    key: "severity" as const,
+    label: t("alertsCenter.common.severity"),
+    min: 120,
+    max: 220,
+  },
+  {
+    key: "resource_type" as const,
+    label: t("alertsCenter.policies.targetColumn"),
+    min: 150,
+    max: 320,
+  },
+  {
+    key: "scope" as const,
+    label: t("alertsCenter.policies.scope"),
+    min: 110,
+    max: 220,
+  },
+  {
+    key: "enabled" as const,
+    label: t("alertsCenter.common.status"),
+    min: 120,
+    max: 220,
+  },
+  {
+    key: "notification_channels" as const,
+    label: t("alertsCenter.policies.notificationColumn"),
+    min: 220,
+    max: 520,
+  },
+  {
+    key: "actions" as const,
+    label: t("alertsCenter.common.actions"),
+    min: 150,
+    max: 220,
+    sortable: false,
+    align: "right" as const,
+  },
+]);
+
+const alertPolicyTable = useResizableSortableTable<
+  AlertPolicy,
+  AlertPolicyColumnKey
+>({
+  storageKey: "hyperfilelens:alert-policies:columnWidths",
+  columns: alertPolicyColumns,
+  rows: policies,
+  defaultSort: { key: "name" },
+  minTableWidth: 1040,
+  getSortValue: (policy, key) => {
+    if (key === "notification_channels") {
+      return (policy.notification_channels || [])
+        .map((channel) => channel.name)
+        .join(", ");
+    }
+    if (key === "enabled") return policy.enabled ? 1 : 0;
+    if (key === "actions") return "";
+    return policy[key] ?? "";
+  },
+  getColumnText: (policy, key) => {
+    if (key === "notification_channels") {
+      return (
+        (policy.notification_channels || [])
+          .map((channel) => channel.name)
+          .join(", ") || "-"
+      );
+    }
+    if (key === "enabled") {
+      return policy.enabled
+        ? t("alertsCenter.values.enabled")
+        : t("alertsCenter.values.disabled");
+    }
+    if (key === "actions") return t("alertsCenter.common.actions");
+    return String(policy[key] ?? "");
+  },
 });
 
 const previewRuleText = computed(() => {
@@ -288,8 +393,16 @@ async function toggle(policy: AlertPolicy) {
 }
 
 async function duplicate(policy: AlertPolicy) {
-  await alertsApi.duplicatePolicy(policy.id);
-  await fetchPolicies();
+  try {
+    await alertsApi.duplicatePolicy(policy.id);
+    await fetchPolicies();
+  } catch (err) {
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(err, t("common.createFailed")),
+    });
+  }
 }
 
 async function submitCreate() {
@@ -310,6 +423,12 @@ async function submitCreate() {
     });
     showCreate.value = false;
     await fetchPolicies();
+  } catch (err) {
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(err, t("common.createFailed")),
+    });
   } finally {
     saving.value = false;
   }
@@ -424,7 +543,8 @@ onMounted(async () => {
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-start gap-3">
         <div
-          class="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
+          class="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-white shadow-sm"
+        >
           <BellAlertIcon class="h-6 w-6" />
         </div>
         <div>
@@ -439,13 +559,15 @@ onMounted(async () => {
       <div class="flex gap-2">
         <button
           @click="fetchPolicies"
-          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover">
+          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
+        >
           <ArrowPathIcon class="h-4 w-4" />
           {{ $t("common.refresh") }}
         </button>
         <button
           @click="openCreate"
-          class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover">
+          class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover"
+        >
           <PlusIcon class="h-4 w-4" />
           {{ t("alertsCenter.common.createAlertPolicy") }}
         </button>
@@ -488,20 +610,24 @@ onMounted(async () => {
     </div>
 
     <div
-      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-5">
+      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-5"
+    >
       <div class="relative md:col-span-2">
         <MagnifyingGlassIcon
-          class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-foreground-muted" />
+          class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-foreground-muted"
+        />
         <input
           v-model="filters.search"
           @keyup.enter="applyFilters"
           class="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          :placeholder="t('alertsCenter.policies.searchPlaceholder')" />
+          :placeholder="t('alertsCenter.policies.searchPlaceholder')"
+        />
       </div>
       <select
         v-model="filters.type"
         @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+      >
         <option value="">{{ t("alertsCenter.common.allTypes") }}</option>
         <option value="metric">{{ t("alertsCenter.values.metric") }}</option>
         <option value="availability">
@@ -514,7 +640,8 @@ onMounted(async () => {
       <select
         v-model="filters.severity"
         @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+      >
         <option value="">{{ t("alertsCenter.common.allSeverity") }}</option>
         <option value="critical">
           {{ t("alertsCenter.values.critical") }}
@@ -525,7 +652,8 @@ onMounted(async () => {
       <select
         v-model="filters.enabled"
         @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+      >
         <option value="">{{ t("alertsCenter.common.allStatus") }}</option>
         <option value="true">{{ t("alertsCenter.values.enabled") }}</option>
         <option value="false">{{ t("alertsCenter.values.disabled") }}</option>
@@ -534,42 +662,60 @@ onMounted(async () => {
 
     <div class="overflow-hidden rounded-lg border border-border shadow-sm">
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[1040px] text-left text-sm">
+        <table
+          class="w-full table-fixed text-left text-sm"
+          :style="{ minWidth: alertPolicyTable.tableMinWidth.value }"
+        >
+          <colgroup>
+            <col
+              v-for="column in alertPolicyColumns"
+              :key="column.key"
+              :style="alertPolicyTable.columnStyle(column.key)"
+            />
+          </colgroup>
           <thead
-            class="border-b border-border bg-background bg-background-secondary text-xs uppercase text-foreground-secondary">
+            class="border-b border-border bg-background bg-background-secondary text-xs uppercase text-foreground-secondary"
+          >
             <tr>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.name") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.type") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.severity") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.policies.targetColumn") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.policies.scope") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.common.status") }}
-              </th>
-              <th class="px-4 py-3 font-medium">
-                {{ t("alertsCenter.policies.notificationColumn") }}
-              </th>
-              <th class="px-4 py-3 text-right font-medium">
-                {{ t("alertsCenter.common.actions") }}
-              </th>
+              <ResizableSortableTh
+                v-for="column in alertPolicyColumns"
+                :key="column.key"
+                :column-key="column.key"
+                :label="column.label"
+                :style-value="alertPolicyTable.columnStyle(column.key)"
+                :sortable="column.sortable !== false"
+                :active="alertPolicyTable.sort.value.key === column.key"
+                :align="column.align"
+                :sort-icon="alertPolicyTable.getSortIcon(column.key)"
+                :resizing="alertPolicyTable.resizingColumn.value === column.key"
+                @sort="
+                  alertPolicyTable.toggleSort($event as AlertPolicyColumnKey)
+                "
+                @resize-start="
+                  (key, event) =>
+                    alertPolicyTable.startResize(
+                      key as AlertPolicyColumnKey,
+                      event,
+                    )
+                "
+                @resize-reset="
+                  alertPolicyTable.resetColumnWidth(
+                    $event as AlertPolicyColumnKey,
+                  )
+                "
+              />
             </tr>
           </thead>
           <tbody class="divide-y divide-border">
             <tr
-              v-for="policy in policies"
+              v-for="policy in alertPolicyTable.sortedRows.value"
               :key="policy.id"
-              class="hover:bg-hover">
-              <td class="px-4 py-4">
+              class="hover:bg-hover"
+            >
+              <td
+                class="px-4 py-4"
+                :style="alertPolicyTable.columnStyle('name')"
+              >
                 <div class="font-medium text-foreground">{{ policy.name }}</div>
                 <div class="mt-0.5 text-xs text-foreground-secondary">
                   {{ t("alertsCenter.policies.updated") }}
@@ -580,24 +726,42 @@ onMounted(async () => {
                   }}
                 </div>
               </td>
-              <td class="px-4 py-4"><AlertTypeTag :type="policy.type" /></td>
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="alertPolicyTable.columnStyle('type')"
+              >
+                <AlertTypeTag :type="policy.type" />
+              </td>
+              <td
+                class="px-4 py-4"
+                :style="alertPolicyTable.columnStyle('severity')"
+              >
                 <AlertSeverityTag :severity="policy.severity" />
               </td>
-              <td class="px-4 py-4 text-foreground-secondary">
+              <td
+                class="px-4 py-4 text-foreground-secondary"
+                :style="alertPolicyTable.columnStyle('resource_type')"
+              >
                 {{ policy.resource_type }}
               </td>
-              <td class="px-4 py-4 text-foreground-secondary">
+              <td
+                class="px-4 py-4 text-foreground-secondary"
+                :style="alertPolicyTable.columnStyle('scope')"
+              >
                 {{ policy.scope }}
               </td>
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="alertPolicyTable.columnStyle('enabled')"
+              >
                 <span
                   class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium"
                   :class="
                     policy.enabled
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
                       : 'border-border bg-background text-foreground-secondary'
-                  ">
+                  "
+                >
                   {{
                     policy.enabled
                       ? t("alertsCenter.values.enabled")
@@ -606,37 +770,46 @@ onMounted(async () => {
                 </span>
               </td>
               <td
-                class="max-w-[220px] truncate px-4 py-4 text-foreground-secondary">
+                :style="alertPolicyTable.columnStyle('notification_channels')"
+                class="max-w-[220px] truncate px-4 py-4 text-foreground-secondary"
+              >
                 {{
                   (policy.notification_channels || [])
                     .map((c) => c.name)
                     .join(", ") || "-"
                 }}
               </td>
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="alertPolicyTable.columnStyle('actions')"
+              >
                 <div class="flex justify-end gap-1">
                   <button
                     :title="$t('common.edit')"
                     @click="router.push(`/alerts/policies/${policy.id}/edit`)"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground">
+                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground"
+                  >
                     <PencilSquareIcon class="h-4 w-4" />
                   </button>
                   <button
                     :title="t('alertsCenter.common.duplicate')"
                     @click="duplicate(policy)"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground">
+                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground"
+                  >
                     <DocumentDuplicateIcon class="h-4 w-4" />
                   </button>
                   <button
                     :title="t('alertsCenter.common.enableDisable')"
                     @click="toggle(policy)"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground">
+                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground"
+                  >
                     <PowerIcon class="h-4 w-4" />
                   </button>
                   <button
                     :title="$t('common.delete')"
                     @click="remove(policy)"
-                    class="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">
+                    class="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                  >
                     <TrashIcon class="h-4 w-4" />
                   </button>
                 </div>
@@ -645,7 +818,8 @@ onMounted(async () => {
             <tr v-if="!loading && policies.length === 0">
               <td
                 colspan="8"
-                class="px-4 py-12 text-center text-sm text-foreground-secondary">
+                class="px-4 py-12 text-center text-sm text-foreground-secondary"
+              >
                 {{ $t("common.noData") }}
               </td>
             </tr>
@@ -656,13 +830,16 @@ onMounted(async () => {
 
     <div
       v-if="showCreate"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
       <div class="absolute inset-0 bg-black/55" @click="showCreate = false" />
       <form
         class="relative flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl"
-        @submit.prevent="submitCreate">
+        @submit.prevent="submitCreate"
+      >
         <div
-          class="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          class="flex items-start justify-between gap-4 border-b border-border px-5 py-4"
+        >
           <div>
             <h2 class="text-lg font-semibold text-foreground">
               {{ t("alertsCenter.common.createAlertPolicy") }}
@@ -674,13 +851,15 @@ onMounted(async () => {
           <button
             type="button"
             @click="showCreate = false"
-            class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground">
+            class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground"
+          >
             <XMarkIcon class="h-5 w-5" />
           </button>
         </div>
 
         <div
-          class="grid flex-1 gap-5 overflow-auto p-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+          class="grid flex-1 gap-5 overflow-auto p-5 lg:grid-cols-[minmax(0,1fr)_340px]"
+        >
           <div class="space-y-5">
             <section class="rounded-lg border border-border p-5">
               <div class="mb-4">
@@ -710,7 +889,8 @@ onMounted(async () => {
                   }}</span
                   ><select
                     v-model="form.type"
-                    class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                    class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
                     <option value="metric">
                       {{ t("alertsCenter.values.metric") }}
                     </option>
@@ -734,7 +914,8 @@ onMounted(async () => {
                   }}</span
                   ><select
                     v-model="form.severity"
-                    class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                    class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
                     <option value="critical">
                       {{ t("alertsCenter.values.critical") }}
                     </option>
@@ -755,7 +936,8 @@ onMounted(async () => {
                     role="switch"
                     :aria-checked="form.enabled"
                     @click="form.enabled = !form.enabled"
-                    class="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-background px-3 text-sm text-foreground">
+                    class="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+                  >
                     <span>{{
                       form.enabled
                         ? t("alertsCenter.values.enabled")
@@ -767,12 +949,14 @@ onMounted(async () => {
                         form.enabled
                           ? 'bg-primary'
                           : 'bg-background-tertiary border border-border'
-                      ">
+                      "
+                    >
                       <span
                         class="absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
                         :class="
                           form.enabled ? 'translate-x-5' : 'translate-x-0.5'
-                        " />
+                        "
+                      />
                     </span>
                   </button>
                 </div>
@@ -786,7 +970,8 @@ onMounted(async () => {
                     class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     :placeholder="
                       t('alertsCenter.policies.descriptionPlaceholder')
-                    " />
+                    "
+                  />
                 </label>
               </div>
             </section>
@@ -814,11 +999,13 @@ onMounted(async () => {
                   :resources="targetResources"
                   :loading="targetResourcesLoading"
                   :disabled="!usesConcreteMonitorTarget"
-                  @refresh="fetchTargetResources" />
+                  @refresh="fetchTargetResources"
+                />
               </div>
               <div
                 v-if="!usesConcreteMonitorTarget"
-                class="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground-secondary">
+                class="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground-secondary"
+              >
                 {{
                   form.type === "job"
                     ? t("alertsCenter.policies.jobTargetHint")
@@ -840,16 +1027,20 @@ onMounted(async () => {
                 <MetricRuleForm
                   v-if="form.type === 'metric'"
                   v-model="form.trigger_rule"
-                  :metrics="metrics" />
+                  :metrics="metrics"
+                />
                 <AvailabilityRuleForm
                   v-else-if="form.type === 'availability'"
-                  v-model="form.trigger_rule" />
+                  v-model="form.trigger_rule"
+                />
                 <JobRuleForm
                   v-else-if="form.type === 'job'"
-                  v-model="form.trigger_rule" />
+                  v-model="form.trigger_rule"
+                />
                 <EventRuleForm
                   v-else-if="form.type === 'event'"
-                  v-model="form.trigger_rule" />
+                  v-model="form.trigger_rule"
+                />
                 <SystemRuleForm v-else v-model="form.trigger_rule" />
               </div>
             </section>
@@ -884,7 +1075,8 @@ onMounted(async () => {
                   </p>
                   <NotificationChannelSelector
                     v-model="form.notification_channel_ids"
-                    :channels="channels" />
+                    :channels="channels"
+                  />
                 </div>
                 <label class="space-y-2">
                   <span class="text-sm font-medium text-foreground">{{
@@ -892,7 +1084,8 @@ onMounted(async () => {
                   }}</span>
                   <select
                     v-model="notificationOptions.notify_on_trigger"
-                    class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                    class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
                     <option value="yes">
                       {{ t("alertsCenter.policies.yes") }}
                     </option>
@@ -907,7 +1100,8 @@ onMounted(async () => {
                   }}</span>
                   <select
                     v-model="notificationOptions.notify_on_recovery"
-                    class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                    class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
                     <option value="yes">
                       {{ t("alertsCenter.policies.yes") }}
                     </option>
@@ -921,7 +1115,8 @@ onMounted(async () => {
           </div>
 
           <aside
-            class="sticky top-0 h-fit rounded-lg border border-border bg-background-secondary p-5">
+            class="sticky top-0 h-fit rounded-lg border border-border bg-background-secondary p-5"
+          >
             <h3 class="font-semibold text-foreground">
               {{ t("alertsCenter.policies.policyPreview") }}
             </h3>
@@ -1032,13 +1227,15 @@ onMounted(async () => {
           <button
             type="button"
             @click="showCreate = false"
-            class="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-hover">
+            class="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-hover"
+          >
             {{ $t("common.cancel") }}
           </button>
           <button
             type="submit"
             :disabled="saving"
-            class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">
+            class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
+          >
             {{ t("alertsCenter.common.saveAndEnable") }}
           </button>
         </div>

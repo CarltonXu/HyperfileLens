@@ -2,8 +2,9 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { XMarkIcon } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
+import { useAppStore } from "@/stores/app";
+import { getApiErrorMessage } from "@/utils/errors";
 import MetricRuleForm from "@/components/alerts/MetricRuleForm.vue";
 import AvailabilityRuleForm from "@/components/alerts/AvailabilityRuleForm.vue";
 import JobRuleForm from "@/components/alerts/JobRuleForm.vue";
@@ -16,6 +17,7 @@ import NotificationChannelSelector from "@/components/alerts/NotificationChannel
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
+const appStore = useAppStore();
 const saving = ref(false);
 const loading = ref(false);
 
@@ -215,7 +217,11 @@ async function submit() {
     await alertsApi.updatePolicy(route.params.id as string, payload);
     router.push("/alerts/policies");
   } catch (err) {
-    alert(err.response?.data?.detail || err.message || t("common.saveFailed"));
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(err, t("common.saveFailed")),
+    });
   } finally {
     saving.value = false;
   }
@@ -264,13 +270,15 @@ onMounted(async () => {
         <button
           type="button"
           @click="router.push('/alerts/policies')"
-          class="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-hover">
+          class="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-hover"
+        >
           {{ $t("common.cancel") }}
         </button>
         <button
           type="submit"
           :disabled="saving"
-          class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">
+          class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
+        >
           {{ saving ? t("common.saving") : $t("common.save") }}
         </button>
       </div>
@@ -304,9 +312,8 @@ onMounted(async () => {
                 v-model="form.name"
                 required
                 class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                :placeholder="
-                  t('alertsCenter.policies.alertNamePlaceholder')
-                " />
+                :placeholder="t('alertsCenter.policies.alertNamePlaceholder')"
+              />
             </div>
             <div class="space-y-2">
               <span class="text-sm font-medium text-foreground">{{
@@ -314,7 +321,8 @@ onMounted(async () => {
               }}</span>
               <select
                 v-model="form.type"
-                class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
                 <option value="metric">
                   {{ t("alertsCenter.values.metric") }}
                 </option>
@@ -336,7 +344,8 @@ onMounted(async () => {
               }}</span>
               <select
                 v-model="form.severity"
-                class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
                 <option value="critical">
                   {{ t("alertsCenter.values.critical") }}
                 </option>
@@ -357,7 +366,8 @@ onMounted(async () => {
                 role="switch"
                 :aria-checked="form.enabled"
                 @click="form.enabled = !form.enabled"
-                class="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-background px-3 text-sm text-foreground">
+                class="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+              >
                 <span>{{
                   form.enabled
                     ? t("alertsCenter.values.enabled")
@@ -369,12 +379,12 @@ onMounted(async () => {
                     form.enabled
                       ? 'bg-primary'
                       : 'bg-background-tertiary border border-border'
-                  ">
+                  "
+                >
                   <span
                     class="absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
-                    :class="
-                      form.enabled ? 'translate-x-5' : 'translate-x-0.5'
-                    " />
+                    :class="form.enabled ? 'translate-x-5' : 'translate-x-0.5'"
+                  />
                 </span>
               </button>
             </div>
@@ -386,9 +396,8 @@ onMounted(async () => {
                 v-model="form.description"
                 rows="3"
                 class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                :placeholder="
-                  t('alertsCenter.policies.descriptionPlaceholder')
-                " />
+                :placeholder="t('alertsCenter.policies.descriptionPlaceholder')"
+              />
             </div>
           </div>
         </section>
@@ -417,11 +426,13 @@ onMounted(async () => {
               :resources="targetResources"
               :loading="targetResourcesLoading"
               :disabled="!usesConcreteMonitorTarget"
-              @refresh="fetchTargetResources" />
+              @refresh="fetchTargetResources"
+            />
           </div>
           <div
             v-if="!usesConcreteMonitorTarget"
-            class="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground-secondary">
+            class="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground-secondary"
+          >
             {{
               form.type === "job"
                 ? t("alertsCenter.policies.jobTargetHint")
@@ -444,16 +455,20 @@ onMounted(async () => {
             <MetricRuleForm
               v-if="form.type === 'metric'"
               v-model="form.trigger_rule"
-              :metrics="metrics" />
+              :metrics="metrics"
+            />
             <AvailabilityRuleForm
               v-else-if="form.type === 'availability'"
-              v-model="form.trigger_rule" />
+              v-model="form.trigger_rule"
+            />
             <JobRuleForm
               v-else-if="form.type === 'job'"
-              v-model="form.trigger_rule" />
+              v-model="form.trigger_rule"
+            />
             <EventRuleForm
               v-else-if="form.type === 'event'"
-              v-model="form.trigger_rule" />
+              v-model="form.trigger_rule"
+            />
             <SystemRuleForm v-else v-model="form.trigger_rule" />
           </div>
         </section>
@@ -490,7 +505,8 @@ onMounted(async () => {
               </p>
               <NotificationChannelSelector
                 v-model="form.notification_channel_ids"
-                :channels="channels" />
+                :channels="channels"
+              />
             </div>
             <div class="space-y-2">
               <span class="text-sm font-medium text-foreground">{{
@@ -498,7 +514,8 @@ onMounted(async () => {
               }}</span>
               <select
                 v-model="notificationOptions.notify_on_trigger"
-                class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
                 <option value="yes">
                   {{ t("alertsCenter.policies.yes") }}
                 </option>
@@ -511,7 +528,8 @@ onMounted(async () => {
               }}</span>
               <select
                 v-model="notificationOptions.notify_on_recovery"
-                class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
                 <option value="yes">
                   {{ t("alertsCenter.policies.yes") }}
                 </option>
@@ -525,7 +543,8 @@ onMounted(async () => {
       <!-- Preview Sidebar -->
       <aside class="sticky top-4 h-fit space-y-4">
         <div
-          class="rounded-lg border border-border bg-background-secondary p-5">
+          class="rounded-lg border border-border bg-background-secondary p-5"
+        >
           <h3 class="font-semibold text-foreground">
             {{ t("alertsCenter.policies.policyPreview") }}
           </h3>

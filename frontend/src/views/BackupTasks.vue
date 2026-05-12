@@ -2,6 +2,8 @@
 import { ref, onMounted, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { backupTasksApi, nodesApi, repositoriesApi } from "@/api";
+import { useAppStore } from "@/stores/app";
+import { getApiErrorMessage } from "@/utils/errors";
 import type {
   BackupTask,
   BackupTaskCreateData,
@@ -28,6 +30,7 @@ import {
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
+const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 
 const isLoading = ref(true);
@@ -179,6 +182,11 @@ async function createTask() {
     await fetchStats();
   } catch (error) {
     console.error("Failed to create task:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(error, t("common.createFailed")),
+    });
   }
 }
 
@@ -238,7 +246,8 @@ onMounted(() => {
       </div>
       <button
         @click="showCreateModal = true"
-        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg">
+        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+      >
         <PlusIcon class="w-4 h-4" />
         {{ t("backupTasks.createTask") }}
       </button>
@@ -295,16 +304,19 @@ onMounted(() => {
       <div class="flex flex-wrap items-center gap-3">
         <div class="relative flex-1 min-w-[200px]">
           <MagnifyingGlassIcon
-            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+          />
           <input
             v-model="searchQuery"
             type="text"
             :placeholder="t('common.search')"
-            class="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            class="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
         </div>
         <select
           v-model="selectedStatus"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          class="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
           <option value="all">
             {{ t("common.status") }}: {{ t("common.all") }}
           </option>
@@ -317,7 +329,8 @@ onMounted(() => {
         </select>
         <button
           @click="fetchTasks"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover">
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
+        >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t("common.refresh") }}
         </button>
@@ -327,14 +340,17 @@ onMounted(() => {
     <!-- Tasks List -->
     <div v-if="isLoading" class="flex items-center justify-center py-12">
       <div
-        class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"
+      />
     </div>
 
     <div
       v-else-if="filteredTasks.length === 0"
-      class="bg-card rounded-xl border border-border p-12 text-center">
+      class="bg-card rounded-xl border border-border p-12 text-center"
+    >
       <div
-        class="w-16 h-16 bg-background-tertiary rounded-full flex items-center justify-center mx-auto mb-4">
+        class="w-16 h-16 bg-background-tertiary rounded-full flex items-center justify-center mx-auto mb-4"
+      >
         <CloudArrowUpIcon class="w-8 h-8 text-slate-400" />
       </div>
       <h3 class="text-lg font-medium text-foreground mb-1">
@@ -347,32 +363,39 @@ onMounted(() => {
 
     <div
       v-else
-      class="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+      class="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
+    >
       <table class="w-full">
         <thead class="bg-background-secondary border-b border-border">
           <tr>
             <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">
+              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+            >
               {{ t("common.name") }}
             </th>
             <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">
+              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+            >
               {{ t("common.type") }}
             </th>
             <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">
+              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+            >
               {{ t("common.status") }}
             </th>
             <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">
+              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+            >
               {{ t("backupTasks.progress.progress") }}
             </th>
             <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">
+              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+            >
               {{ t("common.date") }}
             </th>
             <th
-              class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">
+              class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+            >
               {{ t("common.actions") }}
             </th>
           </tr>
@@ -381,7 +404,8 @@ onMounted(() => {
           <tr
             v-for="task in paginatedTasks"
             :key="task.id"
-            class="hover:bg-hover transition-colors">
+            class="hover:bg-hover transition-colors"
+          >
             <td class="px-6 py-4">
               <div class="flex items-center gap-3">
                 <div
@@ -394,7 +418,8 @@ onMounted(() => {
                         : task.status === 'failed'
                           ? 'bg-red-100'
                           : 'bg-slate-100',
-                  ]">
+                  ]"
+                >
                   <CloudArrowUpIcon
                     :class="[
                       'w-5 h-5',
@@ -405,7 +430,8 @@ onMounted(() => {
                           : task.status === 'failed'
                             ? 'text-red-600'
                             : 'text-slate-400',
-                    ]" />
+                    ]"
+                  />
                 </div>
                 <div>
                   <p class="text-sm font-medium text-foreground">
@@ -419,7 +445,8 @@ onMounted(() => {
             </td>
             <td class="px-6 py-4">
               <span
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-background-tertiary text-foreground">
+                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-background-tertiary text-foreground"
+              >
                 {{ t(`backupTasks.types.${task.task_type || "full"}`) }}
               </span>
             </td>
@@ -428,26 +455,32 @@ onMounted(() => {
                 :class="[
                   'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium',
                   getStatusColor(task.status),
-                ]">
+                ]"
+              >
                 <component
                   :is="getStatusIcon(task.status)"
-                  class="w-3.5 h-3.5" />
+                  class="w-3.5 h-3.5"
+                />
                 {{ t(`backupTasks.status.${task.status}`) }}
               </span>
             </td>
             <td class="px-6 py-4">
               <div
                 v-if="task.status === 'running' || task.progress_percent"
-                class="w-32">
+                class="w-32"
+              >
                 <div
-                  class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  class="flex items-center justify-between text-xs text-slate-500 mb-1"
+                >
                   <span>{{ task.progress_percent || 0 }}%</span>
                 </div>
                 <div
-                  class="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
+                  class="h-1.5 bg-background-tertiary rounded-full overflow-hidden"
+                >
                   <div
                     class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300"
-                    :style="{ width: `${task.progress_percent || 0}%` }" />
+                    :style="{ width: `${task.progress_percent || 0}%` }"
+                  />
                 </div>
               </div>
               <span v-else class="text-sm text-slate-400">-</span>
@@ -465,14 +498,16 @@ onMounted(() => {
                   v-if="task.status === 'pending' || task.status === 'failed'"
                   @click="executeTask(task)"
                   class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                  :title="t('backupTasks.actions.start')">
+                  :title="t('backupTasks.actions.start')"
+                >
                   <PlayIcon class="w-4 h-4" />
                 </button>
                 <button
                   v-if="task.status === 'running'"
                   @click="cancelTask(task)"
                   class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  :title="t('backupTasks.actions.cancel')">
+                  :title="t('backupTasks.actions.cancel')"
+                >
                   <StopIcon class="w-4 h-4" />
                 </button>
                 <button
@@ -481,7 +516,8 @@ onMounted(() => {
                     showDetailModal = true;
                   "
                   class="p-1.5 text-slate-500 hover:bg-background-tertiary rounded-lg transition-colors"
-                  :title="t('common.details')">
+                  :title="t('common.details')"
+                >
                   <EyeIcon class="w-4 h-4" />
                 </button>
               </div>
@@ -494,27 +530,33 @@ onMounted(() => {
       <Pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
-        :total-items="filteredTasks.length" />
+        :total-items="filteredTasks.length"
+      />
     </div>
 
     <!-- Create Modal -->
     <Teleport to="body">
       <div
         v-if="showCreateModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
         <div
           class="absolute inset-0 bg-black/50"
-          @click="showCreateModal = false" />
+          @click="showCreateModal = false"
+        />
         <div
-          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        >
           <div
-            class="sticky top-0 modal-surface px-6 py-4 border-b border-border flex items-center justify-between">
+            class="sticky top-0 modal-surface px-6 py-4 border-b border-border flex items-center justify-between"
+          >
             <h2 class="text-lg font-semibold text-foreground">
               {{ t("backupTasks.createTask") }}
             </h2>
             <button
               @click="showCreateModal = false"
-              class="p-1 hover:bg-background-tertiary rounded-lg">
+              class="p-1 hover:bg-background-tertiary rounded-lg"
+            >
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
           </div>
@@ -527,7 +569,8 @@ onMounted(() => {
               <input
                 v-model="newTask.name"
                 type="text"
-                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
@@ -537,7 +580,8 @@ onMounted(() => {
                 >
                 <select
                   v-model="newTask.node"
-                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
                   <option :value="0">Select</option>
                   <option v-for="node in nodes" :key="node.id" :value="node.id">
                     {{ node.name }}
@@ -551,12 +595,14 @@ onMounted(() => {
                 >
                 <select
                   v-model="newTask.repository"
-                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
                   <option :value="0">Select</option>
                   <option
                     v-for="repo in repositories"
                     :key="repo.id"
-                    :value="repo.id">
+                    :value="repo.id"
+                  >
                     {{ repo.name }}
                   </option>
                 </select>
@@ -569,7 +615,8 @@ onMounted(() => {
               >
               <select
                 v-model="newTask.task_type"
-                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
                 <option value="full">{{ t("backupTasks.types.full") }}</option>
                 <option value="incremental">
                   {{ t("backupTasks.types.incremental") }}
@@ -578,15 +625,18 @@ onMounted(() => {
             </div>
           </div>
           <div
-            class="sticky bottom-0 modal-surface px-6 py-4 border-t border-border flex justify-end gap-3">
+            class="sticky bottom-0 modal-surface px-6 py-4 border-t border-border flex justify-end gap-3"
+          >
             <button
               @click="showCreateModal = false"
-              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover">
+              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
+            >
               {{ t("common.cancel") }}
             </button>
             <button
               @click="createTask"
-              class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+              class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+            >
               {{ t("common.create") }}
             </button>
           </div>
@@ -598,20 +648,25 @@ onMounted(() => {
     <Teleport to="body">
       <div
         v-if="showDetailModal && selectedTask"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
         <div
           class="absolute inset-0 bg-black/50"
-          @click="showDetailModal = false" />
+          @click="showDetailModal = false"
+        />
         <div
-          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-lg">
+          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-lg"
+        >
           <div
-            class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            class="px-6 py-4 border-b border-slate-100 flex items-center justify-between"
+          >
             <h2 class="text-lg font-semibold text-foreground">
               {{ selectedTask.name }}
             </h2>
             <button
               @click="showDetailModal = false"
-              class="p-1 hover:bg-background-tertiary rounded-lg">
+              class="p-1 hover:bg-background-tertiary rounded-lg"
+            >
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
           </div>
@@ -621,10 +676,12 @@ onMounted(() => {
                 :class="[
                   'inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium',
                   getStatusColor(selectedTask.status),
-                ]">
+                ]"
+              >
                 <component
                   :is="getStatusIcon(selectedTask.status)"
-                  class="w-4 h-4" />
+                  class="w-4 h-4"
+                />
                 {{ t(`backupTasks.status.${selectedTask.status}`) }}
               </span>
               <span class="text-sm text-foreground-secondary">{{
@@ -651,7 +708,8 @@ onMounted(() => {
             </div>
             <div
               v-if="selectedTask.paths?.length"
-              class="bg-background-secondary rounded-lg p-3">
+              class="bg-background-secondary rounded-lg p-3"
+            >
               <p class="text-sm text-slate-500 mb-2">
                 {{ t("backupTasks.form.sourcePaths") }}
               </p>
@@ -659,7 +717,8 @@ onMounted(() => {
                 <p
                   v-for="(path, i) in selectedTask.paths"
                   :key="i"
-                  class="text-sm font-mono text-foreground bg-card px-2 py-1 rounded border border-border">
+                  class="text-sm font-mono text-foreground bg-card px-2 py-1 rounded border border-border"
+                >
                   {{ path }}
                 </p>
               </div>
@@ -668,7 +727,8 @@ onMounted(() => {
           <div class="px-6 py-4 border-t border-border flex justify-end">
             <button
               @click="showDetailModal = false"
-              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover">
+              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
+            >
               {{ t("common.cancel") }}
             </button>
           </div>

@@ -2,8 +2,12 @@
 import { ref, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { gatewaysApi } from "@/api";
+import { useAppStore } from "@/stores/app";
+import { getApiErrorMessage } from "@/utils/errors";
 import { usePagination } from "@/composables/usePagination";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import Pagination from "@/components/Pagination.vue";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 import {
   ServerIcon,
   PlusIcon,
@@ -18,9 +22,12 @@ import {
   PauseIcon,
   TrashIcon,
   ChatBubbleLeftRightIcon,
+  Squares2X2Icon,
+  Bars3Icon,
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
+const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 
 // Types
@@ -77,9 +84,27 @@ const selectedStatus = ref<string>("all");
 const currentPage = ref(1);
 const pageSize = ref(getPageSize("gateways"));
 const PAGE_STORAGE_KEY = "gateways";
+const VIEW_MODE_STORAGE_KEY = "hyperfilelens:gateways:viewMode";
+const viewMode = ref<"card" | "list">(
+  (() => {
+    try {
+      const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+      return stored === "list" || stored === "card" ? stored : "card";
+    } catch {
+      return "card";
+    }
+  })(),
+);
 
 watch(pageSize, (newSize) => {
   setPageSize(newSize, PAGE_STORAGE_KEY);
+});
+watch(viewMode, (mode) => {
+  try {
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+  } catch {
+    // Ignore storage errors.
+  }
 });
 const totalItems = ref(0);
 
@@ -157,6 +182,104 @@ const filteredGateways = computed(() => {
   return result;
 });
 
+type GatewayColumnKey =
+  | "name"
+  | "status"
+  | "hostname"
+  | "internal_ip"
+  | "active_mounts"
+  | "cpu_cores"
+  | "memory_total"
+  | "kopia_version"
+  | "last_heartbeat"
+  | "actions";
+
+const gatewayColumns = computed(() => [
+  {
+    key: "name" as const,
+    label: t("gateways.gatewayName"),
+    min: 240,
+    max: 560,
+  },
+  { key: "status" as const, label: t("gateways.status"), min: 130, max: 240 },
+  {
+    key: "hostname" as const,
+    label: t("gateways.hostname"),
+    min: 180,
+    max: 420,
+  },
+  {
+    key: "internal_ip" as const,
+    label: t("gateways.internalIp"),
+    min: 150,
+    max: 280,
+  },
+  {
+    key: "active_mounts" as const,
+    label: t("gateways.activeMounts"),
+    min: 150,
+    max: 260,
+  },
+  {
+    key: "cpu_cores" as const,
+    label: t("gateways.cpuCores"),
+    min: 130,
+    max: 240,
+  },
+  {
+    key: "memory_total" as const,
+    label: t("gateways.memoryTotal"),
+    min: 160,
+    max: 280,
+  },
+  {
+    key: "kopia_version" as const,
+    label: t("gateways.kopiaVersion"),
+    min: 160,
+    max: 300,
+  },
+  {
+    key: "last_heartbeat" as const,
+    label: t("gateways.lastHeartbeat"),
+    min: 190,
+    max: 340,
+  },
+  {
+    key: "actions" as const,
+    label: t("common.actions"),
+    min: 140,
+    max: 240,
+    sortable: false,
+    align: "right" as const,
+  },
+]);
+
+const gatewayTable = useResizableSortableTable<Gateway, GatewayColumnKey>({
+  storageKey: "hyperfilelens:gateways:columnWidths",
+  columns: gatewayColumns,
+  rows: filteredGateways,
+  defaultSort: { key: "name" },
+  minTableWidth: 1350,
+  getSortValue: (gateway, key) => {
+    if (key === "status") return getStatusLabel(gateway.status);
+    if (key === "memory_total") return gateway.memory_total || 0;
+    if (key === "last_heartbeat") {
+      return gateway.last_heartbeat
+        ? new Date(gateway.last_heartbeat).getTime()
+        : 0;
+    }
+    if (key === "actions") return "";
+    return (gateway as any)[key] ?? "";
+  },
+  getColumnText: (gateway, key) => {
+    if (key === "status") return getStatusLabel(gateway.status);
+    if (key === "memory_total") return formatBytes(gateway.memory_total);
+    if (key === "last_heartbeat") return formatDate(gateway.last_heartbeat);
+    if (key === "actions") return t("common.actions");
+    return String((gateway as any)[key] ?? "");
+  },
+});
+
 // Methods
 async function fetchGateways() {
   isLoading.value = true;
@@ -213,6 +336,11 @@ async function createGateway() {
     await fetchGateways();
   } catch (error) {
     console.error("Failed to create gateway:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(error, t("common.createFailed")),
+    });
   } finally {
     isCreating.value = false;
   }
@@ -459,7 +587,7 @@ onMounted(() => {
 </style>
 
 <template>
-  <div class="p-6">
+  <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <div>
@@ -472,7 +600,8 @@ onMounted(() => {
       </div>
       <button
         @click="showCreateModal = true"
-        class="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors">
+        class="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+      >
         <PlusIcon class="w-5 h-5" />
         {{ t("gateways.createGateway") }}
       </button>
@@ -481,7 +610,8 @@ onMounted(() => {
     <!-- Stats Cards -->
     <div
       v-if="stats"
-      class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+      class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6"
+    >
       <div class="bg-card rounded-xl border border-border p-4">
         <p class="text-sm text-foreground-secondary">
           {{ t("gateways.statsTotal") }}
@@ -493,7 +623,8 @@ onMounted(() => {
           {{ t("gateways.statsActive") }}
         </p>
         <p
-          class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+          class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1"
+        >
           {{ stats.active }}
         </p>
       </div>
@@ -535,16 +666,19 @@ onMounted(() => {
     <div class="flex items-center gap-4 mb-6">
       <div class="flex-1 relative">
         <MagnifyingGlassIcon
-          class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
+        />
         <input
           v-model="searchQuery"
           type="text"
           :placeholder="t('gateways.searchPlaceholder')"
-          class="w-full pl-10 pr-4 py-2 surface-card border border-border rounded-lg text-foreground placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+          class="w-full pl-10 pr-4 py-2 surface-card border border-border rounded-lg text-foreground placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+        />
       </div>
       <select
         v-model="selectedStatus"
-        class="px-4 py-2 surface-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500">
+        class="px-4 py-2 surface-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
+      >
         <option value="all">{{ t("gateways.allStatus") }}</option>
         <option value="online">{{ t("gateways.statusOnline") }}</option>
         <option value="offline">{{ t("gateways.statusOffline") }}</option>
@@ -553,9 +687,36 @@ onMounted(() => {
       </select>
       <button
         @click="fetchGateways"
-        class="p-2 text-foreground-secondary hover:text-foreground hover:bg-hover rounded-lg">
+        class="p-2 text-foreground-secondary hover:text-foreground hover:bg-hover rounded-lg"
+      >
         <ArrowPathIcon class="w-5 h-5" />
       </button>
+      <div class="flex rounded-lg border border-border overflow-hidden">
+        <button
+          @click="viewMode = 'card'"
+          :class="[
+            'p-2 transition-colors',
+            viewMode === 'card'
+              ? 'bg-primary text-primary-foreground'
+              : 'surface-card text-foreground-secondary hover:bg-hover',
+          ]"
+          :title="t('repository.viewModes.card')"
+        >
+          <Squares2X2Icon class="w-5 h-5" />
+        </button>
+        <button
+          @click="viewMode = 'list'"
+          :class="[
+            'p-2 transition-colors',
+            viewMode === 'list'
+              ? 'bg-primary text-primary-foreground'
+              : 'surface-card text-foreground-secondary hover:bg-hover',
+          ]"
+          :title="t('repository.viewModes.list')"
+        >
+          <Bars3Icon class="w-5 h-5" />
+        </button>
+      </div>
     </div>
 
     <!-- Gateway List -->
@@ -568,12 +729,16 @@ onMounted(() => {
       <p class="text-foreground-secondary">{{ t("gateways.noGateways") }}</p>
     </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div
+      v-else-if="viewMode === 'card'"
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+    >
       <div
         v-for="gateway in filteredGateways"
         :key="gateway.id"
         class="bg-card rounded-xl border border-border p-5 hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer transition-all"
-        @click="viewGatewayDetail(gateway)">
+        @click="viewGatewayDetail(gateway)"
+      >
         <!-- Header -->
         <div class="flex items-start justify-between mb-4">
           <div class="flex items-center gap-3">
@@ -583,14 +748,16 @@ onMounted(() => {
                 gateway.is_online
                   ? 'bg-emerald-100 dark:bg-emerald-900/30'
                   : 'bg-background-tertiary',
-              ]">
+              ]"
+            >
               <ServerIcon
                 :class="[
                   'w-5 h-5',
                   gateway.is_online
                     ? 'text-emerald-600 dark:text-emerald-400'
                     : 'text-slate-400',
-                ]" />
+                ]"
+              />
             </div>
             <div>
               <h3 class="font-semibold text-foreground">{{ gateway.name }}</h3>
@@ -603,7 +770,8 @@ onMounted(() => {
             :class="[
               'px-2 py-1 text-xs font-medium rounded-full',
               statusColors[gateway.status],
-            ]">
+            ]"
+          >
             {{ getStatusLabel(gateway.status) }}
           </span>
         </div>
@@ -611,14 +779,16 @@ onMounted(() => {
         <!-- Info -->
         <div class="space-y-2 text-sm">
           <div
-            class="flex items-center justify-between text-foreground-secondary">
+            class="flex items-center justify-between text-foreground-secondary"
+          >
             <span>{{ t("gateways.activeMounts") }}</span>
             <span class="font-medium text-foreground-secondary">{{
               gateway.active_mounts
             }}</span>
           </div>
           <div
-            class="flex items-center justify-between text-foreground-secondary">
+            class="flex items-center justify-between text-foreground-secondary"
+          >
             <span>{{ t("gateways.cpuCores") }}</span>
             <span class="font-medium text-foreground-secondary">{{
               gateway.cpu_cores || "-"
@@ -626,7 +796,8 @@ onMounted(() => {
           </div>
           <div
             v-if="gateway.kopia_version"
-            class="flex items-center justify-between text-foreground-secondary">
+            class="flex items-center justify-between text-foreground-secondary"
+          >
             <span>{{ t("gateways.kopiaVersion") }}</span>
             <span class="font-medium text-foreground-secondary">{{
               gateway.kopia_version
@@ -637,11 +808,165 @@ onMounted(() => {
         <!-- AI Status -->
         <div v-if="gateway.ai_enabled" class="mt-4 pt-4 border-t border-border">
           <div
-            class="flex items-center gap-2 text-sm text-violet-600 dark:text-violet-400">
+            class="flex items-center gap-2 text-sm text-violet-600 dark:text-violet-400"
+          >
             <ChatBubbleLeftRightIcon class="w-4 h-4" />
             <span>{{ t("gateways.aiEnabled") }}</span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div v-else class="bg-card rounded-xl border border-border overflow-hidden">
+      <div class="overflow-x-auto">
+        <table
+          class="w-full table-fixed divide-y divide-border"
+          :style="{ minWidth: gatewayTable.tableMinWidth.value }"
+        >
+          <colgroup>
+            <col
+              v-for="column in gatewayColumns"
+              :key="column.key"
+              :style="gatewayTable.columnStyle(column.key)"
+            />
+          </colgroup>
+          <thead class="bg-background-secondary">
+            <tr>
+              <ResizableSortableTh
+                v-for="column in gatewayColumns"
+                :key="column.key"
+                :column-key="column.key"
+                :label="column.label"
+                :style-value="gatewayTable.columnStyle(column.key)"
+                :sortable="column.sortable !== false"
+                :active="gatewayTable.sort.value.key === column.key"
+                :align="column.align"
+                :sort-icon="gatewayTable.getSortIcon(column.key)"
+                :resizing="gatewayTable.resizingColumn.value === column.key"
+                @sort="gatewayTable.toggleSort($event as GatewayColumnKey)"
+                @resize-start="
+                  (key, event) =>
+                    gatewayTable.startResize(key as GatewayColumnKey, event)
+                "
+                @resize-reset="
+                  gatewayTable.resetColumnWidth($event as GatewayColumnKey)
+                "
+              />
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border">
+            <tr
+              v-for="gateway in gatewayTable.sortedRows.value"
+              :key="gateway.id"
+              class="hover:bg-hover/50"
+            >
+              <td
+                class="px-4 py-3 whitespace-nowrap"
+                :style="gatewayTable.columnStyle('name')"
+              >
+                <button
+                  @click="viewGatewayDetail(gateway)"
+                  class="flex min-w-0 items-center gap-3 text-left"
+                >
+                  <ServerIcon
+                    :class="[
+                      'w-5 h-5 flex-shrink-0',
+                      gateway.is_online
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-foreground-muted',
+                    ]"
+                  />
+                  <span class="min-w-0">
+                    <span class="block truncate font-medium text-foreground">
+                      {{ gateway.name }}
+                    </span>
+                    <span
+                      class="block truncate text-xs text-foreground-secondary"
+                    >
+                      {{ gateway.description || gateway.id }}
+                    </span>
+                  </span>
+                </button>
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap"
+                :style="gatewayTable.columnStyle('status')"
+              >
+                <span
+                  :class="[
+                    'px-2 py-1 text-xs font-medium rounded-full',
+                    statusColors[gateway.status],
+                  ]"
+                >
+                  {{ getStatusLabel(gateway.status) }}
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
+                :style="gatewayTable.columnStyle('hostname')"
+              >
+                {{ gateway.hostname || "-" }}
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
+                :style="gatewayTable.columnStyle('internal_ip')"
+              >
+                {{ gateway.internal_ip || "-" }}
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
+                :style="gatewayTable.columnStyle('active_mounts')"
+              >
+                {{ gateway.active_mounts }}
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
+                :style="gatewayTable.columnStyle('cpu_cores')"
+              >
+                {{ gateway.cpu_cores || "-" }}
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
+                :style="gatewayTable.columnStyle('memory_total')"
+              >
+                {{ formatBytes(gateway.memory_total) }}
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
+                :style="gatewayTable.columnStyle('kopia_version')"
+              >
+                {{ gateway.kopia_version || "-" }}
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
+                :style="gatewayTable.columnStyle('last_heartbeat')"
+              >
+                {{ formatDate(gateway.last_heartbeat) }}
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-right"
+                :style="gatewayTable.columnStyle('actions')"
+              >
+                <div class="flex justify-end gap-1">
+                  <button
+                    @click="viewGatewayDetail(gateway)"
+                    class="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-hover rounded"
+                    :title="t('common.details')"
+                  >
+                    <ClipboardDocumentIcon class="w-4 h-4" />
+                  </button>
+                  <button
+                    @click="deleteGateway(gateway)"
+                    class="p-1.5 text-foreground-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
+                    :title="t('common.delete')"
+                  >
+                    <TrashIcon class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -654,13 +979,15 @@ onMounted(() => {
         @page-change="
           currentPage = $event;
           fetchGateways();
-        " />
+        "
+      />
     </div>
 
     <!-- Create Modal -->
     <div
       v-if="showCreateModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    >
       <div class="modal-surface rounded-xl w-full max-w-lg p-6">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-xl font-semibold text-foreground">
@@ -668,7 +995,8 @@ onMounted(() => {
           </h2>
           <button
             @click="showCreateModal = false"
-            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          >
             <XMarkIcon class="w-6 h-6" />
           </button>
         </div>
@@ -676,7 +1004,8 @@ onMounted(() => {
         <form @submit.prevent="createGateway" class="space-y-4">
           <div>
             <label
-              class="block text-sm font-medium text-foreground-secondary mb-1">
+              class="block text-sm font-medium text-foreground-secondary mb-1"
+            >
               {{ t("gateways.gatewayName") }}
               <span class="text-red-500">*</span>
             </label>
@@ -685,31 +1014,36 @@ onMounted(() => {
               type="text"
               required
               class="w-full px-3 py-2 bg-background-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
-              :placeholder="t('gateways.gatewayNamePlaceholder')" />
+              :placeholder="t('gateways.gatewayNamePlaceholder')"
+            />
           </div>
 
           <div>
             <label
-              class="block text-sm font-medium text-foreground-secondary mb-1">
+              class="block text-sm font-medium text-foreground-secondary mb-1"
+            >
               {{ t("gateways.description") }}
             </label>
             <textarea
               v-model="newGateway.description"
               rows="2"
               class="w-full px-3 py-2 bg-background-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
-              :placeholder="t('gateways.descriptionPlaceholder')" />
+              :placeholder="t('gateways.descriptionPlaceholder')"
+            />
           </div>
 
           <div>
             <label
-              class="block text-sm font-medium text-foreground-secondary mb-1">
+              class="block text-sm font-medium text-foreground-secondary mb-1"
+            >
               {{ t("gateways.labels") }}
             </label>
             <input
               v-model="newGateway.labels"
               type="text"
               class="w-full px-3 py-2 bg-background-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
-              :placeholder="t('gateways.labelsPlaceholder')" />
+              :placeholder="t('gateways.labelsPlaceholder')"
+            />
             <p class="mt-1 text-xs text-foreground-secondary">
               {{ t("gateways.labelsHint") }}
             </p>
@@ -719,13 +1053,15 @@ onMounted(() => {
             <button
               type="button"
               @click="showCreateModal = false"
-              class="px-4 py-2 text-foreground-secondary hover:bg-hover rounded-lg">
+              class="px-4 py-2 text-foreground-secondary hover:bg-hover rounded-lg"
+            >
               {{ t("common.cancel") }}
             </button>
             <button
               type="submit"
               :disabled="isCreating || !newGateway.name.trim()"
-              class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {{ isCreating ? t("common.loading") : t("common.create") }}
             </button>
           </div>
@@ -736,7 +1072,8 @@ onMounted(() => {
     <!-- Install Wizard Modal -->
     <div
       v-if="showInstallWizard && createdGateway"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    >
       <div class="modal-surface rounded-xl w-full max-w-2xl p-6">
         <!-- Header -->
         <div class="flex items-center justify-between mb-6">
@@ -745,7 +1082,8 @@ onMounted(() => {
           </h2>
           <button
             @click="closeInstallWizard"
-            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          >
             <XMarkIcon class="w-6 h-6" />
           </button>
         </div>
@@ -759,35 +1097,40 @@ onMounted(() => {
                 wizardStep >= 1
                   ? 'bg-violet-600 text-white'
                   : 'bg-slate-200 text-slate-500',
-              ]">
+              ]"
+            >
               1
             </div>
             <div
               :class="[
                 'w-16 h-1',
                 wizardStep >= 2 ? 'bg-violet-600' : 'bg-slate-200',
-              ]"></div>
+              ]"
+            ></div>
             <div
               :class="[
                 'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
                 wizardStep >= 2
                   ? 'bg-violet-600 text-white'
                   : 'bg-slate-200 text-slate-500',
-              ]">
+              ]"
+            >
               2
             </div>
             <div
               :class="[
                 'w-16 h-1',
                 wizardStep >= 3 ? 'bg-violet-600' : 'bg-slate-200',
-              ]"></div>
+              ]"
+            ></div>
             <div
               :class="[
                 'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
                 wizardStep >= 3
                   ? 'bg-violet-600 text-white'
                   : 'bg-slate-200 text-slate-500',
-              ]">
+              ]"
+            >
               3
             </div>
           </div>
@@ -848,7 +1191,8 @@ onMounted(() => {
 
           <div
             v-if="isLoadingWizardCommand"
-            class="flex items-center justify-center py-8">
+            class="flex items-center justify-center py-8"
+          >
             <ArrowPathIcon class="w-6 h-6 text-slate-400 animate-spin" />
           </div>
 
@@ -862,7 +1206,8 @@ onMounted(() => {
               >
               <button
                 @click="copyWizardCommand"
-                class="absolute top-2 right-2 p-2 bg-slate-700 hover:bg-slate-600 rounded text-slate-300">
+                class="absolute top-2 right-2 p-2 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
+              >
                 <ClipboardDocumentIcon class="w-4 h-4" />
               </button>
             </div>
@@ -886,9 +1231,11 @@ onMounted(() => {
 
           <div class="flex flex-col items-center py-8">
             <div
-              class="w-16 h-16 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center mb-4">
+              class="w-16 h-16 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center mb-4"
+            >
               <ArrowPathIcon
-                class="w-8 h-8 text-violet-600 dark:text-violet-400 animate-spin" />
+                class="w-8 h-8 text-violet-600 dark:text-violet-400 animate-spin"
+              />
             </div>
             <p class="text-foreground-secondary">
               {{ t("gateways.installWizard.waitingForRegistration") }}
@@ -921,7 +1268,8 @@ onMounted(() => {
           <button
             v-if="wizardStep > 1"
             @click="prevWizardStep"
-            class="px-4 py-2 text-foreground-secondary hover:bg-hover rounded-lg">
+            class="px-4 py-2 text-foreground-secondary hover:bg-hover rounded-lg"
+          >
             {{ t("common.previous") }}
           </button>
           <div v-else />
@@ -929,20 +1277,23 @@ onMounted(() => {
           <div class="flex gap-3">
             <button
               @click="closeInstallWizard"
-              class="px-4 py-2 text-foreground-secondary hover:bg-hover rounded-lg">
+              class="px-4 py-2 text-foreground-secondary hover:bg-hover rounded-lg"
+            >
               {{ t("common.close") }}
             </button>
             <button
               v-if="wizardStep < 3"
               @click="nextWizardStep"
               :disabled="wizardStep === 2 && !wizardInstallCommand"
-              class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {{ t("common.next") }}
             </button>
             <button
               v-else
               @click="closeInstallWizard"
-              class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700">
+              class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
+            >
               {{ t("common.finish") }}
             </button>
           </div>
@@ -954,17 +1305,21 @@ onMounted(() => {
     <Transition name="drawer">
       <div
         v-if="showDetailDrawer && selectedGateway"
-        class="fixed inset-0 z-50">
+        class="fixed inset-0 z-50"
+      >
         <!-- Backdrop -->
         <div
           class="absolute inset-0 bg-black/50"
-          @click="showDetailDrawer = false" />
+          @click="showDetailDrawer = false"
+        />
         <!-- Drawer Panel -->
         <div
-          class="absolute top-0 right-0 h-full w-[640px] max-w-[90vw] drawer-panel shadow-2xl flex flex-col">
+          class="absolute top-0 right-0 h-full w-[640px] max-w-[90vw] drawer-panel shadow-2xl flex flex-col"
+        >
           <!-- Header -->
           <div
-            class="flex items-center justify-between p-5 border-b border-border drawer-surface flex-shrink-0">
+            class="flex items-center justify-between p-5 border-b border-border drawer-surface flex-shrink-0"
+          >
             <div class="flex items-center gap-3">
               <div
                 :class="[
@@ -972,7 +1327,8 @@ onMounted(() => {
                   selectedGateway.is_online
                     ? 'bg-gradient-to-br from-emerald-500 to-teal-600'
                     : 'bg-gradient-to-br from-slate-400 to-slate-500',
-                ]">
+                ]"
+              >
                 <ServerIcon class="w-5 h-5 text-white" />
               </div>
               <div>
@@ -984,17 +1340,20 @@ onMounted(() => {
                     :class="[
                       'px-2 py-0.5 rounded-full text-xs font-medium',
                       statusColors[selectedGateway.status],
-                    ]">
+                    ]"
+                  >
                     {{ getStatusLabel(selectedGateway.status) }}
                   </span>
                   <span
                     v-if="selectedGateway.is_online"
-                    class="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-xs font-medium">
+                    class="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-xs font-medium"
+                  >
                     {{ t("gateways.online") }}
                   </span>
                   <span
                     v-else
-                    class="px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full text-xs font-medium">
+                    class="px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full text-xs font-medium"
+                  >
                     {{ t("gateways.offline") }}
                   </span>
                 </div>
@@ -1002,14 +1361,16 @@ onMounted(() => {
             </div>
             <button
               @click="showDetailDrawer = false"
-              class="p-2 text-foreground-muted hover:text-slate-600 dark:hover:text-slate-300 hover:bg-hover rounded-lg">
+              class="p-2 text-foreground-muted hover:text-slate-600 dark:hover:text-slate-300 hover:bg-hover rounded-lg"
+            >
               <XMarkIcon class="w-5 h-5" />
             </button>
           </div>
 
           <!-- Tabs -->
           <div
-            class="border-b border-border drawer-muted-surface px-5 flex-shrink-0">
+            class="border-b border-border drawer-muted-surface px-5 flex-shrink-0"
+          >
             <nav class="flex gap-1 -mb-px">
               <button
                 @click="detailTab = 'overview'"
@@ -1018,7 +1379,8 @@ onMounted(() => {
                   detailTab === 'overview'
                     ? 'border-violet-500 text-violet-600'
                     : 'border-transparent text-foreground-secondary hover:text-foreground hover:border-slate-300 dark:hover:border-slate-600',
-                ]">
+                ]"
+              >
                 {{ t("gateways.tabs.overview") }}
               </button>
               <button
@@ -1029,7 +1391,8 @@ onMounted(() => {
                   detailTab === 'install'
                     ? 'border-violet-500 text-violet-600'
                     : 'border-transparent text-foreground-secondary hover:text-foreground hover:border-slate-300 dark:hover:border-slate-600',
-                ]">
+                ]"
+              >
                 {{ t("gateways.tabs.install") }}
               </button>
               <button
@@ -1039,7 +1402,8 @@ onMounted(() => {
                   detailTab === 'mounts'
                     ? 'border-violet-500 text-violet-600'
                     : 'border-transparent text-foreground-secondary hover:text-foreground hover:border-slate-300 dark:hover:border-slate-600',
-                ]">
+                ]"
+              >
                 {{ t("gateways.tabs.mounts") }}
               </button>
               <button
@@ -1049,7 +1413,8 @@ onMounted(() => {
                   detailTab === 'monitoring'
                     ? 'border-violet-500 text-violet-600'
                     : 'border-transparent text-foreground-secondary hover:text-foreground hover:border-slate-300 dark:hover:border-slate-600',
-                ]">
+                ]"
+              >
                 {{ t("gateways.tabs.monitoring") }}
               </button>
             </nav>
@@ -1103,7 +1468,8 @@ onMounted(() => {
                 <div class="grid grid-cols-3 gap-4">
                   <div class="bg-background-secondary rounded-lg p-4">
                     <div
-                      class="flex items-center gap-2 text-foreground-secondary mb-1">
+                      class="flex items-center gap-2 text-foreground-secondary mb-1"
+                    >
                       <CpuChipIcon class="w-4 h-4" />
                       <span class="text-sm">{{ t("gateways.cpu") }}</span>
                     </div>
@@ -1113,13 +1479,15 @@ onMounted(() => {
                     </p>
                     <p
                       v-if="selectedGateway.cpu_usage"
-                      class="text-sm text-foreground-secondary">
+                      class="text-sm text-foreground-secondary"
+                    >
                       {{ selectedGateway.cpu_usage }}% {{ t("gateways.used") }}
                     </p>
                   </div>
                   <div class="bg-background-secondary rounded-lg p-4">
                     <div
-                      class="flex items-center gap-2 text-foreground-secondary mb-1">
+                      class="flex items-center gap-2 text-foreground-secondary mb-1"
+                    >
                       <CircleStackIcon class="w-4 h-4" />
                       <span class="text-sm">{{ t("gateways.memory") }}</span>
                     </div>
@@ -1132,14 +1500,16 @@ onMounted(() => {
                     </p>
                     <p
                       v-if="selectedGateway.memory_usage"
-                      class="text-sm text-foreground-secondary">
+                      class="text-sm text-foreground-secondary"
+                    >
                       {{ selectedGateway.memory_usage }}%
                       {{ t("gateways.used") }}
                     </p>
                   </div>
                   <div class="bg-background-secondary rounded-lg p-4">
                     <div
-                      class="flex items-center gap-2 text-foreground-secondary mb-1">
+                      class="flex items-center gap-2 text-foreground-secondary mb-1"
+                    >
                       <CircleStackIcon class="w-4 h-4" />
                       <span class="text-sm">{{ t("gateways.disk") }}</span>
                     </div>
@@ -1152,7 +1522,8 @@ onMounted(() => {
                     </p>
                     <p
                       v-if="selectedGateway.disk_usage"
-                      class="text-sm text-foreground-secondary">
+                      class="text-sm text-foreground-secondary"
+                    >
                       {{ selectedGateway.disk_usage }}% {{ t("gateways.used") }}
                     </p>
                   </div>
@@ -1192,7 +1563,8 @@ onMounted(() => {
                 </h3>
                 <div class="bg-violet-50 dark:bg-violet-900/20 rounded-lg p-4">
                   <div
-                    class="flex items-center gap-2 text-violet-600 dark:text-violet-400 mb-2">
+                    class="flex items-center gap-2 text-violet-600 dark:text-violet-400 mb-2"
+                  >
                     <ChatBubbleLeftRightIcon class="w-5 h-5" />
                     <span class="font-medium">{{
                       t("gateways.aiEnabled")
@@ -1200,7 +1572,8 @@ onMounted(() => {
                   </div>
                   <p
                     v-if="selectedGateway.last_index_time"
-                    class="text-sm text-foreground-secondary">
+                    class="text-sm text-foreground-secondary"
+                  >
                     {{ t("gateways.lastIndexTime") }}:
                     {{ formatDate(selectedGateway.last_index_time) }}
                   </p>
@@ -1228,20 +1601,23 @@ onMounted(() => {
                 <button
                   v-if="selectedGateway.status !== 'online'"
                   @click="activateGateway(selectedGateway)"
-                  class="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
+                  class="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                >
                   <PlayIcon class="w-4 h-4" />
                   {{ t("gateways.activate") }}
                 </button>
                 <button
                   v-if="selectedGateway.status === 'online'"
                   @click="deactivateGateway(selectedGateway)"
-                  class="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700">
+                  class="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700"
+                >
                   <PauseIcon class="w-4 h-4" />
                   {{ t("gateways.deactivate") }}
                 </button>
                 <button
                   @click="deleteGateway(selectedGateway)"
-                  class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                  class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
                   <TrashIcon class="w-4 h-4" />
                   {{ t("gateways.delete") }}
                 </button>
@@ -1252,7 +1628,8 @@ onMounted(() => {
             <div v-if="detailTab === 'install'" class="space-y-6">
               <div
                 v-if="selectedGateway.status === 'pending'"
-                class="space-y-4">
+                class="space-y-4"
+              >
                 <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
                   <p class="text-sm text-blue-700 dark:text-blue-300">
                     {{ t("gateways.installInstructions") }}
@@ -1261,7 +1638,8 @@ onMounted(() => {
 
                 <div
                   v-if="isLoadingCommand"
-                  class="flex items-center justify-center py-8">
+                  class="flex items-center justify-center py-8"
+                >
                   <ArrowPathIcon class="w-6 h-6 text-slate-400 animate-spin" />
                 </div>
 
@@ -1277,7 +1655,8 @@ onMounted(() => {
                         commandCopied
                           ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
-                      ]">
+                      ]"
+                    >
                       <ClipboardDocumentIcon class="w-4 h-4" />
                       {{
                         commandCopied
@@ -1301,7 +1680,8 @@ onMounted(() => {
 
               <div v-else class="text-center py-12 text-foreground-secondary">
                 <CheckCircleIcon
-                  class="w-16 h-16 mx-auto mb-4 text-emerald-500" />
+                  class="w-16 h-16 mx-auto mb-4 text-emerald-500"
+                />
                 <p>{{ t("gateways.alreadyInstalled") }}</p>
               </div>
             </div>
@@ -1319,12 +1699,14 @@ onMounted(() => {
                   >
                 </div>
                 <div
-                  class="h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                  class="h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden"
+                >
                   <div
                     class="h-full bg-violet-500 rounded-full transition-all"
                     :style="{
                       width: `${(selectedGateway.active_mounts / selectedGateway.max_concurrent_mounts) * 100}%`,
-                    }" />
+                    }"
+                  />
                 </div>
               </div>
 
@@ -1348,7 +1730,8 @@ onMounted(() => {
               <div class="flex items-center gap-4">
                 <select
                   v-model="monitoringHours"
-                  class="px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm text-foreground-secondary">
+                  class="px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm text-foreground-secondary"
+                >
                   <option :value="1">1 {{ t("gateways.hour") }}</option>
                   <option :value="6">6 {{ t("gateways.hours") }}</option>
                   <option :value="12">12 {{ t("gateways.hours") }}</option>
@@ -1356,7 +1739,8 @@ onMounted(() => {
                 </select>
                 <button
                   @click="loadMonitoringData"
-                  class="p-2 text-foreground-secondary hover:text-foreground hover:bg-hover rounded-lg">
+                  class="p-2 text-foreground-secondary hover:text-foreground hover:bg-hover rounded-lg"
+                >
                   <ArrowPathIcon class="w-5 h-5" />
                 </button>
               </div>
@@ -1364,16 +1748,19 @@ onMounted(() => {
               <!-- Loading State -->
               <div
                 v-if="isLoadingMonitoring"
-                class="flex items-center justify-center py-12">
+                class="flex items-center justify-center py-12"
+              >
                 <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
               </div>
 
               <!-- No Data State -->
               <div
                 v-else-if="!chartData || chartData.labels.length === 0"
-                class="text-center py-12">
+                class="text-center py-12"
+              >
                 <CircleStackIcon
-                  class="w-16 h-16 text-foreground-muted mx-auto mb-4" />
+                  class="w-16 h-16 text-foreground-muted mx-auto mb-4"
+                />
                 <p class="text-foreground-secondary">
                   {{ t("gateways.noMonitoringData") }}
                 </p>
@@ -1384,14 +1771,16 @@ onMounted(() => {
                 <!-- CPU Usage Chart -->
                 <div class="bg-background-secondary rounded-xl p-4">
                   <h4
-                    class="text-sm font-medium text-foreground-secondary mb-3">
+                    class="text-sm font-medium text-foreground-secondary mb-3"
+                  >
                     {{ t("gateways.cpuUsage") }}
                   </h4>
                   <div class="h-32 relative">
                     <svg
                       viewBox="0 0 400 100"
                       class="w-full h-full"
-                      preserveAspectRatio="none">
+                      preserveAspectRatio="none"
+                    >
                       <!-- Grid lines -->
                       <line
                         x1="0"
@@ -1399,35 +1788,40 @@ onMounted(() => {
                         x2="400"
                         y2="0"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="25"
                         x2="400"
                         y2="25"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="50"
                         x2="400"
                         y2="50"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="75"
                         x2="400"
                         y2="75"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="100"
                         x2="400"
                         y2="100"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
 
                       <!-- CPU Line -->
                       <polyline
@@ -1441,13 +1835,15 @@ onMounted(() => {
                         "
                         fill="none"
                         stroke="#3b82f6"
-                        stroke-width="2" />
+                        stroke-width="2"
+                      />
                     </svg>
                     <div class="absolute right-0 top-0 text-xs text-slate-400">
                       100%
                     </div>
                     <div
-                      class="absolute right-0 bottom-0 text-xs text-slate-400">
+                      class="absolute right-0 bottom-0 text-xs text-slate-400"
+                    >
                       0%
                     </div>
                   </div>
@@ -1466,14 +1862,16 @@ onMounted(() => {
                 <!-- Memory Usage Chart -->
                 <div class="bg-background-secondary rounded-xl p-4">
                   <h4
-                    class="text-sm font-medium text-foreground-secondary mb-3">
+                    class="text-sm font-medium text-foreground-secondary mb-3"
+                  >
                     {{ t("gateways.memoryUsage") }}
                   </h4>
                   <div class="h-32 relative">
                     <svg
                       viewBox="0 0 400 100"
                       class="w-full h-full"
-                      preserveAspectRatio="none">
+                      preserveAspectRatio="none"
+                    >
                       <!-- Grid lines -->
                       <line
                         x1="0"
@@ -1481,35 +1879,40 @@ onMounted(() => {
                         x2="400"
                         y2="0"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="25"
                         x2="400"
                         y2="25"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="50"
                         x2="400"
                         y2="50"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="75"
                         x2="400"
                         y2="75"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="100"
                         x2="400"
                         y2="100"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
 
                       <!-- Memory Line -->
                       <polyline
@@ -1523,13 +1926,15 @@ onMounted(() => {
                         "
                         fill="none"
                         stroke="#10b981"
-                        stroke-width="2" />
+                        stroke-width="2"
+                      />
                     </svg>
                     <div class="absolute right-0 top-0 text-xs text-slate-400">
                       100%
                     </div>
                     <div
-                      class="absolute right-0 bottom-0 text-xs text-slate-400">
+                      class="absolute right-0 bottom-0 text-xs text-slate-400"
+                    >
                       0%
                     </div>
                   </div>
@@ -1538,14 +1943,16 @@ onMounted(() => {
                 <!-- Disk Usage Chart -->
                 <div class="bg-background-secondary rounded-xl p-4">
                   <h4
-                    class="text-sm font-medium text-foreground-secondary mb-3">
+                    class="text-sm font-medium text-foreground-secondary mb-3"
+                  >
                     {{ t("gateways.diskUsage") }}
                   </h4>
                   <div class="h-32 relative">
                     <svg
                       viewBox="0 0 400 100"
                       class="w-full h-full"
-                      preserveAspectRatio="none">
+                      preserveAspectRatio="none"
+                    >
                       <!-- Grid lines -->
                       <line
                         x1="0"
@@ -1553,35 +1960,40 @@ onMounted(() => {
                         x2="400"
                         y2="0"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="25"
                         x2="400"
                         y2="25"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="50"
                         x2="400"
                         y2="50"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="75"
                         x2="400"
                         y2="75"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
                       <line
                         x1="0"
                         y1="100"
                         x2="400"
                         y2="100"
                         stroke="currentColor"
-                        stroke-opacity="0.1" />
+                        stroke-opacity="0.1"
+                      />
 
                       <!-- Disk Line -->
                       <polyline
@@ -1595,13 +2007,15 @@ onMounted(() => {
                         "
                         fill="none"
                         stroke="#f59e0b"
-                        stroke-width="2" />
+                        stroke-width="2"
+                      />
                     </svg>
                     <div class="absolute right-0 top-0 text-xs text-slate-400">
                       100%
                     </div>
                     <div
-                      class="absolute right-0 bottom-0 text-xs text-slate-400">
+                      class="absolute right-0 bottom-0 text-xs text-slate-400"
+                    >
                       0%
                     </div>
                   </div>

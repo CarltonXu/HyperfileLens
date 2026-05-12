@@ -16,8 +16,13 @@ import {
   XCircleIcon,
   XMarkIcon,
   ChatBubbleLeftRightIcon,
+  EyeIcon,
+  ExclamationTriangleIcon,
+  ChartBarIcon,
 } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 
 interface NotificationChannel {
   id: string;
@@ -45,6 +50,9 @@ const editingChannel = ref<NotificationChannel | null>(null);
 const saving = ref(false);
 const testing = ref(false);
 const testResult = ref<TestResult | null>(null);
+const showDetailsModal = ref(false);
+const detailsLoading = ref(false);
+const channelDetails = ref<any>(null);
 
 // Form state
 const form = reactive({
@@ -58,6 +66,7 @@ const form = reactive({
     smtp_username: "",
     smtp_password: "",
     from_email: "",
+    email_subject: "",
     to_emails: "",
     use_tls: true,
   },
@@ -80,7 +89,7 @@ const form = reactive({
 });
 
 // Channel type icons
-const channelIcons = {
+const channelIcons: Record<string, any> = {
   email: EnvelopeIcon,
   webhook: GlobeAltIcon,
   dingtalk: ChatBubbleLeftRightIcon,
@@ -88,7 +97,7 @@ const channelIcons = {
 };
 
 // Channel type colors
-const channelColors = {
+const channelColors: Record<string, string> = {
   email: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
   webhook:
     "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
@@ -116,6 +125,87 @@ const filteredChannels = computed(() => {
   }
 
   return result;
+});
+
+type NotificationChannelColumnKey =
+  | "name"
+  | "type"
+  | "enabled"
+  | "target"
+  | "updated_at"
+  | "actions";
+
+const notificationChannelColumns = computed(() => [
+  {
+    key: "name" as const,
+    label: t("alertsCenter.common.name"),
+    min: 220,
+    max: 520,
+  },
+  {
+    key: "type" as const,
+    label: t("alertsCenter.common.type"),
+    min: 130,
+    max: 260,
+  },
+  {
+    key: "enabled" as const,
+    label: t("alertsCenter.common.status"),
+    min: 130,
+    max: 260,
+  },
+  {
+    key: "target" as const,
+    label: t("alertsCenter.common.target"),
+    min: 280,
+    max: 720,
+  },
+  {
+    key: "updated_at" as const,
+    label: t("alertsCenter.common.updatedAt"),
+    min: 190,
+    max: 320,
+  },
+  {
+    key: "actions" as const,
+    label: t("alertsCenter.common.actions"),
+    min: 180,
+    max: 260,
+    sortable: false,
+    align: "right" as const,
+  },
+]);
+
+const notificationChannelTable = useResizableSortableTable<
+  NotificationChannel,
+  NotificationChannelColumnKey
+>({
+  storageKey: "hyperfilelens:notification-channels:columnWidths",
+  columns: notificationChannelColumns,
+  rows: filteredChannels,
+  defaultSort: { key: "name" },
+  minTableWidth: 900,
+  getSortValue: (channel, key) => {
+    if (key === "target") return getChannelTarget(channel);
+    if (key === "enabled") return channel.enabled ? 1 : 0;
+    if (key === "updated_at")
+      return channel.updated_at ? new Date(channel.updated_at).getTime() : 0;
+    if (key === "actions") return "";
+    return channel[key] ?? "";
+  },
+  getColumnText: (channel, key) => {
+    if (key === "target") return getChannelTarget(channel);
+    if (key === "enabled")
+      return channel.enabled
+        ? t("alertsCenter.values.enabled")
+        : t("alertsCenter.values.disabled");
+    if (key === "updated_at")
+      return new Date(
+        channel.updated_at || channel.created_at,
+      ).toLocaleString();
+    if (key === "actions") return t("alertsCenter.common.actions");
+    return String(channel[key] ?? "");
+  },
 });
 
 // Get channel target display
@@ -154,6 +244,7 @@ function openEditModal(channel: NotificationChannel) {
       smtp_username: config.smtp_username || "",
       smtp_password: "", // Don't load password for security
       from_email: config.from_email || "",
+      email_subject: config.email_subject || "",
       to_emails: (config.to_emails || []).join(", "),
       use_tls: config.use_tls !== false,
     };
@@ -190,6 +281,7 @@ function resetForm() {
       smtp_username: "",
       smtp_password: "",
       from_email: "",
+      email_subject: "",
       to_emails: "",
       use_tls: true,
     },
@@ -227,6 +319,7 @@ function buildConfig(): Record<string, any> {
     config.smtp_username = form.email.smtp_username;
     config.smtp_password = form.email.smtp_password;
     config.from_email = form.email.from_email;
+    config.email_subject = form.email.email_subject;
     config.to_emails = form.email.to_emails
       .split(",")
       .map((e) => e.trim())
@@ -263,12 +356,6 @@ function validateForm(): string | null {
     if (!form.email.smtp_host)
       return (
         t("alertsCenter.channels.email.smtpHost") + " " + t("common.required")
-      );
-    if (!form.email.smtp_username)
-      return (
-        t("alertsCenter.channels.email.smtpUsername") +
-        " " +
-        t("common.required")
       );
     if (!form.email.from_email)
       return (
@@ -476,6 +563,58 @@ async function fetchChannels() {
   }
 }
 
+// Severity helpers
+function getSeverityClass(severity: string) {
+  const classes: Record<string, string> = {
+    info: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+    warning:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+    error: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+    critical: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  };
+  return classes[severity] || "bg-background-tertiary text-foreground";
+}
+
+function getSeverityLabel(severity: string) {
+  return t(`alertsCenter.severity.${severity}`);
+}
+
+function getStatusClass(status: string) {
+  const classes: Record<string, string> = {
+    active: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+    acknowledged:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+    resolved:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+    success:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+    failed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+    pending: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  };
+  return classes[status] || "bg-background-tertiary text-foreground";
+}
+
+function getStatusLabel(status: string) {
+  return t(`alertsCenter.status.${status}`);
+}
+
+// View channel details
+async function viewDetails(channel: NotificationChannel) {
+  showDetailsModal.value = true;
+  detailsLoading.value = true;
+  channelDetails.value = null;
+
+  try {
+    const response = await alertsApi.getChannelDetails(channel.id);
+    channelDetails.value = response.data;
+  } catch (err: any) {
+    alert(err.response?.data?.detail || err.message || t("common.error"));
+    showDetailsModal.value = false;
+  } finally {
+    detailsLoading.value = false;
+  }
+}
+
 onMounted(fetchChannels);
 </script>
 
@@ -485,7 +624,8 @@ onMounted(fetchChannels);
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-start gap-3">
         <div
-          class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg">
+          class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg"
+        >
           <BellIcon class="h-6 w-6" />
         </div>
         <div>
@@ -499,7 +639,8 @@ onMounted(fetchChannels);
       </div>
       <button
         @click="openCreateModal"
-        class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-primary-hover transition-colors">
+        class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-primary-hover transition-colors"
+      >
         <PlusIcon class="h-4 w-4" />
         {{ t("alertsCenter.common.createChannel") }}
       </button>
@@ -510,15 +651,18 @@ onMounted(fetchChannels);
       <div class="flex flex-wrap gap-3 p-4">
         <div class="relative flex-1 min-w-[200px]">
           <MagnifyingGlassIcon
-            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
+            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted"
+          />
           <input
             v-model="filters.search"
             class="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            :placeholder="t('alertsCenter.channels.searchPlaceholder')" />
+            :placeholder="t('alertsCenter.channels.searchPlaceholder')"
+          />
         </div>
         <select
           v-model="filters.type"
-          class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+          class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        >
           <option value="">{{ t("alertsCenter.common.allTypes") }}</option>
           <option value="email">{{ t("alertsCenter.values.email") }}</option>
           <option value="webhook">
@@ -531,14 +675,16 @@ onMounted(fetchChannels);
         </select>
         <select
           v-model="filters.enabled"
-          class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+          class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        >
           <option value="">{{ t("alertsCenter.common.allStatus") }}</option>
           <option value="true">{{ t("alertsCenter.values.enabled") }}</option>
           <option value="false">{{ t("alertsCenter.values.disabled") }}</option>
         </select>
         <button
           @click="fetchChannels"
-          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-hover transition-colors">
+          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-hover transition-colors"
+        >
           <ArrowPathIcon :class="['h-4 w-4', loading && 'animate-spin']" />
           {{ t("alertsCenter.common.refresh") }}
         </button>
@@ -548,70 +694,107 @@ onMounted(fetchChannels);
     <!-- Channel Table -->
     <div
       v-if="filteredChannels.length > 0"
-      class="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      class="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+    >
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[900px] text-left text-sm">
+        <table
+          class="w-full table-fixed text-left text-sm"
+          :style="{ minWidth: notificationChannelTable.tableMinWidth.value }"
+        >
+          <colgroup>
+            <col
+              v-for="column in notificationChannelColumns"
+              :key="column.key"
+              :style="notificationChannelTable.columnStyle(column.key)"
+            />
+          </colgroup>
           <thead class="border-b border-border bg-background-secondary">
             <tr>
-              <th class="px-4 py-3 font-medium text-foreground-secondary">
-                {{ t("alertsCenter.common.name") }}
-              </th>
-              <th class="px-4 py-3 font-medium text-foreground-secondary">
-                {{ t("alertsCenter.common.type") }}
-              </th>
-              <th class="px-4 py-3 font-medium text-foreground-secondary">
-                {{ t("alertsCenter.common.status") }}
-              </th>
-              <th class="px-4 py-3 font-medium text-foreground-secondary">
-                {{ t("alertsCenter.common.target") }}
-              </th>
-              <th class="px-4 py-3 font-medium text-foreground-secondary">
-                {{ t("alertsCenter.common.updatedAt") }}
-              </th>
-              <th
-                class="px-4 py-3 text-right font-medium text-foreground-secondary">
-                {{ t("alertsCenter.common.actions") }}
-              </th>
+              <ResizableSortableTh
+                v-for="column in notificationChannelColumns"
+                :key="column.key"
+                :column-key="column.key"
+                :label="column.label"
+                :style-value="notificationChannelTable.columnStyle(column.key)"
+                :sortable="column.sortable !== false"
+                :active="notificationChannelTable.sort.value.key === column.key"
+                :align="column.align"
+                :sort-icon="notificationChannelTable.getSortIcon(column.key)"
+                :resizing="
+                  notificationChannelTable.resizingColumn.value === column.key
+                "
+                @sort="
+                  notificationChannelTable.toggleSort(
+                    $event as NotificationChannelColumnKey,
+                  )
+                "
+                @resize-start="
+                  (key, event) =>
+                    notificationChannelTable.startResize(
+                      key as NotificationChannelColumnKey,
+                      event,
+                    )
+                "
+                @resize-reset="
+                  notificationChannelTable.resetColumnWidth(
+                    $event as NotificationChannelColumnKey,
+                  )
+                "
+              />
             </tr>
           </thead>
           <tbody class="divide-y divide-border">
             <tr
-              v-for="channel in filteredChannels"
+              v-for="channel in notificationChannelTable.sortedRows.value"
               :key="channel.id"
-              class="hover:bg-hover transition-colors">
+              class="hover:bg-hover transition-colors"
+            >
               <!-- Name -->
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="notificationChannelTable.columnStyle('name')"
+              >
                 <div class="flex items-center gap-2">
                   <component
                     :is="channelIcons[channel.type]"
-                    class="h-4 w-4 text-foreground-secondary" />
+                    class="h-4 w-4 text-foreground-secondary"
+                  />
                   <span class="font-medium text-foreground">{{
                     channel.name
                   }}</span>
                 </div>
               </td>
               <!-- Type -->
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="notificationChannelTable.columnStyle('type')"
+              >
                 <span
                   class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium"
-                  :class="channelColors[channel.type]">
+                  :class="channelColors[channel.type]"
+                >
                   {{ t(`alertsCenter.values.${channel.type}`) }}
                 </span>
               </td>
               <!-- Status -->
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="notificationChannelTable.columnStyle('enabled')"
+              >
                 <span
                   class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
                   :class="
                     channel.enabled
                       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
                       : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-500/10 dark:text-zinc-400'
-                  ">
+                  "
+                >
                   <span
                     :class="[
                       'h-1.5 w-1.5 rounded-full',
                       channel.enabled ? 'bg-emerald-500' : 'bg-zinc-500',
-                    ]" />
+                    ]"
+                  />
                   {{
                     channel.enabled
                       ? t("alertsCenter.values.enabled")
@@ -621,11 +804,16 @@ onMounted(fetchChannels);
               </td>
               <!-- Target -->
               <td
-                class="max-w-[300px] truncate px-4 py-4 text-foreground-secondary">
+                :style="notificationChannelTable.columnStyle('target')"
+                class="max-w-[300px] truncate px-4 py-4 text-foreground-secondary"
+              >
                 {{ getChannelTarget(channel) }}
               </td>
               <!-- Updated At -->
-              <td class="px-4 py-4 text-foreground-secondary">
+              <td
+                class="px-4 py-4 text-foreground-secondary"
+                :style="notificationChannelTable.columnStyle('updated_at')"
+              >
                 {{
                   new Date(
                     channel.updated_at || channel.created_at,
@@ -633,12 +821,16 @@ onMounted(fetchChannels);
                 }}
               </td>
               <!-- Actions -->
-              <td class="px-4 py-4">
+              <td
+                class="px-4 py-4"
+                :style="notificationChannelTable.columnStyle('actions')"
+              >
                 <div class="flex justify-end gap-1">
                   <button
                     @click="testExistingChannel(channel)"
                     class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors"
-                    :title="t('alertsCenter.common.test')">
+                    :title="t('alertsCenter.common.test')"
+                  >
                     <BeakerIcon class="h-4 w-4" />
                   </button>
                   <button
@@ -648,25 +840,36 @@ onMounted(fetchChannels);
                       channel.enabled
                         ? t('alertsCenter.common.disabled')
                         : t('alertsCenter.values.enabled')
-                    ">
+                    "
+                  >
                     <PowerIcon
                       :class="[
                         'h-4 w-4',
                         channel.enabled
                           ? 'text-emerald-500'
                           : 'text-foreground-muted',
-                      ]" />
+                      ]"
+                    />
+                  </button>
+                  <button
+                    @click="viewDetails(channel)"
+                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors"
+                    :title="t('alertsCenter.common.viewDetails')"
+                  >
+                    <EyeIcon class="h-4 w-4" />
                   </button>
                   <button
                     @click="openEditModal(channel)"
                     class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors"
-                    :title="$t('common.edit')">
+                    :title="$t('common.edit')"
+                  >
                     <PencilSquareIcon class="h-4 w-4" />
                   </button>
                   <button
                     @click="deleteChannel(channel)"
                     class="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                    :title="$t('common.delete')">
+                    :title="$t('common.delete')"
+                  >
                     <TrashIcon class="h-4 w-4" />
                   </button>
                 </div>
@@ -680,9 +883,11 @@ onMounted(fetchChannels);
     <!-- Empty State -->
     <div
       v-else
-      class="rounded-xl border border-border bg-card p-12 text-center">
+      class="rounded-xl border border-border bg-card p-12 text-center"
+    >
       <div
-        class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-background-secondary mb-4">
+        class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-background-secondary mb-4"
+      >
         <BellIcon class="h-8 w-8 text-foreground-muted" />
       </div>
       <h3 class="text-base font-semibold text-foreground mb-2">
@@ -693,7 +898,8 @@ onMounted(fetchChannels);
       </p>
       <button
         @click="openCreateModal"
-        class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors">
+        class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+      >
         <PlusIcon class="h-4 w-4" />
         {{ t("alertsCenter.common.createChannel") }}
       </button>
@@ -702,15 +908,19 @@ onMounted(fetchChannels);
     <!-- Create/Edit Modal -->
     <div
       v-if="showCreateModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
       <div
         class="absolute inset-0 bg-black/55 backdrop-blur-sm"
-        @click="showCreateModal = false" />
+        @click="showCreateModal = false"
+      />
       <div
-        class="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-background shadow-2xl flex flex-col">
+        class="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-background shadow-2xl flex flex-col"
+      >
         <!-- Modal Header -->
         <div
-          class="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+          class="flex items-start justify-between gap-4 border-b border-border px-6 py-4"
+        >
           <div>
             <h2 class="text-lg font-semibold text-foreground">
               {{
@@ -725,7 +935,8 @@ onMounted(fetchChannels);
           </div>
           <button
             @click="showCreateModal = false"
-            class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors">
+            class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors"
+          >
             <XMarkIcon class="h-5 w-5" />
           </button>
         </div>
@@ -746,7 +957,8 @@ onMounted(fetchChannels);
                 <input
                   v-model="form.name"
                   class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  :placeholder="t('alertsCenter.channels.namePlaceholder')" />
+                  :placeholder="t('alertsCenter.channels.namePlaceholder')"
+                />
               </div>
               <div class="space-y-2">
                 <label class="text-sm font-medium text-foreground"
@@ -755,7 +967,8 @@ onMounted(fetchChannels);
                 >
                 <select
                   v-model="form.type"
-                  class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                  class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                >
                   <option value="email">
                     {{ t("alertsCenter.values.email") }}
                   </option>
@@ -771,11 +984,13 @@ onMounted(fetchChannels);
                 </select>
               </div>
               <div
-                class="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2">
+                class="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2"
+              >
                 <input
                   v-model="form.enabled"
                   type="checkbox"
-                  class="rounded border-border" />
+                  class="rounded border-border"
+                />
                 <span class="text-sm text-foreground">{{
                   t("alertsCenter.common.enabled")
                 }}</span>
@@ -802,7 +1017,8 @@ onMounted(fetchChannels);
                     class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     :placeholder="
                       t('alertsCenter.channels.email.smtpHostPlaceholder')
-                    " />
+                    "
+                  />
                 </div>
                 <div class="space-y-2">
                   <label class="text-sm font-medium text-foreground"
@@ -815,29 +1031,26 @@ onMounted(fetchChannels);
                     class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     :placeholder="
                       t('alertsCenter.channels.email.smtpPortPlaceholder')
-                    " />
+                    "
+                  />
                 </div>
                 <div class="space-y-2">
-                  <label class="text-sm font-medium text-foreground"
-                    >{{ t("alertsCenter.channels.email.smtpUsername") }}
-                    <span class="text-red-500">*</span></label
-                  >
+                  <label class="text-sm font-medium text-foreground">{{
+                    t("alertsCenter.channels.email.smtpUsername")
+                  }}</label>
                   <input
                     v-model="form.email.smtp_username"
                     class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     :placeholder="
                       t('alertsCenter.channels.email.smtpUsernamePlaceholder')
-                    " />
+                    "
+                  />
                 </div>
                 <div class="space-y-2">
                   <label class="text-sm font-medium text-foreground"
                     >{{ t("alertsCenter.channels.email.smtpPassword") }}
                     <span class="text-xs text-foreground-muted"
-                      >({{
-                        editingChannel
-                          ? t("common.leaveEmptyToKeep")
-                          : t("common.required")
-                      }})</span
+                      >({{ t("common.optional") }})</span
                     ></label
                   >
                   <input
@@ -846,7 +1059,8 @@ onMounted(fetchChannels);
                     class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     :placeholder="
                       t('alertsCenter.channels.email.smtpPasswordPlaceholder')
-                    " />
+                    "
+                  />
                 </div>
                 <div class="space-y-2 sm:col-span-2">
                   <label class="text-sm font-medium text-foreground"
@@ -858,7 +1072,26 @@ onMounted(fetchChannels);
                     class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     :placeholder="
                       t('alertsCenter.channels.email.fromEmailPlaceholder')
-                    " />
+                    "
+                  />
+                </div>
+                <div class="space-y-2 sm:col-span-2">
+                  <label class="text-sm font-medium text-foreground"
+                    >{{ t("alertsCenter.channels.email.emailSubject") }}
+                    <span class="text-xs text-foreground-muted"
+                      >({{ t("common.optional") }})</span
+                    ></label
+                  >
+                  <input
+                    v-model="form.email.email_subject"
+                    class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    :placeholder="
+                      t('alertsCenter.channels.email.emailSubjectPlaceholder')
+                    "
+                  />
+                  <p class="text-xs text-foreground-muted">
+                    {{ t("alertsCenter.channels.email.emailSubjectDesc") }}
+                  </p>
                 </div>
                 <div class="space-y-2 sm:col-span-2">
                   <label class="text-sm font-medium text-foreground"
@@ -870,17 +1103,20 @@ onMounted(fetchChannels);
                     class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     :placeholder="
                       t('alertsCenter.channels.email.toEmailsPlaceholder')
-                    " />
+                    "
+                  />
                   <p class="text-xs text-foreground-muted">
                     {{ t("alertsCenter.channels.email.toEmailsDesc") }}
                   </p>
                 </div>
                 <div
-                  class="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 sm:col-span-2">
+                  class="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 sm:col-span-2"
+                >
                   <input
                     v-model="form.email.use_tls"
                     type="checkbox"
-                    class="rounded border-border" />
+                    class="rounded border-border"
+                  />
                   <span class="text-sm text-foreground">{{
                     t("alertsCenter.channels.email.useTls")
                   }}</span>
@@ -900,7 +1136,8 @@ onMounted(fetchChannels);
                   class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   :placeholder="
                     t('alertsCenter.channels.webhook.urlPlaceholder')
-                  " />
+                  "
+                />
               </div>
               <div class="grid gap-4 sm:grid-cols-2">
                 <div class="space-y-2">
@@ -909,7 +1146,8 @@ onMounted(fetchChannels);
                   }}</label>
                   <select
                     v-model="form.webhook.method"
-                    class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+                    class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
                     <option value="POST">POST</option>
                     <option value="PUT">PUT</option>
                     <option value="PATCH">PATCH</option>
@@ -924,7 +1162,8 @@ onMounted(fetchChannels);
                     type="number"
                     min="1"
                     max="300"
-                    class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                    class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
                 </div>
               </div>
               <div class="space-y-2">
@@ -937,7 +1176,8 @@ onMounted(fetchChannels);
                   class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   :placeholder="
                     t('alertsCenter.channels.webhook.headersPlaceholder')
-                  " />
+                  "
+                />
                 <p class="text-xs text-foreground-muted">
                   {{ t("alertsCenter.channels.webhook.headersDesc") }}
                 </p>
@@ -956,7 +1196,8 @@ onMounted(fetchChannels);
                   class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   :placeholder="
                     t('alertsCenter.channels.dingtalk.webhookUrlPlaceholder')
-                  " />
+                  "
+                />
               </div>
               <div class="space-y-2">
                 <label class="text-sm font-medium text-foreground">{{
@@ -968,7 +1209,8 @@ onMounted(fetchChannels);
                   class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   :placeholder="
                     t('alertsCenter.channels.dingtalk.secretPlaceholder')
-                  " />
+                  "
+                />
                 <p class="text-xs text-foreground-muted">
                   {{ t("alertsCenter.channels.dingtalk.secretDesc") }}
                 </p>
@@ -987,7 +1229,8 @@ onMounted(fetchChannels);
                   class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   :placeholder="
                     t('alertsCenter.channels.wecom.webhookUrlPlaceholder')
-                  " />
+                  "
+                />
               </div>
             </div>
           </div>
@@ -1000,7 +1243,8 @@ onMounted(fetchChannels);
               testResult.success
                 ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'
                 : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-            ">
+            "
+          >
             <div class="flex items-center gap-2">
               <component
                 :is="testResult.success ? CheckCircleIcon : XCircleIcon"
@@ -1009,14 +1253,16 @@ onMounted(fetchChannels);
                   testResult.success
                     ? 'text-emerald-600 dark:text-emerald-400'
                     : 'text-red-600 dark:text-red-400'
-                " />
+                "
+              />
               <span
                 class="text-sm font-medium"
                 :class="
                   testResult.success
                     ? 'text-emerald-900 dark:text-emerald-100'
                     : 'text-red-900 dark:text-red-100'
-                ">
+                "
+              >
                 {{ testResult.message }}
               </span>
             </div>
@@ -1028,7 +1274,8 @@ onMounted(fetchChannels);
           <button
             @click="testConnection"
             :disabled="testing"
-            class="flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            class="flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <BeakerIcon :class="['h-4 w-4', testing && 'animate-spin']" />
             {{
               testing
@@ -1039,15 +1286,660 @@ onMounted(fetchChannels);
           <div class="flex-1" />
           <button
             @click="showCreateModal = false"
-            class="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-hover transition-colors">
+            class="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-hover transition-colors"
+          >
             {{ $t("common.cancel") }}
           </button>
           <button
             @click="saveChannel"
             :disabled="saving || testing"
-            class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {{ saving ? t("common.saving") : $t("common.save") }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div
+      v-if="showDetailsModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <div
+        class="absolute inset-0 bg-black/55 backdrop-blur-sm"
+        @click="showDetailsModal = false"
+      />
+      <div
+        class="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl bg-background shadow-2xl flex flex-col"
+      >
+        <!-- Modal Header -->
+        <div
+          class="flex items-start justify-between gap-4 border-b border-border px-6 py-4"
+        >
+          <div>
+            <h2 class="text-lg font-semibold text-foreground">
+              {{ t("alertsCenter.channels.channelDetails") }}
+            </h2>
+            <p class="mt-1 text-sm text-foreground-secondary">
+              {{ channelDetails?.channel?.name }}
+            </p>
+          </div>
+          <button
+            @click="showDetailsModal = false"
+            class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors"
+          >
+            <XMarkIcon class="h-5 w-5" />
+          </button>
+        </div>
+
+        <div v-if="detailsLoading" class="flex justify-center py-12">
+          <div
+            class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"
+          ></div>
+        </div>
+
+        <div
+          v-else-if="channelDetails"
+          class="flex-1 overflow-auto p-6 space-y-6"
+        >
+          <!-- Basic Info -->
+          <div class="bg-background-secondary rounded-lg p-6">
+            <h4
+              class="text-sm font-medium text-foreground-secondary mb-4 flex items-center gap-2"
+            >
+              <BellIcon class="h-4 w-4" />
+              {{ t("alertsCenter.channels.basicInfo") }}
+            </h4>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div>
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("alertsCenter.channels.channelName") }}
+                </p>
+                <p class="text-sm font-medium text-foreground">
+                  {{ channelDetails.channel.name }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("alertsCenter.channels.channelType") }}
+                </p>
+                <div class="flex items-center gap-2">
+                  <component
+                    :is="channelIcons[channelDetails.channel.type]"
+                    class="h-4 w-4 text-foreground-secondary"
+                  />
+                  <span class="text-sm font-medium text-foreground">
+                    {{
+                      t(`alertsCenter.values.${channelDetails.channel.type}`)
+                    }}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("alertsCenter.channels.enabled") }}
+                </p>
+                <div class="flex items-center gap-2">
+                  <component
+                    :is="
+                      channelDetails.channel.enabled
+                        ? CheckCircleIcon
+                        : XCircleIcon
+                    "
+                    :class="[
+                      'h-4 w-4',
+                      channelDetails.channel.enabled
+                        ? 'text-emerald-500'
+                        : 'text-gray-500',
+                    ]"
+                  />
+                  <span
+                    :class="[
+                      'text-sm font-medium',
+                      channelDetails.channel.enabled
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-gray-600 dark:text-gray-400',
+                    ]"
+                  >
+                    {{
+                      channelDetails.channel.enabled
+                        ? t("common.enabled")
+                        : t("common.disabled")
+                    }}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("common.created") }}
+                </p>
+                <p class="text-sm text-foreground">
+                  {{
+                    new Date(channelDetails.channel.created_at).toLocaleString()
+                  }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("common.updated") }}
+                </p>
+                <p class="text-sm text-foreground">
+                  {{
+                    new Date(channelDetails.channel.updated_at).toLocaleString()
+                  }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Channel Configuration Details -->
+          <div class="bg-background-secondary rounded-lg p-6">
+            <h4
+              class="text-sm font-medium text-foreground-secondary mb-4 flex items-center gap-2"
+            >
+              <GlobeAltIcon class="h-4 w-4" />
+              {{ t("alertsCenter.channels.channelConfig") || "渠道配置" }}
+            </h4>
+
+            <!-- Email Configuration -->
+            <div
+              v-if="channelDetails.channel.type === 'email'"
+              class="space-y-4"
+            >
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-card rounded-lg border border-border p-4">
+                  <p class="text-xs text-foreground-secondary mb-1">
+                    {{ t("alertsCenter.channels.email.smtpHost") }}
+                  </p>
+                  <p class="text-sm font-medium text-foreground break-all">
+                    {{ channelDetails.channel.config.smtp_host || "-" }}
+                  </p>
+                </div>
+                <div class="bg-card rounded-lg border border-border p-4">
+                  <p class="text-xs text-foreground-secondary mb-1">
+                    {{ t("alertsCenter.channels.email.smtpPort") }}
+                  </p>
+                  <p class="text-sm font-medium text-foreground">
+                    {{ channelDetails.channel.config.smtp_port || "-" }}
+                  </p>
+                </div>
+                <div class="bg-card rounded-lg border border-border p-4">
+                  <p class="text-xs text-foreground-secondary mb-1">
+                    {{ t("alertsCenter.channels.email.smtpUsername") }}
+                  </p>
+                  <p class="text-sm font-medium text-foreground">
+                    {{ channelDetails.channel.config.smtp_username || "-" }}
+                  </p>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-card rounded-lg border border-border p-4">
+                  <p class="text-xs text-foreground-secondary mb-1">
+                    {{ t("alertsCenter.channels.email.fromEmail") }}
+                  </p>
+                  <p class="text-sm font-medium text-foreground break-all">
+                    {{ channelDetails.channel.config.from_email || "-" }}
+                  </p>
+                </div>
+                <div class="bg-card rounded-lg border border-border p-4">
+                  <p class="text-xs text-foreground-secondary mb-1">
+                    {{ t("alertsCenter.channels.email.toEmails") }}
+                  </p>
+                  <p class="text-sm font-medium text-foreground break-all">
+                    {{
+                      (channelDetails.channel.config.to_emails || []).join(
+                        ", ",
+                      ) || "-"
+                    }}
+                  </p>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-card rounded-lg border border-border p-4">
+                  <p class="text-xs text-foreground-secondary mb-1">
+                    {{ t("alertsCenter.channels.email.emailSubject") }}
+                  </p>
+                  <p class="text-sm font-medium text-foreground break-all">
+                    {{ channelDetails.channel.config.email_subject || "-" }}
+                  </p>
+                </div>
+                <div class="bg-card rounded-lg border border-border p-4">
+                  <p class="text-xs text-foreground-secondary mb-1">
+                    {{ t("alertsCenter.channels.email.useTls") }}
+                  </p>
+                  <div class="flex items-center gap-2">
+                    <component
+                      :is="
+                        channelDetails.channel.config.use_tls
+                          ? CheckCircleIcon
+                          : XCircleIcon
+                      "
+                      :class="[
+                        'h-4 w-4',
+                        channelDetails.channel.config.use_tls
+                          ? 'text-emerald-500'
+                          : 'text-gray-500',
+                      ]"
+                    />
+                    <span
+                      :class="[
+                        'text-sm font-medium',
+                        channelDetails.channel.config.use_tls
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-gray-600 dark:text-gray-400',
+                      ]"
+                    >
+                      {{
+                        channelDetails.channel.config.use_tls
+                          ? t("common.enabled")
+                          : t("common.disabled")
+                      }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Webhook Configuration -->
+            <div
+              v-else-if="channelDetails.channel.type === 'webhook'"
+              class="space-y-4"
+            >
+              <div class="bg-card rounded-lg border border-border p-4">
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("alertsCenter.channels.webhook.url") }}
+                </p>
+                <p
+                  class="text-sm font-medium text-foreground break-all font-mono"
+                >
+                  {{ channelDetails.channel.config.url || "-" }}
+                </p>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-card rounded-lg border border-border p-4">
+                  <p class="text-xs text-foreground-secondary mb-1">
+                    {{ t("alertsCenter.channels.webhook.method") }}
+                  </p>
+                  <p class="text-sm font-medium text-foreground">
+                    {{ channelDetails.channel.config.method || "-" }}
+                  </p>
+                </div>
+                <div class="bg-card rounded-lg border border-border p-4">
+                  <p class="text-xs text-foreground-secondary mb-1">
+                    {{ t("alertsCenter.channels.webhook.timeout") }}
+                  </p>
+                  <p class="text-sm font-medium text-foreground">
+                    {{ channelDetails.channel.config.timeout }}s
+                  </p>
+                </div>
+              </div>
+              <div
+                v-if="channelDetails.channel.config.headers"
+                class="bg-card rounded-lg border border-border p-4"
+              >
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("alertsCenter.channels.webhook.headers") }}
+                </p>
+                <pre
+                  class="text-sm text-foreground break-all whitespace-pre-wrap mt-2 font-mono"
+                  >{{
+                    JSON.stringify(
+                      channelDetails.channel.config.headers,
+                      null,
+                      2,
+                    )
+                  }}</pre
+                >
+              </div>
+            </div>
+
+            <!-- DingTalk Configuration -->
+            <div
+              v-else-if="channelDetails.channel.type === 'dingtalk'"
+              class="space-y-4"
+            >
+              <div class="bg-card rounded-lg border border-border p-4">
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("alertsCenter.channels.dingtalk.webhookUrl") }}
+                </p>
+                <p
+                  class="text-sm font-medium text-foreground break-all font-mono"
+                >
+                  {{ channelDetails.channel.config.webhook_url || "-" }}
+                </p>
+              </div>
+              <div
+                v-if="channelDetails.channel.config.secret"
+                class="bg-card rounded-lg border border-border p-4"
+              >
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("alertsCenter.channels.dingtalk.secret") }}
+                </p>
+                <p class="text-sm font-medium text-foreground">******</p>
+              </div>
+            </div>
+
+            <!-- WeCom Configuration -->
+            <div
+              v-else-if="channelDetails.channel.type === 'wecom'"
+              class="space-y-4"
+            >
+              <div class="bg-card rounded-lg border border-border p-4">
+                <p class="text-xs text-foreground-secondary mb-1">
+                  {{ t("alertsCenter.channels.wecom.webhookUrl") }}
+                </p>
+                <p
+                  class="text-sm font-medium text-foreground break-all font-mono"
+                >
+                  {{ channelDetails.channel.config.webhook_url || "-" }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div>
+            <h4
+              class="text-sm font-medium text-foreground-secondary mb-4 flex items-center gap-2"
+            >
+              <ChartBarIcon class="h-4 w-4" />
+              {{ t("alertsCenter.channels.channelStats") }}
+            </h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div class="bg-card rounded-lg border border-border p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div
+                    class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center"
+                  >
+                    <BellIcon
+                      class="h-4 w-4 text-blue-600 dark:text-blue-400"
+                    />
+                  </div>
+                  <span class="text-2xl font-semibold text-foreground">
+                    {{ channelDetails.stats.policies_count }}
+                  </span>
+                </div>
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.associatedPolicies") }}
+                </p>
+              </div>
+              <div class="bg-card rounded-lg border border-border p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div
+                    class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center"
+                  >
+                    <ExclamationTriangleIcon
+                      class="h-4 w-4 text-orange-600 dark:text-orange-400"
+                    />
+                  </div>
+                  <span class="text-2xl font-semibold text-foreground">
+                    {{ channelDetails.stats.alerts_count }}
+                  </span>
+                </div>
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.totalAlerts") }}
+                </p>
+              </div>
+              <div class="bg-card rounded-lg border border-border p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div
+                    class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center"
+                  >
+                    <CheckCircleIcon
+                      class="h-4 w-4 text-green-600 dark:text-green-400"
+                    />
+                  </div>
+                  <span class="text-2xl font-semibold text-foreground">
+                    {{ channelDetails.stats.logs_success }}
+                  </span>
+                </div>
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.successfulSends") }}
+                </p>
+              </div>
+              <div class="bg-card rounded-lg border border-border p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div
+                    class="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center"
+                  >
+                    <XCircleIcon
+                      class="h-4 w-4 text-red-600 dark:text-red-400"
+                    />
+                  </div>
+                  <span class="text-2xl font-semibold text-foreground">
+                    {{ channelDetails.stats.logs_failed }}
+                  </span>
+                </div>
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.failedSends") }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Associated Policies -->
+          <div v-if="channelDetails.associated_policies.length > 0">
+            <h4 class="text-sm font-medium text-foreground-secondary mb-3">
+              {{ t("alertsCenter.channels.associatedPolicies") }}
+              ({{ channelDetails.associated_policies.length }})
+            </h4>
+            <div
+              class="bg-card rounded-lg border border-border overflow-hidden"
+            >
+              <table class="min-w-full divide-y divide-border">
+                <thead class="bg-background/50">
+                  <tr>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("alertsCenter.channels.policyName") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("alertsCenter.channels.status") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("common.created") }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                  <tr
+                    v-for="policy in channelDetails.associated_policies"
+                    :key="policy.id"
+                    class="hover:bg-hover/50"
+                  >
+                    <td class="px-4 py-3">
+                      <p class="text-sm font-medium text-foreground">
+                        {{ policy.name }}
+                      </p>
+                      <p class="text-xs text-foreground-secondary mt-1">
+                        {{ policy.description }}
+                      </p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span
+                        :class="[
+                          'px-2 py-1 text-xs font-medium rounded',
+                          policy.enabled
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
+                            : 'bg-gray-100 text-gray-800 dark:text-gray-300',
+                        ]"
+                      >
+                        {{
+                          policy.enabled
+                            ? t("common.enabled")
+                            : t("common.disabled")
+                        }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-foreground-secondary">
+                      {{ new Date(policy.created_at).toLocaleString() }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div
+            v-else
+            class="bg-card rounded-lg border border-border p-8 text-center"
+          >
+            <BellIcon class="mx-auto h-12 w-12 text-gray-400" />
+            <p class="mt-2 text-sm text-foreground-secondary">
+              {{ t("alertsCenter.channels.noPolicies") }}
+            </p>
+          </div>
+
+          <!-- Recent Alerts -->
+          <div v-if="channelDetails.recent_alerts.length > 0">
+            <h4 class="text-sm font-medium text-foreground-secondary mb-3">
+              {{ t("alertsCenter.channels.recentAlerts") }}
+              ({{ channelDetails.recent_alerts.length }})
+            </h4>
+            <div
+              class="bg-card rounded-lg border border-border overflow-hidden"
+            >
+              <table class="min-w-full divide-y divide-border">
+                <thead class="bg-background/50">
+                  <tr>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("alertsCenter.channels.alertTitle") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("alertsCenter.channels.severity") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("alertsCenter.channels.status") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("common.created") }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                  <tr
+                    v-for="alert in channelDetails.recent_alerts"
+                    :key="alert.id"
+                    class="hover:bg-hover/50"
+                  >
+                    <td class="px-4 py-3">
+                      <p class="text-sm font-medium text-foreground">
+                        {{ alert.title }}
+                      </p>
+                      <p class="text-xs text-foreground-secondary mt-1">
+                        {{ alert.message }}
+                      </p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span
+                        :class="getSeverityClass(alert.severity)"
+                        class="px-2 py-1 text-xs font-medium rounded"
+                      >
+                        {{ getSeverityLabel(alert.severity) }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span
+                        :class="getStatusClass(alert.status)"
+                        class="px-2 py-1 text-xs font-medium rounded"
+                      >
+                        {{ getStatusLabel(alert.status) }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-foreground-secondary">
+                      {{ new Date(alert.created_at).toLocaleString() }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div
+            v-else
+            class="bg-card rounded-lg border border-border p-8 text-center"
+          >
+            <ExclamationTriangleIcon class="mx-auto h-12 w-12 text-gray-400" />
+            <p class="mt-2 text-sm text-foreground-secondary">
+              {{ t("alertsCenter.channels.noAlerts") }}
+            </p>
+          </div>
+
+          <!-- Notification Logs -->
+          <div v-if="channelDetails.notification_logs.length > 0">
+            <h4 class="text-sm font-medium text-foreground-secondary mb-3">
+              {{ t("alertsCenter.channels.notificationLogs") }}
+              ({{ channelDetails.notification_logs.length }})
+            </h4>
+            <div
+              class="bg-card rounded-lg border border-border overflow-hidden"
+            >
+              <table class="min-w-full divide-y divide-border">
+                <thead class="bg-background/50">
+                  <tr>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("alertsCenter.channels.status") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("alertsCenter.channels.errorMessage") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("common.created") }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                  <tr
+                    v-for="log in channelDetails.notification_logs"
+                    :key="log.id"
+                    class="hover:bg-hover/50"
+                  >
+                    <td class="px-4 py-3">
+                      <span
+                        :class="getStatusClass(log.status)"
+                        class="px-2 py-1 text-xs font-medium rounded"
+                      >
+                        {{ getStatusLabel(log.status) }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-foreground-secondary">
+                      {{ log.error_message || "-" }}
+                    </td>
+                    <td class="px-4 py-3 text-sm text-foreground-secondary">
+                      {{ new Date(log.created_at).toLocaleString() }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div
+            v-else
+            class="bg-card rounded-lg border border-border p-8 text-center"
+          >
+            <EnvelopeIcon class="mx-auto h-12 w-12 text-gray-400" />
+            <p class="mt-2 text-sm text-foreground-secondary">
+              {{ t("alertsCenter.channels.noNotificationLogs") }}
+            </p>
+          </div>
         </div>
       </div>
     </div>
