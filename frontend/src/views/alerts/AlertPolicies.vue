@@ -490,6 +490,7 @@ watch(
     } else if (
       type === "metric" &&
       ![
+        "system",
         "sync_proxy",
         "gateway",
         "agent_proxy",
@@ -507,6 +508,10 @@ watch(
 watch(
   () => form.resource_type,
   async () => {
+    if (form.type === "metric" && form.resource_type === "system") {
+      form.scope = "all";
+      form.resource_ids = [];
+    }
     const res = await alertsApi.metadata("metrics", {
       resource_type: form.resource_type,
     });

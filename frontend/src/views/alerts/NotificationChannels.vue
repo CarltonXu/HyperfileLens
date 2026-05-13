@@ -40,7 +40,7 @@ interface TestResult {
 }
 
 const channels = ref<NotificationChannel[]>([]);
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const loading = ref(false);
 const filters = reactive({ search: "", type: "", enabled: "" });
 
@@ -53,12 +53,14 @@ const testResult = ref<TestResult | null>(null);
 const showDetailsModal = ref(false);
 const detailsLoading = ref(false);
 const channelDetails = ref<any>(null);
+const detailsTab = ref<"overview" | "statistics">("overview");
 
 // Form state
 const form = reactive({
   name: "",
   type: "email" as string,
   enabled: true,
+  notification_language: locale.value?.startsWith("zh") ? "zh-CN" : "en",
   // Email config
   email: {
     smtp_host: "",
@@ -235,6 +237,9 @@ function openEditModal(channel: NotificationChannel) {
   form.enabled = channel.enabled;
 
   const config = channel.config || {};
+  form.notification_language =
+    config.notification_language ||
+    (locale.value?.startsWith("zh") ? "zh-CN" : "en");
 
   // Load type-specific config
   if (channel.type === "email") {
@@ -275,6 +280,7 @@ function resetForm() {
     name: "",
     type: "email",
     enabled: true,
+    notification_language: locale.value?.startsWith("zh") ? "zh-CN" : "en",
     email: {
       smtp_host: "",
       smtp_port: "587",
@@ -311,7 +317,9 @@ watch(
 
 // Build config from form
 function buildConfig(): Record<string, any> {
-  const config: Record<string, any> = {};
+  const config: Record<string, any> = {
+    notification_language: form.notification_language,
+  };
 
   if (form.type === "email") {
     config.smtp_host = form.email.smtp_host;
@@ -603,6 +611,7 @@ async function viewDetails(channel: NotificationChannel) {
   showDetailsModal.value = true;
   detailsLoading.value = true;
   channelDetails.value = null;
+  detailsTab.value = "overview";
 
   try {
     const response = await alertsApi.getChannelDetails(channel.id);
@@ -995,6 +1004,22 @@ onMounted(fetchChannels);
                   t("alertsCenter.common.enabled")
                 }}</span>
               </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-foreground">
+                  {{ t("alertsCenter.channels.notificationLanguage") }}
+                </label>
+                <select
+                  v-model="form.notification_language"
+                  class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="zh-CN">
+                    {{ t("alertsCenter.channels.languageChinese") }}
+                  </option>
+                  <option value="en">
+                    {{ t("alertsCenter.channels.languageEnglish") }}
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -1343,6 +1368,36 @@ onMounted(fetchChannels);
           v-else-if="channelDetails"
           class="flex-1 overflow-auto p-6 space-y-6"
         >
+          <div
+            class="inline-flex rounded-lg border border-border bg-background-secondary p-1"
+          >
+            <button
+              type="button"
+              @click="detailsTab = 'overview'"
+              :class="[
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                detailsTab === 'overview'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-foreground-secondary hover:text-foreground',
+              ]"
+            >
+              {{ t("alertsCenter.channels.overviewTab") }}
+            </button>
+            <button
+              type="button"
+              @click="detailsTab = 'statistics'"
+              :class="[
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                detailsTab === 'statistics'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-foreground-secondary hover:text-foreground',
+              ]"
+            >
+              {{ t("alertsCenter.channels.statisticsTab") }}
+            </button>
+          </div>
+
+          <template v-if="detailsTab === 'overview'">
           <!-- Basic Info -->
           <div class="bg-background-secondary rounded-lg p-6">
             <h4
@@ -1441,6 +1496,20 @@ onMounted(fetchChannels);
               <GlobeAltIcon class="h-4 w-4" />
               {{ t("alertsCenter.channels.channelConfig") || "渠道配置" }}
             </h4>
+            <div
+              class="mb-4 rounded-lg border border-border bg-background px-4 py-3"
+            >
+              <p class="text-xs text-foreground-secondary mb-1">
+                {{ t("alertsCenter.channels.notificationLanguage") }}
+              </p>
+              <p class="text-sm text-foreground">
+                {{
+                  channelDetails.channel.config.notification_language === "en"
+                    ? t("alertsCenter.channels.languageEnglish")
+                    : t("alertsCenter.channels.languageChinese")
+                }}
+              </p>
+            </div>
 
             <!-- Email Configuration -->
             <div
@@ -1638,86 +1707,6 @@ onMounted(fetchChannels);
             </div>
           </div>
 
-          <!-- Stats -->
-          <div>
-            <h4
-              class="text-sm font-medium text-foreground-secondary mb-4 flex items-center gap-2"
-            >
-              <ChartBarIcon class="h-4 w-4" />
-              {{ t("alertsCenter.channels.channelStats") }}
-            </h4>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div class="bg-card rounded-lg border border-border p-4">
-                <div class="flex items-center gap-2 mb-2">
-                  <div
-                    class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center"
-                  >
-                    <BellIcon
-                      class="h-4 w-4 text-blue-600 dark:text-blue-400"
-                    />
-                  </div>
-                  <span class="text-2xl font-semibold text-foreground">
-                    {{ channelDetails.stats.policies_count }}
-                  </span>
-                </div>
-                <p class="text-xs text-foreground-secondary">
-                  {{ t("alertsCenter.channels.associatedPolicies") }}
-                </p>
-              </div>
-              <div class="bg-card rounded-lg border border-border p-4">
-                <div class="flex items-center gap-2 mb-2">
-                  <div
-                    class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center"
-                  >
-                    <ExclamationTriangleIcon
-                      class="h-4 w-4 text-orange-600 dark:text-orange-400"
-                    />
-                  </div>
-                  <span class="text-2xl font-semibold text-foreground">
-                    {{ channelDetails.stats.alerts_count }}
-                  </span>
-                </div>
-                <p class="text-xs text-foreground-secondary">
-                  {{ t("alertsCenter.channels.totalAlerts") }}
-                </p>
-              </div>
-              <div class="bg-card rounded-lg border border-border p-4">
-                <div class="flex items-center gap-2 mb-2">
-                  <div
-                    class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center"
-                  >
-                    <CheckCircleIcon
-                      class="h-4 w-4 text-green-600 dark:text-green-400"
-                    />
-                  </div>
-                  <span class="text-2xl font-semibold text-foreground">
-                    {{ channelDetails.stats.logs_success }}
-                  </span>
-                </div>
-                <p class="text-xs text-foreground-secondary">
-                  {{ t("alertsCenter.channels.successfulSends") }}
-                </p>
-              </div>
-              <div class="bg-card rounded-lg border border-border p-4">
-                <div class="flex items-center gap-2 mb-2">
-                  <div
-                    class="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center"
-                  >
-                    <XCircleIcon
-                      class="h-4 w-4 text-red-600 dark:text-red-400"
-                    />
-                  </div>
-                  <span class="text-2xl font-semibold text-foreground">
-                    {{ channelDetails.stats.logs_failed }}
-                  </span>
-                </div>
-                <p class="text-xs text-foreground-secondary">
-                  {{ t("alertsCenter.channels.failedSends") }}
-                </p>
-              </div>
-            </div>
-          </div>
-
           <!-- Associated Policies -->
           <div v-if="channelDetails.associated_policies.length > 0">
             <h4 class="text-sm font-medium text-foreground-secondary mb-3">
@@ -1793,6 +1782,74 @@ onMounted(fetchChannels);
             <p class="mt-2 text-sm text-foreground-secondary">
               {{ t("alertsCenter.channels.noPolicies") }}
             </p>
+          </div>
+          </template>
+
+          <template v-else>
+          <!-- Stats -->
+          <div>
+            <h4
+              class="text-sm font-medium text-foreground-secondary mb-4 flex items-center gap-2"
+            >
+              <ChartBarIcon class="h-4 w-4" />
+              {{ t("alertsCenter.channels.channelStats") }}
+            </h4>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div class="bg-card rounded-lg border border-border p-4">
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.associatedPolicies") }}
+                </p>
+                <p class="mt-2 text-2xl font-semibold text-foreground">
+                  {{ channelDetails.stats.policies_count }}
+                </p>
+              </div>
+              <div class="bg-card rounded-lg border border-border p-4">
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.totalAlerts") }}
+                </p>
+                <p class="mt-2 text-2xl font-semibold text-foreground">
+                  {{ channelDetails.stats.alerts_count }}
+                </p>
+              </div>
+              <div class="bg-card rounded-lg border border-border p-4">
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.successRate") }}
+                </p>
+                <p class="mt-2 text-2xl font-semibold text-foreground">
+                  {{ channelDetails.stats.success_rate }}%
+                </p>
+              </div>
+              <div class="bg-card rounded-lg border border-border p-4">
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.successfulSends") }}
+                </p>
+                <p class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                  {{ channelDetails.stats.logs_success }}
+                </p>
+              </div>
+              <div class="bg-card rounded-lg border border-border p-4">
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.failedSends") }}
+                </p>
+                <p class="mt-2 text-2xl font-semibold text-red-600 dark:text-red-400">
+                  {{ channelDetails.stats.logs_failed }}
+                </p>
+              </div>
+              <div class="bg-card rounded-lg border border-border p-4">
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("alertsCenter.channels.lastSend") }}
+                </p>
+                <p class="mt-2 text-sm font-medium text-foreground">
+                  {{
+                    channelDetails.stats.last_success_at
+                      ? new Date(
+                          channelDetails.stats.last_success_at,
+                        ).toLocaleString()
+                      : "-"
+                  }}
+                </p>
+              </div>
+            </div>
           </div>
 
           <!-- Recent Alerts -->
@@ -1884,7 +1941,7 @@ onMounted(fetchChannels);
               ({{ channelDetails.notification_logs.length }})
             </h4>
             <div
-              class="bg-card rounded-lg border border-border overflow-hidden"
+              class="bg-card rounded-lg border border-border overflow-x-auto"
             >
               <table class="min-w-full divide-y divide-border">
                 <thead class="bg-background/50">
@@ -1892,7 +1949,22 @@ onMounted(fetchChannels);
                     <th
                       class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
                     >
+                      {{ t("alertsCenter.channels.alertTitle") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("alertsCenter.channels.policyName") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
                       {{ t("alertsCenter.channels.status") }}
+                    </th>
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
+                    >
+                      {{ t("alertsCenter.channels.resource") }}
                     </th>
                     <th
                       class="px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider"
@@ -1912,6 +1984,22 @@ onMounted(fetchChannels);
                     :key="log.id"
                     class="hover:bg-hover/50"
                   >
+                    <td class="px-4 py-3 min-w-[260px]">
+                      <p class="text-sm font-medium text-foreground">
+                        {{ log.alert?.title || "-" }}
+                      </p>
+                      <p class="mt-1 text-xs text-foreground-secondary">
+                        {{ log.alert?.message || "-" }}
+                      </p>
+                    </td>
+                    <td class="px-4 py-3 min-w-[180px]">
+                      <p class="text-sm text-foreground">
+                        {{ log.policy?.name || "-" }}
+                      </p>
+                      <p class="mt-1 text-xs text-foreground-secondary">
+                        {{ log.policy?.type || log.alert?.type || "-" }}
+                      </p>
+                    </td>
                     <td class="px-4 py-3">
                       <span
                         :class="getStatusClass(log.status)"
@@ -1919,12 +2007,33 @@ onMounted(fetchChannels);
                       >
                         {{ getStatusLabel(log.status) }}
                       </span>
+                      <p
+                        v-if="log.alert?.severity"
+                        class="mt-2 text-xs text-foreground-secondary"
+                      >
+                        {{ getSeverityLabel(log.alert.severity) }} /
+                        {{ getStatusLabel(log.alert.status) }}
+                      </p>
+                    </td>
+                    <td class="px-4 py-3 min-w-[180px] text-sm text-foreground-secondary">
+                      <p class="text-foreground">
+                        {{ log.alert?.resource_name || "-" }}
+                      </p>
+                      <p class="mt-1 text-xs">
+                        {{ log.alert?.resource_type || "-" }}
+                      </p>
                     </td>
                     <td class="px-4 py-3 text-sm text-foreground-secondary">
-                      {{ log.error_message || "-" }}
+                      <span
+                        v-if="log.status === 'success'"
+                        class="text-emerald-600 dark:text-emerald-400"
+                      >
+                        {{ t("alertsCenter.channels.deliverySucceeded") }}
+                      </span>
+                      <span v-else>{{ log.error_message || "-" }}</span>
                     </td>
                     <td class="px-4 py-3 text-sm text-foreground-secondary">
-                      {{ new Date(log.created_at).toLocaleString() }}
+                      {{ new Date(log.sent_at || log.created_at).toLocaleString() }}
                     </td>
                   </tr>
                 </tbody>
@@ -1940,6 +2049,7 @@ onMounted(fetchChannels);
               {{ t("alertsCenter.channels.noNotificationLogs") }}
             </p>
           </div>
+          </template>
         </div>
       </div>
     </div>

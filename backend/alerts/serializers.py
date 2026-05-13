@@ -2,7 +2,7 @@
 
 from rest_framework import serializers
 
-from .choices import AlertType, PolicyScope
+from .choices import AlertType, PolicyScope, ResourceType
 from .models import AlertPolicy, AlertRecord, NotificationChannel, NotificationLog
 
 
@@ -42,7 +42,7 @@ class AlertPolicySerializer(serializers.ModelSerializer):
         if not resource_type:
             raise serializers.ValidationError({"resource_type": "This field is required."})
 
-        if scope == PolicyScope.SELECTED and alert_type != AlertType.EVENT and not resource_ids:
+        if scope == PolicyScope.SELECTED and alert_type != AlertType.EVENT and resource_type != ResourceType.SYSTEM and not resource_ids:
             raise serializers.ValidationError({"resource_ids": "This field is required when scope is selected."})
 
         required_by_type = {

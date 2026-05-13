@@ -25,6 +25,7 @@ class AlertStatus(models.TextChoices):
 
 
 class ResourceType(models.TextChoices):
+    SYSTEM = "system", "System"
     SYNC_PROXY = "sync_proxy", "Sync Proxy"
     GATEWAY = "gateway", "Gateway"
     AGENT_PROXY = "agent_proxy", "Agent Proxy"
@@ -57,6 +58,19 @@ class NotificationStatus(models.TextChoices):
 OPERATORS = [">", ">=", "<", "<=", "==", "!="]
 
 METRICS_BY_RESOURCE_TYPE = {
+    ResourceType.SYSTEM: [
+        "cpu_usage",
+        "memory_usage",
+        "swap_usage",
+        "disk_usage",
+        "disk_read_bytes",
+        "disk_write_bytes",
+        "network_rx",
+        "network_tx",
+        "load_1m",
+        "load_5m",
+        "load_15m",
+    ],
     ResourceType.SYNC_PROXY: ["cpu_usage", "memory_usage", "disk_usage", "network_rx", "network_tx"],
     ResourceType.GATEWAY: ["cpu_usage", "memory_usage", "disk_usage", "network_rx", "network_tx"],
     ResourceType.AGENT_PROXY: ["cpu_usage", "memory_usage", "disk_usage", "network_rx", "network_tx"],

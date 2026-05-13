@@ -232,10 +232,22 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
         # Get recent logs for display (with slicing)
         notification_logs = all_notification_logs[:20]
 
+        all_alert_record_ids = list(all_notification_logs.values_list('alert_record_id', flat=True).distinct())
         alert_record_ids = [log.alert_record_id for log in notification_logs]
-        recent_records = AlertRecord.objects.filter(
-            id__in=alert_record_ids
-        ).order_by('-created_at')[:10]
+        recent_records_qs = AlertRecord.objects.filter(id__in=alert_record_ids)
+        alert_record_map = {record.id: record for record in recent_records_qs}
+        policy_ids = [record.policy_id for record in recent_records_qs if record.policy_id]
+        policy_map = {policy.id: policy for policy in AlertPolicy.objects.filter(id__in=policy_ids)}
+        recent_records = sorted(
+            recent_records_qs,
+            key=lambda record: record.created_at,
+            reverse=True,
+        )[:10]
+        success_count = all_notification_logs.filter(status='success').count()
+        failed_count = all_notification_logs.filter(status='failed').count()
+        logs_count = all_notification_logs.count()
+        last_success = all_notification_logs.filter(status='success').first()
+        last_failed = all_notification_logs.filter(status='failed').first()
 
         return Response({
             'channel': {
@@ -269,20 +281,18 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
                 for record in recent_records
             ],
             'notification_logs': [
-                {
-                    'id': str(log.id),
-                    'status': log.status,
-                    'error_message': log.error_message,
-                    'created_at': log.sent_at.isoformat(),
-                }
+                _notification_log_detail(log, alert_record_map.get(log.alert_record_id), policy_map)
                 for log in notification_logs
             ],
             'stats': {
                 'policies_count': len(alert_policies),
-                'alerts_count': AlertRecord.objects.filter(id__in=alert_record_ids).count(),
-                'logs_count': all_notification_logs.count(),
-                'logs_success': all_notification_logs.filter(status='success').count(),
-                'logs_failed': all_notification_logs.filter(status='failed').count(),
+                'alerts_count': AlertRecord.objects.filter(id__in=all_alert_record_ids).count(),
+                'logs_count': logs_count,
+                'logs_success': success_count,
+                'logs_failed': failed_count,
+                'success_rate': round((success_count / logs_count) * 100, 2) if logs_count else 0,
+                'last_success_at': last_success.sent_at.isoformat() if last_success else None,
+                'last_failed_at': last_failed.sent_at.isoformat() if last_failed else None,
             }
         })
 
@@ -402,6 +412,14 @@ def _choices(choice_cls):
 
 
 def _resource_options(resource_type):
+    if resource_type == ResourceType.SYSTEM:
+        return [
+            {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "name": "Control Plane",
+                "status": "active",
+            }
+        ]
     if resource_type == ResourceType.SYNC_PROXY:
         from nodes.models import ProxyNode
 
@@ -444,6 +462,40 @@ def _resource_options(resource_type):
             for item in User.objects.order_by("email")[:300]
         ]
     return []
+
+
+def _notification_log_detail(log, alert_record, policy_map):
+    policy = policy_map.get(alert_record.policy_id) if alert_record and alert_record.policy_id else None
+    return {
+        'id': str(log.id),
+        'status': log.status,
+        'error_message': log.error_message,
+        'created_at': log.sent_at.isoformat(),
+        'sent_at': log.sent_at.isoformat(),
+        'alert': {
+            'id': str(alert_record.id),
+            'title': alert_record.title,
+            'message': alert_record.message,
+            'type': alert_record.type,
+            'severity': alert_record.severity,
+            'status': alert_record.status,
+            'resource_type': alert_record.resource_type,
+            'resource_id': str(alert_record.resource_id) if alert_record.resource_id else None,
+            'resource_name': alert_record.resource_name,
+            'current_value': str(alert_record.current_value) if alert_record.current_value is not None else None,
+            'threshold_value': str(alert_record.threshold_value) if alert_record.threshold_value is not None else None,
+            'unit': alert_record.unit,
+            'first_triggered_at': alert_record.first_triggered_at.isoformat() if alert_record.first_triggered_at else None,
+            'last_triggered_at': alert_record.last_triggered_at.isoformat() if alert_record.last_triggered_at else None,
+        } if alert_record else None,
+        'policy': {
+            'id': str(policy.id),
+            'name': policy.name,
+            'type': policy.type,
+            'severity': policy.severity,
+            'enabled': policy.enabled,
+        } if policy else None,
+    }
 
 
 def _resource_option(item, name, status=None):

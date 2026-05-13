@@ -32,6 +32,12 @@ from .query_optimizations import (
 from audit_log.services import AuditService
 
 
+def evaluate_proxy_metric_alerts(proxy):
+    from alerts.services.metric_evaluator import evaluate_metric_policies_for_resource
+
+    evaluate_metric_policies_for_resource(proxy)
+
+
 class ProxyViewSet(viewsets.ModelViewSet):
     """
     ViewSet for proxy management.
@@ -1022,6 +1028,7 @@ logging:
             failed_tasks=data.get('failed_tasks', 0),
             metadata=heartbeat_metadata
         )
+        evaluate_proxy_metric_alerts(proxy)
 
         return Response({
             'status': 'ok',
@@ -1240,13 +1247,13 @@ class ProxyHeartbeatView(APIView):
             failed_tasks=data.get('failed_tasks', 0),
             metadata=heartbeat_metadata
         )
+        evaluate_proxy_metric_alerts(proxy)
 
         return Response({
             'status': 'ok',
             'node_id': str(proxy.id),
             'server_time': timezone.now()
         })
-
 
 def build_global_task_items(request):
     """Build a normalized task list across proxy, backup, and recovery tasks."""

@@ -24,6 +24,12 @@ def handle_job_event(job):
                 title=f"Job Alert: {event_type}",
                 message=f"Job {getattr(job, 'id', '')} triggered {event_type}.",
                 alert_key=f"{job_type}:{event_type}",
+                metadata={
+                    "event_type": event_type,
+                    "job_type": job_type,
+                    "job_status": status,
+                    "error_message": getattr(job, "error_message", "") or getattr(job, "status_message", ""),
+                },
             )
 
 

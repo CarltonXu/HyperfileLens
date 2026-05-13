@@ -832,6 +832,9 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 failed_tasks=metrics.get('failed_tasks', 0),
                 metadata=metrics.get('metadata', {})
             )
+
+            from alerts.services.metric_evaluator import evaluate_metric_policies_for_resource
+            evaluate_metric_policies_for_resource(proxy)
         except ProxyNode.DoesNotExist:
             pass
 

@@ -12,16 +12,23 @@ def evaluate_availability_policy(policy):
     timeout_seconds = int(rule.get("timeout_seconds") or 60)
 
     for resource in _resources_for_policy(policy):
-        down, message = _availability_state(resource, policy.resource_type, check_type, timeout_seconds)
+        down, message, current_value = _availability_state(resource, policy.resource_type, check_type, timeout_seconds)
         alert_key = f"availability:{check_type or 'default'}"
         if down:
+            check_label = _check_label(check_type)
             fire_alert(
                 policy,
                 resource=resource,
-                title=f"{policy.name}: unavailable",
+                title=f"{check_label} - {getattr(resource, 'name', resource)}",
                 message=message,
+                current_value=current_value,
                 alert_key=alert_key,
-                metadata={"check_type": check_type, "timeout_seconds": timeout_seconds},
+                metadata={
+                    "check_type": check_type,
+                    "check_label": check_label,
+                    "timeout_seconds": timeout_seconds,
+                    "operator": ">",
+                },
             )
         else:
             resolve_policy_alerts(policy, resource=resource, alert_key=alert_key)
@@ -62,17 +69,26 @@ def _availability_state(resource, resource_type, check_type, timeout_seconds):
     ):
         last_heartbeat = getattr(resource, "last_heartbeat", None)
         if not last_heartbeat:
-            return True, f"{resource.name} has never reported a heartbeat."
+            return True, f"{resource.name} has never reported a heartbeat.", None
         age = (timezone.now() - last_heartbeat).total_seconds()
         if age > timeout_seconds:
-            return True, f"{resource.name} heartbeat timeout: {int(age)}s > {timeout_seconds}s."
-        return False, ""
+            return True, f"{resource.name} heartbeat timeout: {int(age)}s > {timeout_seconds}s.", age
+        return False, "", age
 
     status = getattr(resource, "status", None)
     if resource_type == ResourceType.BACKUP_REPOSITORY:
         down = status not in ("active",)
-        return down, f"{resource.name} repository status is {status}."
+        return down, f"{resource.name} repository status is {status}.", None
     if resource_type == ResourceType.SOURCE_RESOURCE:
         down = status not in ("active", "connected")
-        return down, f"{resource.name} source resource status is {status}."
-    return False, ""
+        return down, f"{resource.name} source resource status is {status}.", None
+    return False, "", None
+
+
+def _check_label(check_type):
+    labels = {
+        "heartbeat": "Heartbeat Timeout Alert",
+        "connection": "Connection Availability Alert",
+        "api_health": "API Health Alert",
+    }
+    return labels.get(check_type, "Availability Alert")

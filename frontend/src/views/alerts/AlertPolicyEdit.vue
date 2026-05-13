@@ -63,6 +63,20 @@ const selectedChannelNames = computed(() => {
 });
 
 const metrics = computed(() => {
+  if (form.resource_type === "system")
+    return [
+      "cpu_usage",
+      "memory_usage",
+      "swap_usage",
+      "disk_usage",
+      "disk_read_bytes",
+      "disk_write_bytes",
+      "network_rx",
+      "network_tx",
+      "load_1m",
+      "load_5m",
+      "load_15m",
+    ];
   if (form.resource_type === "sync_proxy")
     return [
       "cpu_usage",
@@ -232,6 +246,9 @@ watch(
   () => form.resource_type,
   () => {
     form.resource_ids = [];
+    if (form.type === "metric" && form.resource_type === "system") {
+      form.scope = "all";
+    }
     if (usesConcreteMonitorTarget.value) {
       fetchTargetResources();
     }
