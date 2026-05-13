@@ -350,6 +350,12 @@ export const alertsApi = {
     ), // 60 seconds timeout for email sending
   getChannelDetails: (id: string) =>
     api.get(`/api/v1/alerts/notification-channels/${id}/details/`),
+  notificationLogs: (params?: Record<string, unknown>) =>
+    api.get("/api/v1/alerts/notification-logs/", { params }),
+  notificationLogStats: (params?: Record<string, unknown>) =>
+    api.get("/api/v1/alerts/notification-logs/stats/", { params }),
+  getNotificationLog: (id: string) =>
+    api.get(`/api/v1/alerts/notification-logs/${id}/`),
 
   metadata: (kind: string, params?: Record<string, unknown>) =>
     api.get(`/api/v1/alerts/metadata/${kind}/`, { params }),

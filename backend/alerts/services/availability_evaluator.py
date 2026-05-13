@@ -26,6 +26,7 @@ def evaluate_availability_policy(policy):
                 metadata={
                     "check_type": check_type,
                     "check_label": check_label,
+                    "current_value": current_value,
                     "timeout_seconds": timeout_seconds,
                     "operator": ">",
                 },
@@ -69,10 +70,10 @@ def _availability_state(resource, resource_type, check_type, timeout_seconds):
     ):
         last_heartbeat = getattr(resource, "last_heartbeat", None)
         if not last_heartbeat:
-            return True, f"{resource.name} has never reported a heartbeat.", None
+            return True, "Heartbeat has never been reported.", None
         age = (timezone.now() - last_heartbeat).total_seconds()
         if age > timeout_seconds:
-            return True, f"{resource.name} heartbeat timeout: {int(age)}s > {timeout_seconds}s.", age
+            return True, "Heartbeat timeout detected.", age
         return False, "", age
 
     status = getattr(resource, "status", None)

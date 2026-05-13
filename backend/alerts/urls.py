@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from .views import AlertPolicyViewSet, AlertRecordViewSet, MetadataResourcesView, MetadataView, NotificationChannelViewSet, SystemMonitorView
+from .views import AlertPolicyViewSet, AlertRecordViewSet, MetadataResourcesView, MetadataView, NotificationChannelViewSet, NotificationLogViewSet, SystemMonitorView
 
 
 policy_list = AlertPolicyViewSet.as_view({"get": "list", "post": "create"})
@@ -21,6 +21,10 @@ channel_detail = NotificationChannelViewSet.as_view({"get": "retrieve", "put": "
 channel_test = NotificationChannelViewSet.as_view({"post": "test"})
 channel_details = NotificationChannelViewSet.as_view({"get": "details"})
 
+notification_log_list = NotificationLogViewSet.as_view({"get": "list"})
+notification_log_detail = NotificationLogViewSet.as_view({"get": "retrieve"})
+notification_log_stats = NotificationLogViewSet.as_view({"get": "stats"})
+
 
 urlpatterns = [
     path("system/", SystemMonitorView.as_view(), name="alert-system-monitor"),
@@ -37,6 +41,9 @@ urlpatterns = [
     path("notification-channels/<uuid:pk>/", channel_detail, name="notification-channel-detail"),
     path("notification-channels/<uuid:pk>/test/", channel_test, name="notification-channel-test"),
     path("notification-channels/<uuid:pk>/details/", channel_details, name="notification-channel-details"),
+    path("notification-logs/", notification_log_list, name="notification-log-list"),
+    path("notification-logs/stats/", notification_log_stats, name="notification-log-stats"),
+    path("notification-logs/<uuid:pk>/", notification_log_detail, name="notification-log-detail"),
     path("metadata/resources/", MetadataResourcesView.as_view(), name="alert-metadata-resources"),
     path("metadata/<str:kind>/", MetadataView.as_view(), name="alert-metadata"),
 ]

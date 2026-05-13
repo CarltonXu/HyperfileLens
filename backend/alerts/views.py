@@ -30,14 +30,16 @@ from .choices import (
     AlertStatus,
     AlertType,
     NotificationChannelType,
+    NotificationStatus,
     ResourceType,
 )
-from .models import AlertPolicy, AlertRecord, NotificationChannel, SystemMetric
+from .models import AlertPolicy, AlertRecord, NotificationChannel, NotificationLog, SystemMetric
 from .serializers import (
     AlertPolicySerializer,
     AlertRecordActionSerializer,
     AlertRecordSerializer,
     NotificationChannelSerializer,
+    NotificationLogSerializer,
 )
 from .services.evaluator import resolve_alert
 from .services.notifier import test_channel
@@ -297,6 +299,85 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
         })
 
 
+class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = NotificationLog.objects.all()
+    serializer_class = NotificationLogSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = AlertPagination
+
+    def get_queryset(self):
+        queryset = NotificationLog.objects.all().order_by("-sent_at")
+        params = self.request.query_params
+
+        channel_id = params.get("channel_id")
+        status_value = params.get("status")
+        search = params.get("search")
+        alert_type = params.get("type")
+        severity = params.get("severity")
+        policy_id = params.get("policy_id")
+        start_time = _parse_datetime(params.get("start_time") or params.get("start_at"))
+        end_time = _parse_datetime(params.get("end_time") or params.get("end_at"))
+
+        if channel_id:
+            queryset = queryset.filter(channel_id=channel_id)
+        if status_value:
+            queryset = queryset.filter(status=status_value)
+        if start_time:
+            queryset = queryset.filter(sent_at__gte=start_time)
+        if end_time:
+            queryset = queryset.filter(sent_at__lte=end_time)
+
+        alert_filters = Q()
+        if search:
+            alert_filters &= (
+                Q(title__icontains=search)
+                | Q(message__icontains=search)
+                | Q(resource_name__icontains=search)
+            )
+        if alert_type:
+            alert_filters &= Q(type=alert_type)
+        if severity:
+            alert_filters &= Q(severity=severity)
+        if policy_id:
+            alert_filters &= Q(policy_id=policy_id)
+        if alert_filters:
+            alert_ids = AlertRecord.objects.filter(alert_filters).values_list("id", flat=True)
+            queryset = queryset.filter(alert_record_id__in=list(alert_ids))
+
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        logs = list(page if page is not None else queryset)
+        data = _notification_log_details(logs)
+        if page is not None:
+            return self.get_paginated_response(data)
+        return Response(data)
+
+    def retrieve(self, request, *args, **kwargs):
+        log = self.get_object()
+        return Response(_notification_log_details([log])[0])
+
+    @action(detail=False, methods=["get"])
+    def stats(self, request):
+        queryset = self.filter_queryset(self.get_queryset())
+        total = queryset.count()
+        success = queryset.filter(status=NotificationStatus.SUCCESS).count()
+        failed = queryset.filter(status=NotificationStatus.FAILED).count()
+        recent_failed = queryset.filter(status=NotificationStatus.FAILED).order_by("-sent_at")[:5]
+        channel_ids = list(queryset.values_list("channel_id", flat=True).distinct())
+        channels = NotificationChannel.objects.filter(id__in=channel_ids)
+        return Response({
+            "total": total,
+            "success": success,
+            "failed": failed,
+            "success_rate": round((success / total) * 100, 2) if total else 0,
+            "channels": channels.count(),
+            "recent_failed": _notification_log_details(list(recent_failed)),
+        })
+
+
 class MetadataView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -464,14 +545,41 @@ def _resource_options(resource_type):
     return []
 
 
-def _notification_log_detail(log, alert_record, policy_map):
+def _notification_log_details(logs):
+    alert_ids = [log.alert_record_id for log in logs if log.alert_record_id]
+    channel_ids = [log.channel_id for log in logs if log.channel_id]
+    alert_records = AlertRecord.objects.filter(id__in=alert_ids)
+    alert_record_map = {record.id: record for record in alert_records}
+    policy_ids = [record.policy_id for record in alert_records if record.policy_id]
+    policy_map = {policy.id: policy for policy in AlertPolicy.objects.filter(id__in=policy_ids)}
+    channel_map = {channel.id: channel for channel in NotificationChannel.objects.filter(id__in=channel_ids)}
+    return [
+        _notification_log_detail(
+            log,
+            alert_record_map.get(log.alert_record_id),
+            policy_map,
+            channel_map.get(log.channel_id),
+        )
+        for log in logs
+    ]
+
+
+def _notification_log_detail(log, alert_record, policy_map, channel=None):
     policy = policy_map.get(alert_record.policy_id) if alert_record and alert_record.policy_id else None
     return {
         'id': str(log.id),
+        'channel_id': str(log.channel_id) if log.channel_id else None,
+        'alert_record_id': str(log.alert_record_id) if log.alert_record_id else None,
         'status': log.status,
         'error_message': log.error_message,
         'created_at': log.sent_at.isoformat(),
         'sent_at': log.sent_at.isoformat(),
+        'channel': {
+            'id': str(channel.id),
+            'name': channel.name,
+            'type': channel.type,
+            'enabled': channel.enabled,
+        } if channel else None,
         'alert': {
             'id': str(alert_record.id),
             'title': alert_record.title,

@@ -1,42 +1,48 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import {
+  createRouter,
+  createWebHistory,
+  type RouteRecordRaw,
+} from "vue-router";
+import { useAuthStore } from "@/stores/auth";
 
 // Lazy load views
-const Dashboard = () => import('@/views/Dashboard.vue')
-const Login = () => import('@/views/Login.vue')
-const Proxies = () => import('@/views/Proxies.vue')
-const ProxyDetail = () => import('@/views/ProxyDetail.vue')
-const BackupTasks = () => import('@/views/BackupTasks.vue')
-const RecoveryTasks = () => import('@/views/RecoveryTasks.vue')
-const Repository = () => import('@/views/Repository.vue')
-const SourceResources = () => import('@/views/SourceResources.vue')
-const Policies = () => import('@/views/Policies.vue')
-const AIInsights = () => import('@/views/AIInsights.vue')
-const InsightOverview = () => import('@/views/InsightOverview.vue')
-const AuditLog = () => import('@/views/AuditLog.vue')
-const EventLog = () => import('@/views/EventLog.vue')
-const SystemMonitor = () => import('@/views/SystemMonitor.vue')
-const AlertPolicies = () => import('@/views/alerts/AlertPolicies.vue')
-const AlertPolicyEdit = () => import('@/views/alerts/AlertPolicyEdit.vue')
-const ActiveAlerts = () => import('@/views/alerts/ActiveAlerts.vue')
-const AlertHistory = () => import('@/views/alerts/AlertHistory.vue')
-const NotificationChannels = () => import('@/views/alerts/NotificationChannels.vue')
-const Settings = () => import('@/views/Settings.vue')
-const Layout = () => import('@/views/Layout.vue')
-const Tenants = () => import('@/views/Tenants.vue')
-const Users = () => import('@/views/Users.vue')
-const Licenses = () => import('@/views/Licenses.vue')
-const Gateways = () => import('@/views/Gateways.vue')
-const Register = () => import('@/views/Register.vue')
-const ForgotPassword = () => import('@/views/ForgotPassword.vue')
+const Dashboard = () => import("@/views/Dashboard.vue");
+const Login = () => import("@/views/Login.vue");
+const Proxies = () => import("@/views/Proxies.vue");
+const ProxyDetail = () => import("@/views/ProxyDetail.vue");
+const BackupTasks = () => import("@/views/BackupTasks.vue");
+const RecoveryTasks = () => import("@/views/RecoveryTasks.vue");
+const Repository = () => import("@/views/Repository.vue");
+const SourceResources = () => import("@/views/SourceResources.vue");
+const Policies = () => import("@/views/Policies.vue");
+const AIInsights = () => import("@/views/AIInsights.vue");
+const InsightOverview = () => import("@/views/InsightOverview.vue");
+const AuditLog = () => import("@/views/AuditLog.vue");
+const EventLog = () => import("@/views/EventLog.vue");
+const SystemMonitor = () => import("@/views/SystemMonitor.vue");
+const AlertPolicies = () => import("@/views/alerts/AlertPolicies.vue");
+const AlertPolicyEdit = () => import("@/views/alerts/AlertPolicyEdit.vue");
+const ActiveAlerts = () => import("@/views/alerts/ActiveAlerts.vue");
+const AlertHistory = () => import("@/views/alerts/AlertHistory.vue");
+const NotificationChannels = () =>
+  import("@/views/alerts/NotificationChannels.vue");
+const NotificationLogs = () => import("@/views/alerts/NotificationLogs.vue");
+const Settings = () => import("@/views/Settings.vue");
+const Layout = () => import("@/views/Layout.vue");
+const Tenants = () => import("@/views/Tenants.vue");
+const Users = () => import("@/views/Users.vue");
+const Licenses = () => import("@/views/Licenses.vue");
+const Gateways = () => import("@/views/Gateways.vue");
+const Register = () => import("@/views/Register.vue");
+const ForgotPassword = () => import("@/views/ForgotPassword.vue");
 
 // Route types
-declare module 'vue-router' {
+declare module "vue-router" {
   interface RouteMeta {
-    title?: string
-    requiresAuth?: boolean
-    layout?: 'default' | 'auth'
-    requiresSuperuser?: boolean
+    title?: string;
+    requiresAuth?: boolean;
+    layout?: "default" | "auth";
+    requiresSuperuser?: boolean;
   }
 }
 
@@ -44,251 +50,257 @@ declare module 'vue-router' {
 const routes: RouteRecordRaw[] = [
   // Auth routes
   {
-    path: '/login',
-    name: 'Login',
+    path: "/login",
+    name: "Login",
     component: Login,
     meta: {
-      title: 'Login',
-      layout: 'auth',
-      requiresAuth: false
-    }
+      title: "Login",
+      layout: "auth",
+      requiresAuth: false,
+    },
   },
   {
-    path: '/register',
-    name: 'Register',
+    path: "/register",
+    name: "Register",
     component: Register,
     meta: {
-      title: 'Register',
-      layout: 'auth',
-      requiresAuth: false
-    }
+      title: "Register",
+      layout: "auth",
+      requiresAuth: false,
+    },
   },
   {
-    path: '/forgot-password',
-    name: 'ForgotPassword',
+    path: "/forgot-password",
+    name: "ForgotPassword",
     component: ForgotPassword,
     meta: {
-      title: 'Forgot Password',
-      layout: 'auth',
-      requiresAuth: false
-    }
+      title: "Forgot Password",
+      layout: "auth",
+      requiresAuth: false,
+    },
   },
 
   // Main routes with layout
   {
-    path: '/',
+    path: "/",
     component: Layout,
     meta: { requiresAuth: true },
     children: [
       {
-        path: '',
-        name: 'Dashboard',
+        path: "",
+        name: "Dashboard",
         component: Dashboard,
-        meta: { title: 'Dashboard' }
+        meta: { title: "Dashboard" },
       },
       {
-        path: 'proxies',
-        name: 'Proxies',
+        path: "proxies",
+        name: "Proxies",
         component: Proxies,
-        meta: { title: 'Proxy Management' }
+        meta: { title: "Proxy Management" },
       },
       {
-        path: 'proxies/:id',
-        name: 'ProxyDetail',
+        path: "proxies/:id",
+        name: "ProxyDetail",
         component: ProxyDetail,
-        meta: { title: 'Proxy Details' }
+        meta: { title: "Proxy Details" },
       },
       {
-        path: 'backup-tasks',
-        name: 'BackupTasks',
+        path: "backup-tasks",
+        name: "BackupTasks",
         component: BackupTasks,
-        meta: { title: 'Backup Tasks' }
+        meta: { title: "Backup Tasks" },
       },
       {
-        path: 'recovery-tasks',
-        name: 'RecoveryTasks',
+        path: "recovery-tasks",
+        name: "RecoveryTasks",
         component: RecoveryTasks,
-        meta: { title: 'Recovery Tasks' }
+        meta: { title: "Recovery Tasks" },
       },
       {
-        path: 'repository',
-        name: 'Repository',
+        path: "repository",
+        name: "Repository",
         component: Repository,
-        meta: { title: 'Backup Repository' }
+        meta: { title: "Backup Repository" },
       },
       {
-        path: 'source-resources',
-        name: 'SourceResources',
+        path: "source-resources",
+        name: "SourceResources",
         component: SourceResources,
-        meta: { title: 'Source Resources' }
+        meta: { title: "Source Resources" },
       },
       {
-        path: 'gateways',
-        name: 'Gateways',
+        path: "gateways",
+        name: "Gateways",
         component: Gateways,
-        meta: { title: 'Gateways' }
+        meta: { title: "Gateways" },
       },
       {
-        path: 'policies',
-        name: 'Policies',
+        path: "policies",
+        name: "Policies",
         component: Policies,
-        meta: { title: 'Backup Policies' }
+        meta: { title: "Backup Policies" },
       },
       {
-        path: 'ai-insights',
-        name: 'AIInsights',
+        path: "ai-insights",
+        name: "AIInsights",
         component: AIInsights,
-        meta: { title: 'AI Insights' },
+        meta: { title: "AI Insights" },
         children: [
           {
-            path: 'overview',
-            name: 'AIInsightsOverview',
+            path: "overview",
+            name: "AIInsightsOverview",
             component: InsightOverview,
-            meta: { title: 'Insight Overview' }
+            meta: { title: "Insight Overview" },
           },
           {
-            path: '',
-            redirect: '/ai-insights/overview'
+            path: "",
+            redirect: "/ai-insights/overview",
           },
           {
-            path: 'smart-search',
-            name: 'AIInsightsSearch',
+            path: "smart-search",
+            name: "AIInsightsSearch",
             component: AIInsights,
-            meta: { title: 'Smart Search', tab: 'search' }
+            meta: { title: "Smart Search", tab: "search" },
           },
           {
-            path: 'sensitive-data',
-            name: 'AIInsightsSensitive',
+            path: "sensitive-data",
+            name: "AIInsightsSensitive",
             component: AIInsights,
-            meta: { title: 'Sensitive Data', tab: 'sensitive' }
+            meta: { title: "Sensitive Data", tab: "sensitive" },
           },
           {
-            path: 'content-profiling',
-            name: 'AIInsightsProfile',
+            path: "content-profiling",
+            name: "AIInsightsProfile",
             component: AIInsights,
-            meta: { title: 'Content Profile', tab: 'profile' }
+            meta: { title: "Content Profile", tab: "profile" },
           },
           {
-            path: 'data-heatmap',
-            name: 'AIInsightsHeatmap',
+            path: "data-heatmap",
+            name: "AIInsightsHeatmap",
             component: AIInsights,
-            meta: { title: 'Data Heatmap', tab: 'heatmap' }
+            meta: { title: "Data Heatmap", tab: "heatmap" },
           },
           {
-            path: 'redundancy',
-            name: 'AIInsightsRedundancy',
+            path: "redundancy",
+            name: "AIInsightsRedundancy",
             component: AIInsights,
-            meta: { title: 'Redundancy Analysis', tab: 'redundancy' }
+            meta: { title: "Redundancy Analysis", tab: "redundancy" },
           },
           {
-            path: 'ai-chat',
-            name: 'AIInsightsChat',
+            path: "ai-chat",
+            name: "AIInsightsChat",
             component: AIInsights,
-            meta: { title: 'AI Chat', tab: 'chat' }
-          }
-        ]
+            meta: { title: "AI Chat", tab: "chat" },
+          },
+        ],
       },
       {
-        path: 'audit-log',
-        name: 'AuditLog',
+        path: "audit-log",
+        name: "AuditLog",
         component: AuditLog,
-        meta: { title: 'Audit Log' }
+        meta: { title: "Audit Log" },
       },
       {
-        path: 'event-log',
-        name: 'EventLog',
+        path: "event-log",
+        name: "EventLog",
         component: EventLog,
-        meta: { title: 'Task Management' }
+        meta: { title: "Task Management" },
       },
       {
-        path: 'alerts',
-        redirect: '/alerts/policies'
+        path: "alerts",
+        redirect: "/alerts/policies",
       },
       {
-        path: 'alerts/system-monitor',
-        name: 'SystemMonitor',
+        path: "alerts/system-monitor",
+        name: "SystemMonitor",
         component: SystemMonitor,
-        meta: { title: 'System Monitor' }
+        meta: { title: "System Monitor" },
       },
       {
-        path: 'alerts/policies',
-        name: 'AlertPolicies',
+        path: "alerts/policies",
+        name: "AlertPolicies",
         component: AlertPolicies,
-        meta: { title: 'Alert Policies' }
+        meta: { title: "Alert Policies" },
       },
       {
-        path: 'alerts/policies/:id/edit',
-        name: 'AlertPolicyEdit',
+        path: "alerts/policies/:id/edit",
+        name: "AlertPolicyEdit",
         component: AlertPolicyEdit,
-        meta: { title: 'Edit Alert Policy' }
+        meta: { title: "Edit Alert Policy" },
       },
       {
-        path: 'alerts/active',
-        name: 'ActiveAlerts',
+        path: "alerts/active",
+        name: "ActiveAlerts",
         component: ActiveAlerts,
-        meta: { title: 'Active Alerts' }
+        meta: { title: "Active Alerts" },
       },
       {
-        path: 'alerts/history',
-        name: 'AlertHistory',
+        path: "alerts/history",
+        name: "AlertHistory",
         component: AlertHistory,
-        meta: { title: 'Alert History' }
+        meta: { title: "Alert History" },
       },
       {
-        path: 'alerts/notification-channels',
-        name: 'NotificationChannels',
+        path: "alerts/notification-channels",
+        name: "NotificationChannels",
         component: NotificationChannels,
-        meta: { title: 'Notification Channels' }
+        meta: { title: "Notification Channels" },
       },
       {
-        path: 'settings',
-        name: 'Settings',
+        path: "alerts/notification-logs",
+        name: "NotificationLogs",
+        component: NotificationLogs,
+        meta: { title: "Notification Logs" },
+      },
+      {
+        path: "settings",
+        name: "Settings",
         component: Settings,
-        meta: { title: 'Settings' }
+        meta: { title: "Settings" },
       },
       {
-        path: 'settings/smtp',
-        name: 'SettingsSMTP',
-        component: () => import('@/views/SettingsSMTP.vue'),
-        meta: { title: 'SMTP Settings', requiresSuperuser: true }
+        path: "settings/smtp",
+        name: "SettingsSMTP",
+        component: () => import("@/views/SettingsSMTP.vue"),
+        meta: { title: "SMTP Settings", requiresSuperuser: true },
       },
       {
-        path: 'tenants',
-        name: 'Tenants',
+        path: "tenants",
+        name: "Tenants",
         component: Tenants,
-        meta: { title: 'Tenant Management', requiresSuperuser: true }
+        meta: { title: "Tenant Management", requiresSuperuser: true },
       },
       {
-        path: 'users',
-        name: 'Users',
+        path: "users",
+        name: "Users",
         component: Users,
-        meta: { title: 'User Management', requiresTenantAdmin: true }
+        meta: { title: "User Management", requiresTenantAdmin: true },
       },
       {
-        path: 'licenses',
-        name: 'Licenses',
+        path: "licenses",
+        name: "Licenses",
         component: Licenses,
-        meta: { title: 'License Management' }
+        meta: { title: "License Management" },
       },
 
       // Redirect old nodes path to proxies
       {
-        path: 'nodes',
-        redirect: '/proxies'
+        path: "nodes",
+        redirect: "/proxies",
       },
       {
-        path: 'nodes/:id',
-        redirect: (to) => ({ path: `/proxies/${to.params.id}` })
-      }
-    ]
+        path: "nodes/:id",
+        redirect: (to) => ({ path: `/proxies/${to.params.id}` }),
+      },
+    ],
   },
 
   // Catch all
   {
-    path: '/:pathMatch(.*)*',
-    redirect: '/'
-  }
-]
+    path: "/:pathMatch(.*)*",
+    redirect: "/",
+  },
+];
 
 // Create router
 const router = createRouter({
@@ -296,62 +308,62 @@ const router = createRouter({
   routes,
   scrollBehavior(_to, _from, savedPosition) {
     if (savedPosition) {
-      return savedPosition
+      return savedPosition;
     }
-    return { top: 0 }
-  }
-})
+    return { top: 0 };
+  },
+});
 
 // Navigation guard
 router.beforeEach(async (to, _from, next) => {
-  const authStore = useAuthStore()
+  const authStore = useAuthStore();
 
   // Check if route requires authentication
   if (to.meta.requiresAuth !== false && !authStore.isAuthenticated) {
     // Try to restore session
     if (authStore.token) {
       try {
-        await authStore.fetchUser()
+        await authStore.fetchUser();
         // Check superuser permission after fetching user
         if (to.meta.requiresSuperuser && !authStore.user?.is_superuser) {
-          next({ name: 'Dashboard' })
-          return
+          next({ name: "Dashboard" });
+          return;
         }
-        next()
-        return
+        next();
+        return;
       } catch {
         // Token invalid, redirect to login
-        next({ name: 'Login', query: { redirect: to.fullPath } })
-        return
+        next({ name: "Login", query: { redirect: to.fullPath } });
+        return;
       }
     }
-    next({ name: 'Login', query: { redirect: to.fullPath } })
-    return
+    next({ name: "Login", query: { redirect: to.fullPath } });
+    return;
   }
 
   // Check superuser permission for authenticated users
   if (to.meta.requiresSuperuser && !authStore.user?.is_superuser) {
-    next({ name: 'Dashboard' })
-    return
+    next({ name: "Dashboard" });
+    return;
   }
 
   // Check tenant admin permission (superuser or tenant admin)
   if (to.meta.requiresTenantAdmin) {
-    const isSuperuser = authStore.user?.is_superuser
-    const role = authStore.user?.tenant_role
-    if (!isSuperuser && role !== 'admin') {
-      next({ name: 'Dashboard' })
-      return
+    const isSuperuser = authStore.user?.is_superuser;
+    const role = authStore.user?.tenant_role;
+    if (!isSuperuser && role !== "admin") {
+      next({ name: "Dashboard" });
+      return;
     }
   }
 
   // If authenticated and trying to access login, redirect to dashboard
-  if (to.name === 'Login' && authStore.isAuthenticated) {
-    next({ name: 'Dashboard' })
-    return
+  if (to.name === "Login" && authStore.isAuthenticated) {
+    next({ name: "Dashboard" });
+    return;
   }
 
-  next()
-})
+  next();
+});
 
-export default router
+export default router;

@@ -6,6 +6,7 @@ import hmac
 import html
 import json
 import logging
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -13,7 +14,6 @@ import urllib.request
 
 from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.utils import timezone
-from django.utils.html import strip_tags
 
 from alerts.choices import NotificationChannelType, NotificationStatus
 from alerts.models import AlertPolicy, NotificationChannel, NotificationLog
@@ -206,7 +206,7 @@ def _send_email(channel, alert, resolved):
         connection = smtp_config.get_connection()
 
     html_body = _build_email_html(alert, resolved, lang)
-    text_body = strip_tags(html_body)
+    text_body = _build_text_message(alert, resolved, lang)
     email = EmailMultiAlternatives(
         subject=subject,
         body=text_body,
@@ -224,8 +224,8 @@ def _build_email_subject(template, alert, resolved, lang=None):
     state = _t(lang, "resolved_state" if resolved else "firing_state")
     label = _alert_label(alert, lang)
     resource = alert.resource_name or "-"
-    current = _format_value(alert.current_value, alert.unit)
-    threshold = _format_value(alert.threshold_value, alert.unit)
+    current = _format_value(_alert_current_value(alert), _alert_unit(alert))
+    threshold = _format_value(_alert_threshold_value(alert), _alert_unit(alert))
     default_subject = f"[HyperFileLens][{alert.severity.upper()}][{state}] {label} - {resource}"
     if current != "-":
         default_subject = f"{default_subject} {_t(lang, 'current')} {current}"
@@ -257,7 +257,6 @@ def _build_email_subject(template, alert, resolved, lang=None):
 def _build_email_html(alert, resolved, lang=None):
     lang = _normalize_language(lang)
     policy = _policy_for_alert(alert)
-    payload = _payload(alert, resolved)
     metadata = alert.metadata or {}
     trigger_rule = policy.trigger_rule if policy else {}
     resource = _resource_details(alert)
@@ -268,8 +267,8 @@ def _build_email_html(alert, resolved, lang=None):
     border = "#e2e8f0"
     muted = "#64748b"
     text = "#0f172a"
-    current = _format_value(alert.current_value, alert.unit)
-    threshold = _format_value(alert.threshold_value, alert.unit)
+    current = _format_value(_alert_current_value(alert), _alert_unit(alert))
+    threshold = _format_value(_alert_threshold_value(alert), _alert_unit(alert))
     label = _alert_label(alert, lang, policy=policy)
     operator = metadata.get("operator") or trigger_rule.get("operator") or "-"
     duration = _format_duration(trigger_rule.get("duration_seconds"), lang)
@@ -334,7 +333,7 @@ def _build_email_html(alert, resolved, lang=None):
           <div style="margin-top:20px;padding:14px 16px;background:#f1f5f9;border-radius:8px;color:{muted};font-size:12px;line-height:1.6;">
             Alert ID: {_escape(str(alert.id))}<br/>
             Fingerprint: {_escape(alert.fingerprint)}<br/>
-            Payload: {_escape(json.dumps(payload, ensure_ascii=False, default=str))}
+            Metadata: {_escape(json.dumps(_email_metadata(alert), ensure_ascii=False, default=str))}
           </div>
         </div>
       </div>
@@ -360,11 +359,11 @@ def _build_text_message(alert, resolved, lang=None):
             f"{_t(lang, 'resource_id')}: {alert.resource_id or '-'}",
             f"{_t(lang, 'resource_ip')}: {resource.get('ip') or '-'}",
             f"{_t(lang, 'cpu_cores')}: {resource.get('cpu_cores') or '-'}",
-            f"{_t(lang, 'current_value')}: {_format_value(alert.current_value, alert.unit)}",
-            f"{_t(lang, 'trigger_condition')}: {_trigger_condition(alert, label, operator, _format_value(alert.threshold_value, alert.unit), lang)}",
+            f"{_t(lang, 'current_value')}: {_format_value(_alert_current_value(alert), _alert_unit(alert))}",
+            f"{_t(lang, 'trigger_condition')}: {_trigger_condition(alert, label, operator, _format_value(_alert_threshold_value(alert), _alert_unit(alert)), lang)}",
             f"{_t(lang, 'policy_name')}: {policy.name if policy else '-'}",
             f"{_t(lang, 'last_triggered')}: {_format_datetime(alert.last_triggered_at)}",
-            f"{_t(lang, 'message')}: {_localized_alert_message(alert, label, operator, _format_value(alert.threshold_value, alert.unit), lang)}",
+            f"{_t(lang, 'message')}: {_localized_alert_message(alert, label, operator, _format_value(_alert_threshold_value(alert), _alert_unit(alert)), lang)}",
         ]
     )
 
@@ -377,7 +376,7 @@ def _localized_alert_title(alert, metric_label, status_text, lang):
 
 
 def _localized_alert_message(alert, metric_label, operator, threshold, lang):
-    current = _format_value(alert.current_value, alert.unit)
+    current = _format_value(_alert_current_value(alert), _alert_unit(alert))
     resource = alert.resource_name or "-"
     metadata = alert.metadata or {}
     if alert.type == "availability" and metadata.get("check_type") == "heartbeat":
@@ -426,8 +425,8 @@ def _metric_rows(alert, policy, lang):
     return [
         (_t(lang, "metric"), label),
         (_t(lang, "metric_key"), metric_key or "-"),
-        (_t(lang, "current_value"), _format_value(alert.current_value, alert.unit)),
-        (_t(lang, "threshold"), f"{operator} {_format_value(alert.threshold_value, alert.unit)}"),
+        (_t(lang, "current_value"), _format_value(_alert_current_value(alert), _alert_unit(alert))),
+        (_t(lang, "threshold"), f"{operator} {_format_value(_alert_threshold_value(alert), _alert_unit(alert))}"),
         (_t(lang, "duration"), _format_duration(trigger_rule.get("duration_seconds"), lang)),
         (_t(lang, "evaluation_interval"), _format_duration(trigger_rule.get("evaluation_interval_seconds"), lang)),
     ]
@@ -441,8 +440,8 @@ def _availability_rows(alert, policy, resource, lang):
     return [
         (_t(lang, "check_type"), _availability_label(check_type, lang)),
         (_t(lang, "check_key"), check_type or "-"),
-        (_t(lang, "heartbeat_age"), _format_value(alert.current_value, alert.unit)),
-        (_t(lang, "timeout_threshold"), _format_value(timeout, "s") if timeout is not None else "-"),
+        (_t(lang, "heartbeat_age"), _format_value(_alert_current_value(alert), _alert_unit(alert))),
+        (_t(lang, "timeout_threshold"), _format_value(_alert_threshold_value(alert) or timeout, _alert_unit(alert)) if (_alert_threshold_value(alert) or timeout) is not None else "-"),
         (_t(lang, "last_heartbeat"), _format_datetime(resource.get("last_heartbeat"))),
         (_t(lang, "resource_status"), resource.get("status") or "-"),
         (_t(lang, "heartbeat_interval"), _format_value(resource.get("heartbeat_interval"), "s")),
@@ -480,8 +479,8 @@ def _system_rows(alert, policy, lang):
     rows = [
         (_t(lang, "check_type"), _system_label(check_type, lang)),
         (_t(lang, "check_key"), check_type or "-"),
-        (_t(lang, "current_value"), _format_value(alert.current_value, alert.unit)),
-        (_t(lang, "threshold"), _format_value(alert.threshold_value, alert.unit)),
+        (_t(lang, "current_value"), _format_value(_alert_current_value(alert), _alert_unit(alert))),
+        (_t(lang, "threshold"), _format_value(_alert_threshold_value(alert), _alert_unit(alert))),
     ]
     if disk:
         rows.extend(
@@ -846,6 +845,57 @@ def _format_value(value, unit=None):
     return f"{rendered}{unit or ''}"
 
 
+def _alert_current_value(alert):
+    if alert.current_value is not None:
+        return alert.current_value
+    metadata = alert.metadata or {}
+    if metadata.get("current_value") is not None:
+        return metadata.get("current_value")
+    parsed = _legacy_availability_seconds(alert)
+    if parsed:
+        return parsed[0]
+    return None
+
+
+def _alert_threshold_value(alert):
+    if alert.threshold_value is not None:
+        return alert.threshold_value
+    metadata = alert.metadata or {}
+    if metadata.get("timeout_seconds") is not None:
+        return metadata.get("timeout_seconds")
+    parsed = _legacy_availability_seconds(alert)
+    if parsed:
+        return parsed[1]
+    return None
+
+
+def _alert_unit(alert):
+    if alert.unit:
+        return alert.unit
+    metadata = alert.metadata or {}
+    if alert.type == "availability" and (metadata.get("check_type") == "heartbeat" or metadata.get("timeout_seconds") is not None):
+        return "s"
+    return None
+
+
+def _legacy_availability_seconds(alert):
+    if alert.type != "availability":
+        return None
+    match = re.search(r"(?P<current>\d+(?:\.\d+)?)s\s*>\s*(?P<threshold>\d+(?:\.\d+)?)s", alert.message or "")
+    if not match:
+        return None
+    return match.group("current"), match.group("threshold")
+
+
+def _email_metadata(alert):
+    metadata = dict(alert.metadata or {})
+    metadata.pop("raw_message", None)
+    if alert.type == "availability":
+        metadata.setdefault("current_value", _format_value(_alert_current_value(alert), _alert_unit(alert)))
+        metadata.setdefault("threshold_value", _format_value(_alert_threshold_value(alert), _alert_unit(alert)))
+    return metadata
+
+
 def _format_percent(value):
     return _format_value(value, "%") if value is not None else "-"
 
@@ -1203,9 +1253,9 @@ def _payload(alert, resolved):
         "resource_role": resource.get("role"),
         "resource_os": resource.get("os"),
         "resource_cpu_cores": resource.get("cpu_cores"),
-        "current_value": str(alert.current_value) if alert.current_value is not None else None,
-        "threshold_value": str(alert.threshold_value) if alert.threshold_value is not None else None,
-        "unit": alert.unit,
+        "current_value": str(_alert_current_value(alert)) if _alert_current_value(alert) is not None else None,
+        "threshold_value": str(_alert_threshold_value(alert)) if _alert_threshold_value(alert) is not None else None,
+        "unit": _alert_unit(alert),
         "metric_key": (alert.metadata or {}).get("metric_key") or trigger_rule.get("metric_key"),
         "operator": (alert.metadata or {}).get("operator") or trigger_rule.get("operator"),
         "duration_seconds": trigger_rule.get("duration_seconds"),
