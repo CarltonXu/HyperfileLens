@@ -34,14 +34,14 @@ def check_all_nodes_health(self):
         for node in nodes:
             if not node.last_heartbeat:
                 if (now - node.created_at).total_seconds() > 300:  # 5 minutes
-                    node.status = Node.NodeStatus.INACTIVE
+                    node.status = Node.NodeStatus.OFFLINE
                     node.save(update_fields=['status', 'updated_at'])
                     inactive_count += 1
             else:
                 elapsed = (now - node.last_heartbeat).total_seconds()
                 threshold = node.heartbeat_interval * 3
                 if elapsed > threshold:
-                    node.status = Node.NodeStatus.INACTIVE
+                    node.status = Node.NodeStatus.OFFLINE
                     node.save(update_fields=['status', 'updated_at'])
                     inactive_count += 1
 
@@ -63,16 +63,16 @@ def check_single_node_health(self, node_id):
     """
     from .models import Node
     from channels.layers import get_channel_layer
-    from asgiref.sync import async_to_async
+    from asgiref.sync import async_to_sync
 
     try:
-        node = Node.objects.get(node_id=node_id)
+        node = Node.objects.get(id=node_id)
         is_online = node.is_online()
 
         # Broadcast status update via WebSocket
         channel_layer = get_channel_layer()
         if channel_layer:
-            async_to_async(channel_layer.group_send)(
+            async_to_sync(channel_layer.group_send)(
                 'system_status',
                 {
                     'type': 'status_update',
@@ -157,18 +157,18 @@ def send_command_to_node(self, node_id, command, params=None):
     """
     from .models import Node
     from channels.layers import get_channel_layer
-    from asgiref.sync import async_to_async
+    from asgiref.sync import async_to_sync
     import json
 
     try:
-        node = Node.objects.get(node_id=node_id)
+        node = Node.objects.get(id=node_id)
 
         if not node.is_online():
             return {'error': 'Node is offline'}
 
         channel_layer = get_channel_layer()
         if channel_layer:
-            await async_to_async(channel_layer.group_send)(
+            async_to_sync(channel_layer.group_send)(
                 f'node_{node_id}',
                 {
                     'type': 'command_message',
@@ -205,14 +205,14 @@ def notify_node_status_change(node_id, old_status, new_status):
         new_status: New status
     """
     from channels.layers import get_channel_layer
-    from asgiref.sync import async_to_async
+    from asgiref.sync import async_to_sync
     from audit_log.models import AuditLog
     from django.contrib.auth import get_user_model
 
     User = get_user_model()
 
     try:
-        node = Node.objects.get(node_id=node_id)
+        node = Node.objects.get(id=node_id)
 
         # Log the status change
         AuditLog.objects.create(
@@ -230,7 +230,7 @@ def notify_node_status_change(node_id, old_status, new_status):
         # Broadcast via WebSocket
         channel_layer = get_channel_layer()
         if channel_layer:
-            await async_to_async(channel_layer.group_send)(
+            async_to_sync(channel_layer.group_send)(
                 'system_status',
                 {
                     'type': 'status_update',

@@ -61,6 +61,20 @@ def resolve_alert(alert):
     return alert
 
 
+def active_alerts_for_policy(policy, resource=None, alert_key="default"):
+    resource_id = getattr(resource, "id", None)
+    fingerprint = build_fingerprint(policy, resource_id, alert_key)
+    return AlertRecord.objects.filter(
+        fingerprint=fingerprint,
+        status__in=[AlertStatus.PENDING, AlertStatus.FIRING, AlertStatus.ACKNOWLEDGED],
+    )
+
+
+def resolve_policy_alerts(policy, resource=None, alert_key="default"):
+    for alert in active_alerts_for_policy(policy, resource=resource, alert_key=alert_key):
+        resolve_alert(alert)
+
+
 def evaluate_alert_policies():
     """Evaluate policies that are expected to be scanned periodically."""
     from .availability_evaluator import evaluate_availability_policy

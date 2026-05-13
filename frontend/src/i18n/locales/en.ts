@@ -2525,6 +2525,19 @@ export default {
       systemRule: "{serviceName} {checkType} for {duration}",
       systemService: "system service",
     },
+    severity: {
+      critical: "Critical",
+      warning: "Warning",
+      info: "Info",
+    },
+    status: {
+      pending: "Pending",
+      firing: "Firing",
+      acknowledged: "Acknowledged",
+      resolved: "Resolved",
+      success: "Success",
+      failed: "Failed",
+    },
     values: {
       metric: "Metric Alert",
       availability: "Availability Alert",

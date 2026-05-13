@@ -2464,6 +2464,19 @@ export default {
       systemRule: "{serviceName} {checkType} 持续 {duration}",
       systemService: "系统服务",
     },
+    severity: {
+      critical: "严重",
+      warning: "警告",
+      info: "信息",
+    },
+    status: {
+      pending: "待处理",
+      firing: "触发中",
+      acknowledged: "已确认",
+      resolved: "已恢复",
+      success: "成功",
+      failed: "失败",
+    },
     values: {
       metric: "指标告警",
       availability: "可用性告警",
