@@ -10,6 +10,7 @@ from .choices import (
     AlertType,
     NotificationChannelType,
     NotificationStatus,
+    NotificationType,
     PolicyScope,
     ResourceType,
 )
@@ -129,6 +130,7 @@ class NotificationLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     alert_record_id = models.UUIDField()
     channel_id = models.UUIDField()
+    notification_type = models.CharField(max_length=50, choices=NotificationType.choices, default=NotificationType.FIRING)
     status = models.CharField(max_length=50, choices=NotificationStatus.choices)
     error_message = models.TextField(null=True, blank=True)
     sent_at = models.DateTimeField(auto_now_add=True)

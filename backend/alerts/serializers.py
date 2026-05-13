@@ -165,5 +165,5 @@ class NotificationChannelSerializer(serializers.ModelSerializer):
 class NotificationLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = NotificationLog
-        fields = ["id", "alert_record_id", "channel_id", "status", "error_message", "sent_at"]
+        fields = ["id", "alert_record_id", "channel_id", "notification_type", "status", "error_message", "sent_at"]
         read_only_fields = fields

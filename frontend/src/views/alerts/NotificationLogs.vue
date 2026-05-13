@@ -29,6 +29,7 @@ const loading = ref(false);
 const filters = reactive({
   search: "",
   channel_id: "",
+  notification_type: "",
   status: "",
   type: "",
   severity: "",
@@ -76,32 +77,27 @@ const visiblePages = computed(() => {
 });
 
 type NotificationLogColumnKey =
-  | "status"
-  | "channel"
   | "alert"
+  | "channel"
   | "policy"
   | "resource"
+  | "notification_type"
+  | "status"
   | "sent_at"
   | "error_message";
 
 const columns = computed(() => [
   {
-    key: "status" as const,
-    label: t("alertsCenter.common.status"),
-    min: 120,
-    max: 220,
+    key: "alert" as const,
+    label: t("alertsCenter.logs.alert"),
+    min: 280,
+    max: 620,
   },
   {
     key: "channel" as const,
     label: t("alertsCenter.logs.channel"),
     min: 190,
     max: 360,
-  },
-  {
-    key: "alert" as const,
-    label: t("alertsCenter.logs.alert"),
-    min: 280,
-    max: 620,
   },
   {
     key: "policy" as const,
@@ -114,6 +110,18 @@ const columns = computed(() => [
     label: t("alertsCenter.common.resource"),
     min: 180,
     max: 360,
+  },
+  {
+    key: "notification_type" as const,
+    label: t("alertsCenter.logs.notificationType"),
+    min: 140,
+    max: 240,
+  },
+  {
+    key: "status" as const,
+    label: t("alertsCenter.logs.deliveryStatus"),
+    min: 120,
+    max: 220,
   },
   {
     key: "sent_at" as const,
@@ -140,6 +148,7 @@ const table = useResizableSortableTable<any, NotificationLogColumnKey>({
     if (key === "alert") return log.alert?.title || "";
     if (key === "policy") return log.policy?.name || "";
     if (key === "resource") return log.alert?.resource_name || "";
+    if (key === "notification_type") return log.notification_type || "";
     if (key === "sent_at")
       return log.sent_at ? new Date(log.sent_at).getTime() : 0;
     return log[key] ?? "";
@@ -149,6 +158,7 @@ const table = useResizableSortableTable<any, NotificationLogColumnKey>({
     if (key === "alert") return log.alert?.title || "-";
     if (key === "policy") return log.policy?.name || "-";
     if (key === "resource") return log.alert?.resource_name || "-";
+    if (key === "notification_type") return notificationTypeLabel(log);
     if (key === "sent_at") return formatDate(log.sent_at);
     if (key === "error_message") return deliveryResult(log);
     return String(log[key] ?? "");
@@ -209,6 +219,18 @@ function deliveryResult(log: any) {
   return log.status === "success"
     ? t("alertsCenter.logs.deliverySucceeded")
     : log.error_message || "-";
+}
+
+function notificationTypeLabel(log: any) {
+  return log.notification_type === "resolved"
+    ? t("alertsCenter.values.resolved")
+    : t("alertsCenter.values.firing");
+}
+
+function notificationTypeClass(log: any) {
+  return log.notification_type === "resolved"
+    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
 }
 
 function statusClass(status: string) {
@@ -288,7 +310,7 @@ onMounted(() => {
     </div>
 
     <div
-      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-6"
+      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-7"
     >
       <div class="relative md:col-span-2">
         <MagnifyingGlassIcon
@@ -323,6 +345,15 @@ onMounted(() => {
         <option value="">{{ t("alertsCenter.common.allStatus") }}</option>
         <option value="success">{{ t("alertsCenter.logs.success") }}</option>
         <option value="failed">{{ t("alertsCenter.logs.failed") }}</option>
+      </select>
+      <select
+        v-model="filters.notification_type"
+        @change="applyFilters"
+        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+      >
+        <option value="">{{ t("alertsCenter.logs.allNotificationTypes") }}</option>
+        <option value="firing">{{ t("alertsCenter.values.firing") }}</option>
+        <option value="resolved">{{ t("alertsCenter.values.resolved") }}</option>
       </select>
       <select
         v-model="filters.type"
@@ -396,31 +427,6 @@ onMounted(() => {
               :key="log.id"
               class="hover:bg-hover"
             >
-              <td class="px-4 py-4" :style="table.columnStyle('status')">
-                <span
-                  :class="statusClass(log.status)"
-                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium"
-                >
-                  <CheckCircleIcon
-                    v-if="log.status === 'success'"
-                    class="h-3.5 w-3.5"
-                  />
-                  <XCircleIcon v-else class="h-3.5 w-3.5" />
-                  {{
-                    log.status === "success"
-                      ? t("alertsCenter.logs.success")
-                      : t("alertsCenter.logs.failed")
-                  }}
-                </span>
-              </td>
-              <td class="px-4 py-4" :style="table.columnStyle('channel')">
-                <p class="font-medium text-foreground">
-                  {{ log.channel?.name || "-" }}
-                </p>
-                <p class="mt-1 text-xs text-foreground-secondary">
-                  {{ log.channel?.type || "-" }}
-                </p>
-              </td>
               <td class="px-4 py-4" :style="table.columnStyle('alert')">
                 <button
                   class="text-left font-medium text-foreground hover:text-primary"
@@ -433,6 +439,14 @@ onMounted(() => {
                   <AlertTypeTag :type="log.alert.type" />
                   <AlertStatusTag :status="log.alert.status" />
                 </div>
+              </td>
+              <td class="px-4 py-4" :style="table.columnStyle('channel')">
+                <p class="font-medium text-foreground">
+                  {{ log.channel?.name || "-" }}
+                </p>
+                <p class="mt-1 text-xs text-foreground-secondary">
+                  {{ log.channel?.type || "-" }}
+                </p>
               </td>
               <td
                 class="px-4 py-4 text-foreground-secondary"
@@ -450,6 +464,34 @@ onMounted(() => {
                 <p class="mt-1 text-xs">
                   {{ log.alert?.resource_type || "-" }}
                 </p>
+              </td>
+              <td
+                class="px-4 py-4"
+                :style="table.columnStyle('notification_type')"
+              >
+                <span
+                  :class="notificationTypeClass(log)"
+                  class="inline-flex rounded px-2 py-1 text-xs font-medium"
+                >
+                  {{ notificationTypeLabel(log) }}
+                </span>
+              </td>
+              <td class="px-4 py-4" :style="table.columnStyle('status')">
+                <span
+                  :class="statusClass(log.status)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium"
+                >
+                  <CheckCircleIcon
+                    v-if="log.status === 'success'"
+                    class="h-3.5 w-3.5"
+                  />
+                  <XCircleIcon v-else class="h-3.5 w-3.5" />
+                  {{
+                    log.status === "success"
+                      ? t("alertsCenter.logs.success")
+                      : t("alertsCenter.logs.failed")
+                  }}
+                </span>
               </td>
               <td
                 class="px-4 py-4 text-foreground-secondary"
@@ -474,7 +516,7 @@ onMounted(() => {
             </tr>
             <tr v-if="!loading && logs.length === 0">
               <td
-                colspan="7"
+                colspan="8"
                 class="px-4 py-12 text-center text-sm text-foreground-secondary"
               >
                 {{ t("alertsCenter.logs.noLogs") }}
@@ -580,9 +622,17 @@ onMounted(() => {
             <dl class="mt-3 space-y-2 text-sm">
               <div class="flex justify-between gap-4">
                 <dt class="text-foreground-secondary">
-                  {{ t("alertsCenter.common.status") }}
+                  {{ t("alertsCenter.logs.deliveryStatus") }}
                 </dt>
                 <dd class="text-foreground">{{ selected.status }}</dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="text-foreground-secondary">
+                  {{ t("alertsCenter.logs.notificationType") }}
+                </dt>
+                <dd class="text-foreground">
+                  {{ notificationTypeLabel(selected) }}
+                </dd>
               </div>
               <div class="flex justify-between gap-4">
                 <dt class="text-foreground-secondary">

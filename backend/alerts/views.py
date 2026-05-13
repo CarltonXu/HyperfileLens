@@ -311,6 +311,7 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
 
         channel_id = params.get("channel_id")
         status_value = params.get("status")
+        notification_type = params.get("notification_type")
         search = params.get("search")
         alert_type = params.get("type")
         severity = params.get("severity")
@@ -322,6 +323,8 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(channel_id=channel_id)
         if status_value:
             queryset = queryset.filter(status=status_value)
+        if notification_type:
+            queryset = queryset.filter(notification_type=notification_type)
         if start_time:
             queryset = queryset.filter(sent_at__gte=start_time)
         if end_time:
@@ -570,6 +573,7 @@ def _notification_log_detail(log, alert_record, policy_map, channel=None):
         'id': str(log.id),
         'channel_id': str(log.channel_id) if log.channel_id else None,
         'alert_record_id': str(log.alert_record_id) if log.alert_record_id else None,
+        'notification_type': log.notification_type,
         'status': log.status,
         'error_message': log.error_message,
         'created_at': log.sent_at.isoformat(),

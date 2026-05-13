@@ -55,6 +55,11 @@ class NotificationStatus(models.TextChoices):
     FAILED = "failed", "Failed"
 
 
+class NotificationType(models.TextChoices):
+    FIRING = "firing", "Firing"
+    RESOLVED = "resolved", "Resolved"
+
+
 OPERATORS = [">", ">=", "<", "<=", "==", "!="]
 
 METRICS_BY_RESOURCE_TYPE = {

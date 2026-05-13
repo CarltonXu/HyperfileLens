@@ -15,7 +15,7 @@ import urllib.request
 from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.utils import timezone
 
-from alerts.choices import NotificationChannelType, NotificationStatus
+from alerts.choices import NotificationChannelType, NotificationStatus, NotificationType
 from alerts.models import AlertPolicy, NotificationChannel, NotificationLog
 
 logger = logging.getLogger(__name__)
@@ -144,6 +144,7 @@ def _send(alert, resolved=False):
             NotificationLog.objects.create(
                 alert_record_id=alert.id,
                 channel_id=channel.id,
+                notification_type=NotificationType.RESOLVED if resolved else NotificationType.FIRING,
                 status=NotificationStatus.SUCCESS,
             )
         except Exception as exc:
@@ -151,6 +152,7 @@ def _send(alert, resolved=False):
             NotificationLog.objects.create(
                 alert_record_id=alert.id,
                 channel_id=channel.id,
+                notification_type=NotificationType.RESOLVED if resolved else NotificationType.FIRING,
                 status=NotificationStatus.FAILED,
                 error_message=str(exc),
             )
