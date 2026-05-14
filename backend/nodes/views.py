@@ -6,6 +6,7 @@ including CRUD operations, installation, heartbeat handling, and statistics.
 """
 
 import secrets
+import time
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -30,6 +31,7 @@ from .query_optimizations import (
     get_alert_list, invalidate_cache
 )
 from audit_log.services import AuditService
+from .proxy_service import ProxyService
 
 
 def evaluate_proxy_metric_alerts(proxy):
@@ -598,13 +600,6 @@ logging:
         """Get directory listing for a Sync Proxy."""
         proxy = self.get_object()
         
-        # Only Sync Proxies can browse directories
-        if proxy.role != ProxyNode.Role.SYNC:
-            return Response(
-                {'error': 'Only Sync Proxy can browse directories.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
         # Check if proxy is online
         if proxy.status != ProxyNode.NodeStatus.ONLINE:
             return Response(
@@ -612,37 +607,162 @@ logging:
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        path = request.query_params.get('path', '/')
-        
-        # TODO: In production, this would send a WebSocket message to the proxy
-        # and wait for the response. For now, return mock data.
-        # The actual implementation would be:
-        # 1. Send a 'list_directory' command to the proxy via WebSocket
-        # 2. Wait for the proxy to respond with the directory listing
-        # 3. Return the result
-        
-        # Mock response for development
-        mock_directories = self._get_mock_directories(path)
-        return Response({
-            'path': path,
-            'directories': mock_directories
-        })
-    
-    def _get_mock_directories(self, path: str) -> list:
-        """Mock directory listing for development."""
-        # This is just mock data for UI development
-        # In production, this would be fetched from the actual Sync Proxy
-        mock_structure = {
-            '/': ['backup', 'data', 'home', 'mnt', 'opt', 'var'],
-            '/backup': ['hyperfilelens', 'archives', 'temp'],
-            '/data': ['databases', 'files', 'logs'],
-            '/home': ['admin', 'user'],
-            '/mnt': ['nas1', 'nas2', 'external'],
-            '/opt': ['hyperfilelens', 'kopia'],
-            '/var': ['lib', 'log', 'tmp'],
-            '/backup/hyperfilelens': ['repo1', 'repo2', 'snapshots'],
+        path = request.query_params.get('path') or '/'
+        task = ProxyTask.objects.create(
+            proxy=proxy,
+            task_type=ProxyTask.TaskType.VERIFY,
+            parameters={
+                'operation': 'list_directory',
+                'path': path,
+            },
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=30,
+        )
+
+        task.dispatch()
+        ProxyService.send_list_directory_command(
+            proxy_id=str(proxy.id),
+            path=path,
+            task_id=str(task.id),
+        )
+
+        task = self._wait_for_proxy_task(task, timeout=8)
+        if task.status == ProxyTask.TaskStatus.COMPLETED:
+            result = task.result or {}
+            entries = result.get('directories') or []
+            return Response({
+                'path': result.get('path') or path,
+                'directories': [
+                    item.get('name') for item in entries
+                    if isinstance(item, dict) and item.get('name')
+                ],
+                'entries': entries,
+                'task_id': str(task.id),
+            })
+
+        if task.status == ProxyTask.TaskStatus.FAILED:
+            return Response(
+                {
+                    'error': task.error_message or 'Failed to list directory.',
+                    'task_id': str(task.id),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                'error': 'Directory listing timed out.',
+                'task_id': str(task.id),
+            },
+            status=status.HTTP_504_GATEWAY_TIMEOUT,
+        )
+
+    @extend_schema(
+        summary='Verify proxy local path',
+        description='Verify a local filesystem path on a Sync Proxy.',
+        responses={200: OpenApiResponse(description='Path verification result')}
+    )
+    @action(detail=True, methods=['post'], url_path='verify-path')
+    def verify_path(self, request, pk=None):
+        """Verify local path existence, access and writability on a Sync Proxy."""
+        proxy = self.get_object()
+
+        if proxy.role != ProxyNode.Role.SYNC:
+            return Response(
+                {'error': 'Only Sync Proxy can verify local repository paths.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if proxy.status != ProxyNode.NodeStatus.ONLINE:
+            return Response(
+                {'error': 'Proxy is not online.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        path = (request.data.get('path') or '').strip()
+        if not path:
+            return Response(
+                {'error': 'Path is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        task = ProxyTask.objects.create(
+            proxy=proxy,
+            task_type=ProxyTask.TaskType.TEST_STORAGE,
+            parameters={
+                'operation': 'verify_path',
+                'storage_type': 'local',
+                'storage_config': {'path': path},
+            },
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=30,
+        )
+
+        task.dispatch()
+        ProxyService.send_test_storage_command(
+            proxy_id=str(proxy.id),
+            repository_id='',
+            storage_type='local',
+            storage_config={'path': path},
+            test_write=True,
+            task_id=str(task.id),
+        )
+
+        task = self._wait_for_proxy_task(task, timeout=10)
+        if task.status == ProxyTask.TaskStatus.COMPLETED:
+            result = task.result or {}
+            write_test = result.get('write_test') or {}
+            space_info = result.get('space_info') or {}
+            connectivity = result.get('connectivity') or {}
+            return Response({
+                'success': result.get('success', True),
+                'path': path,
+                'message': result.get('message') or 'Path verification successful.',
+                'exists': connectivity.get('reachable', True),
+                'writable': write_test.get('writable'),
+                'write_test': write_test,
+                'space_info': space_info,
+                'details': result,
+                'task_id': str(task.id),
+            })
+
+        if task.status == ProxyTask.TaskStatus.FAILED:
+            return Response(
+                {
+                    'success': False,
+                    'path': path,
+                    'error': task.error_message or 'Path verification failed.',
+                    'task_id': str(task.id),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                'success': False,
+                'path': path,
+                'error': 'Path verification timed out.',
+                'task_id': str(task.id),
+            },
+            status=status.HTTP_504_GATEWAY_TIMEOUT,
+        )
+
+    def _wait_for_proxy_task(self, task: ProxyTask, timeout: int = 10) -> ProxyTask:
+        """Wait briefly for an interactive proxy task result."""
+        deadline = time.monotonic() + timeout
+        terminal_statuses = {
+            ProxyTask.TaskStatus.COMPLETED,
+            ProxyTask.TaskStatus.FAILED,
+            ProxyTask.TaskStatus.CANCELLED,
+            ProxyTask.TaskStatus.TIMEOUT,
         }
-        return mock_structure.get(path, [])
+        while time.monotonic() < deadline:
+            task.refresh_from_db()
+            if task.status in terminal_statuses:
+                return task
+            time.sleep(0.2)
+        task.refresh_from_db()
+        return task
 
     @extend_schema(
         summary='Get proxy tasks',

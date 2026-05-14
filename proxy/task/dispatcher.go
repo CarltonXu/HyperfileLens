@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -157,6 +158,8 @@ func (d *Dispatcher) HandleMessage(msg ws.Message) {
 		go d.executeTestStorage(msg)
 	case message.MsgTypeInitRepository:
 		go d.executeInitRepository(msg)
+	case message.MsgTypeListDirectory:
+		go d.executeListDirectory(msg)
 
 	// Control messages
 	case message.MsgTypePing:
@@ -209,6 +212,83 @@ func (d *Dispatcher) HandleMessage(msg ws.Message) {
 			"type": msg.Type,
 		})
 	}
+}
+
+// executeListDirectory lists local directories on the bound Proxy.
+func (d *Dispatcher) executeListDirectory(msg ws.Message) {
+	if msg.Payload == nil {
+		d.sendListDirectoryResult(msg.ID, "", "", nil, "payload is empty")
+		return
+	}
+
+	taskID := getString(msg.Payload, "task_id", msg.ID)
+	requestedPath := getString(msg.Payload, "path", "/")
+	if requestedPath == "" {
+		requestedPath = "/"
+	}
+	cleanPath := filepath.Clean(os.ExpandEnv(requestedPath))
+	if !filepath.IsAbs(cleanPath) {
+		d.sendListDirectoryResult(msg.ID, taskID, requestedPath, nil, "path must be absolute")
+		return
+	}
+
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		d.sendListDirectoryResult(msg.ID, taskID, cleanPath, nil, fmt.Sprintf("path not accessible: %v", err))
+		return
+	}
+	if !info.IsDir() {
+		d.sendListDirectoryResult(msg.ID, taskID, cleanPath, nil, "path is not a directory")
+		return
+	}
+
+	entries, err := os.ReadDir(cleanPath)
+	if err != nil {
+		d.sendListDirectoryResult(msg.ID, taskID, cleanPath, nil, fmt.Sprintf("failed to read directory: %v", err))
+		return
+	}
+
+	directories := make([]map[string]interface{}, 0)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		fullPath := filepath.Join(cleanPath, name)
+		item := map[string]interface{}{
+			"name": name,
+			"path": fullPath,
+		}
+		if fi, err := entry.Info(); err == nil {
+			item["mode"] = fi.Mode().String()
+			item["mod_time"] = fi.ModTime().Format(time.RFC3339)
+		}
+		directories = append(directories, item)
+	}
+
+	sort.Slice(directories, func(i, j int) bool {
+		return directories[i]["name"].(string) < directories[j]["name"].(string)
+	})
+
+	d.sendListDirectoryResult(msg.ID, taskID, cleanPath, directories, "")
+}
+
+func (d *Dispatcher) sendListDirectoryResult(msgID, taskID, path string, directories []map[string]interface{}, errMsg string) {
+	payload := map[string]interface{}{
+		"task_id":     taskID,
+		"success":     errMsg == "",
+		"path":        path,
+		"directories": directories,
+		"timestamp":   time.Now(),
+	}
+	if errMsg != "" {
+		payload["error"] = errMsg
+	}
+	d.wsClient.Send(ws.Message{
+		Type:    message.MsgTypeListDirectoryResult,
+		ID:      msgID,
+		Payload: payload,
+	})
 }
 
 // executeBackup executes a backup task
@@ -719,13 +799,8 @@ func getSlice(m map[string]interface{}, key string) []interface{} {
 	return nil
 }
 
-// executeTestStorage executes a storage connectivity test (Sync Proxy only)
+// executeTestStorage executes a storage connectivity test.
 func (d *Dispatcher) executeTestStorage(msg ws.Message) {
-	if !d.config.IsSyncProxy() {
-		d.sendError(msg.ID, "", "test_storage only available for Sync Proxy")
-		return
-	}
-
 	// Use payload for unified message format
 	if msg.Payload == nil {
 		d.sendStorageTestResult(msg.ID, "", nil, "payload is empty")
@@ -736,6 +811,14 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 	storageType := getString(msg.Payload, "storage_type", "nas")
 	testWrite := getBool(msg.Payload, "test_write", true)
 	repositoryID := getString(msg.Payload, "repository_id", "")
+	if storageType != "local" && !d.config.IsSyncProxy() {
+		d.sendStorageTestResult(msg.ID, taskID, map[string]interface{}{
+			"storage_type":  storageType,
+			"repository_id": repositoryID,
+			"success":       false,
+		}, "test_storage for non-local storage is only available for Sync Proxy")
+		return
+	}
 
 	logger.Debug("Storage test start", map[string]interface{}{
 		"task_id":       taskID,

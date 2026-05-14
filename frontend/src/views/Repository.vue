@@ -582,6 +582,7 @@ function resetForm() {
   selectedProxy.value = null;
   proxyDirectories.value = [];
   currentPath.value = "";
+  localPathCheckResult.value = null;
 }
 
 // Available Sync Proxies (online + sync role)
@@ -596,6 +597,17 @@ const selectedProxy = ref<ProxyNode | null>(null);
 const proxyDirectories = ref<string[]>([]);
 const isLoadingDirectories = ref(false);
 const currentPath = ref("");
+const checkingLocalPath = ref(false);
+const localPathCheckResult = ref<{
+  success: boolean;
+  path?: string;
+  message?: string;
+  error?: string;
+  exists?: boolean;
+  writable?: boolean;
+  write_test?: Record<string, any>;
+  space_info?: Record<string, any>;
+} | null>(null);
 
 // Fetch Sync Proxy directories
 async function fetchProxyDirectories(proxyId: string, path: string = "/") {
@@ -608,6 +620,7 @@ async function fetchProxyDirectories(proxyId: string, path: string = "/") {
   } catch (error) {
     console.error("Failed to fetch directories:", error);
     proxyDirectories.value = [];
+    appStore.error(getApiErrorMessage(error));
   } finally {
     isLoadingDirectories.value = false;
   }
@@ -616,6 +629,7 @@ async function fetchProxyDirectories(proxyId: string, path: string = "/") {
 // Handle proxy selection for local type
 function handleProxySelect(proxyId: string) {
   newRepo.value.bound_node = proxyId;
+  localPathCheckResult.value = null;
   selectedProxy.value =
     availableSyncProxies.value.find((p) => p.id === proxyId) || null;
   if (proxyId) {
@@ -645,6 +659,51 @@ function navigateUp() {
 // Select current directory as backup path
 function selectCurrentPath() {
   newRepo.value.local_config.path = currentPath.value;
+  localPathCheckResult.value = null;
+  clearError("path");
+}
+
+async function checkLocalPath() {
+  const proxyId = newRepo.value.bound_node;
+  const path = newRepo.value.local_config.path.trim();
+  if (!proxyId) {
+    formErrors.value.bound_node = t("repository.validation.proxyRequired");
+    return;
+  }
+  if (!path) {
+    formErrors.value.path = t("repository.validation.pathRequired");
+    return;
+  }
+
+  checkingLocalPath.value = true;
+  localPathCheckResult.value = null;
+  clearError("path");
+  try {
+    const response = await nodesApi.verifyPath(proxyId, path);
+    localPathCheckResult.value = response.data;
+    if (response.data.success === false || response.data.writable === false) {
+      appStore.error(
+        response.data.message ||
+          response.data.error ||
+          t("repository.local.pathCheckFailed"),
+      );
+    } else {
+      appStore.success(t("repository.local.pathCheckSuccess"));
+    }
+  } catch (error: any) {
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      getApiErrorMessage(error);
+    localPathCheckResult.value = {
+      success: false,
+      path,
+      error: message,
+    };
+    appStore.error(`${t("repository.local.pathCheckFailed")}: ${message}`);
+  } finally {
+    checkingLocalPath.value = false;
+  }
 }
 
 const filteredRepos = computed(() => {
@@ -793,6 +852,7 @@ watch(
       selectedProxy.value = null;
       proxyDirectories.value = [];
       currentPath.value = "";
+      localPathCheckResult.value = null;
     }
   },
 );
@@ -2884,6 +2944,108 @@ onMounted(() => {
                     "No online Sync Proxies available. Please ensure your Sync Proxy is connected."
                   }}
                 </p>
+              </div>
+
+              <!-- Manual Path Input -->
+              <div v-if="newRepo.bound_node" class="space-y-2">
+                <label class="block text-sm font-medium text-foreground">
+                  {{ t("repository.local.manualPath") }} *
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    v-model="newRepo.local_config.path"
+                    @input="
+                      localPathCheckResult = null;
+                      clearError('path');
+                    "
+                    type="text"
+                    :placeholder="t('repository.local.pathPlaceholder')"
+                    :class="[
+                      'flex-1 px-3 py-2 text-sm border rounded-lg bg-background/50 text-foreground placeholder-foreground-muted focus:outline-none focus:ring-2',
+                      formErrors.path
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-border focus:ring-blue-500',
+                    ]" />
+                  <button
+                    type="button"
+                    @click="checkLocalPath"
+                    :disabled="
+                      checkingLocalPath || !newRepo.local_config.path.trim()
+                    "
+                    class="px-4 py-2 text-sm font-medium rounded-lg border border-border bg-background-secondary text-foreground hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed">
+                    {{
+                      checkingLocalPath
+                        ? t("repository.local.checkingPath")
+                        : t("repository.local.checkPath")
+                    }}
+                  </button>
+                </div>
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("repository.local.manualPathHint") }}
+                </p>
+                <div
+                  v-if="localPathCheckResult"
+                  :class="[
+                    'rounded-lg border p-3 text-sm',
+                    localPathCheckResult.success !== false &&
+                    localPathCheckResult.writable !== false
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300'
+                      : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300',
+                  ]">
+                  <div class="flex items-start gap-2">
+                    <CheckCircleIcon
+                      v-if="
+                        localPathCheckResult.success !== false &&
+                        localPathCheckResult.writable !== false
+                      "
+                      class="w-5 h-5 flex-shrink-0" />
+                    <XCircleIcon v-else class="w-5 h-5 flex-shrink-0" />
+                    <div class="space-y-1">
+                      <p class="font-medium">
+                        {{
+                          localPathCheckResult.success !== false &&
+                          localPathCheckResult.writable !== false
+                            ? t("repository.local.pathCheckSuccess")
+                            : t("repository.local.pathCheckFailed")
+                        }}
+                      </p>
+                      <p v-if="localPathCheckResult.message">
+                        {{ localPathCheckResult.message }}
+                      </p>
+                      <p v-if="localPathCheckResult.error">
+                        {{ localPathCheckResult.error }}
+                      </p>
+                      <p
+                        v-if="
+                          localPathCheckResult.writable !== null &&
+                          localPathCheckResult.writable !== undefined
+                        "
+                        class="text-xs">
+                        {{
+                          localPathCheckResult.writable
+                            ? t("repository.local.writable")
+                            : t("repository.local.notWritable")
+                        }}
+                      </p>
+                      <p
+                        v-if="localPathCheckResult.space_info?.total_bytes"
+                        class="text-xs">
+                        {{ t("repository.local.spaceInfo") }}:
+                        {{
+                          formatBytes(
+                            localPathCheckResult.space_info.used_bytes || 0,
+                          )
+                        }}
+                        /
+                        {{
+                          formatBytes(
+                            localPathCheckResult.space_info.total_bytes || 0,
+                          )
+                        }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- Directory Browser -->

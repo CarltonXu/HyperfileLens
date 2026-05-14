@@ -377,21 +377,22 @@ export const backupTasksApi = {
     node?: number;
   }) => api.get("/api/v1/backup-tasks/tasks/", { params }),
 
-  detail: (id: number) => api.get(`/api/v1/backup-tasks/tasks/${id}/`),
+  detail: (id: number | string) => api.get(`/api/v1/backup-tasks/tasks/${id}/`),
 
   create: (data: any) => api.post("/api/v1/backup-tasks/tasks/", data),
 
-  update: (id: number, data: any) =>
+  update: (id: number | string, data: any) =>
     api.patch(`/api/v1/backup-tasks/tasks/${id}/`, data),
 
-  delete: (id: number) => api.delete(`/api/v1/backup-tasks/tasks/${id}/`),
+  delete: (id: number | string) => api.delete(`/api/v1/backup-tasks/tasks/${id}/`),
 
   stats: () => api.get("/api/v1/backup-tasks/tasks/statistics/"),
 
-  execute: (id: number) =>
+  execute: (id: number | string) =>
     api.post(`/api/v1/backup-tasks/tasks/${id}/execute/`),
 
-  cancel: (id: number) => api.post(`/api/v1/backup-tasks/tasks/${id}/cancel/`),
+  cancel: (id: number | string) =>
+    api.post(`/api/v1/backup-tasks/tasks/${id}/cancel/`),
 
   listSnapshots: (params?: {
     node?: number;
@@ -461,6 +462,14 @@ export const sourceResourcesApi = {
 
   testConnection: (id: number | string) =>
     api.post(`/api/v1/source-resources/${id}/test-connection/`),
+
+  testDraft: (data: any) =>
+    api.post("/api/v1/source-resources/test-draft/", data, {
+      timeout: 60000,
+    }),
+
+  scan: (id: number | string, path?: string) =>
+    api.get(`/api/v1/source-resources/${id}/scan/`, { params: { path } }),
 
   mount: (id: number | string) =>
     api.post(`/api/v1/source-resources/${id}/mount/`),

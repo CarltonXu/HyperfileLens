@@ -74,6 +74,7 @@ export default {
     confirm: "Confirm",
     yes: "Yes",
     no: "No",
+    none: "None",
     enabled: "Enabled",
     disabled: "Disabled",
     active: "Active",
@@ -942,9 +943,115 @@ export default {
       repository: "Repository",
       sourcePaths: "Source Paths",
       excludePaths: "Exclude Paths",
+      priority: "Priority",
+      retentionDays: "Retention Days",
+      maxSnapshots: "Max Snapshots",
+      policy: "Backup Policy",
+      noPolicy: "Manual / No Policy",
+      policyHint:
+        "Choose a policy configured on the Policies page, or leave empty for manual execution.",
       schedule: "Schedule",
       runNow: "Run Now",
       scheduleForLater: "Schedule for Later",
+      businessTags: "Business Tags",
+      accessMode: "Access Mode",
+      sourceType: "Source Type",
+    },
+
+    wizard: {
+      subtitle:
+        "Create a backup job by selecting the source resource, protected content, target repository, and retention options.",
+      basic: "Basic Info",
+      source: "Select Source",
+      content: "Content",
+      repository: "Repository",
+      storage: "Storage",
+      backupRepository: "Backup Repository",
+      policy: "Policy",
+      scheduleRetention: "Schedule & Retention",
+      review: "Review",
+      suggestedContent: "Suggested content",
+      executionPlan: "Execution Plan",
+      basicChecklist: "Readiness",
+      nameReady: "Policy name completed",
+      descriptionReady: "Description added",
+      tagsReady: "Tags added",
+      noSources: "No available source resources",
+      noDirectories: "No directories loaded. You can enter paths manually.",
+      directoryLoadFailed: "Failed to load directories.",
+      selectedPaths: "Selected Paths",
+      storageSecurity: "Security & Compression",
+      repositoryDetails: "Repository Details",
+      selectRepositoryHint:
+        "Select a backup repository to view connection details.",
+      repositoryCapacity: "Repository Capacity",
+      capacityUnknown: "Capacity unknown",
+      reviewTitle: "Review Configuration",
+    },
+
+    placeholders: {
+      taskName:
+        "Enter a policy name, e.g. Finance Server Daily Incremental Backup",
+      description: "Enter a note describing the purpose of this backup set",
+      addTag: "Add tag",
+      searchSource: "Search source resources...",
+    },
+
+    access: {
+      agent: "Operating System Agent",
+      agentDesc: "Use an Agent Proxy to protect local filesystem paths.",
+      proxy: "NAS/NFS Proxy",
+      proxyDesc: "Use a Sync Proxy to access NAS, NFS, SMB, or object storage.",
+    },
+
+    sourceKinds: {
+      local: "Local Filesystem",
+      localDesc: "Protect local paths through an Agent or Sync Proxy.",
+      nas: "NAS / NFS / CIFS",
+      nasDesc: "Protect mounted network shares through a Sync Proxy.",
+      s3: "S3 Object Storage",
+      s3Desc: "Protect S3-compatible object storage buckets.",
+    },
+
+    repositoryDetails: {
+      type: "Type",
+      endpoint: "Endpoint",
+      bucket: "Bucket",
+      region: "Region",
+      prefix: "Prefix",
+      accessKey: "Access Key",
+      mountPoint: "Mount Point",
+      mountOptions: "Mount Options",
+      username: "Username",
+      path: "Path",
+      boundNode: "Bound Node",
+      kopia: "Kopia Initialized",
+      snapshots: "Snapshots",
+    },
+
+    schedule: {
+      manual: "Manual backup",
+      interval: "Automatic interval",
+      cron: "Advanced cron expression",
+      intervalSummary: "Every {value} {unit}",
+      units: {
+        minutes: "minutes",
+        hours: "hours",
+        days: "days",
+      },
+    },
+
+    retention: {
+      title: "Retention",
+      policy: "Use policy template",
+      custom: "Custom retention",
+      customSummary: "Keep {snapshots} snapshots / {days} days",
+    },
+
+    diagnostics: {
+      sourceOnline: "Source node selected",
+      repositoryReady: "Repository selected",
+      permissionsAfterSave: "Path permissions are checked when the task runs",
     },
 
     progress: {
@@ -1168,6 +1275,18 @@ export default {
       hintDetail:
         "Use a local directory on Sync Proxy as backup storage. Must select an online Sync Proxy.",
       selectDirectory: "Select Directory",
+      manualPath: "Repository Path",
+      path: "Path",
+      pathPlaceholder: "Enter an absolute path, e.g. /data/kopia-repo",
+      manualPathHint:
+        "Select a directory from the browser below or enter an absolute path manually.",
+      checkPath: "Check Path",
+      checkingPath: "Checking...",
+      pathCheckSuccess: "Path check passed",
+      pathCheckFailed: "Path check failed",
+      writable: "Writable",
+      notWritable: "Not writable",
+      spaceInfo: "Space",
       goUp: "Go Up",
       noSubdirectories: "No subdirectories",
       useCurrentPath: "Use current path",
@@ -1240,6 +1359,7 @@ export default {
     deleteFailed: "Failed to delete repository",
     updateSuccess: "Repository updated successfully",
     updateFailed: "Failed to update repository",
+    initialized: "Initialized",
     connectivity: "Connectivity",
     reachable: "Reachable",
     responseTime: "Response Time",
@@ -1277,6 +1397,7 @@ export default {
     },
 
     addResource: "Add Source Resource",
+    editResource: "Edit Source Resource",
     allTypes: "All Types",
     allStatus: "All Status",
     noBoundNode: "No bound node",
@@ -1292,9 +1413,43 @@ export default {
 
     status: {
       label: "Status",
+      active: "Active",
+      inactive: "Inactive",
       connected: "Connected",
       disconnected: "Disconnected",
       error: "Error",
+    },
+
+    types: {
+      local: "Local Filesystem",
+      nas: "NAS / SMB / NFS",
+      s3: "S3 Compatible",
+    },
+
+    typeDescriptions: {
+      local: "Read local directories through an Agent or Sync Proxy.",
+      nas: "Access NFS or SMB network shares through a Sync Proxy.",
+      s3: "Read object storage buckets through a Sync Proxy.",
+    },
+
+    wizard: {
+      subtitle:
+        "Define a protected data source and the proxy that can access it.",
+      type: "Type",
+      connection: "Connection",
+      test: "Test",
+      review: "Review",
+      basicInfo: "Basic Information",
+      localPathConfig: "Local Path",
+      nasConfig: "Network Storage",
+      s3Config: "Object Storage",
+      configSummary: "Configuration Summary",
+      testTitle: "Configuration check",
+      testDescription:
+        "This validates required fields before saving. After saving, use Test Connection from the row actions to run the real proxy-side check.",
+      draftCheckPassed: "Required configuration is complete.",
+      draftCheckFailed: "Please complete the required connection fields.",
+      browsePath: "Browse Path",
     },
 
     form: {
@@ -1307,12 +1462,14 @@ export default {
       share: "Share Name",
       endpoint: "Endpoint URL",
       bucket: "Bucket Name",
+      prefix: "Prefix",
       region: "Region",
       accessKey: "Access Key",
       secretKey: "Secret Key",
       username: "Username",
       password: "Password",
       path: "Path",
+      mountOptions: "Mount Options",
     },
   },
 

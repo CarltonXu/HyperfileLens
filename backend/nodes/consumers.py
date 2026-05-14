@@ -83,9 +83,6 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         # Update proxy connection status
         await self.update_proxy_online_status(False)
 
-        # Check for proxy timeout alert
-        await self.check_proxy_timeout_alert()
-
         # Update connection record
         await self.close_connection_record()
 
@@ -125,6 +122,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 'test_connection_result': self.handle_test_connection_result,
                 'test_storage_result': self.handle_test_storage_result,
                 'init_repository_result': self.handle_init_repository_result,
+                'list_directory_result': self.handle_list_directory_result,
             }
 
             handler = handlers.get(message_type)
@@ -176,9 +174,6 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         """
         metrics = data.get('metrics', {})
         await self.update_proxy_heartbeat(metrics)
-
-        # Check for resource alerts
-        await self.check_resource_alerts(metrics)
 
         # Check for pending tasks
         pending_tasks = await self.get_pending_tasks()
@@ -688,6 +683,33 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             }
         )
 
+    async def handle_list_directory_result(self, data):
+        """Handle local directory listing result from a proxy."""
+        payload = data.get('payload', {}) or {}
+        task_id = payload.get('task_id') or data.get('task_id')
+        success = payload.get('success', False)
+        error = payload.get('error') or data.get('error')
+        result = {
+            'path': payload.get('path'),
+            'directories': payload.get('directories') or [],
+        }
+        await self.update_list_directory_result(task_id, success, result, error)
+
+        if task_id:
+            await self.channel_layer.group_send(
+                f'task_{task_id}',
+                {
+                    'type': 'task_result',
+                    'data': {
+                        'task_id': task_id,
+                        'task_type': 'list_directory',
+                        'success': success,
+                        'result': result,
+                        'error': error,
+                    }
+                }
+            )
+
     # Send methods for group broadcasts
     async def proxy_message(self, event):
         """Handler for proxy message events."""
@@ -972,6 +994,10 @@ class ProxyConsumer(AsyncWebsocketConsumer):
     def create_proxy_alert(self, payload):
         """Create an alert record from a proxy-originated alert message."""
         from .models import ProxyNode, ProxyTask
+        legacy_metric_alerts = {'cpu_high', 'memory_high', 'disk_high'}
+        if payload.get('alert_type') in legacy_metric_alerts:
+            return
+
         try:
             proxy = ProxyNode.objects.get(id=self.proxy_id)
         except ProxyNode.DoesNotExist:
@@ -1244,6 +1270,29 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             logger.warning(f"[Storage Test] Repository not found: {repository_id}")
         except Exception as e:
             logger.error(f"[Storage Test] Error updating result: {e}")
+
+    @sync_to_async
+    def update_list_directory_result(self, task_id, success, result, error):
+        """Update proxy task with local directory listing result."""
+        from .models import ProxyTask
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not task_id:
+            return
+
+        try:
+            task = ProxyTask.objects.filter(id=task_id).first()
+            if not task:
+                logger.warning(f"[Directory List] Task not found: {task_id}")
+                return
+
+            if success:
+                task.complete(result or {})
+            else:
+                task.fail(error or 'Directory listing failed')
+        except Exception as e:
+            logger.error(f"[Directory List] Error updating result: {e}")
 
     @sync_to_async
     def update_repository_init_result(self, repository_id, task_id, success, error, result=None):

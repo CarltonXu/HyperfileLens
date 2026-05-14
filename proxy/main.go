@@ -6,14 +6,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/hyperfilelens/proxy/agent"
 	"github.com/hyperfilelens/proxy/config"
 	"github.com/hyperfilelens/proxy/kopia"
 	"github.com/hyperfilelens/proxy/logger"
-	"github.com/hyperfilelens/proxy/message"
 	"github.com/hyperfilelens/proxy/monitor"
 	"github.com/hyperfilelens/proxy/mount"
 	"github.com/hyperfilelens/proxy/task"
@@ -135,49 +133,7 @@ func main() {
 	mountMgr := mount.NewManager()
 	var wsClient *ws.Client
 
-	// Initialize alert manager
-	alertManager := monitor.NewAlertManager(metrics)
-	// Configure alert callback to use logger
-	alertManager.AddCallback(func(alert *monitor.Alert) {
-		fields := map[string]interface{}{
-			"type":      string(alert.Type),
-			"severity":  string(alert.Severity),
-			"message":   alert.Message,
-			"value":     alert.Value,
-			"threshold": alert.Threshold,
-		}
-		if alert.TaskID != "" {
-			fields["task_id"] = alert.TaskID
-		}
-		if wsClient != nil && wsClient.IsConnected() {
-			_ = wsClient.Send(ws.Message{
-				Type: message.MsgTypeAlert,
-				Payload: map[string]interface{}{
-					"alert_type": string(alert.Type),
-					"severity":   string(alert.Severity),
-					"title":      alert.Message,
-					"message":    alert.Message,
-					"value":      alert.Value,
-					"threshold":  alert.Threshold,
-					"task_id":    alert.TaskID,
-					"timestamp":  time.Now().Format(time.RFC3339),
-				},
-			})
-		}
-
-		switch alert.Severity {
-		case monitor.SeverityCritical:
-			logger.Error("Alert triggered", fields)
-		case monitor.SeverityWarning:
-			logger.Warn("Alert triggered", fields)
-		default:
-			logger.Info("Alert triggered", fields)
-		}
-	})
-	logger.Info("Alert manager initialized", nil)
-
-	// Start periodic metrics checking for alerts
-	go startMetricsChecker(alertManager, metrics, stopCh)
+	logger.Info("Proxy-side metric alerting disabled; control plane policies evaluate alerts", nil)
 
 	// Check Kopia installation
 	if !kopiaClient.CheckInstalled() {
@@ -262,20 +218,4 @@ func printBanner(cfg *config.Config) {
 	fmt.Printf("║  Server:  %-30s ║\n", cfg.Server.URL)
 	fmt.Println("╚══════════════════════════════════════════╝")
 	fmt.Println()
-}
-
-// startMetricsChecker periodically checks metrics and triggers alerts
-func startMetricsChecker(alertManager *monitor.AlertManager, metrics *monitor.Collector, stopCh <-chan struct{}) {
-	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			currentMetrics := metrics.GetCurrent()
-			alertManager.CheckMetrics(currentMetrics)
-		case <-stopCh:
-			return
-		}
-	}
 }

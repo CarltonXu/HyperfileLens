@@ -9,7 +9,7 @@
 
 export type ResourceType = 'nas' | 'nfs' | 'cifs' | 's3' | 'azure' | 'gcs' | 'local'
 export type MountStatus = 'mounted' | 'unmounted' | 'mounting' | 'error'
-export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'unknown'
+export type ConnectionStatus = 'active' | 'inactive' | 'connected' | 'disconnected' | 'error' | 'unknown'
 
 export interface SourceResource {
   id: string
@@ -36,6 +36,8 @@ export interface SourceResource {
     region?: string
     
     // Local (empty config)
+    root_path?: string
+    path?: string
   }
   
   // Credentials (encrypted, only returned when needed)

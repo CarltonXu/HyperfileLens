@@ -28,6 +28,7 @@ import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import Pagination from "@/components/Pagination.vue";
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
+import SourceResourceWizard from "@/components/SourceResourceWizard.vue";
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -70,6 +71,7 @@ const showCreateModal = ref(false);
 const showDetailModal = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
+const showResourceWizard = ref(false);
 const selectedResource = ref<SourceResource | null>(null);
 
 // Form data
@@ -233,7 +235,21 @@ const fetchData = async () => {
       sourceResourcesApi.stats(),
       nodesApi.list({ page_size: 100 }),
     ]);
-    resources.value = resourcesRes.data.results || resourcesRes.data;
+    const rawResources = resourcesRes.data.results || resourcesRes.data;
+    resources.value = rawResources.map((resource: any) => ({
+      ...resource,
+      bound_node:
+        resource.bound_node && typeof resource.bound_node === "object"
+          ? resource.bound_node
+          : resource.bound_node
+            ? {
+                id: resource.bound_node,
+                name: resource.bound_node_name || resource.bound_node,
+                hostname: "",
+                status: resource.bound_node_status || "",
+              }
+            : null,
+    }));
     stats.value = statsRes.data;
     nodes.value = nodesRes.data.results || nodesRes.data;
   } catch (e: any) {
@@ -262,6 +278,7 @@ const getResourceIcon = (type: ResourceType) => {
 };
 
 const openCreateModal = () => {
+  selectedResource.value = null;
   formData.value = {
     name: "",
     description: "",
@@ -270,7 +287,7 @@ const openCreateModal = () => {
     credentials: {},
     bound_node_id: null,
   };
-  showCreateModal.value = true;
+  showResourceWizard.value = true;
 };
 
 const openDetailModal = (resource: SourceResource) => {
@@ -288,7 +305,7 @@ const openEditModal = (resource: SourceResource) => {
     credentials: resource.credentials || {},
     bound_node_id: resource.bound_node?.id || null,
   };
-  showEditModal.value = true;
+  showResourceWizard.value = true;
 };
 
 const openDeleteModal = (resource: SourceResource) => {
@@ -303,6 +320,28 @@ const createResource = async () => {
     fetchData();
   } catch (e: any) {
     error.value = getApiErrorMessage(e, t("common.createFailed"));
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: error.value,
+    });
+  }
+};
+
+const saveResourceFromWizard = async (payload: Record<string, any>) => {
+  try {
+    if (selectedResource.value) {
+      await sourceResourcesApi.update(selectedResource.value.id, payload);
+      appStore.success(t("common.save"));
+    } else {
+      await sourceResourcesApi.create(payload);
+      appStore.success(t("common.create"));
+    }
+    showResourceWizard.value = false;
+    selectedResource.value = null;
+    fetchData();
+  } catch (e: any) {
+    error.value = getApiErrorMessage(e, t("common.saveFailed"));
     appStore.showToast({
       type: "error",
       title: t("common.error"),
@@ -341,9 +380,14 @@ const deleteResource = async () => {
 const testConnection = async (resource: SourceResource) => {
   try {
     const res = await sourceResourcesApi.testConnection(resource.id);
-    alert(res.data.success ? t("common.success") : res.data.message);
+    if (res.data.success) {
+      appStore.success(res.data.message || t("sourceResources.wizard.draftCheckPassed"));
+    } else {
+      appStore.error(res.data.message || t("sourceResources.wizard.draftCheckFailed"));
+    }
+    fetchData();
   } catch (e: any) {
-    alert(t("common.error") + ": " + e.message);
+    appStore.error(getApiErrorMessage(e, t("sourceResources.wizard.draftCheckFailed")));
   }
 };
 
@@ -378,7 +422,7 @@ onMounted(fetchData);
           {{ t("sourceResources.stats.total") }}
         </p>
         <p class="text-xl font-bold text-foreground mt-1">
-          {{ stats?.total_resources || 0 }}
+          {{ stats?.total_resources || (stats as any)?.total || 0 }}
         </p>
       </div>
       <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
@@ -386,7 +430,7 @@ onMounted(fetchData);
           {{ t("sourceResources.stats.active") }}
         </p>
         <p class="text-xl font-bold text-emerald-600 mt-1">
-          {{ stats?.active_resources || 0 }}
+          {{ stats?.active_resources || (stats as any)?.active || 0 }}
         </p>
       </div>
       <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
@@ -394,7 +438,7 @@ onMounted(fetchData);
           {{ t("sourceResources.stats.mounted") }}
         </p>
         <p class="text-xl font-bold text-indigo-600 mt-1">
-          {{ stats?.mounted_resources || 0 }}
+          {{ stats?.mounted_resources || (stats as any)?.mounted || 0 }}
         </p>
       </div>
       <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
@@ -402,7 +446,7 @@ onMounted(fetchData);
           {{ t("sourceResources.stats.error") }}
         </p>
         <p class="text-xl font-bold text-red-600 mt-1">
-          {{ stats?.error_resources || 0 }}
+          {{ stats?.error_resources || (stats as any)?.error || 0 }}
         </p>
       </div>
     </div>
@@ -444,11 +488,11 @@ onMounted(fetchData);
           <option class="bg-background" value="">
             {{ t("sourceResources.allStatus") }}
           </option>
-          <option class="bg-background" value="connected">
-            {{ t("sourceResources.status.connected") }}
+          <option class="bg-background" value="active">
+            {{ t("sourceResources.status.active") }}
           </option>
-          <option class="bg-background" value="disconnected">
-            {{ t("sourceResources.status.disconnected") }}
+          <option class="bg-background" value="inactive">
+            {{ t("sourceResources.status.inactive") }}
           </option>
           <option class="bg-background" value="error">
             {{ t("sourceResources.status.error") }}
@@ -532,7 +576,7 @@ onMounted(fetchData);
               <div
                 class="w-10 h-10 rounded-lg flex items-center justify-center"
                 :class="[
-                  resource.status === 'connected'
+                  resource.status === 'active'
                     ? 'bg-emerald-100'
                     : resource.status === 'error'
                       ? 'bg-red-100'
@@ -543,7 +587,7 @@ onMounted(fetchData);
                   :is="getResourceIcon(resource.resource_type)"
                   :class="[
                     'w-5 h-5',
-                    resource.status === 'connected'
+                    resource.status === 'active'
                       ? 'text-emerald-600'
                       : resource.status === 'error'
                         ? 'text-red-600'
@@ -564,7 +608,7 @@ onMounted(fetchData);
               <span
                 :class="[
                   'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full',
-                  resource.status === 'connected'
+                  resource.status === 'active'
                     ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
                     : resource.status === 'error'
                       ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
@@ -748,7 +792,7 @@ onMounted(fetchData);
                 <span
                   :class="[
                     'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full',
-                    resource.status === 'connected'
+                    resource.status === 'active'
                       ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
                       : resource.status === 'error'
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
@@ -833,6 +877,17 @@ onMounted(fetchData);
       v-model:current-page="currentPage"
       v-model:page-size="pageSize"
       :total-items="filteredResources.length"
+    />
+
+    <SourceResourceWizard
+      v-if="showResourceWizard"
+      :nodes="nodes"
+      :model-value="selectedResource"
+      @close="
+        showResourceWizard = false;
+        selectedResource = null;
+      "
+      @save="saveResourceFromWizard"
     />
 
     <!-- Create Modal -->
@@ -1086,7 +1141,7 @@ onMounted(fetchData);
                 <span
                   :class="[
                     'text-sm font-medium',
-                    selectedResource.status === 'connected'
+                    selectedResource.status === 'active'
                       ? 'text-emerald-600'
                       : selectedResource.status === 'error'
                         ? 'text-red-600'

@@ -30,6 +30,32 @@ class AlertManager:
             severity = AlertSeverity.CRITICAL
 
         fingerprint = f"compat:{source}:{alert_type}:{entity_type}:{entity_id}:{title}"
+        active_alert = AlertRecord.objects.filter(
+            fingerprint=fingerprint,
+            status__in=[AlertStatus.PENDING, AlertStatus.FIRING, AlertStatus.ACKNOWLEDGED],
+        ).first()
+        if active_alert:
+            active_alert.status = AlertStatus.FIRING
+            active_alert.severity = severity if severity in AlertSeverity.values else AlertSeverity.WARNING
+            active_alert.title = title
+            active_alert.message = message
+            active_alert.current_value = metric_value
+            active_alert.threshold_value = threshold_value
+            active_alert.metadata = {**(details or {}), "alert_type": str(alert_type), "source": source}
+            active_alert.last_triggered_at = now
+            active_alert.save(update_fields=[
+                "status",
+                "severity",
+                "title",
+                "message",
+                "current_value",
+                "threshold_value",
+                "metadata",
+                "last_triggered_at",
+                "updated_at",
+            ])
+            return active_alert
+
         return AlertRecord.objects.create(
             policy_id=None,
             type="event" if source not in {"repository", "proxy"} else "metric",
@@ -89,36 +115,28 @@ class AlertManager:
         return self.check_node_offline(proxy)
 
     def check_node_timeout(self, node):
-        return self.create_alert(
-            alert_type="node_timeout",
-            severity=AlertSeverity.WARNING,
-            title=f"Proxy Heartbeat Timeout: {getattr(node, 'name', '')}",
-            message="Proxy heartbeat timed out",
-            entity_type="nodes.ProxyNode",
-            entity_id=str(getattr(node, "id", "")),
-            entity_name=getattr(node, "name", ""),
-            source="proxy",
-        )
+        """
+        Legacy heartbeat timeout hook.
+
+        Proxy availability is evaluated by user-configured Availability Alert
+        policies. Creating policy-less heartbeat alerts here duplicates the
+        policy engine and bypasses user thresholds/channels.
+        """
+        return None
 
     def check_proxy_timeout(self, proxy):
         return self.check_node_timeout(proxy)
 
     def check_resource_alerts(self, node, metrics):
-        for key, threshold in [("cpu_usage", 95), ("memory_usage", 95), ("disk_usage", 95)]:
-            value = (metrics or {}).get(key)
-            if value is not None and value >= threshold:
-                self.create_alert(
-                    alert_type=f"{key}_high",
-                    severity=AlertSeverity.CRITICAL,
-                    title=f"{key} high on {getattr(node, 'name', '')}",
-                    message=f"{key} is {value}",
-                    entity_type="nodes.ProxyNode",
-                    entity_id=str(getattr(node, "id", "")),
-                    entity_name=getattr(node, "name", ""),
-                    metric_value=value,
-                    threshold_value=threshold,
-                    source="proxy",
-                )
+        """
+        Legacy metric threshold hook.
+
+        Metric alerts are now evaluated exclusively by AlertPolicy through
+        alerts.services.metric_evaluator. Keeping hardcoded defaults here would
+        create policy-less alerts such as cpu_usage >= 95% even when no user
+        policy exists.
+        """
+        return None
 
     def check_error_rate(self, node, error_rate):
         if error_rate:

@@ -7,9 +7,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
+import time
 
 from licenses.quota import QuotaCheckMixin
 from audit_log.services import AuditService
+from nodes.models import ProxyTask
+from nodes.proxy_service import ProxyService
 from .models import SourceResource
 from .serializers import (
     SourceResourceSerializer,
@@ -108,30 +111,56 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Check if node is online
-        if resource.bound_node.status != 'active':
+        if resource.bound_node.status != resource.bound_node.NodeStatus.ONLINE:
             return Response({
                 'success': False,
-                'message': f'Bound node "{resource.bound_node.name}" is not active.',
+                'message': f'Bound node "{resource.bound_node.name}" is not online.',
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # TODO: In production, send WebSocket command to node
-        # For now, simulate a successful connection test
+        result_response, response_status = self._run_storage_test(
+            resource.bound_node,
+            resource.resource_type,
+            resource.config or {},
+            resource.credentials or {},
+            resource_id=str(resource.id),
+        )
+
         resource.last_connection_test = timezone.now()
-        resource.connection_test_result = 'Connection successful'
-        resource.status = SourceResource.STATUS_ACTIVE
-        resource.status_message = 'Connection test passed'
+        resource.connection_test_result = result_response.get('message') or result_response.get('error') or ''
+        resource.status = SourceResource.STATUS_ACTIVE if result_response.get('success') else SourceResource.STATUS_ERROR
+        resource.status_message = resource.connection_test_result
+        details = result_response.get('details') or {}
+        if details.get('space_info'):
+            resource.total_size = details['space_info'].get('total_bytes') or resource.total_size
         resource.save()
-        
-        return Response({
-            'success': True,
-            'message': 'Connection test successful',
-            'details': {
-                'resource_name': resource.name,
-                'resource_type': resource.resource_type,
-                'bound_node': resource.bound_node.name,
-                'tested_at': resource.last_connection_test.isoformat(),
-            }
-        })
+
+        return Response(result_response, status=response_status)
+
+    @action(detail=False, methods=['post'], url_path='test-draft')
+    def test_draft(self, request):
+        """Test a source resource draft before it is saved."""
+        from nodes.models import Node
+
+        node_id = request.data.get('bound_node') or request.data.get('bound_node_id')
+        resource_type = request.data.get('resource_type')
+        config = request.data.get('config') or {}
+        credentials = request.data.get('credentials') or {}
+
+        if not node_id:
+            return Response({'success': False, 'message': 'bound_node is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not resource_type:
+            return Response({'success': False, 'message': 'resource_type is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            node = Node.objects.get(id=node_id)
+        except Node.DoesNotExist:
+            return Response({'success': False, 'message': 'Node not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if node.status != node.NodeStatus.ONLINE:
+            return Response({'success': False, 'message': f'Node "{node.name}" is not online.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result_response, response_status = self._run_storage_test(node, resource_type, config, credentials)
+        return Response(result_response, status=response_status)
     
     @action(detail=True, methods=['post'])
     def mount(self, request, pk=None):
@@ -219,7 +248,7 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         if node.status != Node.NodeStatus.ONLINE:
             return Response({
                 'success': False,
-                'message': f'Node "{node.name}" is not active.',
+                'message': f'Node "{node.name}" is not online.',
             }, status=status.HTTP_400_BAD_REQUEST)
         
         resource.bound_node = node
@@ -274,15 +303,121 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'message': 'No bound node configured.',
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # TODO: Send WebSocket command to node to scan
-        # For now, return simulated data
+        path = request.query_params.get('path')
+        if not path:
+            if resource.resource_type == SourceResource.TYPE_LOCAL:
+                path = (resource.config or {}).get('root_path') or (resource.config or {}).get('path') or '/'
+            else:
+                path = resource.mount_point or '/'
+
+        task = ProxyTask.objects.create(
+            proxy=resource.bound_node,
+            task_type=ProxyTask.TaskType.VERIFY,
+            parameters={'operation': 'source_scan', 'source_resource_id': str(resource.id), 'path': path},
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=30,
+        )
+        task.dispatch()
+        ProxyService.send_list_directory_command(str(resource.bound_node.id), path, task_id=str(task.id))
+
+        task = self._wait_for_proxy_task(task, timeout=8)
+        if task.status == ProxyTask.TaskStatus.COMPLETED:
+            result = task.result or {}
+            return Response({
+                'success': True,
+                'path': result.get('path') or path,
+                'entries': result.get('directories') or [],
+                'directories': result.get('directories') or [],
+                'task_id': str(task.id),
+            })
+
         return Response({
-            'success': True,
-            'path': resource.mount_point or '/',
-            'entries': [
-                {'name': 'documents', 'type': 'directory', 'size': 0},
-                {'name': 'projects', 'type': 'directory', 'size': 0},
-                {'name': 'databases', 'type': 'directory', 'size': 0},
-                {'name': 'readme.txt', 'type': 'file', 'size': 1024},
-            ]
-        })
+            'success': False,
+            'message': task.error_message or 'Source scan timed out.',
+            'task_id': str(task.id),
+        }, status=status.HTTP_400_BAD_REQUEST if task.status == ProxyTask.TaskStatus.FAILED else status.HTTP_504_GATEWAY_TIMEOUT)
+
+    def _run_storage_test(self, node, resource_type, config, credentials, resource_id=None):
+        storage_type, storage_config = self._storage_config(resource_type, config, credentials)
+        task = ProxyTask.objects.create(
+            proxy=node,
+            task_type=ProxyTask.TaskType.TEST_STORAGE,
+            parameters={
+                'operation': 'source_resource_test',
+                'source_resource_id': resource_id,
+                'storage_type': storage_type,
+                'storage_config': storage_config,
+            },
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=60,
+        )
+        task.dispatch()
+        ProxyService.send_test_storage_command(
+            proxy_id=str(node.id),
+            repository_id='',
+            storage_type=storage_type,
+            storage_config=storage_config,
+            test_write=False,
+            task_id=str(task.id),
+        )
+
+        task = self._wait_for_proxy_task(task, timeout=15)
+        if task.status == ProxyTask.TaskStatus.COMPLETED:
+            result = task.result or {}
+            return {
+                'success': result.get('success', True),
+                'message': result.get('message') or 'Connection test successful',
+                'details': result,
+                'task_id': str(task.id),
+            }, status.HTTP_200_OK
+
+        return {
+            'success': False,
+            'message': task.error_message or 'Connection test failed',
+            'error': task.error_message,
+            'task_id': str(task.id),
+        }, status.HTTP_400_BAD_REQUEST if task.status == ProxyTask.TaskStatus.FAILED else status.HTTP_504_GATEWAY_TIMEOUT
+
+    def _storage_config(self, resource_type, config, credentials):
+        if resource_type == SourceResource.TYPE_LOCAL:
+            return 'local', {'path': config.get('root_path') or config.get('path') or '/'}
+        if resource_type in (SourceResource.TYPE_NAS, SourceResource.TYPE_NFS):
+            return 'nas', {
+                'server': config.get('server', ''),
+                'path': config.get('export_path') or config.get('share') or '',
+                'mount_type': config.get('protocol') or 'nfs',
+                'mount_options': config.get('mount_options', ''),
+            }
+        if resource_type == SourceResource.TYPE_CIFS:
+            return 'smb', {
+                'server': config.get('server', ''),
+                'share': config.get('share', ''),
+                'username': credentials.get('username', ''),
+                'password': credentials.get('password', ''),
+                'mount_options': config.get('mount_options', ''),
+            }
+        if resource_type == SourceResource.TYPE_S3:
+            return 's3', {
+                'endpoint': config.get('endpoint', ''),
+                'bucket': config.get('bucket', ''),
+                'region': config.get('region') or 'us-east-1',
+                'access_key': credentials.get('access_key', ''),
+                'secret_key': credentials.get('secret_key', ''),
+            }
+        return resource_type, config
+
+    def _wait_for_proxy_task(self, task, timeout=10):
+        deadline = time.monotonic() + timeout
+        terminal_statuses = {
+            ProxyTask.TaskStatus.COMPLETED,
+            ProxyTask.TaskStatus.FAILED,
+            ProxyTask.TaskStatus.CANCELLED,
+            ProxyTask.TaskStatus.TIMEOUT,
+        }
+        while time.monotonic() < deadline:
+            task.refresh_from_db()
+            if task.status in terminal_statuses:
+                return task
+            time.sleep(0.2)
+        task.refresh_from_db()
+        return task

@@ -231,6 +231,31 @@ class ProxyService:
         )
 
         return task_id
+
+    @staticmethod
+    def send_list_directory_command(
+        proxy_id: str,
+        path: str,
+        task_id: Optional[str] = None
+    ) -> str:
+        """Send a local directory listing command to a Sync Proxy."""
+        task_id = task_id or str(uuid.uuid4())
+        message = {
+            'type': 'list_directory',
+            'id': str(uuid.uuid4()),
+            'payload': {
+                'task_id': task_id,
+                'path': path or '/',
+                'timestamp': timezone.now().isoformat(),
+            }
+        }
+
+        ProxyService.send_to_proxy(proxy_id, message)
+        logger.info(
+            f"[ProxyService] Sent list_directory command to proxy {proxy_id}: "
+            f"path={path}, task_id={task_id}"
+        )
+        return task_id
     
     @staticmethod
     def send_init_repository_command(

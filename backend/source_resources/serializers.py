@@ -76,8 +76,8 @@ class SourceResourceListSerializer(serializers.ModelSerializer):
         model = SourceResource
         fields = [
             'id', 'name', 'description', 'resource_type', 'resource_type_display',
-            'bound_node', 'bound_node_name',
-            'mount_status', 'status', 'status_display',
+            'config', 'bound_node', 'bound_node_name', 'bound_node_status',
+            'mount_status', 'mount_point', 'status', 'status_display',
             'total_size', 'file_count',
             'last_connection_test', 'created_at'
         ]

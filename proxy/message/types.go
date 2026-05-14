@@ -46,6 +46,7 @@ const (
 	MsgTypeCancel         = "cancel"
 	MsgTypeTestStorage    = "test_storage"
 	MsgTypeInitRepository = "init_repository"
+	MsgTypeListDirectory  = "list_directory"
 
 	// ==================== Task Status (Proxy -> Backend) ====================
 	// Unified task status messages
@@ -65,6 +66,7 @@ const (
 	MsgTypeTestConnectionResult = "test_connection_result"
 	MsgTypeTestStorageResult    = "test_storage_result"
 	MsgTypeInitRepositoryResult = "init_repository_result"
+	MsgTypeListDirectoryResult  = "list_directory_result"
 
 	// ==================== System Messages (Proxy -> Backend) ====================
 	MsgTypeLog    = "log"

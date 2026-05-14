@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { backupTasksApi, nodesApi, repositoriesApi } from "@/api";
+import {
+  backupTasksApi,
+  nodesApi,
+  policiesApi,
+  repositoriesApi,
+  sourceResourcesApi,
+} from "@/api";
 import { useAppStore } from "@/stores/app";
 import { getApiErrorMessage } from "@/utils/errors";
 import type {
@@ -11,8 +17,10 @@ import type {
 } from "@/types/backup";
 import type { ProxyNode } from "@/types/proxy";
 import type { Repository } from "@/types/repository";
+import type { SourceResource } from "@/types/sourceResource";
 import { usePagination } from "@/composables/usePagination";
 import Pagination from "@/components/Pagination.vue";
+import BackupTaskWizard from "@/components/BackupTaskWizard.vue";
 import {
   CloudArrowUpIcon,
   PlusIcon,
@@ -38,6 +46,8 @@ const tasks = ref<BackupTask[]>([]);
 const stats = ref<BackupTaskStats | null>(null);
 const nodes = ref<ProxyNode[]>([]);
 const repositories = ref<Repository[]>([]);
+const sourceResources = ref<SourceResource[]>([]);
+const backupPolicies = ref<Array<Record<string, any>>>([]);
 const showCreateModal = ref(false);
 const showDetailModal = ref(false);
 const selectedTask = ref<BackupTask | null>(null);
@@ -55,18 +65,14 @@ watch(pageSize, (newSize) => {
 
 const newTask = ref<BackupTaskCreateData>({
   name: "",
-  node: 0,
-  repository: 0,
-  source_path: "",
-  paths: [],
-  backup_type: "full",
-  task_type: "manual",
-  schedule_type: "once",
+  source_resource: "",
+  target_repository: "",
+  backup_paths: [],
+  task_type: "incremental",
   priority: "normal",
   retention_days: 30,
   compression_enabled: true,
-  encryption_enabled: false,
-  metadata: {},
+  encryption_enabled: true,
 });
 
 const taskStats = computed(
@@ -77,10 +83,16 @@ const taskStats = computed(
       running_tasks: 0,
       completed_tasks: 0,
       failed_tasks: 0,
+      total_size: 0,
       total_size_bytes: 0,
       total_files: 0,
     },
 );
+
+const totalBackupSize = computed(() => {
+  const value = taskStats.value as BackupTaskStats;
+  return value.total_size || value.total_size_bytes || 0;
+});
 
 const filteredTasks = computed(() => {
   let result = tasks.value;
@@ -129,14 +141,18 @@ async function fetchStats() {
 
 async function fetchNodesAndRepos() {
   try {
-    const [nodesRes, reposRes] = await Promise.all([
+    const [nodesRes, reposRes, sourcesRes, policiesRes] = await Promise.all([
       nodesApi.list({ page_size: 100 }),
       repositoriesApi.list({ page_size: 100 }),
+      sourceResourcesApi.list({ page_size: 100 }),
+      policiesApi.list({ page_size: 100, is_active: true }),
     ]);
     nodes.value = nodesRes.data.results || nodesRes.data;
     repositories.value = reposRes.data.results || reposRes.data;
+    sourceResources.value = sourcesRes.data.results || sourcesRes.data;
+    backupPolicies.value = policiesRes.data.results || policiesRes.data;
   } catch (error) {
-    console.error("Failed to fetch nodes/repos:", error);
+    console.error("Failed to fetch nodes/repos/source resources:", error);
   }
 }
 
@@ -165,18 +181,14 @@ async function createTask() {
     showCreateModal.value = false;
     newTask.value = {
       name: "",
-      node: 0,
-      repository: 0,
-      source_path: "",
-      paths: [],
-      backup_type: "full",
-      task_type: "manual",
-      schedule_type: "once",
+      source_resource: "",
+      target_repository: "",
+      backup_paths: [],
+      task_type: "incremental",
       priority: "normal",
       retention_days: 30,
       compression_enabled: true,
-      encryption_enabled: false,
-      metadata: {},
+      encryption_enabled: true,
     };
     await fetchTasks();
     await fetchStats();
@@ -188,6 +200,11 @@ async function createTask() {
       message: getApiErrorMessage(error, t("common.createFailed")),
     });
   }
+}
+
+async function createTaskFromWizard(payload: BackupTaskCreateData) {
+  newTask.value = payload;
+  await createTask();
 }
 
 function formatBytes(bytes: number): string {
@@ -291,8 +308,8 @@ onMounted(() => {
         </p>
         <p class="text-xl font-bold text-pink-800 mt-1">
           {{
-            taskStats.total_size_bytes
-              ? formatBytes(taskStats.total_size_bytes)
+            totalBackupSize
+              ? formatBytes(totalBackupSize)
               : "0 B"
           }}
         </p>
@@ -438,7 +455,7 @@ onMounted(() => {
                     {{ task.name }}
                   </p>
                   <p class="text-xs text-foreground-secondary">
-                    {{ task.node_name || "Node" }}
+                    {{ task.execution_node_name || task.source_resource_name || "Source" }}
                   </p>
                 </div>
               </div>
@@ -534,10 +551,19 @@ onMounted(() => {
       />
     </div>
 
-    <!-- Create Modal -->
+    <BackupTaskWizard
+      v-if="showCreateModal"
+      :sources="sourceResources"
+      :repositories="repositories"
+      :policies="backupPolicies"
+      @close="showCreateModal = false"
+      @save="createTaskFromWizard"
+    />
+
+    <!-- Legacy Create Modal -->
     <Teleport to="body">
       <div
-        v-if="showCreateModal"
+        v-if="false && showCreateModal"
         class="fixed inset-0 z-50 flex items-center justify-center p-4"
       >
         <div
@@ -579,12 +605,12 @@ onMounted(() => {
                   >{{ t("backupTasks.form.sourceNode") }}</label
                 >
                 <select
-                  v-model="newTask.node"
+                  v-model="newTask.source_resource"
                   class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option :value="0">Select</option>
-                  <option v-for="node in nodes" :key="node.id" :value="node.id">
-                    {{ node.name }}
+                  <option v-for="source in sourceResources" :key="source.id" :value="source.id">
+                    {{ source.name }}
                   </option>
                 </select>
               </div>
@@ -594,7 +620,7 @@ onMounted(() => {
                   >{{ t("backupTasks.form.repository") }}</label
                 >
                 <select
-                  v-model="newTask.repository"
+                  v-model="newTask.target_repository"
                   class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option :value="0">Select</option>
@@ -694,7 +720,7 @@ onMounted(() => {
                   {{ t("backupTasks.form.sourceNode") }}
                 </p>
                 <p class="font-medium text-foreground mt-1">
-                  {{ selectedTask.node_name || "N/A" }}
+                  {{ selectedTask.execution_node_name || selectedTask.source_resource_name || "N/A" }}
                 </p>
               </div>
               <div class="bg-background-secondary rounded-lg p-3">
@@ -702,12 +728,12 @@ onMounted(() => {
                   {{ t("backupTasks.form.repository") }}
                 </p>
                 <p class="font-medium text-foreground mt-1">
-                  {{ selectedTask.repository_name || "N/A" }}
+                  {{ selectedTask.target_repository_name || "N/A" }}
                 </p>
               </div>
             </div>
             <div
-              v-if="selectedTask.paths?.length"
+              v-if="selectedTask.backup_paths?.length"
               class="bg-background-secondary rounded-lg p-3"
             >
               <p class="text-sm text-slate-500 mb-2">
@@ -715,7 +741,7 @@ onMounted(() => {
               </p>
               <div class="space-y-1">
                 <p
-                  v-for="(path, i) in selectedTask.paths"
+                  v-for="(path, i) in selectedTask.backup_paths"
                   :key="i"
                   class="text-sm font-mono text-foreground bg-card px-2 py-1 rounded border border-border"
                 >
