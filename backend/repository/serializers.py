@@ -392,6 +392,28 @@ class RepositoryInitSerializer(serializers.Serializer):
         return data
 
 
+class RepositoryPasswordSerializer(serializers.Serializer):
+    """Serializer for saving/updating a Kopia repository password."""
+
+    encryption_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        help_text="Kopia repository encryption password"
+    )
+    confirm_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        help_text="Confirm Kopia repository encryption password"
+    )
+
+    def validate(self, data):
+        if data['encryption_password'] != data['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match.")
+        if len(data['encryption_password']) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters.")
+        return data
+
+
 class ConnectionTestSerializer(serializers.Serializer):
     """Serializer for connection test request."""
     pass

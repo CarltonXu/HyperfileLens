@@ -299,6 +299,10 @@ export const taskManagementApi = {
 
   detail: (id: number | string) => api.get(`/api/v1/tasks/${id}/`),
 
+  cancelTask: (id: number | string, data?: { reason?: string }) =>
+    api.post(`/api/v1/tasks/${id}/cancel/`, data || {}),
+
+  /** @deprecated Use cancelTask instead. */
   cancelProxyTask: (id: number | string) =>
     api.post(`/api/v1/tasks/${id}/cancel/`),
 };
@@ -384,7 +388,8 @@ export const backupTasksApi = {
   update: (id: number | string, data: any) =>
     api.patch(`/api/v1/backup-tasks/tasks/${id}/`, data),
 
-  delete: (id: number | string) => api.delete(`/api/v1/backup-tasks/tasks/${id}/`),
+  delete: (id: number | string) =>
+    api.delete(`/api/v1/backup-tasks/tasks/${id}/`),
 
   stats: () => api.get("/api/v1/backup-tasks/tasks/statistics/"),
 
@@ -393,6 +398,18 @@ export const backupTasksApi = {
 
   cancel: (id: number | string) =>
     api.post(`/api/v1/backup-tasks/tasks/${id}/cancel/`),
+
+  enable: (id: number | string) =>
+    api.post(`/api/v1/backup-tasks/tasks/${id}/enable/`),
+
+  disable: (id: number | string) =>
+    api.post(`/api/v1/backup-tasks/tasks/${id}/disable/`),
+
+  snapshots: (id: number | string) =>
+    api.get(`/api/v1/backup-tasks/tasks/${id}/snapshots/`),
+
+  runs: (id: number | string, params?: { page?: number; page_size?: number }) =>
+    api.get(`/api/v1/backup-tasks/tasks/${id}/runs/`, { params }),
 
   listSnapshots: (params?: {
     node?: number;
@@ -511,6 +528,11 @@ export const repositoriesApi = {
     id: number | string,
     data: { encryption_password: string; confirm_password: string },
   ) => api.post(`/api/v1/repositories/${id}/initialize/`, data),
+
+  saveKopiaPassword: (
+    id: number | string,
+    data: { encryption_password: string; confirm_password: string },
+  ) => api.post(`/api/v1/repositories/${id}/password/`, data),
 
   bindNode: (id: number | string, nodeId: number | string) =>
     api.post(`/api/v1/repositories/${id}/bind-node/`, { node_id: nodeId }),

@@ -918,6 +918,21 @@ export default {
     title: "Backup Tasks",
     subtitle: "Manage backup operations",
     createTask: "Create Backup Task",
+    enabled: "Enabled",
+    disabled: "Disabled",
+    lastBackup: "Last Backup",
+    nextBackup: "Next Backup",
+    backupSource: "Backup Source",
+    backupRepository: "Backup Repository",
+    snapshots: "Snapshots",
+    noSnapshots: "No snapshots yet",
+    noRuns: "No task runs yet",
+
+    tabs: {
+      overview: "Overview",
+      snapshots: "Snapshots",
+      tasks: "Task Runs",
+    },
 
     types: {
       full: "Full Backup",
@@ -1064,14 +1079,59 @@ export default {
       warnings: "Warnings",
     },
 
+    detail: {
+      basic: "Basic Information",
+      scheduleRetention: "Schedule & Retention",
+      securityCompression: "Security & Compression",
+      pathsAndFilters: "Paths & Filters",
+      observability: "Observability",
+      boundNode: "Bound Node",
+      createdUpdated: "Created / Updated",
+      retries: "Retries",
+      encryption: "Encryption",
+      checksum: "Checksum",
+      compression: "Compression",
+      compressionLevel: "Compression Level",
+      checkpoint: "Checkpoint",
+      concurrency: "Concurrency",
+      includePatterns: "Include Patterns",
+      fileBrowser: "File Browser",
+      selectSnapshot: "Select a snapshot to browse its files.",
+      noSnapshotFiles: "No file records are available for this snapshot yet.",
+      urlStyle: "URL Style",
+      useTls: "Use TLS",
+      latest: "Latest",
+      snapshotId: "Snapshot ID",
+      expiresAt: "Expires At",
+      autoRefresh: "Auto refresh",
+    },
+
+    edit: {
+      title: "Edit Backup Task",
+      subtitle:
+        "Update task configuration. Source resource and target repository are read-only for existing tasks.",
+      readonlyHint:
+        "To change the source resource or repository, create a new backup task so historical snapshots remain traceable.",
+      onePerLine: "Enter one path or pattern per line.",
+      bandwidthLimit: "Bandwidth Limit (KB/s)",
+      requiredFields: "Task name and at least one source path are required.",
+      runningReadonly: "Running backup tasks cannot be edited.",
+      updateSuccess: "Backup task updated successfully",
+    },
+
     actions: {
       viewDetails: "View Details",
       start: "Start",
+      runNow: "Run Now",
+      enable: "Enable Task",
+      disable: "Disable Task",
       pause: "Pause",
       resume: "Resume",
       cancel: "Cancel",
       retry: "Retry",
       delete: "Delete",
+      deleteConfirm:
+        'Delete backup task "{name}"? This action cannot be undone.',
       viewLogs: "View Logs",
     },
 
@@ -1311,6 +1371,9 @@ export default {
     kopiaInitialized: "Kopia Initialized",
     kopiaInitializationStarted: "Kopia initialization command sent",
     kopiaInitFailed: "Kopia initialization failed",
+    saveKopiaPassword: "Save Kopia Password",
+    kopiaPasswordSaved: "Kopia repository password saved",
+    kopiaPasswordSaveFailed: "Failed to save Kopia repository password",
     kopiaNotInitialized: "Kopia Not Initialized",
 
     empty: {
@@ -1405,6 +1468,8 @@ export default {
     testConnection: "Test Connection",
     mountStatus: "Mount Status",
     mountPoint: "Mount Point",
+    connection: "Connection",
+    capacity: "Capacity",
     boundNode: "Bound Node",
     noResources: "No source resources",
     noResourcesDesc: "Add a source resource to start backing up data",
@@ -1452,6 +1517,31 @@ export default {
       browsePath: "Browse Path",
     },
 
+    testResult: {
+      taskId: "Task ID",
+      storageType: "Storage Type",
+      repositoryId: "Repository ID",
+      proxyResult: "Proxy Result",
+      totalSpace: "Total Space",
+      usedSpace: "Used Space",
+      freeSpace: "Free Space",
+      rawDetails: "Raw Details",
+    },
+
+    details: {
+      connectionConfig: "Connection Configuration",
+      boundNode: "Bound Node",
+      statistics: "Statistics",
+      runtime: "Runtime",
+      totalSize: "Total Size",
+      usedSize: "Used Size",
+      freeSize: "Free Size",
+      usage: "Usage",
+      fileCount: "File Count",
+      statusMessage: "Status Message",
+      mountError: "Mount Error",
+    },
+
     form: {
       name: "Name",
       type: "Resource Type",
@@ -1461,11 +1551,29 @@ export default {
       exportPath: "Export Path",
       share: "Share Name",
       endpoint: "Endpoint URL",
+      endpointHint:
+        "Object storage service URL, for example https://s3.amazonaws.com or http://host:9000.",
       bucket: "Bucket Name",
+      bucketHint: "The bucket that contains the source objects.",
       prefix: "Prefix",
+      prefixHint:
+        "Optional. Only objects under this prefix will be tested and protected.",
       region: "Region",
+      regionHint:
+        "Object storage region. Use us-east-1 if the service does not require a specific region.",
+      urlStyle: "URL Style",
+      urlStyleVirtual: "Virtual Hosted Style",
+      urlStylePath: "Path Style",
+      urlStyleHint:
+        "Use Path Style for IP endpoints or MinIO, for example http://host:9000/bucket.",
+      useTLS: "Use TLS",
+      useTLSHint: "Enable HTTPS. Disable it for plain HTTP endpoints.",
       accessKey: "Access Key",
+      accessKeyHint:
+        "Access key used by the selected Proxy to read the bucket.",
       secretKey: "Secret Key",
+      secretKeyHint:
+        "Secret key is encrypted on save. Leave empty while editing to keep the existing key.",
       username: "Username",
       password: "Password",
       path: "Path",
@@ -1849,7 +1957,7 @@ export default {
   // Task Management
   taskManagement: {
     title: "Task Management",
-    subtitle: "Unified view of backup, recovery, and proxy execution tasks",
+    subtitle: "Unified view of backup, recovery, and system execution tasks",
     searchPlaceholder: "Search tasks...",
     allStatus: "All Status",
     allSource: "All Sources",
@@ -1859,6 +1967,9 @@ export default {
     progress: "Progress",
     node: "Node",
     time: "Time",
+    cancel: "Cancel Task",
+    confirmCancel: "Are you sure you want to cancel this task?",
+    cancelReason: "Task cancelled by user",
     stats: {
       total: "Total Tasks",
       running: "Running",
@@ -1869,7 +1980,7 @@ export default {
     source: {
       backup: "Backup",
       recovery: "Recovery",
-      proxy: "Proxy",
+      proxy: "System",
     },
     status: {
       pending: "Pending",

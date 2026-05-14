@@ -19,8 +19,10 @@ export interface BackupTask {
   target_repository_name?: string;
   target_repository_type?: string;
   execution_node_name?: string;
+  schedule_name?: string;
   task_type: BackupType;
   priority: BackupPriority;
+  is_enabled?: boolean;
   status: BackupStatus;
   progress?: number;
   progress_percent?: number;
@@ -44,6 +46,15 @@ export interface BackupTask {
   skipped_files?: number;
   failed_files?: number;
   bytes_per_second?: number;
+  bandwidth_limit_kbps?: number | null;
+  enable_checkpoint?: boolean;
+  checkpoint_interval_minutes?: number;
+  compression_level?: number;
+  max_concurrent_files?: number;
+  verify_checksum?: boolean;
+  max_retries?: number;
+  retry_count?: number;
+  estimated_completion_at?: string | null;
   duration_formatted?: string;
   snapshot_count?: number;
   created_at: string;
@@ -83,6 +94,14 @@ export interface BackupTaskUpdateData {
   retention_days?: number;
   max_snapshots?: number;
   priority?: BackupPriority;
+  is_enabled?: boolean;
+  bandwidth_limit_kbps?: number | null;
+  enable_checkpoint?: boolean;
+  checkpoint_interval_minutes?: number;
+  compression_level?: number;
+  max_concurrent_files?: number;
+  verify_checksum?: boolean;
+  max_retries?: number;
 }
 
 export interface BackupTaskStats {

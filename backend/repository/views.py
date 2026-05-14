@@ -24,6 +24,7 @@ from .serializers import (
     RepositoryCreateSerializer,
     RepositoryUpdateSerializer,
     RepositoryInitSerializer,
+    RepositoryPasswordSerializer,
     ConnectionTestSerializer,
     ConnectionTestResultSerializer
 )
@@ -890,6 +891,7 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         
         password = serializer.validated_data.get('encryption_password')
+        repo.set_kopia_password(password)
         
         # Prepare repository configuration. Repository.storage_path was removed;
         # the current schema stores type-specific values in config/credentials
@@ -958,7 +960,7 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         
         # Update repository status
         repo.status = Repository.STATUS_INITIALIZING
-        repo.save()
+        repo.save(update_fields=['kopia_password', 'status', 'updated_at'])
         
         # Create ProxyTask record
         ProxyTask.objects.create(
@@ -1029,6 +1031,29 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'repo_type': repo.repo_type,
                 'repository_id': str(repo.id),
             }
+        })
+
+    @action(detail=True, methods=['post'], url_path='password')
+    def save_password(self, request, pk=None):
+        """Save or update the Kopia repository password used by proxy operations."""
+        repo = self.get_object()
+        serializer = RepositoryPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        repo.set_kopia_password(serializer.validated_data['encryption_password'])
+        repo.save(update_fields=['kopia_password', 'updated_at'])
+
+        AuditService.log_repository_update(
+            request,
+            repo,
+            changed_fields=['kopia_password'],
+            result='success',
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Repository password saved',
+            'repository_id': str(repo.id),
         })
     
     @action(detail=True, methods=['post'])

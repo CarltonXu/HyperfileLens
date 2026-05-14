@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
+import logging
 import time
 
 from licenses.quota import QuotaCheckMixin
@@ -22,6 +23,8 @@ from .serializers import (
     ConnectionTestSerializer,
     ConnectionTestResultSerializer
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
@@ -93,7 +96,7 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         AuditService.log_source_resource_delete(self.request, instance, result='success')
         instance.delete()
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='test-connection')
     def test_connection(self, request, pk=None):
         """
         Test connection to the source resource.
@@ -125,14 +128,7 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             resource_id=str(resource.id),
         )
 
-        resource.last_connection_test = timezone.now()
-        resource.connection_test_result = result_response.get('message') or result_response.get('error') or ''
-        resource.status = SourceResource.STATUS_ACTIVE if result_response.get('success') else SourceResource.STATUS_ERROR
-        resource.status_message = resource.connection_test_result
-        details = result_response.get('details') or {}
-        if details.get('space_info'):
-            resource.total_size = details['space_info'].get('total_bytes') or resource.total_size
-        resource.save()
+        self._apply_connection_test_result(resource, result_response)
 
         return Response(result_response, status=response_status)
 
@@ -161,7 +157,29 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
 
         result_response, response_status = self._run_storage_test(node, resource_type, config, credentials)
         return Response(result_response, status=response_status)
-    
+
+    def _apply_connection_test_result(self, resource, result_response):
+        """Persist common connection test status and capacity fields."""
+        resource.last_connection_test = timezone.now()
+        resource.connection_test_result = result_response.get('message') or result_response.get('error') or ''
+        resource.status = SourceResource.STATUS_ACTIVE if result_response.get('success') else SourceResource.STATUS_ERROR
+        resource.status_message = resource.connection_test_result
+
+        details = result_response.get('details') or {}
+        space_info = details.get('space_info') or {}
+        if space_info:
+            if 'total_bytes' in space_info:
+                resource.total_size = space_info.get('total_bytes') or 0
+            if 'used_bytes' in space_info:
+                resource.used_size = space_info.get('used_bytes') or 0
+            if 'free_bytes' in space_info:
+                resource.free_size = space_info.get('free_bytes') or 0
+
+        if 'object_count' in details:
+            resource.file_count = details.get('object_count') or 0
+
+        resource.save()
+
     @action(detail=True, methods=['post'])
     def mount(self, request, pk=None):
         """
@@ -220,7 +238,7 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             'message': 'Resource unmounted successfully',
         })
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='bind-node')
     def bind_node(self, request, pk=None):
         """
         Bind the resource to a specific node.
@@ -264,6 +282,21 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'name': node.name,
                 'status': node.status,
             }
+        })
+
+    @action(detail=True, methods=['post'], url_path='unbind-node')
+    def unbind_node(self, request, pk=None):
+        """Unbind the resource from its current node."""
+        resource = self.get_object()
+        resource.bound_node = None
+        resource.mount_status = SourceResource.MOUNT_UNMOUNTED
+        resource.mount_point = ''
+        resource.mount_error = ''
+        resource.save()
+
+        return Response({
+            'success': True,
+            'message': 'Resource unbound successfully.',
         })
     
     @action(detail=False, methods=['get'])
@@ -339,6 +372,15 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
 
     def _run_storage_test(self, node, resource_type, config, credentials, resource_id=None):
         storage_type, storage_config = self._storage_config(resource_type, config, credentials)
+        logger.info(
+            "[SourceResource Test] Dispatching storage test to proxy: "
+            "resource_id=%s, proxy_id=%s, proxy_name=%s, resource_type=%s, storage_type=%s",
+            resource_id,
+            node.id,
+            node.name,
+            resource_type,
+            storage_type,
+        )
         task = ProxyTask.objects.create(
             proxy=node,
             task_type=ProxyTask.TaskType.TEST_STORAGE,
@@ -352,13 +394,19 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             timeout_seconds=60,
         )
         task.dispatch()
-        ProxyService.send_test_storage_command(
+        task_id = ProxyService.send_test_storage_command(
             proxy_id=str(node.id),
             repository_id='',
             storage_type=storage_type,
             storage_config=storage_config,
             test_write=False,
             task_id=str(task.id),
+        )
+        logger.info(
+            "[SourceResource Test] test_storage command sent: task_id=%s, proxy_id=%s, storage_type=%s",
+            task_id,
+            node.id,
+            storage_type,
         )
 
         task = self._wait_for_proxy_task(task, timeout=15)
@@ -385,13 +433,16 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             return 'nas', {
                 'server': config.get('server', ''),
                 'path': config.get('export_path') or config.get('share') or '',
-                'mount_type': config.get('protocol') or 'nfs',
+                'mount_type': config.get('protocol') or config.get('mount_type') or 'nfs',
+                'username': credentials.get('username', ''),
+                'password': credentials.get('password', ''),
                 'mount_options': config.get('mount_options', ''),
             }
         if resource_type == SourceResource.TYPE_CIFS:
-            return 'smb', {
+            return 'nas', {
                 'server': config.get('server', ''),
-                'share': config.get('share', ''),
+                'path': config.get('share', ''),
+                'mount_type': 'cifs',
                 'username': credentials.get('username', ''),
                 'password': credentials.get('password', ''),
                 'mount_options': config.get('mount_options', ''),
@@ -400,7 +451,10 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             return 's3', {
                 'endpoint': config.get('endpoint', ''),
                 'bucket': config.get('bucket', ''),
+                'prefix': config.get('prefix', ''),
                 'region': config.get('region') or 'us-east-1',
+                'url_style': config.get('url_style', 'virtual'),
+                'use_tls': config.get('use_tls', True),
                 'access_key': credentials.get('access_key', ''),
                 'secret_key': credentials.get('secret_key', ''),
             }

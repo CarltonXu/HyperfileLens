@@ -33,6 +33,12 @@ class SourceResourceSerializer(serializers.ModelSerializer):
     )
     is_mounted = serializers.ReadOnlyField()
     requires_mount = serializers.ReadOnlyField()
+    usage_percentage = serializers.SerializerMethodField()
+
+    def get_usage_percentage(self, obj):
+        if not obj.total_size:
+            return 0
+        return round((obj.used_size / obj.total_size) * 100, 2)
     
     class Meta:
         model = SourceResource
@@ -43,14 +49,14 @@ class SourceResourceSerializer(serializers.ModelSerializer):
             'mount_status', 'mount_status_display', 'mount_point', 'mount_error',
             'status', 'status_display', 'status_message',
             'last_connection_test', 'connection_test_result',
-            'total_size', 'file_count',
+            'total_size', 'used_size', 'free_size', 'usage_percentage', 'file_count',
             'is_mounted', 'requires_mount',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'mount_status', 'mount_point', 'mount_error',
             'last_connection_test', 'connection_test_result',
-            'total_size', 'file_count',
+            'total_size', 'used_size', 'free_size', 'usage_percentage', 'file_count',
             'created_at', 'updated_at'
         ]
 
@@ -71,6 +77,17 @@ class SourceResourceListSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True
     )
+    bound_node_status = serializers.CharField(
+        source='bound_node.status',
+        read_only=True,
+        allow_null=True
+    )
+    usage_percentage = serializers.SerializerMethodField()
+
+    def get_usage_percentage(self, obj):
+        if not obj.total_size:
+            return 0
+        return round((obj.used_size / obj.total_size) * 100, 2)
     
     class Meta:
         model = SourceResource
@@ -78,8 +95,8 @@ class SourceResourceListSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'resource_type', 'resource_type_display',
             'config', 'bound_node', 'bound_node_name', 'bound_node_status',
             'mount_status', 'mount_point', 'status', 'status_display',
-            'total_size', 'file_count',
-            'last_connection_test', 'created_at'
+            'total_size', 'used_size', 'free_size', 'usage_percentage', 'file_count',
+            'last_connection_test', 'created_at', 'updated_at'
         ]
 
 
@@ -90,7 +107,8 @@ class SourceResourceCreateSerializer(serializers.ModelSerializer):
         model = SourceResource
         fields = [
             'name', 'description', 'resource_type',
-            'config', 'credentials', 'bound_node', 'status'
+            'config', 'credentials', 'bound_node', 'status',
+            'total_size', 'used_size', 'free_size', 'file_count'
         ]
     
     def validate_name(self, value):
@@ -158,7 +176,7 @@ class SourceResourceUpdateSerializer(serializers.ModelSerializer):
         model = SourceResource
         fields = [
             'name', 'description', 'config', 'credentials',
-            'bound_node', 'status'
+            'bound_node', 'status', 'total_size', 'used_size', 'free_size', 'file_count'
         ]
     
     def validate_name(self, value):
@@ -167,6 +185,24 @@ class SourceResourceUpdateSerializer(serializers.ModelSerializer):
         if SourceResource.objects.filter(name=value).exclude(id=instance.id).exists():
             raise serializers.ValidationError("A source resource with this name already exists.")
         return value
+
+    def update(self, instance, validated_data):
+        if 'config' in validated_data:
+            instance.config = {
+                **(instance.config or {}),
+                **(validated_data.pop('config') or {}),
+            }
+        if 'credentials' in validated_data:
+            incoming_credentials = validated_data.pop('credentials') or {}
+            instance.credentials = {
+                **(instance.credentials or {}),
+                **{
+                    key: value
+                    for key, value in incoming_credentials.items()
+                    if value not in (None, '')
+                },
+            }
+        return super().update(instance, validated_data)
 
 
 class ConnectionTestSerializer(serializers.Serializer):

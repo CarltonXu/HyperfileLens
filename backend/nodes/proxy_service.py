@@ -199,6 +199,8 @@ class ProxyService:
                 'mount_type': storage_config.get('mount_type', 'nfs'),
                 'mount_path': storage_config.get('mount_path', ''),
                 'mount_options': storage_config.get('mount_options', ''),
+                'username': storage_config.get('username', ''),
+                'password': storage_config.get('password', ''),
             })
         elif storage_type == 'smb':
             message['payload'].update({
@@ -217,7 +219,10 @@ class ProxyService:
             message['payload'].update({
                 'endpoint': storage_config.get('endpoint', ''),
                 'bucket': storage_config.get('bucket', ''),
+                'prefix': storage_config.get('prefix', ''),
                 'region': storage_config.get('region', 'us-east-1'),
+                'url_style': storage_config.get('url_style', 'virtual'),
+                'use_tls': storage_config.get('use_tls', True),
                 'access_key': storage_config.get('access_key', ''),
                 'secret_key': storage_config.get('secret_key', ''),
             })

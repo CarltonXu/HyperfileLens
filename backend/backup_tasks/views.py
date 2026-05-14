@@ -4,6 +4,9 @@ HyperFileLens Backend - Backup Tasks Views
 This module provides REST API views for backup task management.
 """
 
+import time
+import uuid
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -15,6 +18,9 @@ from django.db.models import Sum, Count
 from core.permissions import IsAdminOrOperator
 from licenses.quota import QuotaCheckMixin
 from audit_log.services import AuditService
+from nodes.models import ProxyTask
+from nodes.proxy_service import ProxyService
+from repository.models import Repository
 from .models import BackupTask, BackupSnapshot
 from .serializers import (
     BackupTaskSerializer,
@@ -25,7 +31,7 @@ from .serializers import (
     BackupTaskCancelSerializer,
     BackupTaskStatisticsSerializer,
     BackupSnapshotSerializer,
-    BackupSnapshotListSerializer
+    BackupSnapshotListSerializer,
 )
 
 
@@ -148,6 +154,11 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 {'error': 'Task is already running. Use force=true to override.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        if not task.is_enabled:
+            return Response(
+                {'error': 'Task is disabled. Enable it before execution.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # Check if source resource has a bound node
         if not task.source_resource.bound_node:
@@ -156,10 +167,11 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if target repository has a bound node
-        if not task.target_repository.bound_node:
+        execution_node = task.execution_node
+        is_online, error_msg = ProxyService.check_proxy_connectivity(str(execution_node.id))
+        if not is_online:
             return Response(
-                {'error': 'Target repository has no bound node for execution'},
+                {'error': f'Execution proxy is not reachable: {error_msg}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -167,21 +179,171 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         if serializer.validated_data.get('force'):
             task.mark_pending()
         
-        # Trigger async backup task
-        try:
-            from .tasks import execute_backup_task
-            execute_backup_task.delay(str(task.id))
-        except Exception as e:
+        repository_config = self._build_repository_config(task.target_repository)
+        source_path = self._resolve_source_path(task)
+        if not source_path:
             return Response(
-                {'error': f'Failed to start backup task: {str(e)}'},
+                {'error': 'Backup task has no source path to execute'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        repository_password = (
+            serializer.validated_data.get('repository_password')
+            or task.target_repository.get_kopia_password()
+        )
+        if not repository_password:
+            return Response(
+                {
+                    'error': (
+                        'Repository password is not saved. '
+                        'Please save the Kopia repository password before executing backup tasks.'
+                    ),
+                    'error_code': 'REPOSITORY_PASSWORD_REQUIRED',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        proxy_task = ProxyTask.objects.create(
+            proxy=execution_node,
+            task_type=ProxyTask.TaskType.BACKUP,
+            parameters={
+                'backup_task_id': str(task.id),
+                'backup_task_name': task.name,
+                'source_resource_id': str(task.source_resource_id),
+                'repository_id': str(task.target_repository_id),
+                'source_path': source_path,
+                'backup_paths': task.backup_paths,
+                'exclude_patterns': task.exclude_patterns,
+                'include_patterns': task.include_patterns,
+                'task_type': serializer.validated_data.get('task_type') or task.task_type,
+                'priority': task.priority,
+            },
+            repository_id=task.target_repository_id,
+            source_resource_id=task.source_resource_id,
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=task.checkpoint_interval_minutes * 60 if task.checkpoint_interval_minutes else 3600,
+        )
+        proxy_task.dispatch()
+
+        payload = {
+            'task_id': str(proxy_task.id),
+            'backup_task_id': str(task.id),
+            'source_resource_id': str(task.source_resource_id),
+            'repository_id': str(task.target_repository_id),
+            'source_path': source_path,
+            'backup_paths': task.backup_paths,
+            'exclude_patterns': task.exclude_patterns,
+            'include_patterns': task.include_patterns,
+            'repository': repository_config,
+            'password': repository_password,
+            'task_type': serializer.validated_data.get('task_type') or task.task_type,
+            'priority': task.priority,
+            'compression_enabled': task.compression_enabled,
+            'compression_type': task.compression_type,
+            'compression_level': task.compression_level,
+            'verify_checksum': task.verify_checksum,
+            'max_concurrent_files': task.max_concurrent_files,
+            'bandwidth_limit_kbps': task.bandwidth_limit_kbps,
+            'timestamp': timezone.now().isoformat(),
+        }
+
+        if not ProxyService.send_to_proxy(
+            str(execution_node.id),
+            {
+                'type': 'backup',
+                'id': str(proxy_task.id),
+                'timestamp': timezone.now().isoformat(),
+                'payload': payload,
+            },
+        ):
+            proxy_task.fail('Failed to send backup command to proxy')
+            return Response(
+                {'error': 'Failed to send backup command to proxy'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+        task.status = BackupTask.STATUS_RUNNING
+        task.progress = 0
+        task.status_message = 'Backup command dispatched to proxy'
+        task.error_message = ''
+        task.started_at = timezone.now()
+        task.last_run_time = timezone.now()
+        task.save(update_fields=[
+            'status', 'progress', 'status_message', 'error_message',
+            'started_at', 'last_run_time', 'updated_at'
+        ])
         
         return Response({
             'message': 'Backup task started',
             'task_id': str(task.id),
+            'proxy_task_id': str(proxy_task.id),
             'execution_node': task.execution_node.name if task.execution_node else None
         })
+
+    def _resolve_source_path(self, task):
+        """Return the first executable source path for the current proxy implementation."""
+        if task.backup_paths:
+            return task.backup_paths[0]
+        source = task.source_resource
+        if not source:
+            return ''
+        config = source.config or {}
+        if source.resource_type == 'local':
+            return config.get('root_path') or config.get('path') or '/'
+        if source.resource_type == 's3':
+            return config.get('prefix') or '/'
+        return source.mount_point or source.get_effective_mount_point()
+
+    def _build_repository_config(self, repo):
+        """Build the repository payload expected by the Go proxy Kopia client."""
+        config = repo.config or {}
+        credentials = repo.get_decrypted_credentials() if hasattr(repo, 'get_decrypted_credentials') else (repo.credentials or {})
+        repository_config = {
+            'id': str(repo.id),
+            'type': repo.repo_type,
+        }
+
+        if repo.repo_type == Repository.TYPE_LOCAL:
+            repository_config['path'] = config.get('path') or repo.path or ''
+        elif repo.repo_type in (Repository.TYPE_NAS, Repository.TYPE_NFS):
+            server = config.get('server') or config.get('nas_server') or ''
+            export_path = config.get('export_path') or config.get('path') or config.get('nas_path') or repo.path or ''
+            mount_type = config.get('mount_type') or config.get('nas_type') or 'nfs'
+            mount_path = config.get('mount_path') or ''
+            repository_config.update({
+                'path': mount_path or export_path,
+                'server': server,
+                'export_path': export_path,
+                'nas_server': server,
+                'nas_path': export_path,
+                'mount_type': mount_type,
+                'mount_path': mount_path,
+                'mount_options': config.get('mount_options', ''),
+                'username': credentials.get('username', ''),
+                'password': credentials.get('password', ''),
+            })
+        elif repo.repo_type == Repository.TYPE_S3:
+            bucket = config.get('bucket') or repo.path or ''
+            prefix = (config.get('prefix') or '').strip('/')
+            repository_url = config.get('url') or config.get('repository_url') or (
+                f"s3://{bucket}/{prefix}" if prefix else f"s3://{bucket}"
+            )
+            repository_config.update({
+                'path': repository_url,
+                'url': repository_url,
+                'endpoint': config.get('endpoint', ''),
+                'bucket': bucket,
+                'region': config.get('region', 'us-east-1'),
+                'access_key': credentials.get('access_key', config.get('access_key', '')),
+                'secret_key': credentials.get('secret_key', config.get('secret_key', '')),
+                'prefix': prefix,
+                'use_tls': config.get('use_tls', True),
+                'url_style': config.get('url_style', 'virtual'),
+            })
+        else:
+            repository_config['path'] = config.get('path') or repo.path or ''
+
+        return repository_config
     
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
@@ -198,7 +360,32 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         
         task.status = BackupTask.STATUS_CANCELLED
         task.status_message = serializer.validated_data.get('reason', '')
-        task.save(update_fields=['status', 'status_message', 'updated_at'])
+        task.completed_at = timezone.now()
+        task.save(update_fields=['status', 'status_message', 'completed_at', 'updated_at'])
+
+        proxy_tasks = ProxyTask.objects.filter(
+            parameters__backup_task_id=str(task.id),
+            status__in=[
+                ProxyTask.TaskStatus.PENDING,
+                ProxyTask.TaskStatus.DISPATCHED,
+                ProxyTask.TaskStatus.ACCEPTED,
+                ProxyTask.TaskStatus.RUNNING,
+            ],
+        ).select_related('proxy')
+        for proxy_task in proxy_tasks:
+            proxy_task.cancel()
+            ProxyService.send_to_proxy(
+                str(proxy_task.proxy_id),
+                {
+                    'type': 'cancel',
+                    'id': str(proxy_task.id),
+                    'timestamp': timezone.now().isoformat(),
+                    'payload': {
+                        'task_id': str(proxy_task.id),
+                        'reason': serializer.validated_data.get('reason', 'Task cancelled by user'),
+                    },
+                },
+            )
         
         return Response({
             'message': 'Task cancelled',
@@ -260,6 +447,28 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             'message': 'Task reset to pending',
             'task_id': str(task.id)
         })
+
+    @action(detail=True, methods=['post'])
+    def enable(self, request, pk=None):
+        """Enable a backup task."""
+        task = self.get_object()
+        task.is_enabled = True
+        task.save(update_fields=['is_enabled', 'updated_at'])
+        return Response({'message': 'Task enabled', 'task_id': str(task.id)})
+
+    @action(detail=True, methods=['post'])
+    def disable(self, request, pk=None):
+        """Disable a backup task and cancel it if it is currently running."""
+        task = self.get_object()
+        task.is_enabled = False
+        update_fields = ['is_enabled', 'updated_at']
+        if task.status == BackupTask.STATUS_RUNNING:
+            task.status = BackupTask.STATUS_CANCELLED
+            task.status_message = 'Task disabled by user'
+            task.completed_at = timezone.now()
+            update_fields.extend(['status', 'status_message', 'completed_at'])
+        task.save(update_fields=update_fields)
+        return Response({'message': 'Task disabled', 'task_id': str(task.id)})
     
     @action(detail=True, methods=['get'])
     def snapshots(self, request, pk=None):
@@ -275,6 +484,59 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         
         serializer = BackupSnapshotListSerializer(snapshots, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def runs(self, request, pk=None):
+        """List execution runs for a backup task."""
+        task = self.get_object()
+        proxy_tasks = ProxyTask.objects.filter(
+            parameters__backup_task_id=str(task.id),
+            task_type=ProxyTask.TaskType.BACKUP,
+        ).select_related('proxy').order_by('-created_at')
+
+        def duration_seconds(proxy_task):
+            if not proxy_task.started_at:
+                return None
+            end = proxy_task.completed_at or timezone.now()
+            return (end - proxy_task.started_at).total_seconds()
+
+        def normalize(proxy_task):
+            result = proxy_task.result or {}
+            return {
+                'id': str(proxy_task.id),
+                'source': 'backup',
+                'name': f'Backup Run - {task.name}',
+                'task_type': proxy_task.task_type,
+                'status': proxy_task.status,
+                'progress': proxy_task.progress,
+                'message': proxy_task.progress_message or proxy_task.error_message or '',
+                'proxy_id': str(proxy_task.proxy_id),
+                'proxy_name': proxy_task.proxy.name if proxy_task.proxy_id else '',
+                'repository_id': str(proxy_task.repository_id) if proxy_task.repository_id else None,
+                'source_resource_id': str(proxy_task.source_resource_id) if proxy_task.source_resource_id else None,
+                'created_at': proxy_task.created_at,
+                'dispatched_at': proxy_task.dispatched_at,
+                'started_at': proxy_task.started_at,
+                'completed_at': proxy_task.completed_at,
+                'duration_seconds': duration_seconds(proxy_task),
+                'progress_message': proxy_task.progress_message,
+                'current_file': proxy_task.current_file,
+                'total_files': proxy_task.total_files or result.get('total_files') or result.get('file_count') or 0,
+                'processed_files': proxy_task.processed_files or result.get('processed_files') or 0,
+                'total_bytes': proxy_task.total_bytes or result.get('total_bytes') or result.get('total_size') or 0,
+                'processed_bytes': proxy_task.processed_bytes or result.get('processed_bytes') or result.get('processed_size') or 0,
+                'speed_mbps': proxy_task.speed_mbps,
+                'eta': proxy_task.eta,
+                'parameters': proxy_task.parameters,
+                'result': result,
+                'error_message': proxy_task.error_message,
+            }
+
+        page = self.paginate_queryset(proxy_tasks)
+        if page is not None:
+            return self.get_paginated_response([normalize(item) for item in page])
+
+        return Response([normalize(item) for item in proxy_tasks])
     
     @action(detail=True, methods=['get'])
     def detail(self, request, pk=None):
@@ -420,3 +682,106 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == 'list':
             return BackupSnapshotListSerializer
         return BackupSnapshotSerializer
+
+    @action(detail=True, methods=['get'])
+    def files(self, request, pk=None):
+        """List files for a snapshot by asking the execution proxy on demand."""
+        snapshot = self.get_object()
+        path = (request.query_params.get('path') or '').strip('/')
+        task = snapshot.task
+        proxy = task.execution_node
+        if not proxy:
+            return Response(
+                {'error': 'Backup task has no execution proxy'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        repository_password = task.target_repository.get_kopia_password()
+        if not repository_password:
+            return Response(
+                {'error': 'Repository password is not saved'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        is_online, error_msg = ProxyService.check_proxy_connectivity(str(proxy.id))
+        if not is_online:
+            return Response(
+                {'error': f'Execution proxy is not reachable: {error_msg}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        proxy_task = ProxyTask.objects.create(
+            proxy=proxy,
+            task_type='list_snapshot_files',
+            parameters={
+                'snapshot_id': snapshot.storage_path,
+                'object_id': snapshot.manifest_path or snapshot.storage_path,
+                'snapshot_record_id': str(snapshot.id),
+                'backup_task_id': str(task.id),
+                'repository_id': str(task.target_repository_id),
+                'path': path,
+            },
+            repository_id=task.target_repository_id,
+            source_resource_id=task.source_resource_id,
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=60,
+        )
+        proxy_task.dispatch()
+
+        payload = {
+            'task_id': str(proxy_task.id),
+            'snapshot_id': snapshot.storage_path,
+            'object_id': snapshot.manifest_path or snapshot.storage_path,
+            'snapshot_record_id': str(snapshot.id),
+            'path': path,
+            'repository': BackupTaskViewSet()._build_repository_config(task.target_repository),
+            'password': repository_password,
+            'timestamp': timezone.now().isoformat(),
+        }
+        sent = ProxyService.send_to_proxy(
+            str(proxy.id),
+            {
+                'type': 'list_snapshot_files',
+                'id': str(uuid.uuid4()),
+                'timestamp': timezone.now().isoformat(),
+                'payload': payload,
+            },
+        )
+        if not sent:
+            proxy_task.fail('Failed to send snapshot file browser command to proxy')
+            return Response(
+                {'error': 'Failed to send snapshot file browser command to proxy'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            proxy_task.refresh_from_db()
+            if proxy_task.status == ProxyTask.TaskStatus.COMPLETED:
+                result = proxy_task.result or {}
+                files = result.get('files') or []
+                return Response({
+                    'results': files,
+                    'count': len(files),
+                    'task_id': str(proxy_task.id),
+                })
+            if proxy_task.status in (
+                ProxyTask.TaskStatus.FAILED,
+                ProxyTask.TaskStatus.CANCELLED,
+                ProxyTask.TaskStatus.TIMEOUT,
+            ):
+                return Response(
+                    {'error': proxy_task.error_message or 'Failed to list snapshot files'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+            time.sleep(0.25)
+
+        return Response(
+            {
+                'error': 'Snapshot file browser request is still running',
+                'task_id': str(proxy_task.id),
+                'results': [],
+                'pending': True,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )

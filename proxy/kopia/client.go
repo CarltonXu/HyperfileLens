@@ -1,15 +1,19 @@
 package kopia
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -56,13 +60,29 @@ type FileInfo struct {
 	Checksum string `json:"checksum"`
 }
 
+// BackupFileEntry captures a file entry returned from a Kopia snapshot browser request.
+type BackupFileEntry struct {
+	OriginalPath string `json:"original_path,omitempty"`
+	RelativePath string `json:"relative_path"`
+	FileName     string `json:"file_name"`
+	Size         int64  `json:"size"`
+	Type         string `json:"type,omitempty"`
+	Mode         string `json:"mode,omitempty"`
+	ModifiedAt   string `json:"modified_at,omitempty"`
+}
+
 // BackupResult captures the high-level Kopia snapshot command result.
 type BackupResult struct {
-	TaskID     string    `json:"task_id"`
-	SourcePath string    `json:"source_path"`
-	Output     string    `json:"output"`
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at"`
+	TaskID         string    `json:"task_id"`
+	SourcePath     string    `json:"source_path"`
+	Output         string    `json:"output"`
+	TotalFiles     int       `json:"total_files,omitempty"`
+	BackedUpFiles  int       `json:"backed_up_files,omitempty"`
+	TotalSize      int64     `json:"total_size,omitempty"`
+	BackedUpSize   int64     `json:"backed_up_size,omitempty"`
+	BytesPerSecond int64     `json:"bytes_per_second,omitempty"`
+	StartedAt      time.Time `json:"started_at"`
+	FinishedAt     time.Time `json:"finished_at"`
 }
 
 // RestoreResult captures the high-level Kopia restore command result.
@@ -225,6 +245,114 @@ func (c *Client) Backup(taskID, sourcePath, password string) (*BackupResult, err
 	}, nil
 }
 
+// BackupWithProgress creates a Kopia snapshot and streams parsed progress updates.
+func (c *Client) BackupWithProgress(taskID, sourcePath, password string, onProgress func(BackupProgress)) (*BackupResult, error) {
+	startedAt := time.Now()
+	args := []string{"snapshot", "create", sourcePath}
+
+	logger.Debug("Executing kopia snapshot create with streaming progress", map[string]interface{}{
+		"task_id":     taskID,
+		"source_path": sourcePath,
+	})
+
+	cmd := exec.CommandContext(context.Background(), c.binaryPath, args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open kopia stdout: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open kopia stderr: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start kopia backup: %w", err)
+	}
+
+	var outputMu sync.Mutex
+	var outputBuilder strings.Builder
+	progressState := BackupProgress{StartedAt: startedAt}
+	consume := func(reader io.Reader) {
+		scanner := bufio.NewScanner(reader)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		scanner.Split(splitKopiaProgress)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			outputMu.Lock()
+			outputBuilder.WriteString(line)
+			outputBuilder.WriteByte('\n')
+			outputMu.Unlock()
+
+			if parsed, ok := parseBackupProgressLine(line, startedAt); ok {
+				progressState = mergeBackupProgress(progressState, parsed)
+				if onProgress != nil {
+					onProgress(progressState)
+				}
+			}
+		}
+	}
+
+	done := make(chan struct{}, 2)
+	go func() {
+		consume(stdout)
+		done <- struct{}{}
+	}()
+	go func() {
+		consume(stderr)
+		done <- struct{}{}
+	}()
+	<-done
+	<-done
+
+	waitErr := cmd.Wait()
+	output := outputBuilder.String()
+	if waitErr != nil {
+		logger.Error("Kopia backup failed", map[string]interface{}{
+			"task_id":     taskID,
+			"source_path": sourcePath,
+			"error":       waitErr.Error(),
+			"output":      output,
+		})
+		return nil, fmt.Errorf("kopia backup failed: %w, output: %s", waitErr, output)
+	}
+
+	finalFiles, finalSize := parseFinalSnapshotStats(output)
+	if finalFiles > 0 {
+		progressState.ProcessedFiles = finalFiles
+		progressState.TotalFiles = finalFiles
+	}
+	if finalSize > 0 {
+		progressState.ProcessedBytes = finalSize
+		progressState.TotalBytes = finalSize
+	}
+	bytesPerSecond := int64(0)
+	elapsed := time.Since(startedAt).Seconds()
+	if elapsed > 0 && progressState.ProcessedBytes > 0 {
+		bytesPerSecond = int64(float64(progressState.ProcessedBytes) / elapsed)
+	}
+
+	logger.Info("Backup completed successfully", map[string]interface{}{
+		"task_id":     taskID,
+		"source_path": sourcePath,
+	})
+
+	return &BackupResult{
+		TaskID:         taskID,
+		SourcePath:     sourcePath,
+		Output:         output,
+		TotalFiles:     progressState.TotalFiles,
+		BackedUpFiles:  progressState.ProcessedFiles,
+		TotalSize:      progressState.TotalBytes,
+		BackedUpSize:   progressState.ProcessedBytes,
+		BytesPerSecond: bytesPerSecond,
+		StartedAt:      startedAt,
+		FinishedAt:     time.Now(),
+	}, nil
+}
+
 // Restore restores a Kopia snapshot to a target path.
 func (c *Client) Restore(taskID, snapshotID, targetPath, password string, overwrite bool) (*RestoreResult, error) {
 	startedAt := time.Now()
@@ -297,6 +425,276 @@ func (c *Client) ListSnapshots(password string) (interface{}, error) {
 	})
 
 	return string(output), nil
+}
+
+// ListSnapshotFiles lists files inside a Kopia snapshot root object on demand.
+func (c *Client) ListSnapshotFiles(objectID, path, password string) ([]BackupFileEntry, error) {
+	path = strings.TrimSpace(path)
+	objectPath := strings.TrimRight(objectID, "/")
+	if path != "" {
+		objectPath = objectPath + "/" + strings.TrimLeft(path, "/")
+	}
+	args := []string{"ls", "--long", objectPath}
+
+	logger.Debug("Executing kopia snapshot file browser", map[string]interface{}{
+		"object_id":   objectID,
+		"object_path": objectPath,
+		"path":        path,
+	})
+
+	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
+	if err != nil {
+		logger.Error("Kopia object ls failed", map[string]interface{}{
+			"object_id": objectID,
+			"path":      path,
+			"error":     err.Error(),
+			"output":    string(output),
+		})
+		return nil, fmt.Errorf("failed to list snapshot files: %w, output: %s", err, string(output))
+	}
+	return parseSnapshotFilesText(string(output), path), nil
+}
+
+// BackupProgress is the subset of Kopia CLI progress that can be parsed safely.
+type BackupProgress struct {
+	ProcessedFiles int
+	TotalFiles     int
+	ProcessedBytes int64
+	TotalBytes     int64
+	Percent        int
+	SpeedMBps      float64
+	ETA            string
+	StartedAt      time.Time
+}
+
+func splitKopiaProgress(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	for i, b := range data {
+		if b == '\n' || b == '\r' {
+			return i + 1, data[:i], nil
+		}
+	}
+	if atEOF && len(data) > 0 {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
+}
+
+func mergeBackupProgress(current, parsed BackupProgress) BackupProgress {
+	if parsed.ProcessedFiles > 0 {
+		current.ProcessedFiles = parsed.ProcessedFiles
+		if parsed.ProcessedFiles > current.TotalFiles {
+			current.TotalFiles = parsed.ProcessedFiles
+		}
+	}
+	if parsed.ProcessedBytes > 0 {
+		current.ProcessedBytes = parsed.ProcessedBytes
+		if parsed.ProcessedBytes > current.TotalBytes {
+			current.TotalBytes = parsed.ProcessedBytes
+		}
+	}
+	if parsed.TotalBytes > 0 {
+		current.TotalBytes = parsed.TotalBytes
+	}
+	if parsed.Percent > 0 {
+		current.Percent = parsed.Percent
+	}
+	if parsed.SpeedMBps > 0 {
+		current.SpeedMBps = parsed.SpeedMBps
+	}
+	if parsed.ETA != "" {
+		current.ETA = parsed.ETA
+	}
+	if current.Percent == 0 && current.TotalBytes > 0 && current.ProcessedBytes > 0 {
+		current.Percent = int(float64(current.ProcessedBytes) / float64(current.TotalBytes) * 100)
+	}
+	if current.SpeedMBps == 0 && !current.StartedAt.IsZero() && current.ProcessedBytes > 0 {
+		elapsed := time.Since(current.StartedAt).Seconds()
+		if elapsed > 0 {
+			current.SpeedMBps = float64(current.ProcessedBytes) / elapsed / 1024 / 1024
+		}
+	}
+	return current
+}
+
+func parseBackupProgressLine(line string, startedAt time.Time) (BackupProgress, bool) {
+	progress := BackupProgress{StartedAt: startedAt}
+	matches := regexp.MustCompile(`(\d+)\s+hashed\s+\(([\d.]+)\s*([KMGT]?B)\)`).FindStringSubmatch(line)
+	if len(matches) == 4 {
+		files, _ := strconv.Atoi(matches[1])
+		progress.ProcessedFiles = files
+		progress.ProcessedBytes = parseHumanBytes(matches[2], matches[3])
+	}
+	estimated := regexp.MustCompile(`estimated\s+([\d.]+)\s*([KMGT]?B)\s+\(([\d.]+)%\)`).FindStringSubmatch(line)
+	if len(estimated) == 4 {
+		progress.TotalBytes = parseHumanBytes(estimated[1], estimated[2])
+		percent, _ := strconv.ParseFloat(estimated[3], 64)
+		progress.Percent = int(percent)
+	}
+	if strings.Contains(line, "left") {
+		etaMatch := regexp.MustCompile(`(\d+[smhd]\s*)+left`).FindString(line)
+		progress.ETA = strings.TrimSuffix(strings.TrimSpace(etaMatch), " left")
+	}
+	return progress, progress.ProcessedFiles > 0 || progress.ProcessedBytes > 0 || progress.Percent > 0
+}
+
+func parseFinalSnapshotStats(output string) (int, int64) {
+	matches := regexp.MustCompile(`(\d+)\s+hashed\s+\(([\d.]+)\s*([KMGT]?B)\)`).FindAllStringSubmatch(output, -1)
+	if len(matches) == 0 {
+		return 0, 0
+	}
+	last := matches[len(matches)-1]
+	files, _ := strconv.Atoi(last[1])
+	return files, parseHumanBytes(last[2], last[3])
+}
+
+func parseHumanBytes(value, unit string) int64 {
+	number, _ := strconv.ParseFloat(value, 64)
+	multiplier := float64(1)
+	switch strings.ToUpper(unit) {
+	case "KB":
+		multiplier = 1024
+	case "MB":
+		multiplier = 1024 * 1024
+	case "GB":
+		multiplier = 1024 * 1024 * 1024
+	case "TB":
+		multiplier = 1024 * 1024 * 1024 * 1024
+	}
+	return int64(number * multiplier)
+}
+
+func parseSnapshotFilesJSON(output []byte, basePath string) ([]BackupFileEntry, error) {
+	var raw interface{}
+	if err := json.Unmarshal(output, &raw); err != nil {
+		return nil, err
+	}
+
+	var items []interface{}
+	switch value := raw.(type) {
+	case []interface{}:
+		items = value
+	case map[string]interface{}:
+		for _, key := range []string{"entries", "files", "items"} {
+			if arr, ok := value[key].([]interface{}); ok {
+				items = arr
+				break
+			}
+		}
+	}
+
+	files := make([]BackupFileEntry, 0, len(items))
+	for _, item := range items {
+		obj, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name := stringFromAny(obj["name"])
+		path := stringFromAny(obj["path"])
+		if path == "" {
+			path = name
+		}
+		if basePath != "" && !strings.HasPrefix(path, basePath) {
+			path = strings.Trim(strings.TrimRight(basePath, "/")+"/"+path, "/")
+		}
+		files = append(files, BackupFileEntry{
+			RelativePath: path,
+			FileName:     firstNonEmpty(name, filepath.Base(path)),
+			Size:         int64FromAny(obj["size"]),
+			Type:         stringFromAny(obj["type"]),
+			Mode:         stringFromAny(obj["mode"]),
+			ModifiedAt:   firstNonEmpty(stringFromAny(obj["mtime"]), stringFromAny(obj["modified_at"])),
+		})
+	}
+	return files, nil
+}
+
+func parseSnapshotFilesText(output, basePath string) []BackupFileEntry {
+	lines := strings.Split(output, "\n")
+	files := make([]BackupFileEntry, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "total ") {
+			continue
+		}
+		fields := strings.Fields(line)
+		name := fields[len(fields)-1]
+		path := name
+		if basePath != "" && !strings.HasPrefix(path, basePath) {
+			path = strings.Trim(strings.TrimRight(basePath, "/")+"/"+path, "/")
+		}
+		files = append(files, BackupFileEntry{
+			RelativePath: path,
+			FileName:     filepath.Base(path),
+			Size:         parseSizeFromFields(fields),
+			Type:         parseTypeFromLine(line),
+		})
+	}
+	return files
+}
+
+func parseTypeFromLine(line string) string {
+	if line == "" {
+		return ""
+	}
+	switch line[0] {
+	case 'd':
+		return "d"
+	case '-':
+		return "f"
+	case 'l':
+		return "l"
+	default:
+		return ""
+	}
+}
+
+func parseSizeFromFields(fields []string) int64 {
+	for _, field := range fields {
+		if value, err := strconv.ParseInt(field, 10, 64); err == nil {
+			return value
+		}
+	}
+	return 0
+}
+
+func stringFromAny(value interface{}) string {
+	if value == nil {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return v
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+func int64FromAny(value interface{}) int64 {
+	switch v := value.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case json.Number:
+		result, _ := v.Int64()
+		return result
+	case string:
+		result, _ := strconv.ParseInt(v, 10, 64)
+		return result
+	default:
+		return 0
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" && value != "." {
+			return value
+		}
+	}
+	return ""
 }
 
 // Cancel is a placeholder for task cancellation. Kopia commands are currently run synchronously.

@@ -149,6 +149,14 @@ class SourceResource(models.Model):
         default=0,
         help_text="Total size of the source in bytes"
     )
+    used_size = models.BigIntegerField(
+        default=0,
+        help_text="Used size of the source in bytes"
+    )
+    free_size = models.BigIntegerField(
+        default=0,
+        help_text="Free size of the source in bytes"
+    )
     file_count = models.BigIntegerField(
         default=0,
         help_text="Total number of files"

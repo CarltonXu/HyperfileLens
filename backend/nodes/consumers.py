@@ -6,6 +6,7 @@ proxy communication, task execution, and status updates.
 """
 
 import json
+import re
 import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
@@ -20,6 +21,28 @@ from core.websocket_validation import validate_and_log, ValidationResult
 
 # Global alert manager instance
 alert_manager = get_manager()
+
+
+def parse_kopia_snapshot_stats(output):
+    """Extract best-effort file count and size from Kopia snapshot output."""
+    if not output:
+        return 0, 0
+    matches = re.findall(
+        r'(\d+)\s+hashed\s+\(([\d.]+)\s*(B|KB|MB|GB|TB)\)',
+        str(output),
+        flags=re.IGNORECASE,
+    )
+    if not matches:
+        return 0, 0
+    files, size, unit = matches[-1]
+    multiplier = {
+        'B': 1,
+        'KB': 1024,
+        'MB': 1024 ** 2,
+        'GB': 1024 ** 3,
+        'TB': 1024 ** 4,
+    }.get(unit.upper(), 1)
+    return int(files), int(float(size) * multiplier)
 
 
 class ProxyConsumer(AsyncWebsocketConsumer):
@@ -101,6 +124,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 'register': self.handle_register,
                 'heartbeat': self.handle_heartbeat,
                 'ping': self.handle_ping,
+                'error': self.handle_error,
 
                 # Task status updates (unified format)
                 'task_start': self.handle_task_start,
@@ -196,6 +220,15 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             'timestamp': timezone.now().isoformat(),
             'payload': {}
         }))
+
+    async def handle_error(self, data):
+        """Handle task-level error messages from proxy."""
+        payload = data.get('payload', {}) or {}
+        task_id = payload.get('task_id') or data.get('task_id') or data.get('id')
+        error = payload.get('error') or payload.get('message') or data.get('error') or data.get('message') or 'Proxy task failed'
+        if task_id:
+            await self.complete_task(task_id, False, {}, error)
+            await self.create_task_failed_alert(task_id, error)
 
     # ==================== Unified Task Status Handlers ====================
 
@@ -333,6 +366,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             success = payload.get('success', False)
             result = payload.get('result', {})
             error = payload.get('error')
+            cancelled = payload.get('cancelled', False)
         else:
             # Legacy format
             task_id = data.get('task_id')
@@ -340,8 +374,9 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             success = data.get('success', False)
             result = data.get('result', {})
             error = data.get('error')
+            cancelled = data.get('cancelled', False)
 
-        await self.complete_task(task_id, success, result, error)
+        await self.complete_task(task_id, success, result, error, cancelled)
 
         # Create alert for failed tasks
         if not success and task_id and error:
@@ -883,6 +918,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
     def update_task_status(self, task_id, status, progress, message):
         """Update task status."""
         from .models import ProxyTask
+        from backup_tasks.models import BackupTask
         try:
             task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
             task.status = status
@@ -893,6 +929,15 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             elif status == 'running':
                 task.started_at = timezone.now()
             task.save()
+
+            backup_task_id = (task.parameters or {}).get('backup_task_id')
+            if backup_task_id and task.task_type == ProxyTask.TaskType.BACKUP:
+                BackupTask.objects.filter(id=backup_task_id).update(
+                    status=BackupTask.STATUS_RUNNING if status in ('accepted', 'running') else status,
+                    progress=progress,
+                    status_message=message or '',
+                    updated_at=timezone.now(),
+                )
         except ProxyTask.DoesNotExist:
             pass
 
@@ -903,6 +948,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                             total_bytes=None, speed_mbps=None, eta=None):
         """Update task with detailed progress information."""
         from .models import ProxyTask
+        from backup_tasks.models import BackupTask
         try:
             task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
             task.status = ProxyTask.TaskStatus.RUNNING
@@ -924,16 +970,39 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             if eta is not None:
                 task.eta = eta
             task.save()
+
+            backup_task_id = (task.parameters or {}).get('backup_task_id')
+            if backup_task_id and task.task_type == ProxyTask.TaskType.BACKUP:
+                update_data = {
+                    'status': BackupTask.STATUS_RUNNING,
+                    'progress': progress,
+                    'status_message': message or '',
+                    'updated_at': timezone.now(),
+                }
+                if total_files is not None:
+                    update_data['total_files'] = total_files
+                if processed_files is not None:
+                    update_data['backed_up_files'] = processed_files
+                if total_bytes is not None:
+                    update_data['total_size'] = total_bytes
+                if processed_bytes is not None:
+                    update_data['backed_up_size'] = processed_bytes
+                if speed_mbps is not None:
+                    update_data['bytes_per_second'] = int(float(speed_mbps) * 1024 * 1024)
+                BackupTask.objects.filter(id=backup_task_id).update(**update_data)
         except ProxyTask.DoesNotExist:
             pass
 
     @sync_to_async
-    def complete_task(self, task_id, success, result, error):
+    def complete_task(self, task_id, success, result, error, cancelled=False):
         """Complete a task."""
         from .models import ProxyTask
+        from backup_tasks.models import BackupTask, BackupSnapshot
         try:
             task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
-            if success:
+            if cancelled:
+                task.status = ProxyTask.TaskStatus.CANCELLED
+            elif success:
                 task.status = ProxyTask.TaskStatus.COMPLETED
             else:
                 task.status = ProxyTask.TaskStatus.FAILED
@@ -942,6 +1011,103 @@ class ProxyConsumer(AsyncWebsocketConsumer):
             task.progress = 100
             task.completed_at = timezone.now()
             task.save()
+
+            backup_task_id = (task.parameters or {}).get('backup_task_id')
+            if backup_task_id and task.task_type == ProxyTask.TaskType.BACKUP:
+                try:
+                    backup_task = BackupTask.objects.get(id=backup_task_id)
+                    if cancelled:
+                        backup_task.status = BackupTask.STATUS_CANCELLED
+                        backup_task.progress = task.progress
+                        backup_task.status_message = error or 'Backup cancelled'
+                        backup_task.completed_at = timezone.now()
+                        backup_task.save(update_fields=[
+                            'status', 'progress', 'status_message',
+                            'completed_at', 'updated_at',
+                        ])
+                    elif success:
+                        backup_task.status = BackupTask.STATUS_COMPLETED
+                        backup_task.progress = 100
+                        backup_task.status_message = 'Backup completed'
+                        backup_task.error_message = ''
+                        backup_task.completed_at = timezone.now()
+                        stats = result or {}
+                        parsed_files, parsed_size = parse_kopia_snapshot_stats(stats.get('output'))
+                        backup_task.total_files = (
+                            stats.get('total_files') or stats.get('file_count')
+                            or task.total_files or backup_task.total_files
+                            or parsed_files
+                        )
+                        backup_task.backed_up_files = (
+                            stats.get('backed_up_files') or stats.get('processed_files')
+                            or stats.get('file_count') or task.processed_files
+                            or backup_task.backed_up_files or backup_task.total_files
+                            or parsed_files
+                        )
+                        backup_task.total_size = (
+                            stats.get('total_size') or stats.get('total_bytes')
+                            or task.total_bytes or backup_task.total_size
+                            or parsed_size
+                        )
+                        backup_task.backed_up_size = (
+                            stats.get('backed_up_size') or stats.get('processed_bytes')
+                            or stats.get('total_size') or task.processed_bytes
+                            or backup_task.backed_up_size or backup_task.total_size
+                            or parsed_size
+                        )
+                        if task.speed_mbps:
+                            backup_task.bytes_per_second = int(task.speed_mbps * 1024 * 1024)
+                        backup_task.save()
+
+                        snapshot_id = (
+                            stats.get('snapshot_id') or stats.get('manifest_id')
+                            or stats.get('snapshot') or stats.get('id')
+                        )
+                        manifest_path = str(stats.get('manifest_path') or '')
+                        if not snapshot_id:
+                            output = str(stats.get('output') or '')
+                            match = re.search(
+                                r'Created snapshot with root\s+(\S+)\s+and ID\s+(\S+)',
+                                output,
+                            )
+                            if match:
+                                manifest_path = match.group(1)
+                                snapshot_id = match.group(2)
+                        snapshot_id = snapshot_id or str(task.id)
+                        if snapshot_id and not BackupSnapshot.objects.filter(task=backup_task, storage_path=snapshot_id).exists():
+                            snapshot = BackupSnapshot.objects.create(
+                                task=backup_task,
+                                repository=backup_task.target_repository,
+                                name=f'snapshot-{timezone.now().strftime("%Y%m%d_%H%M%S")}',
+                                version=str(snapshot_id),
+                                storage_path=str(snapshot_id),
+                                manifest_path=manifest_path,
+                                total_size=backup_task.backed_up_size,
+                                file_count=backup_task.backed_up_files,
+                                metadata={
+                                    'proxy_task_id': str(task.id),
+                                    'source_path': (task.parameters or {}).get('source_path', ''),
+                                    'kopia_output': stats.get('output', ''),
+                                    'synthetic': not any([
+                                        stats.get('snapshot_id'),
+                                        stats.get('manifest_id'),
+                                        stats.get('snapshot'),
+                                        stats.get('id'),
+                                    ]),
+                                },
+                            )
+                    else:
+                        backup_task.status = BackupTask.STATUS_FAILED
+                        backup_task.progress = task.progress
+                        backup_task.error_message = error or ''
+                        backup_task.status_message = error or 'Backup failed'
+                        backup_task.completed_at = timezone.now()
+                        backup_task.save(update_fields=[
+                            'status', 'progress', 'error_message',
+                            'status_message', 'completed_at', 'updated_at',
+                        ])
+                except BackupTask.DoesNotExist:
+                    pass
         except ProxyTask.DoesNotExist:
             pass
 

@@ -119,7 +119,10 @@ class Repository(models.Model):
         default='AES256-GCM-HMAC-SHA256',
         help_text="Encryption algorithm used by Kopia"
     )
-    # Encryption password is stored encrypted in production
+    kopia_password = models.TextField(
+        blank=True,
+        help_text="Encrypted Kopia repository password for non-interactive operations"
+    )
     
     # Storage information
     path = models.CharField(
@@ -351,6 +354,19 @@ class Repository(models.Model):
         """Update used space."""
         self.used_space = used_space
         self.save(update_fields=['used_space', 'updated_at'])
+
+    def set_kopia_password(self, password):
+        """Encrypt and store the Kopia repository password."""
+        self.kopia_password = encrypt_value(password) if password else ''
+
+    def get_kopia_password(self):
+        """Return the decrypted Kopia repository password."""
+        if not self.kopia_password:
+            return ''
+        try:
+            return decrypt_value(self.kopia_password)
+        except Exception:
+            return self.kopia_password
     
     def sync_space_usage(self):
         """Synchronize space usage with actual storage."""

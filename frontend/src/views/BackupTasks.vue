@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   backupTasksApi,
@@ -14,6 +14,7 @@ import type {
   BackupTask,
   BackupTaskCreateData,
   BackupTaskStats,
+  BackupTaskUpdateData,
 } from "@/types/backup";
 import type { ProxyNode } from "@/types/proxy";
 import type { Repository } from "@/types/repository";
@@ -35,6 +36,17 @@ import {
   BoltIcon,
   PauseIcon,
   XCircleIcon,
+  PowerIcon,
+  ListBulletIcon,
+  CircleStackIcon,
+  TrashIcon,
+  FolderIcon,
+  DocumentIcon,
+  ShieldCheckIcon,
+  ServerStackIcon,
+  ChevronRightIcon,
+  ChevronDownIcon,
+  PencilSquareIcon,
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
@@ -50,9 +62,75 @@ const sourceResources = ref<SourceResource[]>([]);
 const backupPolicies = ref<Array<Record<string, any>>>([]);
 const showCreateModal = ref(false);
 const showDetailModal = ref(false);
+const showEditModal = ref(false);
 const selectedTask = ref<BackupTask | null>(null);
+const editingTask = ref<BackupTask | null>(null);
+const detailTab = ref<"overview" | "snapshots" | "tasks">("overview");
+const selectedTaskSnapshots = ref<any[]>([]);
+const selectedTaskRuns = ref<any[]>([]);
+const selectedSnapshot = ref<any | null>(null);
+const selectedSnapshotFiles = ref<any[]>([]);
+const expandedSnapshotPaths = ref<Set<string>>(new Set());
+const selectedSnapshotPaths = ref<Set<string>>(new Set());
+const loadingSnapshotPaths = ref<Set<string>>(new Set());
+const snapshotsLoading = ref(false);
+const runsLoading = ref(false);
+const snapshotFilesLoading = ref(false);
+const detailLoading = ref(false);
+const detailRefreshing = ref(false);
+const editLoading = ref(false);
+const editSaving = ref(false);
 const selectedStatus = ref<string>("all");
 const searchQuery = ref("");
+const detailAutoRefresh = ref(false);
+const detailRefreshInterval = ref(10);
+const detailRefreshTimer = ref<ReturnType<typeof setInterval> | null>(null);
+
+type EditTaskForm = {
+  name: string;
+  description: string;
+  priority: "low" | "normal" | "high";
+  is_enabled: boolean;
+  schedule: string | null;
+  retention_days: number;
+  max_snapshots: number;
+  backup_paths_text: string;
+  include_patterns_text: string;
+  exclude_patterns_text: string;
+  compression_enabled: boolean;
+  compression_type: string;
+  compression_level: number;
+  encryption_enabled: boolean;
+  verify_checksum: boolean;
+  enable_checkpoint: boolean;
+  checkpoint_interval_minutes: number;
+  max_concurrent_files: number;
+  bandwidth_limit_kbps: number | null;
+  max_retries: number;
+};
+
+const editForm = ref<EditTaskForm>({
+  name: "",
+  description: "",
+  priority: "normal",
+  is_enabled: true,
+  schedule: null,
+  retention_days: 30,
+  max_snapshots: 10,
+  backup_paths_text: "",
+  include_patterns_text: "",
+  exclude_patterns_text: "",
+  compression_enabled: true,
+  compression_type: "zstd",
+  compression_level: 6,
+  encryption_enabled: true,
+  verify_checksum: true,
+  enable_checkpoint: true,
+  checkpoint_interval_minutes: 15,
+  max_concurrent_files: 4,
+  bandwidth_limit_kbps: null,
+  max_retries: 3,
+});
 
 // Pagination
 const currentPage = ref(1);
@@ -113,21 +191,255 @@ const paginatedTasks = computed(() => {
   return filteredTasks.value.slice(start, end);
 });
 
+const currentDetailTabLoading = computed(() => {
+  if (detailTab.value === "overview") return detailRefreshing.value;
+  if (detailTab.value === "snapshots") return snapshotsLoading.value;
+  return runsLoading.value;
+});
+
 // Reset page when filters change
 watch([selectedStatus, searchQuery], () => {
   currentPage.value = 1;
 });
 
+function stopDetailAutoRefresh() {
+  if (detailRefreshTimer.value) {
+    clearInterval(detailRefreshTimer.value);
+    detailRefreshTimer.value = null;
+  }
+}
+
+function startDetailAutoRefresh() {
+  stopDetailAutoRefresh();
+  if (!showDetailModal.value || !selectedTask.value || !detailAutoRefresh.value) {
+    return;
+  }
+  detailRefreshTimer.value = setInterval(() => {
+    refreshCurrentDetailTab(true);
+  }, detailRefreshInterval.value * 1000);
+}
+
+watch([detailAutoRefresh, detailRefreshInterval, detailTab, showDetailModal], () => {
+  startDetailAutoRefresh();
+});
+
+onUnmounted(() => {
+  stopDetailAutoRefresh();
+});
+
 async function fetchTasks() {
   isLoading.value = true;
   try {
-    const response = await backupTasksApi.list();
+    const response = await backupTasksApi.list({ page_size: 500 });
     tasks.value = response.data.results || response.data;
   } catch (error) {
     console.error("Failed to fetch tasks:", error);
   } finally {
     isLoading.value = false;
   }
+}
+
+async function openTaskDetail(task: BackupTask) {
+  selectedTask.value = task;
+  detailTab.value = "overview";
+  showDetailModal.value = true;
+  detailLoading.value = true;
+  selectedTaskSnapshots.value = [];
+  selectedTaskRuns.value = [];
+  selectedSnapshot.value = null;
+  selectedSnapshotFiles.value = [];
+  try {
+    await refreshTaskOverview(false);
+  } finally {
+    detailLoading.value = false;
+  }
+  startDetailAutoRefresh();
+}
+
+async function selectDetailTab(tab: "overview" | "snapshots" | "tasks") {
+  detailTab.value = tab;
+  await refreshCurrentDetailTab();
+}
+
+async function refreshCurrentDetailTab(silent = false) {
+  if (!selectedTask.value) return;
+  if (currentDetailTabLoading.value) return;
+  if (detailTab.value === "overview") {
+    await refreshTaskOverview(silent);
+  } else if (detailTab.value === "snapshots") {
+    await loadTaskSnapshots();
+  } else if (detailTab.value === "tasks") {
+    await loadTaskRuns();
+  }
+}
+
+async function refreshTaskOverview(silent = false) {
+  if (!selectedTask.value) return;
+  if (silent || !detailLoading.value) {
+    detailRefreshing.value = true;
+  }
+  try {
+    const detailRes = await backupTasksApi.detail(selectedTask.value.id);
+    selectedTask.value = detailRes.data;
+  } catch (error) {
+    console.error("Failed to fetch task detail:", error);
+  } finally {
+    if (silent || !detailLoading.value) {
+      detailRefreshing.value = false;
+    }
+  }
+}
+
+async function loadTaskSnapshots() {
+  if (!selectedTask.value) return;
+  snapshotsLoading.value = true;
+  try {
+    const response = await backupTasksApi.snapshots(selectedTask.value.id);
+    selectedTaskSnapshots.value = response.data.results || response.data || [];
+  } catch (error) {
+    console.error("Failed to fetch snapshots:", error);
+  } finally {
+    snapshotsLoading.value = false;
+  }
+}
+
+async function loadTaskRuns() {
+  if (!selectedTask.value) return;
+  runsLoading.value = true;
+  try {
+    const response = await backupTasksApi.runs(selectedTask.value.id, {
+      page_size: 100,
+    });
+    selectedTaskRuns.value = response.data.results || response.data || [];
+  } catch (error) {
+    console.error("Failed to fetch task runs:", error);
+  } finally {
+    runsLoading.value = false;
+  }
+}
+
+async function loadSnapshotFiles(snapshot: any, path = "") {
+  if (!snapshot?.id) return;
+  if (!path) {
+    snapshotFilesLoading.value = true;
+  } else {
+    loadingSnapshotPaths.value = new Set([...loadingSnapshotPaths.value, path]);
+  }
+  try {
+    const response = await backupTasksApi.listFiles(snapshot.id, path);
+    selectedSnapshot.value = snapshot;
+    const files = response.data.results || response.data || [];
+    if (!path) {
+      selectedSnapshotFiles.value = normalizeSnapshotFiles(files, "");
+      expandedSnapshotPaths.value = new Set();
+      selectedSnapshotPaths.value = new Set();
+      loadingSnapshotPaths.value = new Set();
+    } else {
+      mergeSnapshotChildren(path, files);
+      expandedSnapshotPaths.value = new Set([
+        ...expandedSnapshotPaths.value,
+        path,
+      ]);
+    }
+  } finally {
+    if (!path) {
+      snapshotFilesLoading.value = false;
+    } else {
+      const next = new Set(loadingSnapshotPaths.value);
+      next.delete(path);
+      loadingSnapshotPaths.value = next;
+    }
+  }
+}
+
+function normalizeSnapshotFiles(files: any[], parentPath: string) {
+  return files.map((file: any) => {
+    const rawPath = file.relative_path || file.path || file.file_name || "";
+    const rawCleanPath = String(rawPath).replace(/^\/+/, "").replace(/\/+$/, "");
+    const cleanPath =
+      parentPath && rawCleanPath && !rawCleanPath.startsWith(`${parentPath}/`)
+        ? `${parentPath}/${rawCleanPath}`
+        : rawCleanPath;
+    const name =
+      file.file_name || rawCleanPath.split("/").filter(Boolean).pop() || cleanPath;
+    const type = file.type || file.entry_type || "";
+    const isDirectory =
+      file.is_dir === true ||
+      type === "d" ||
+      type === "dir" ||
+      type === "directory";
+    return {
+      ...file,
+      id: file.id || cleanPath || `${parentPath}/${name}`,
+      relative_path: cleanPath,
+      file_name: name,
+      parent_path: parentPath,
+      depth: parentPath ? parentPath.split("/").filter(Boolean).length + 1 : 0,
+      is_dir: isDirectory,
+      children_loaded: false,
+    };
+  });
+}
+
+function mergeSnapshotChildren(parentPath: string, files: any[]) {
+  const children = normalizeSnapshotFiles(files, parentPath);
+  const withoutOldChildren = selectedSnapshotFiles.value.filter(
+    (file) => file.parent_path !== parentPath,
+  );
+  const parentIndex = withoutOldChildren.findIndex(
+    (file) => file.relative_path === parentPath,
+  );
+  if (parentIndex === -1) {
+    selectedSnapshotFiles.value = withoutOldChildren;
+    return;
+  }
+  withoutOldChildren[parentIndex] = {
+    ...withoutOldChildren[parentIndex],
+    children_loaded: true,
+  };
+  withoutOldChildren.splice(parentIndex + 1, 0, ...children);
+  selectedSnapshotFiles.value = withoutOldChildren;
+}
+
+function visibleSnapshotFiles() {
+  return selectedSnapshotFiles.value.filter((file) => {
+    if (!file.parent_path) return true;
+    const ancestors = file.parent_path.split("/").filter(Boolean);
+    let current = "";
+    for (const part of ancestors) {
+      current = current ? `${current}/${part}` : part;
+      if (!expandedSnapshotPaths.value.has(current)) return false;
+    }
+    return true;
+  });
+}
+
+async function toggleSnapshotDirectory(file: any) {
+  if (!file.is_dir) return;
+  const path = file.relative_path;
+  const next = new Set(expandedSnapshotPaths.value);
+  if (next.has(path)) {
+    next.delete(path);
+    expandedSnapshotPaths.value = next;
+    return;
+  }
+  if (!file.children_loaded && selectedSnapshot.value) {
+    await loadSnapshotFiles(selectedSnapshot.value, path);
+    return;
+  }
+  next.add(path);
+  expandedSnapshotPaths.value = next;
+}
+
+function toggleSnapshotPathSelection(file: any) {
+  const path = file.relative_path;
+  const next = new Set(selectedSnapshotPaths.value);
+  if (next.has(path)) {
+    next.delete(path);
+  } else {
+    next.add(path);
+  }
+  selectedSnapshotPaths.value = next;
 }
 
 async function fetchStats() {
@@ -166,12 +478,52 @@ async function executeTask(task: BackupTask) {
   }
 }
 
+async function toggleTaskEnabled(task: BackupTask) {
+  try {
+    if (task.is_enabled === false) {
+      await backupTasksApi.enable(task.id);
+    } else {
+      await backupTasksApi.disable(task.id);
+    }
+    await fetchTasks();
+    if (selectedTask.value?.id === task.id) {
+      selectedTask.value = {
+        ...selectedTask.value,
+        is_enabled: task.is_enabled === false,
+      };
+    }
+  } catch (error) {
+    console.error("Failed to update task enabled state:", error);
+    appStore.error(getApiErrorMessage(error, t("common.updateFailed")));
+  }
+}
+
 async function cancelTask(task: BackupTask) {
   try {
     await backupTasksApi.cancel(task.id);
     await fetchTasks();
   } catch (error) {
     console.error("Failed to cancel task:", error);
+  }
+}
+
+async function deleteTask(task: BackupTask) {
+  if (
+    !window.confirm(t("backupTasks.actions.deleteConfirm", { name: task.name }))
+  ) {
+    return;
+  }
+  try {
+    await backupTasksApi.delete(task.id);
+    if (selectedTask.value?.id === task.id) {
+      showDetailModal.value = false;
+      selectedTask.value = null;
+    }
+    await fetchTasks();
+    await fetchStats();
+  } catch (error) {
+    console.error("Failed to delete task:", error);
+    appStore.error(getApiErrorMessage(error, t("common.deleteFailed")));
   }
 }
 
@@ -205,6 +557,138 @@ async function createTask() {
 async function createTaskFromWizard(payload: BackupTaskCreateData) {
   newTask.value = payload;
   await createTask();
+}
+
+function listToText(value?: string[] | null) {
+  return Array.isArray(value) ? value.join("\n") : "";
+}
+
+function textToList(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function sourceForTask(task: BackupTask | null) {
+  if (!task?.source_resource) return null;
+  return (
+    sourceResources.value.find((source) => source.id === task.source_resource) ||
+    null
+  );
+}
+
+function repositoryForTask(task: BackupTask | null) {
+  if (!task?.target_repository) return null;
+  return (
+    repositories.value.find((repo) => repo.id === task.target_repository) ||
+    null
+  );
+}
+
+function fillEditForm(task: BackupTask) {
+  editForm.value = {
+    name: task.name || "",
+    description: task.description || "",
+    priority: task.priority || "normal",
+    is_enabled: task.is_enabled !== false,
+    schedule: task.schedule || null,
+    retention_days: task.retention_days ?? 30,
+    max_snapshots: task.max_snapshots ?? 10,
+    backup_paths_text: listToText(task.backup_paths),
+    include_patterns_text: listToText(task.include_patterns),
+    exclude_patterns_text: listToText(task.exclude_patterns),
+    compression_enabled: task.compression_enabled !== false,
+    compression_type: task.compression_type || "zstd",
+    compression_level: task.compression_level ?? 6,
+    encryption_enabled: task.encryption_enabled !== false,
+    verify_checksum: task.verify_checksum !== false,
+    enable_checkpoint: task.enable_checkpoint !== false,
+    checkpoint_interval_minutes: task.checkpoint_interval_minutes ?? 15,
+    max_concurrent_files: task.max_concurrent_files ?? 4,
+    bandwidth_limit_kbps: task.bandwidth_limit_kbps ?? null,
+    max_retries: task.max_retries ?? 3,
+  };
+}
+
+async function openEditTask(task: BackupTask) {
+  if (task.status === "running") {
+    appStore.error(t("backupTasks.edit.runningReadonly"));
+    return;
+  }
+  editingTask.value = task;
+  showEditModal.value = true;
+  editLoading.value = true;
+  fillEditForm(task);
+  try {
+    const response = await backupTasksApi.detail(task.id);
+    editingTask.value = response.data;
+    fillEditForm(response.data);
+  } catch (error) {
+    console.error("Failed to fetch task for editing:", error);
+  } finally {
+    editLoading.value = false;
+  }
+}
+
+async function updateTask() {
+  if (!editingTask.value) return;
+  const backupPaths = textToList(editForm.value.backup_paths_text);
+  if (!editForm.value.name.trim() || backupPaths.length === 0) {
+    appStore.error(t("backupTasks.edit.requiredFields"));
+    return;
+  }
+
+  const payload: BackupTaskUpdateData = {
+    name: editForm.value.name.trim(),
+    description: editForm.value.description.trim(),
+    priority: editForm.value.priority,
+    is_enabled: editForm.value.is_enabled,
+    schedule: editForm.value.schedule || null,
+    retention_days: Number(editForm.value.retention_days) || 30,
+    max_snapshots: Number(editForm.value.max_snapshots) || 10,
+    backup_paths: backupPaths,
+    include_patterns: textToList(editForm.value.include_patterns_text),
+    exclude_patterns: textToList(editForm.value.exclude_patterns_text),
+    compression_enabled: editForm.value.compression_enabled,
+    compression_type: editForm.value.compression_type,
+    compression_level: Number(editForm.value.compression_level) || 0,
+    encryption_enabled: editForm.value.encryption_enabled,
+    verify_checksum: editForm.value.verify_checksum,
+    enable_checkpoint: editForm.value.enable_checkpoint,
+    checkpoint_interval_minutes:
+      Number(editForm.value.checkpoint_interval_minutes) || 15,
+    max_concurrent_files: Number(editForm.value.max_concurrent_files) || 1,
+    bandwidth_limit_kbps: editForm.value.bandwidth_limit_kbps
+      ? Number(editForm.value.bandwidth_limit_kbps)
+      : null,
+    max_retries: Number(editForm.value.max_retries) || 0,
+  };
+
+  editSaving.value = true;
+  try {
+    const taskId = editingTask.value.id;
+    await backupTasksApi.update(taskId, payload);
+    const detailResponse = await backupTasksApi.detail(taskId);
+    const updated = detailResponse.data;
+    showEditModal.value = false;
+    editingTask.value = null;
+    if (selectedTask.value?.id === taskId) {
+      selectedTask.value = { ...selectedTask.value, ...updated };
+    }
+    appStore.showToast({
+      type: "success",
+      title: t("common.save"),
+      message: t("backupTasks.edit.updateSuccess"),
+    });
+    await fetchTasks();
+    await fetchStats();
+  } catch (error) {
+    console.error("Failed to update task:", error);
+    appStore.error(getApiErrorMessage(error, t("common.updateFailed")));
+  } finally {
+    editSaving.value = false;
+  }
 }
 
 function formatBytes(bytes: number): string {
@@ -242,6 +726,146 @@ function getStatusIcon(status: string) {
     cancelled: XCircleIcon,
   };
   return icons[status] || ClockIcon;
+}
+
+function canRunTask(task: BackupTask) {
+  return task.status !== "running" && task.is_enabled !== false;
+}
+
+function formatDateTime(value?: string | null) {
+  return value ? new Date(value).toLocaleString() : "-";
+}
+
+function formatCompactDateTime(value?: string | null) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString(undefined, {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDurationSeconds(value?: number | null) {
+  if (!value && value !== 0) return "-";
+  const seconds = Math.max(0, Math.floor(value));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  if (hours) return `${hours}h ${minutes}m ${rest}s`;
+  if (minutes) return `${minutes}m ${rest}s`;
+  return `${rest}s`;
+}
+
+function formatSpeed(bytesPerSecond?: number | null) {
+  return bytesPerSecond ? `${formatBytes(bytesPerSecond)}/s` : "-";
+}
+
+function masked(value?: string | null) {
+  if (!value) return "-";
+  if (value.length <= 8) return "****";
+  return `${value.slice(0, 4)}****${value.slice(-4)}`;
+}
+
+const selectedSource = computed(() => {
+  return sourceForTask(selectedTask.value);
+});
+
+const selectedRepository = computed(() => {
+  return repositoryForTask(selectedTask.value);
+});
+
+function sourceDetailRows(source: SourceResource | null) {
+  if (!source) return [];
+  const config = source.config || {};
+  const rows = [
+    [t("common.name"), source.name],
+    [t("common.type"), source.resource_type_display || source.resource_type],
+    [t("backupTasks.detail.boundNode"), source.bound_node?.name || "-"],
+    [t("common.status"), source.status_display || source.status],
+  ];
+  if (source.resource_type === "local") {
+    rows.push([
+      t("backupTasks.repositoryDetails.path"),
+      config.path || config.root_path || "-",
+    ]);
+  } else if (["nas", "nfs", "cifs"].includes(source.resource_type)) {
+    rows.push(
+      [t("backupTasks.repositoryDetails.endpoint"), config.server || "-"],
+      [
+        t("backupTasks.repositoryDetails.path"),
+        config.export_path || config.share || "-",
+      ],
+      [
+        t("backupTasks.repositoryDetails.mountPoint"),
+        source.mount_point || "-",
+      ],
+    );
+  } else if (source.resource_type === "s3") {
+    rows.push(
+      [t("backupTasks.repositoryDetails.endpoint"), config.endpoint || "-"],
+      [t("backupTasks.repositoryDetails.bucket"), config.bucket || "-"],
+      [t("backupTasks.repositoryDetails.prefix"), config.prefix || "-"],
+      [t("backupTasks.detail.urlStyle"), config.url_style || "-"],
+    );
+  }
+  return rows;
+}
+
+function repositoryDetailRows(repo: Repository | null) {
+  if (!repo) return [];
+  const config = repo.config || {};
+  const rows = [
+    [t("common.name"), repo.name],
+    [
+      t("backupTasks.repositoryDetails.type"),
+      repo.repo_type_display || repo.repo_type,
+    ],
+    [t("common.status"), repo.status_display || repo.status],
+    [t("backupTasks.repositoryDetails.boundNode"), repo.bound_node_name || "-"],
+    [
+      t("backupTasks.repositoryDetails.kopia"),
+      repo.kopia_initialized ? t("common.yes") : t("common.no"),
+    ],
+  ];
+  if (repo.repo_type === "local") {
+    rows.push([t("backupTasks.repositoryDetails.path"), config.path || "-"]);
+  } else if (repo.repo_type === "s3") {
+    rows.push(
+      [t("backupTasks.repositoryDetails.endpoint"), config.endpoint || "-"],
+      [t("backupTasks.repositoryDetails.bucket"), config.bucket || "-"],
+      [t("backupTasks.repositoryDetails.region"), config.region || "-"],
+      [t("backupTasks.repositoryDetails.prefix"), config.prefix || "-"],
+      [
+        t("backupTasks.repositoryDetails.accessKey"),
+        masked(config.access_key || repo.credentials_masked?.access_key),
+      ],
+      [t("backupTasks.detail.urlStyle"), config.url_style || "-"],
+      [
+        t("backupTasks.detail.useTls"),
+        config.use_tls ? t("common.yes") : t("common.no"),
+      ],
+    );
+  } else if (["nas", "nfs"].includes(repo.repo_type)) {
+    rows.push(
+      [t("backupTasks.repositoryDetails.endpoint"), config.server || "-"],
+      [t("backupTasks.repositoryDetails.path"), config.export_path || "-"],
+      [
+        t("backupTasks.repositoryDetails.mountOptions"),
+        config.mount_options || "-",
+      ],
+    );
+  }
+  return rows;
+}
+
+function runDuration(run: any) {
+  if (run.duration_seconds || run.duration) {
+    return formatDurationSeconds(run.duration_seconds || run.duration);
+  }
+  const start = run.started_at ? new Date(run.started_at).getTime() : null;
+  const end = run.completed_at ? new Date(run.completed_at).getTime() : null;
+  return start && end ? formatDurationSeconds((end - start) / 1000) : "-";
 }
 
 onMounted(() => {
@@ -307,11 +931,7 @@ onMounted(() => {
           {{ t("backupTasks.progress.size") }}
         </p>
         <p class="text-xl font-bold text-pink-800 mt-1">
-          {{
-            totalBackupSize
-              ? formatBytes(totalBackupSize)
-              : "0 B"
-          }}
+          {{ totalBackupSize ? formatBytes(totalBackupSize) : "0 B" }}
         </p>
       </div>
     </div>
@@ -378,170 +998,220 @@ onMounted(() => {
       </p>
     </div>
 
-    <div
-      v-else
-      class="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
-    >
-      <table class="w-full">
-        <thead class="bg-background-secondary border-b border-border">
-          <tr>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+    <div v-else class="bg-card rounded-xl border border-border shadow-sm">
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[1180px]">
+          <thead class="bg-background-secondary border-b border-border">
+            <tr>
+              <th
+                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+              >
+                {{ t("common.name") }}
+              </th>
+              <th
+                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+              >
+                {{ t("backupTasks.form.policy") }}
+              </th>
+              <th
+                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+              >
+                {{ t("backupTasks.form.sourceNode") }}
+              </th>
+              <th
+                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+              >
+                {{ t("backupTasks.form.repository") }}
+              </th>
+              <th
+                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+              >
+                {{ t("common.status") }}
+              </th>
+              <th
+                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+              >
+                {{ t("backupTasks.lastBackup") }}
+              </th>
+              <th
+                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+              >
+                {{ t("backupTasks.nextBackup") }}
+              </th>
+              <th
+                class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
+              >
+                {{ t("common.actions") }}
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+            <tr
+              v-for="task in paginatedTasks"
+              :key="task.id"
+              class="hover:bg-hover transition-colors"
             >
-              {{ t("common.name") }}
-            </th>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("common.type") }}
-            </th>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("common.status") }}
-            </th>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("backupTasks.progress.progress") }}
-            </th>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("common.date") }}
-            </th>
-            <th
-              class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("common.actions") }}
-            </th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-          <tr
-            v-for="task in paginatedTasks"
-            :key="task.id"
-            class="hover:bg-hover transition-colors"
-          >
-            <td class="px-6 py-4">
-              <div class="flex items-center gap-3">
-                <div
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div
+                    :class="[
+                      'w-9 h-9 rounded-lg flex items-center justify-center',
+                      task.status === 'running'
+                        ? 'bg-indigo-100'
+                        : task.status === 'completed'
+                          ? 'bg-emerald-100'
+                          : task.status === 'failed'
+                            ? 'bg-red-100'
+                            : 'bg-slate-100',
+                    ]"
+                  >
+                    <CloudArrowUpIcon
+                      :class="[
+                        'w-5 h-5',
+                        task.status === 'running'
+                          ? 'text-indigo-600'
+                          : task.status === 'completed'
+                            ? 'text-emerald-600'
+                            : task.status === 'failed'
+                              ? 'text-red-600'
+                              : 'text-slate-400',
+                      ]"
+                    />
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span
+                        :class="[
+                          'h-2.5 w-2.5 rounded-full shrink-0',
+                          task.is_enabled === false
+                            ? 'bg-red-500'
+                            : 'bg-emerald-500',
+                        ]"
+                        :title="
+                          task.is_enabled === false
+                            ? t('backupTasks.disabled')
+                            : t('backupTasks.enabled')
+                        "
+                      />
+                      <button
+                        type="button"
+                        class="text-left text-sm font-medium text-foreground hover:text-primary"
+                        @click="openTaskDetail(task)"
+                      >
+                        {{ task.name }}
+                      </button>
+                    </div>
+                    <p class="text-xs text-foreground-secondary">
+                      {{ t(`backupTasks.types.${task.task_type || "full"}`) }} ·
+                      {{ task.snapshot_count || 0 }}
+                      {{ t("backupTasks.snapshots") }}
+                    </p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <span class="text-sm text-foreground-secondary">
+                  {{ task.schedule_name || t("backupTasks.form.noPolicy") }}
+                </span>
+              </td>
+              <td class="px-6 py-4">
+                <p class="text-sm text-foreground">
+                  {{ task.source_resource_name || "-" }}
+                </p>
+                <p class="text-xs text-foreground-muted">
+                  {{ task.execution_node_name || "-" }}
+                </p>
+              </td>
+              <td class="px-6 py-4">
+                <p class="text-sm text-foreground">
+                  {{ task.target_repository_name || "-" }}
+                </p>
+                <p class="text-xs text-foreground-muted">
+                  {{ task.target_repository_type || "-" }}
+                </p>
+              </td>
+              <td class="px-6 py-4">
+                <span
                   :class="[
-                    'w-9 h-9 rounded-lg flex items-center justify-center',
-                    task.status === 'running'
-                      ? 'bg-indigo-100'
-                      : task.status === 'completed'
-                        ? 'bg-emerald-100'
-                        : task.status === 'failed'
-                          ? 'bg-red-100'
-                          : 'bg-slate-100',
+                    'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium',
+                    getStatusColor(task.status),
                   ]"
                 >
-                  <CloudArrowUpIcon
+                  <component
+                    :is="getStatusIcon(task.status)"
+                    class="w-3.5 h-3.5"
+                  />
+                  {{ t(`backupTasks.status.${task.status}`) }}
+                </span>
+              </td>
+              <td class="px-6 py-4 text-sm text-foreground-secondary">
+                {{ formatDateTime(task.last_run_time || task.completed_at) }}
+              </td>
+              <td class="px-6 py-4 text-sm text-foreground-secondary">
+                {{ formatDateTime(task.next_run_time) }}
+              </td>
+              <td class="px-6 py-4 text-right">
+                <div class="flex items-center justify-end gap-2">
+                  <button
+                    v-if="canRunTask(task)"
+                    @click="executeTask(task)"
+                    class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                    :title="t('backupTasks.actions.runNow')"
+                  >
+                    <PlayIcon class="w-4 h-4" />
+                  </button>
+                  <button
+                    @click="toggleTaskEnabled(task)"
                     :class="[
-                      'w-5 h-5',
-                      task.status === 'running'
-                        ? 'text-indigo-600'
-                        : task.status === 'completed'
-                          ? 'text-emerald-600'
-                          : task.status === 'failed'
-                            ? 'text-red-600'
-                            : 'text-slate-400',
+                      'p-1.5 rounded-lg transition-colors',
+                      task.is_enabled === false
+                        ? 'text-emerald-600 hover:bg-emerald-50'
+                        : 'text-amber-600 hover:bg-amber-50',
                     ]"
-                  />
+                    :title="
+                      task.is_enabled === false
+                        ? t('backupTasks.actions.enable')
+                        : t('backupTasks.actions.disable')
+                    "
+                  >
+                    <PowerIcon class="w-4 h-4" />
+                  </button>
+                  <button
+                    v-if="task.status === 'running'"
+                    @click="cancelTask(task)"
+                    class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    :title="t('backupTasks.actions.cancel')"
+                  >
+                    <StopIcon class="w-4 h-4" />
+                  </button>
+                  <button
+                    @click="openTaskDetail(task)"
+                    class="p-1.5 text-slate-500 hover:bg-background-tertiary rounded-lg transition-colors"
+                    :title="t('common.details')"
+                  >
+                    <EyeIcon class="w-4 h-4" />
+                  </button>
+                  <button
+                    :disabled="task.status === 'running'"
+                    @click="openEditTask(task)"
+                    class="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    :title="t('backupTasks.edit.title')"
+                  >
+                    <PencilSquareIcon class="w-4 h-4" />
+                  </button>
+                  <button
+                    @click="deleteTask(task)"
+                    class="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    :title="t('backupTasks.actions.delete')"
+                  >
+                    <TrashIcon class="w-4 h-4" />
+                  </button>
                 </div>
-                <div>
-                  <p class="text-sm font-medium text-foreground">
-                    {{ task.name }}
-                  </p>
-                  <p class="text-xs text-foreground-secondary">
-                    {{ task.execution_node_name || task.source_resource_name || "Source" }}
-                  </p>
-                </div>
-              </div>
-            </td>
-            <td class="px-6 py-4">
-              <span
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-background-tertiary text-foreground"
-              >
-                {{ t(`backupTasks.types.${task.task_type || "full"}`) }}
-              </span>
-            </td>
-            <td class="px-6 py-4">
-              <span
-                :class="[
-                  'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium',
-                  getStatusColor(task.status),
-                ]"
-              >
-                <component
-                  :is="getStatusIcon(task.status)"
-                  class="w-3.5 h-3.5"
-                />
-                {{ t(`backupTasks.status.${task.status}`) }}
-              </span>
-            </td>
-            <td class="px-6 py-4">
-              <div
-                v-if="task.status === 'running' || task.progress_percent"
-                class="w-32"
-              >
-                <div
-                  class="flex items-center justify-between text-xs text-slate-500 mb-1"
-                >
-                  <span>{{ task.progress_percent || 0 }}%</span>
-                </div>
-                <div
-                  class="h-1.5 bg-background-tertiary rounded-full overflow-hidden"
-                >
-                  <div
-                    class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300"
-                    :style="{ width: `${task.progress_percent || 0}%` }"
-                  />
-                </div>
-              </div>
-              <span v-else class="text-sm text-slate-400">-</span>
-            </td>
-            <td class="px-6 py-4 text-sm text-foreground-secondary">
-              {{
-                task.created_at
-                  ? new Date(task.created_at).toLocaleDateString()
-                  : "-"
-              }}
-            </td>
-            <td class="px-6 py-4 text-right">
-              <div class="flex items-center justify-end gap-2">
-                <button
-                  v-if="task.status === 'pending' || task.status === 'failed'"
-                  @click="executeTask(task)"
-                  class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                  :title="t('backupTasks.actions.start')"
-                >
-                  <PlayIcon class="w-4 h-4" />
-                </button>
-                <button
-                  v-if="task.status === 'running'"
-                  @click="cancelTask(task)"
-                  class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  :title="t('backupTasks.actions.cancel')"
-                >
-                  <StopIcon class="w-4 h-4" />
-                </button>
-                <button
-                  @click="
-                    selectedTask = task;
-                    showDetailModal = true;
-                  "
-                  class="p-1.5 text-slate-500 hover:bg-background-tertiary rounded-lg transition-colors"
-                  :title="t('common.details')"
-                >
-                  <EyeIcon class="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <!-- Pagination -->
       <Pagination
@@ -609,7 +1279,11 @@ onMounted(() => {
                   class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option :value="0">Select</option>
-                  <option v-for="source in sourceResources" :key="source.id" :value="source.id">
+                  <option
+                    v-for="source in sourceResources"
+                    :key="source.id"
+                    :value="source.id"
+                  >
                     {{ source.name }}
                   </option>
                 </select>
@@ -670,95 +1344,1222 @@ onMounted(() => {
       </div>
     </Teleport>
 
-    <!-- Detail Modal -->
+    <!-- Edit Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showEditModal && editingTask"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
+        <div
+          class="absolute inset-0 bg-black/50"
+          @click="showEditModal = false"
+        />
+        <form
+          class="relative modal-surface w-full max-w-5xl max-h-[90vh] rounded-xl shadow-xl border border-border overflow-hidden flex flex-col"
+          @submit.prevent="updateTask"
+        >
+          <div
+            class="px-6 py-4 border-b border-border flex items-start justify-between gap-4"
+          >
+            <div>
+              <h2 class="text-lg font-semibold text-foreground">
+                {{ t("backupTasks.edit.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-foreground-secondary">
+                {{ t("backupTasks.edit.subtitle") }}
+              </p>
+            </div>
+            <button
+              type="button"
+              @click="showEditModal = false"
+              class="p-2 hover:bg-background-tertiary rounded-lg"
+            >
+              <XCircleIcon class="w-5 h-5 text-slate-400" />
+            </button>
+          </div>
+
+          <div
+            v-if="editLoading"
+            class="p-10 text-center text-foreground-secondary"
+          >
+            {{ t("common.loading") }}
+          </div>
+
+          <div v-else class="p-6 overflow-y-auto space-y-5">
+            <div
+              class="rounded-lg border border-border bg-background-secondary p-4"
+            >
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p class="text-foreground-secondary">
+                    {{ t("backupTasks.backupSource") }}
+                  </p>
+                  <p class="mt-1 font-medium text-foreground">
+                    {{
+                      sourceForTask(editingTask)?.name ||
+                      editingTask.source_resource_name ||
+                      "-"
+                    }}
+                  </p>
+                  <p class="text-xs text-foreground-muted">
+                    {{
+                      sourceForTask(editingTask)?.resource_type_display ||
+                      editingTask.source_resource_type ||
+                      "-"
+                    }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-foreground-secondary">
+                    {{ t("backupTasks.backupRepository") }}
+                  </p>
+                  <p class="mt-1 font-medium text-foreground">
+                    {{
+                      repositoryForTask(editingTask)?.name ||
+                      editingTask.target_repository_name ||
+                      "-"
+                    }}
+                  </p>
+                  <p class="text-xs text-foreground-muted">
+                    {{
+                      repositoryForTask(editingTask)?.repo_type_display ||
+                      editingTask.target_repository_type ||
+                      "-"
+                    }}
+                  </p>
+                </div>
+              </div>
+              <p class="mt-3 text-xs text-foreground-secondary">
+                {{ t("backupTasks.edit.readonlyHint") }}
+              </p>
+            </div>
+
+            <section class="rounded-lg border border-border bg-card p-4">
+              <h3 class="font-semibold text-foreground mb-4">
+                {{ t("backupTasks.detail.basic") }}
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.form.taskName") }}
+                  </label>
+                  <input
+                    v-model="editForm.name"
+                    type="text"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.form.priority") }}
+                  </label>
+                  <select
+                    v-model="editForm.priority"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("common.description") }}
+                  </label>
+                  <textarea
+                    v-model="editForm.description"
+                    rows="3"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <label
+                  class="inline-flex items-center gap-3 text-sm text-foreground"
+                >
+                  <input
+                    v-model="editForm.is_enabled"
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  {{ t("backupTasks.enabled") }}
+                </label>
+              </div>
+            </section>
+
+            <section class="rounded-lg border border-border bg-card p-4">
+              <h3 class="font-semibold text-foreground mb-4">
+                {{ t("backupTasks.detail.scheduleRetention") }}
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.form.policy") }}
+                  </label>
+                  <select
+                    v-model="editForm.schedule"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option :value="null">
+                      {{ t("backupTasks.form.noPolicy") }}
+                    </option>
+                    <option
+                      v-for="policy in backupPolicies"
+                      :key="policy.id"
+                      :value="policy.id"
+                    >
+                      {{ policy.name }}
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.form.retentionDays") }}
+                  </label>
+                  <input
+                    v-model.number="editForm.retention_days"
+                    type="number"
+                    min="1"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.form.maxSnapshots") }}
+                  </label>
+                  <input
+                    v-model.number="editForm.max_snapshots"
+                    type="number"
+                    min="1"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section class="rounded-lg border border-border bg-card p-4">
+              <h3 class="font-semibold text-foreground mb-4">
+                {{ t("backupTasks.detail.pathsAndFilters") }}
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.form.sourcePaths") }}
+                  </label>
+                  <textarea
+                    v-model="editForm.backup_paths_text"
+                    rows="6"
+                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.detail.includePatterns") }}
+                  </label>
+                  <textarea
+                    v-model="editForm.include_patterns_text"
+                    rows="6"
+                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.form.excludePaths") }}
+                  </label>
+                  <textarea
+                    v-model="editForm.exclude_patterns_text"
+                    rows="6"
+                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-foreground-secondary">
+                {{ t("backupTasks.edit.onePerLine") }}
+              </p>
+            </section>
+
+            <section class="rounded-lg border border-border bg-card p-4">
+              <h3 class="font-semibold text-foreground mb-4">
+                {{ t("backupTasks.detail.securityCompression") }}
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <label class="inline-flex items-center gap-3 text-sm text-foreground">
+                  <input
+                    v-model="editForm.encryption_enabled"
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  {{ t("backupTasks.detail.encryption") }}
+                </label>
+                <label class="inline-flex items-center gap-3 text-sm text-foreground">
+                  <input
+                    v-model="editForm.verify_checksum"
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  {{ t("backupTasks.detail.checksum") }}
+                </label>
+                <label class="inline-flex items-center gap-3 text-sm text-foreground">
+                  <input
+                    v-model="editForm.compression_enabled"
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  {{ t("backupTasks.detail.compression") }}
+                </label>
+                <label class="inline-flex items-center gap-3 text-sm text-foreground">
+                  <input
+                    v-model="editForm.enable_checkpoint"
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  {{ t("backupTasks.detail.checkpoint") }}
+                </label>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.detail.compression") }}
+                  </label>
+                  <select
+                    v-model="editForm.compression_type"
+                    :disabled="!editForm.compression_enabled"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  >
+                    <option value="zstd">zstd</option>
+                    <option value="gzip">gzip</option>
+                    <option value="none">{{ t("common.none") }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.detail.compressionLevel") }}
+                  </label>
+                  <input
+                    v-model.number="editForm.compression_level"
+                    type="number"
+                    min="0"
+                    max="9"
+                    :disabled="!editForm.compression_enabled"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.detail.checkpoint") }}
+                  </label>
+                  <input
+                    v-model.number="editForm.checkpoint_interval_minutes"
+                    type="number"
+                    min="1"
+                    :disabled="!editForm.enable_checkpoint"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.detail.concurrency") }}
+                  </label>
+                  <input
+                    v-model.number="editForm.max_concurrent_files"
+                    type="number"
+                    min="1"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.edit.bandwidthLimit") }}
+                  </label>
+                  <input
+                    v-model.number="editForm.bandwidth_limit_kbps"
+                    type="number"
+                    min="0"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-foreground mb-1">
+                    {{ t("backupTasks.detail.retries") }}
+                  </label>
+                  <input
+                    v-model.number="editForm.max_retries"
+                    type="number"
+                    min="0"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div
+            class="px-6 py-4 border-t border-border flex items-center justify-end gap-3"
+          >
+            <button
+              type="button"
+              @click="showEditModal = false"
+              class="px-4 py-2 text-sm font-medium text-foreground-secondary border border-border rounded-lg hover:bg-hover"
+            >
+              {{ t("common.cancel") }}
+            </button>
+            <button
+              type="submit"
+              :disabled="editSaving || editLoading"
+              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ArrowPathIcon v-if="editSaving" class="w-4 h-4 animate-spin" />
+              <PencilSquareIcon v-else class="w-4 h-4" />
+              {{ editSaving ? t("common.saving") : t("common.save") }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </Teleport>
+
+    <!-- Detail Drawer -->
     <Teleport to="body">
       <div
         v-if="showDetailModal && selectedTask"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex justify-end"
       >
         <div
           class="absolute inset-0 bg-black/50"
           @click="showDetailModal = false"
         />
-        <div
-          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-lg"
+        <aside
+          class="relative drawer-panel h-full w-full lg:w-[60vw] max-w-none border-l border-border overflow-y-auto"
         >
           <div
-            class="px-6 py-4 border-b border-slate-100 flex items-center justify-between"
+            class="sticky top-0 z-10 modal-surface px-6 py-4 border-b border-border flex items-start justify-between gap-4"
           >
-            <h2 class="text-lg font-semibold text-foreground">
-              {{ selectedTask.name }}
-            </h2>
+            <div>
+              <h2 class="text-lg font-semibold text-foreground">
+                {{ selectedTask.name }}
+              </h2>
+              <p class="mt-1 text-sm text-foreground-secondary">
+                {{ selectedTask.source_resource_name || "-" }} →
+                {{ selectedTask.target_repository_name || "-" }}
+              </p>
+            </div>
             <button
               @click="showDetailModal = false"
-              class="p-1 hover:bg-background-tertiary rounded-lg"
+              class="p-2 hover:bg-background-tertiary rounded-lg"
             >
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
           </div>
-          <div class="p-6 space-y-4">
-            <div class="flex items-center gap-4">
+
+          <div
+            class="px-6 py-3 border-b border-border flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="tab in ['overview', 'snapshots', 'tasks']"
+                  :key="tab"
+                  @click="selectDetailTab(tab as any)"
+                  :class="[
+                    'px-3 py-1.5 rounded-lg text-sm font-medium',
+                    detailTab === tab
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-foreground-secondary hover:bg-hover',
+                  ]"
+                >
+                  {{ t(`backupTasks.tabs.${tab}`) }}
+                </button>
+              </div>
+
+              <div
+                class="flex flex-wrap items-center gap-2 pl-0 xl:pl-3 xl:border-l xl:border-border"
+              >
+                <button
+                  type="button"
+                  :disabled="currentDetailTabLoading"
+                  @click="refreshCurrentDetailTab()"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ArrowPathIcon
+                    :class="[
+                      'w-3.5 h-3.5',
+                      currentDetailTabLoading ? 'animate-spin' : '',
+                    ]"
+                  />
+                  {{ t("common.refresh") }}
+                </button>
+
+                <label
+                  class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover"
+                >
+                  <input
+                    v-model="detailAutoRefresh"
+                    type="checkbox"
+                    class="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary"
+                  />
+                  {{ t("backupTasks.detail.autoRefresh") }}
+                </label>
+
+                <select
+                  v-model.number="detailRefreshInterval"
+                  :disabled="!detailAutoRefresh"
+                  class="px-2.5 py-1.5 rounded-lg border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                >
+                  <option :value="5">5s</option>
+                  <option :value="10">10s</option>
+                  <option :value="30">30s</option>
+                  <option :value="60">60s</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 xl:justify-end">
               <span
                 :class="[
-                  'inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium',
+                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium',
                   getStatusColor(selectedTask.status),
                 ]"
               >
                 <component
                   :is="getStatusIcon(selectedTask.status)"
-                  class="w-4 h-4"
+                  class="w-3.5 h-3.5"
                 />
                 {{ t(`backupTasks.status.${selectedTask.status}`) }}
               </span>
-              <span class="text-sm text-foreground-secondary">{{
-                t(`backupTasks.types.${selectedTask.task_type || "full"}`)
-              }}</span>
+              <span
+                :class="[
+                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium',
+                  selectedTask.is_enabled === false
+                    ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+                ]"
+              >
+                <span
+                  :class="[
+                    'h-2 w-2 rounded-full',
+                    selectedTask.is_enabled === false
+                      ? 'bg-red-500'
+                      : 'bg-emerald-500',
+                  ]"
+                />
+                {{
+                  selectedTask.is_enabled === false
+                    ? t("backupTasks.disabled")
+                    : t("backupTasks.enabled")
+                }}
+              </span>
+              <button
+                v-if="canRunTask(selectedTask)"
+                @click="executeTask(selectedTask)"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
+              >
+                <PlayIcon class="w-3.5 h-3.5" />
+                {{ t("backupTasks.actions.runNow") }}
+              </button>
+              <button
+                :disabled="selectedTask.status === 'running'"
+                @click="openEditTask(selectedTask)"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <PencilSquareIcon class="w-3.5 h-3.5" />
+                {{ t("common.edit") }}
+              </button>
+              <button
+                @click="toggleTaskEnabled(selectedTask)"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover"
+              >
+                <PowerIcon class="w-3.5 h-3.5" />
+                {{
+                  selectedTask.is_enabled === false
+                    ? t("backupTasks.actions.enable")
+                    : t("backupTasks.actions.disable")
+                }}
+              </button>
             </div>
-            <div class="grid grid-cols-2 gap-4 text-sm">
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("backupTasks.form.sourceNode") }}
-                </p>
-                <p class="font-medium text-foreground mt-1">
-                  {{ selectedTask.execution_node_name || selectedTask.source_resource_name || "N/A" }}
-                </p>
-              </div>
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("backupTasks.form.repository") }}
-                </p>
-                <p class="font-medium text-foreground mt-1">
-                  {{ selectedTask.target_repository_name || "N/A" }}
-                </p>
-              </div>
-            </div>
+          </div>
+
+          <div class="p-6">
             <div
-              v-if="selectedTask.backup_paths?.length"
-              class="bg-background-secondary rounded-lg p-3"
+              v-if="detailLoading"
+              class="py-10 text-center text-foreground-secondary"
             >
-              <p class="text-sm text-slate-500 mb-2">
-                {{ t("backupTasks.form.sourcePaths") }}
-              </p>
-              <div class="space-y-1">
-                <p
-                  v-for="(path, i) in selectedTask.backup_paths"
-                  :key="i"
-                  class="text-sm font-mono text-foreground bg-card px-2 py-1 rounded border border-border"
+              {{ t("common.loading") }}
+            </div>
+
+            <div v-else-if="detailTab === 'overview'" class="space-y-5">
+              <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <section class="rounded-lg border border-border bg-card p-4">
+                  <div class="flex items-center gap-2 mb-3">
+                    <ListBulletIcon class="w-5 h-5 text-primary" />
+                    <h3 class="font-semibold text-foreground">
+                      {{ t("backupTasks.detail.basic") }}
+                    </h3>
+                  </div>
+                  <dl class="space-y-3 text-sm">
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("common.description") }}
+                      </dt>
+                      <dd class="mt-1 text-foreground">
+                        {{ selectedTask.description || "-" }}
+                      </dd>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <dt class="text-foreground-secondary">
+                          {{ t("backupTasks.form.taskType") }}
+                        </dt>
+                        <dd class="text-foreground">
+                          {{
+                            t(
+                              `backupTasks.types.${selectedTask.task_type || "full"}`,
+                            )
+                          }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt class="text-foreground-secondary">
+                          {{ t("backupTasks.form.priority") }}
+                        </dt>
+                        <dd class="text-foreground">
+                          {{ selectedTask.priority || "-" }}
+                        </dd>
+                      </div>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.detail.createdUpdated") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{ formatDateTime(selectedTask.created_at) }} /
+                        {{ formatDateTime(selectedTask.updated_at) }}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section class="rounded-lg border border-border bg-card p-4">
+                  <div class="flex items-center gap-2 mb-3">
+                    <ClockIcon class="w-5 h-5 text-primary" />
+                    <h3 class="font-semibold text-foreground">
+                      {{ t("backupTasks.detail.scheduleRetention") }}
+                    </h3>
+                  </div>
+                  <dl class="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.form.policy") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{
+                          selectedTask.schedule_name ||
+                          t("backupTasks.form.noPolicy")
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.nextBackup") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{ formatDateTime(selectedTask.next_run_time) }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.lastBackup") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{
+                          formatDateTime(
+                            selectedTask.last_run_time ||
+                              selectedTask.completed_at,
+                          )
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.form.retentionDays") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{ selectedTask.retention_days || "-" }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.form.maxSnapshots") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{ selectedTask.max_snapshots || "-" }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.detail.retries") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{ selectedTask.retry_count || 0 }} /
+                        {{ selectedTask.max_retries || 0 }}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section class="rounded-lg border border-border bg-card p-4">
+                  <div class="flex items-center gap-2 mb-3">
+                    <ShieldCheckIcon class="w-5 h-5 text-primary" />
+                    <h3 class="font-semibold text-foreground">
+                      {{ t("backupTasks.detail.securityCompression") }}
+                    </h3>
+                  </div>
+                  <dl class="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.detail.encryption") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{
+                          selectedTask.encryption_enabled
+                            ? t("common.yes")
+                            : t("common.no")
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.detail.checksum") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{
+                          selectedTask.verify_checksum
+                            ? t("common.yes")
+                            : t("common.no")
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.detail.compression") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{
+                          selectedTask.compression_enabled
+                            ? selectedTask.compression_type || "-"
+                            : t("common.no")
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.detail.compressionLevel") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{ selectedTask.compression_level ?? "-" }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.detail.checkpoint") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{
+                          selectedTask.enable_checkpoint
+                            ? `${selectedTask.checkpoint_interval_minutes || "-"}m`
+                            : t("common.no")
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-foreground-secondary">
+                        {{ t("backupTasks.detail.concurrency") }}
+                      </dt>
+                      <dd class="text-foreground">
+                        {{ selectedTask.max_concurrent_files || "-" }}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+              </div>
+
+              <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <section class="rounded-lg border border-border bg-card p-4">
+                  <div class="flex items-center gap-2 mb-3">
+                    <FolderIcon class="w-5 h-5 text-primary" />
+                    <h3 class="font-semibold text-foreground">
+                      {{ t("backupTasks.backupSource") }}
+                    </h3>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div
+                      v-for="[label, value] in sourceDetailRows(selectedSource)"
+                      :key="label"
+                    >
+                      <p class="text-foreground-secondary">{{ label }}</p>
+                      <p class="text-foreground break-all">{{ value }}</p>
+                    </div>
+                  </div>
+                  <div class="mt-4">
+                    <p class="text-sm text-foreground-secondary mb-2">
+                      {{ t("backupTasks.form.sourcePaths") }}
+                    </p>
+                    <div class="space-y-1">
+                      <p
+                        v-for="(path, i) in selectedTask.backup_paths || []"
+                        :key="i"
+                        class="text-sm font-mono text-foreground bg-background-secondary px-2 py-1.5 rounded border border-border"
+                      >
+                        {{ path }}
+                      </p>
+                      <p
+                        v-if="!selectedTask.backup_paths?.length"
+                        class="text-sm text-foreground-muted"
+                      >
+                        -
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="rounded-lg border border-border bg-card p-4">
+                  <div class="flex items-center gap-2 mb-3">
+                    <ServerStackIcon class="w-5 h-5 text-primary" />
+                    <h3 class="font-semibold text-foreground">
+                      {{ t("backupTasks.backupRepository") }}
+                    </h3>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div
+                      v-for="[label, value] in repositoryDetailRows(
+                        selectedRepository,
+                      )"
+                      :key="label"
+                    >
+                      <p class="text-foreground-secondary">{{ label }}</p>
+                      <p class="text-foreground break-all">{{ value }}</p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <section class="rounded-lg border border-border bg-card p-4">
+                <h3 class="font-semibold text-foreground mb-3">
+                  {{ t("backupTasks.detail.pathsAndFilters") }}
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p class="text-sm text-foreground-secondary mb-2">
+                      {{ t("backupTasks.detail.includePatterns") }}
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                      <span
+                        v-for="(pattern, i) in selectedTask.include_patterns ||
+                        []"
+                        :key="i"
+                        class="px-2 py-1 text-xs rounded border border-border bg-background-secondary text-foreground"
+                      >
+                        {{ pattern }}
+                      </span>
+                      <span
+                        v-if="!selectedTask.include_patterns?.length"
+                        class="text-sm text-foreground-muted"
+                      >
+                        -
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <p class="text-sm text-foreground-secondary mb-2">
+                      {{ t("backupTasks.form.excludePaths") }}
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                      <span
+                        v-for="(pattern, i) in selectedTask.exclude_patterns ||
+                        []"
+                        :key="i"
+                        class="px-2 py-1 text-xs rounded border border-border bg-background-secondary text-foreground"
+                      >
+                        {{ pattern }}
+                      </span>
+                      <span
+                        v-if="!selectedTask.exclude_patterns?.length"
+                        class="text-sm text-foreground-muted"
+                      >
+                        -
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="rounded-lg border border-border bg-card p-4">
+                <h3 class="font-semibold text-foreground mb-3">
+                  {{ t("backupTasks.detail.observability") }}
+                </h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div class="bg-background-secondary rounded-lg p-3">
+                    <p class="text-xs text-foreground-secondary">
+                      {{ t("backupTasks.progress.progress") }}
+                    </p>
+                    <p class="text-lg font-semibold text-foreground">
+                      {{ selectedTask.progress || 0 }}%
+                    </p>
+                  </div>
+                  <div class="bg-background-secondary rounded-lg p-3">
+                    <p class="text-xs text-foreground-secondary">
+                      {{ t("backupTasks.progress.files") }}
+                    </p>
+                    <p class="text-lg font-semibold text-foreground">
+                      {{ selectedTask.backed_up_files || 0 }} /
+                      {{ selectedTask.total_files || 0 }}
+                    </p>
+                  </div>
+                  <div class="bg-background-secondary rounded-lg p-3">
+                    <p class="text-xs text-foreground-secondary">
+                      {{ t("backupTasks.progress.size") }}
+                    </p>
+                    <p class="text-lg font-semibold text-foreground">
+                      {{ formatBytes(selectedTask.backed_up_size || 0) }} /
+                      {{ formatBytes(selectedTask.total_size || 0) }}
+                    </p>
+                  </div>
+                  <div class="bg-background-secondary rounded-lg p-3">
+                    <p class="text-xs text-foreground-secondary">
+                      {{ t("backupTasks.progress.speed") }}
+                    </p>
+                    <p class="text-lg font-semibold text-foreground">
+                      {{ formatSpeed(selectedTask.bytes_per_second) }}
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div v-else-if="detailTab === 'snapshots'" class="space-y-4">
+              <div
+                v-if="snapshotsLoading"
+                class="py-10 text-center text-foreground-secondary"
+              >
+                {{ t("common.loading") }}
+              </div>
+              <div
+                v-else-if="selectedTaskSnapshots.length === 0"
+                class="py-10 text-center text-foreground-secondary"
+              >
+                {{ t("backupTasks.noSnapshots") }}
+              </div>
+              <template v-else>
+                <div
+                  class="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-2.5"
                 >
-                  {{ path }}
-                </p>
+                  <button
+                    v-for="(snapshot, index) in selectedTaskSnapshots"
+                    :key="snapshot.id"
+                    type="button"
+                    @click="loadSnapshotFiles(snapshot)"
+                    :class="[
+                      'group relative aspect-square rounded-lg border p-2.5 text-left transition-all focus:outline-none focus:ring-2 focus:ring-primary',
+                      selectedSnapshot?.id === snapshot.id
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm dark:bg-emerald-950/30 dark:text-emerald-50'
+                        : 'border-border bg-card hover:border-emerald-400 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/20',
+                    ]"
+                  >
+                    <div class="flex items-center justify-between gap-2">
+                      <span
+                        :class="[
+                          'inline-flex h-7 w-7 items-center justify-center rounded-md',
+                          selectedSnapshot?.id === snapshot.id
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                        ]"
+                      >
+                        <CircleStackIcon class="w-4 h-4" />
+                      </span>
+                      <span
+                        v-if="index === 0"
+                        class="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-medium"
+                      >
+                        {{ t("backupTasks.detail.latest") }}
+                      </span>
+                    </div>
+                    <p class="mt-2 text-xs font-medium text-foreground truncate">
+                      {{
+                        formatCompactDateTime(snapshot.created_at)
+                      }}
+                    </p>
+                    <p class="mt-1 text-[11px] text-foreground-secondary truncate">
+                      {{ formatBytes(snapshot.total_size || 0) }}
+                    </p>
+                    <div class="mt-2 flex items-center justify-between text-[11px]">
+                      <span class="text-foreground-muted">
+                        {{ snapshot.file_count || 0 }}
+                        {{ t("backupTasks.progress.files") }}
+                      </span>
+                      <span
+                        v-if="selectedSnapshot?.id === snapshot.id"
+                        class="h-2 w-2 rounded-full bg-emerald-500"
+                      />
+                    </div>
+
+                    <div
+                      class="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border border-border bg-card p-3 text-xs shadow-xl group-hover:block"
+                    >
+                      <div class="flex items-center gap-2 border-b border-border pb-2">
+                        <CircleStackIcon class="w-4 h-4 text-emerald-600" />
+                        <p class="font-semibold text-foreground truncate">
+                          {{ snapshot.name || snapshot.version || snapshot.id }}
+                        </p>
+                      </div>
+                      <dl class="mt-2 grid grid-cols-[88px_minmax(0,1fr)] gap-x-2 gap-y-1.5">
+                        <dt class="text-foreground-muted">
+                          {{ t("backupTasks.detail.snapshotId") }}
+                        </dt>
+                        <dd class="text-foreground truncate">
+                          {{ snapshot.version || snapshot.id }}
+                        </dd>
+                        <dt class="text-foreground-muted">
+                          {{ t("common.date") }}
+                        </dt>
+                        <dd class="text-foreground">
+                          {{ formatDateTime(snapshot.created_at) }}
+                        </dd>
+                        <dt class="text-foreground-muted">
+                          {{ t("backupTasks.progress.size") }}
+                        </dt>
+                        <dd class="text-foreground">
+                          {{ formatBytes(snapshot.total_size || 0) }}
+                        </dd>
+                        <dt class="text-foreground-muted">
+                          {{ t("backupTasks.progress.files") }}
+                        </dt>
+                        <dd class="text-foreground">
+                          {{ snapshot.file_count || 0 }}
+                        </dd>
+                        <dt
+                          v-if="snapshot.expires_at"
+                          class="text-foreground-muted"
+                        >
+                          {{ t("backupTasks.detail.expiresAt") }}
+                        </dt>
+                        <dd v-if="snapshot.expires_at" class="text-foreground">
+                          {{ formatDateTime(snapshot.expires_at) }}
+                        </dd>
+                      </dl>
+                    </div>
+                  </button>
+                </div>
+
+                <div class="rounded-lg border border-border bg-card overflow-hidden">
+                  <div
+                    class="px-4 py-3 border-b border-border flex items-center justify-between"
+                  >
+                    <div>
+                      <h3 class="font-semibold text-foreground">
+                        {{ t("backupTasks.detail.fileBrowser") }}
+                      </h3>
+                      <p class="text-xs text-foreground-secondary">
+                        {{
+                          selectedSnapshot
+                            ? selectedSnapshot.name || selectedSnapshot.id
+                            : "-"
+                        }}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    v-if="selectedSnapshot"
+                    class="grid grid-cols-[minmax(0,1fr)_120px] gap-4 px-4 py-2 border-b border-border bg-background-secondary text-xs font-medium text-foreground-secondary"
+                  >
+                    <span>{{ t("common.name") }}</span>
+                    <span class="text-right">{{ t("backupTasks.progress.size") }}</span>
+                  </div>
+                  <div
+                    v-if="snapshotFilesLoading"
+                    class="p-6 text-center text-foreground-secondary"
+                  >
+                    {{ t("common.loading") }}
+                  </div>
+                  <div
+                    v-else-if="!selectedSnapshot"
+                    class="p-6 text-center text-foreground-secondary"
+                  >
+                    {{ t("backupTasks.detail.selectSnapshot") }}
+                  </div>
+                  <div
+                    v-else-if="selectedSnapshotFiles.length === 0"
+                    class="p-6 text-center text-foreground-secondary"
+                  >
+                    {{ t("backupTasks.detail.noSnapshotFiles") }}
+                  </div>
+                  <div v-else class="py-1">
+                    <div
+                      v-for="file in visibleSnapshotFiles()"
+                      :key="file.relative_path || file.id"
+                      class="group grid grid-cols-[minmax(0,1fr)_120px] gap-4 px-4 py-1.5 hover:bg-hover"
+                    >
+                      <div
+                        class="flex items-center gap-1.5 min-w-0"
+                        :style="{ paddingLeft: `${(file.depth || 0) * 20}px` }"
+                      >
+                        <button
+                          type="button"
+                          class="w-5 h-5 inline-flex items-center justify-center rounded hover:bg-background-tertiary shrink-0"
+                          :class="file.is_dir ? 'visible' : 'invisible'"
+                          @click="toggleSnapshotDirectory(file)"
+                        >
+                          <ChevronDownIcon
+                            v-if="
+                              file.is_dir &&
+                              expandedSnapshotPaths.has(file.relative_path)
+                            "
+                            class="w-4 h-4 text-foreground-muted"
+                          />
+                          <ChevronRightIcon
+                            v-else
+                            class="w-4 h-4 text-foreground-muted"
+                          />
+                        </button>
+                        <ArrowPathIcon
+                          v-if="loadingSnapshotPaths.has(file.relative_path)"
+                          class="w-4 h-4 animate-spin text-primary shrink-0"
+                        />
+                        <input
+                          type="checkbox"
+                          class="h-4 w-4 rounded border-border text-primary focus:ring-primary shrink-0"
+                          :checked="
+                            selectedSnapshotPaths.has(file.relative_path)
+                          "
+                          @change="toggleSnapshotPathSelection(file)"
+                        />
+                        <FolderIcon
+                          v-if="file.is_dir"
+                          class="w-4 h-4 text-amber-500 shrink-0"
+                        />
+                        <DocumentIcon
+                          v-else
+                          class="w-4 h-4 text-foreground-muted shrink-0"
+                        />
+                        <div class="min-w-0 flex items-baseline gap-2">
+                          <button
+                            type="button"
+                            class="text-left text-sm text-foreground truncate hover:text-primary"
+                            @click="
+                              file.is_dir
+                                ? toggleSnapshotDirectory(file)
+                                : undefined
+                            "
+                          >
+                            {{ file.file_name || file.relative_path }}
+                          </button>
+                          <span class="text-xs text-foreground-muted truncate hidden xl:inline">
+                            {{ file.relative_path }}
+                          </span>
+                        </div>
+                      </div>
+                      <span class="text-sm text-foreground-secondary text-right tabular-nums">
+                        {{ file.is_dir ? "-" : formatBytes(file.size || 0) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <div v-else class="space-y-3">
+              <div
+                v-if="runsLoading"
+                class="py-10 text-center text-foreground-secondary"
+              >
+                {{ t("common.loading") }}
+              </div>
+              <div
+                v-else-if="selectedTaskRuns.length === 0"
+                class="py-10 text-center text-foreground-secondary"
+              >
+                {{ t("backupTasks.noRuns") }}
+              </div>
+              <div v-else class="space-y-1">
+                <div
+                  v-for="run in selectedTaskRuns"
+                  :key="run.id"
+                  class="rounded-lg border border-border bg-card p-4"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                      <ListBulletIcon class="w-5 h-5 text-foreground-muted" />
+                      <div>
+                        <p class="font-medium text-foreground">
+                          {{ run.name }}
+                        </p>
+                        <p class="text-xs text-foreground-secondary">
+                          {{ formatDateTime(run.created_at) }}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      :class="[
+                        'inline-flex items-center px-2 py-1 rounded-full text-xs',
+                        getStatusColor(run.status),
+                      ]"
+                    >
+                      {{ t(`backupTasks.status.${run.status}`) }}
+                    </span>
+                  </div>
+                  <p
+                    v-if="run.message || run.error_message"
+                    class="mt-2 text-sm text-foreground-secondary"
+                  >
+                    {{ run.message || run.error_message }}
+                  </p>
+                  <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div class="bg-background-secondary rounded-lg p-3">
+                      <p class="text-xs text-foreground-secondary">
+                        {{ t("backupTasks.progress.progress") }}
+                      </p>
+                      <p class="text-sm font-medium text-foreground">
+                        {{ run.progress || 0 }}%
+                      </p>
+                    </div>
+                    <div class="bg-background-secondary rounded-lg p-3">
+                      <p class="text-xs text-foreground-secondary">
+                        {{ t("alertsCenter.common.duration") }}
+                      </p>
+                      <p class="text-sm font-medium text-foreground">
+                        {{ runDuration(run) }}
+                      </p>
+                    </div>
+                    <div class="bg-background-secondary rounded-lg p-3">
+                      <p class="text-xs text-foreground-secondary">
+                        {{ t("backupTasks.progress.files") }}
+                      </p>
+                      <p class="text-sm font-medium text-foreground">
+                        {{ run.processed_files || 0 }} /
+                        {{ run.total_files || 0 }}
+                      </p>
+                    </div>
+                    <div class="bg-background-secondary rounded-lg p-3">
+                      <p class="text-xs text-foreground-secondary">
+                        {{ t("backupTasks.progress.speed") }}
+                      </p>
+                      <p class="text-sm font-medium text-foreground">
+                        {{
+                          run.speed_mbps
+                            ? `${run.speed_mbps.toFixed(2)} MB/s`
+                            : "-"
+                        }}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    class="mt-3 h-2 rounded-full bg-background-tertiary overflow-hidden"
+                  >
+                    <div
+                      class="h-full bg-primary transition-all"
+                      :style="{ width: `${Math.min(run.progress || 0, 100)}%` }"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <div class="px-6 py-4 border-t border-border flex justify-end">
-            <button
-              @click="showDetailModal = false"
-              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
-            >
-              {{ t("common.cancel") }}
-            </button>
-          </div>
-        </div>
+        </aside>
       </div>
     </Teleport>
   </div>

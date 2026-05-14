@@ -15,6 +15,7 @@ import {
   TrashIcon,
   Squares2X2Icon,
   Bars3Icon,
+  XMarkIcon,
 } from "@heroicons/vue/24/outline";
 import { sourceResourcesApi, nodesApi } from "../api";
 import { useAppStore } from "@/stores/app";
@@ -123,8 +124,8 @@ type SourceResourceColumnKey =
   | "resource_type"
   | "status"
   | "bound_node"
-  | "mount_status"
-  | "mount_point"
+  | "connection"
+  | "capacity"
   | "updated_at"
   | "actions";
 
@@ -154,16 +155,16 @@ const sourceResourceColumns = computed(() => [
     max: 420,
   },
   {
-    key: "mount_status" as const,
-    label: t("sourceResources.mountStatus"),
-    min: 150,
-    max: 280,
+    key: "connection" as const,
+    label: t("sourceResources.connection"),
+    min: 240,
+    max: 560,
   },
   {
-    key: "mount_point" as const,
-    label: t("sourceResources.mountPoint"),
+    key: "capacity" as const,
+    label: t("sourceResources.capacity"),
     min: 220,
-    max: 520,
+    max: 380,
   },
   {
     key: "updated_at" as const,
@@ -197,6 +198,8 @@ const sourceResourceTable = useResizableSortableTable<
   minTableWidth: 1200,
   getSortValue: (resource, key) => {
     if (key === "bound_node") return resource.bound_node?.name || "";
+    if (key === "connection") return getSourceConnection(resource);
+    if (key === "capacity") return getUsagePercent(resource);
     if (key === "updated_at") {
       return resource.updated_at ? new Date(resource.updated_at).getTime() : 0;
     }
@@ -205,13 +208,194 @@ const sourceResourceTable = useResizableSortableTable<
   },
   getColumnText: (resource, key) => {
     if (key === "bound_node") return resource.bound_node?.name || "-";
-    if (key === "mount_point") {
-      return resource.mount_point || t("sourceResources.notMounted");
-    }
+    if (key === "connection") return getSourceConnection(resource);
+    if (key === "capacity") return getCapacityText(resource);
     if (key === "updated_at") return formatDate(resource.updated_at);
     if (key === "actions") return t("common.actions");
     return String((resource as any)[key] ?? "");
   },
+});
+
+function normalizeResource(resource: any): SourceResource {
+  return {
+    ...resource,
+    total_size: resource.total_size ?? 0,
+    used_size: resource.used_size ?? 0,
+    free_size: resource.free_size ?? 0,
+    usage_percentage: resource.usage_percentage ?? 0,
+    bound_node:
+      resource.bound_node && typeof resource.bound_node === "object"
+        ? resource.bound_node
+        : resource.bound_node
+          ? {
+              id: resource.bound_node,
+              name: resource.bound_node_name || resource.bound_node,
+              hostname: "",
+              status: resource.bound_node_status || "",
+            }
+          : null,
+  };
+}
+
+function formatBytes(bytes?: number | null): string {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
+}
+
+function getSourceConnection(resource: SourceResource): string {
+  const config = resource.config || {};
+  if (resource.resource_type === "local") {
+    return config.root_path || config.path || "-";
+  }
+  if (resource.resource_type === "s3") {
+    return config.bucket || "-";
+  }
+  if (["nas", "nfs", "cifs"].includes(resource.resource_type)) {
+    const server = config.server || "";
+    const path = config.export_path || config.share || "";
+    if (server && path) return `${server}:${path}`;
+    return server || path || "-";
+  }
+  return config.path || config.endpoint || "-";
+}
+
+function getUsagePercent(resource: SourceResource): number {
+  if (
+    typeof resource.usage_percentage === "number" &&
+    resource.usage_percentage > 0
+  ) {
+    return Math.min(100, Math.max(0, resource.usage_percentage));
+  }
+  if (!resource.total_size) return 0;
+  return Math.min(
+    100,
+    Math.max(0, (resource.used_size / resource.total_size) * 100),
+  );
+}
+
+function getCapacityText(resource: SourceResource): string {
+  if (!resource.total_size) return "-";
+  return `${formatBytes(resource.used_size)} / ${formatBytes(resource.total_size)}`;
+}
+
+function maskValue(value?: string) {
+  if (!value) return "-";
+  if (value.length <= 8) return "****";
+  return `${value.slice(0, 4)}****${value.slice(-4)}`;
+}
+
+const selectedResourceConfigRows = computed(() => {
+  const resource = selectedResource.value;
+  if (!resource) return [];
+  const config = resource.config || {};
+  const credentials = resource.credentials || {};
+  const rows: Array<{ label: string; value: string }> = [];
+
+  if (resource.resource_type === "local") {
+    rows.push({
+      label: t("sourceResources.form.path"),
+      value: config.root_path || config.path || "-",
+    });
+  } else if (["nas", "nfs", "cifs"].includes(resource.resource_type)) {
+    rows.push(
+      {
+        label: t("sourceResources.form.server"),
+        value: config.server || "-",
+      },
+      {
+        label:
+          resource.resource_type === "cifs"
+            ? t("sourceResources.form.share")
+            : t("sourceResources.form.exportPath"),
+        value: config.share || config.export_path || "-",
+      },
+      {
+        label: t("sourceResources.form.mountOptions"),
+        value: config.mount_options || "-",
+      },
+      {
+        label: t("sourceResources.form.username"),
+        value: credentials.username || "-",
+      },
+    );
+  } else if (resource.resource_type === "s3") {
+    rows.push(
+      {
+        label: t("sourceResources.form.endpoint"),
+        value: config.endpoint || "-",
+      },
+      {
+        label: t("sourceResources.form.bucket"),
+        value: config.bucket || "-",
+      },
+      {
+        label: t("sourceResources.form.region"),
+        value: config.region || "-",
+      },
+      {
+        label: t("sourceResources.form.prefix"),
+        value: config.prefix || "-",
+      },
+      {
+        label: t("sourceResources.form.accessKey"),
+        value: maskValue(credentials.access_key),
+      },
+    );
+  }
+
+  return rows;
+});
+
+const selectedResourceStatsRows = computed(() => {
+  const resource = selectedResource.value;
+  if (!resource) return [];
+  return [
+    {
+      label: t("sourceResources.connection"),
+      value: getSourceConnection(resource),
+    },
+    {
+      label: t("sourceResources.details.totalSize"),
+      value: formatBytes(resource.total_size),
+    },
+    {
+      label: t("sourceResources.details.usedSize"),
+      value: formatBytes(resource.used_size),
+    },
+    {
+      label: t("sourceResources.details.freeSize"),
+      value: formatBytes(resource.free_size),
+    },
+    {
+      label: t("sourceResources.details.usage"),
+      value: resource.total_size
+        ? `${getUsagePercent(resource).toFixed(1)}%`
+        : "-",
+    },
+    {
+      label: t("sourceResources.details.fileCount"),
+      value: String(resource.file_count ?? 0),
+    },
+    {
+      label: t("sourceResources.lastConnectionTest"),
+      value: formatDate(resource.last_connection_test),
+    },
+    {
+      label: t("common.createdAt"),
+      value: formatDate(resource.created_at),
+    },
+    {
+      label: t("common.updatedAt"),
+      value: formatDate(resource.updated_at),
+    },
+  ];
 });
 
 // Resource type options
@@ -236,20 +420,7 @@ const fetchData = async () => {
       nodesApi.list({ page_size: 100 }),
     ]);
     const rawResources = resourcesRes.data.results || resourcesRes.data;
-    resources.value = rawResources.map((resource: any) => ({
-      ...resource,
-      bound_node:
-        resource.bound_node && typeof resource.bound_node === "object"
-          ? resource.bound_node
-          : resource.bound_node
-            ? {
-                id: resource.bound_node,
-                name: resource.bound_node_name || resource.bound_node,
-                hostname: "",
-                status: resource.bound_node_status || "",
-              }
-            : null,
-    }));
+    resources.value = rawResources.map(normalizeResource);
     stats.value = statsRes.data;
     nodes.value = nodesRes.data.results || nodesRes.data;
   } catch (e: any) {
@@ -290,9 +461,15 @@ const openCreateModal = () => {
   showResourceWizard.value = true;
 };
 
-const openDetailModal = (resource: SourceResource) => {
+const openDetailModal = async (resource: SourceResource) => {
   selectedResource.value = resource;
   showDetailModal.value = true;
+  try {
+    const response = await sourceResourcesApi.detail(resource.id);
+    selectedResource.value = normalizeResource(response.data);
+  } catch {
+    // Keep list data visible if detail loading fails.
+  }
 };
 
 const openEditModal = (resource: SourceResource) => {
@@ -331,7 +508,15 @@ const createResource = async () => {
 const saveResourceFromWizard = async (payload: Record<string, any>) => {
   try {
     if (selectedResource.value) {
-      await sourceResourcesApi.update(selectedResource.value.id, payload);
+      const updatePayload = { ...payload };
+      delete updatePayload.resource_type;
+      if (
+        updatePayload.credentials &&
+        Object.keys(updatePayload.credentials).length === 0
+      ) {
+        delete updatePayload.credentials;
+      }
+      await sourceResourcesApi.update(selectedResource.value.id, updatePayload);
       appStore.success(t("common.save"));
     } else {
       await sourceResourcesApi.create(payload);
@@ -381,13 +566,19 @@ const testConnection = async (resource: SourceResource) => {
   try {
     const res = await sourceResourcesApi.testConnection(resource.id);
     if (res.data.success) {
-      appStore.success(res.data.message || t("sourceResources.wizard.draftCheckPassed"));
+      appStore.success(
+        res.data.message || t("sourceResources.wizard.draftCheckPassed"),
+      );
     } else {
-      appStore.error(res.data.message || t("sourceResources.wizard.draftCheckFailed"));
+      appStore.error(
+        res.data.message || t("sourceResources.wizard.draftCheckFailed"),
+      );
     }
     fetchData();
   } catch (e: any) {
-    appStore.error(getApiErrorMessage(e, t("sourceResources.wizard.draftCheckFailed")));
+    appStore.error(
+      getApiErrorMessage(e, t("sourceResources.wizard.draftCheckFailed")),
+    );
   }
 };
 
@@ -621,25 +812,45 @@ onMounted(fetchData);
           </div>
 
           <!-- Connection Info -->
-          <div class="mt-4 space-y-2 text-sm">
+          <div class="mt-4 rounded-lg bg-background-secondary p-3">
             <div
-              v-if="resource.config?.server"
-              class="flex items-center gap-2 text-foreground-secondary"
+              class="flex items-center gap-2 text-xs text-foreground-secondary"
             >
-              <ServerIcon class="w-4 h-4 text-slate-400" />
-              <span class="truncate"
-                >{{ resource.config.server
-                }}{{
-                  resource.config.export_path || resource.config.share || ""
-                }}</span
-              >
+              <LinkIcon class="w-4 h-4 text-foreground-muted" />
+              <span>{{ t("sourceResources.connection") }}</span>
+            </div>
+            <p class="mt-1 truncate font-mono text-sm text-foreground">
+              {{ getSourceConnection(resource) }}
+            </p>
+          </div>
+
+          <!-- Capacity -->
+          <div class="mt-3 rounded-lg bg-background-secondary p-3">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-foreground-secondary">
+                {{ t("sourceResources.capacity") }}
+              </span>
+              <span class="font-medium text-foreground">
+                {{
+                  resource.total_size
+                    ? `${getUsagePercent(resource).toFixed(1)}%`
+                    : "-"
+                }}
+              </span>
             </div>
             <div
-              v-if="resource.config?.endpoint"
-              class="flex items-center gap-2 text-foreground-secondary"
+              class="mt-2 h-2 rounded-full bg-background-tertiary overflow-hidden"
             >
-              <CloudIcon class="w-4 h-4 text-slate-400" />
-              <span class="truncate">{{ resource.config.bucket }}</span>
+              <div
+                class="h-full rounded-full bg-blue-500 transition-all"
+                :style="{ width: `${getUsagePercent(resource)}%` }"
+              />
+            </div>
+            <div
+              class="mt-2 flex items-center justify-between text-xs text-foreground-secondary"
+            >
+              <span>{{ formatBytes(resource.used_size) }}</span>
+              <span>{{ formatBytes(resource.total_size) }}</span>
             </div>
           </div>
 
@@ -655,14 +866,6 @@ onMounted(fetchData);
             <span v-else class="text-sm text-slate-400">{{
               t("sourceResources.noBoundNode")
             }}</span>
-          </div>
-
-          <!-- Mount Status -->
-          <div class="mt-2 flex items-center gap-2">
-            <FolderIcon class="w-4 h-4 text-slate-400" />
-            <span class="text-sm text-foreground-secondary">
-              {{ resource.mount_point || t("sourceResources.notMounted") }}
-            </span>
           </div>
 
           <!-- Actions -->
@@ -812,17 +1015,38 @@ onMounted(fetchData);
               </td>
               <td
                 class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-                :style="sourceResourceTable.columnStyle('mount_status')"
+                :style="sourceResourceTable.columnStyle('connection')"
               >
-                {{ resource.mount_status }}
+                <span class="block truncate font-mono text-xs text-foreground">
+                  {{ getSourceConnection(resource) }}
+                </span>
               </td>
               <td
-                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-                :style="sourceResourceTable.columnStyle('mount_point')"
+                class="px-4 py-3 whitespace-nowrap"
+                :style="sourceResourceTable.columnStyle('capacity')"
               >
-                <span class="block truncate">
-                  {{ resource.mount_point || t("sourceResources.notMounted") }}
-                </span>
+                <div class="min-w-0">
+                  <div class="flex items-center justify-between gap-3 text-xs">
+                    <span class="truncate font-medium text-foreground">
+                      {{ getCapacityText(resource) }}
+                    </span>
+                    <span class="shrink-0 text-foreground-secondary">
+                      {{
+                        resource.total_size
+                          ? `${getUsagePercent(resource).toFixed(1)}%`
+                          : "-"
+                      }}
+                    </span>
+                  </div>
+                  <div
+                    class="mt-2 h-1.5 rounded-full bg-background-tertiary overflow-hidden"
+                  >
+                    <div
+                      class="h-full rounded-full bg-blue-500"
+                      :style="{ width: `${getUsagePercent(resource)}%` }"
+                    />
+                  </div>
+                </div>
               </td>
               <td
                 class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
@@ -1117,75 +1341,239 @@ onMounted(fetchData);
           @click="showDetailModal = false"
         ></div>
         <div
-          class="relative modal-surface rounded-xl shadow-xl max-w-lg w-full"
+          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         >
-          <div class="p-6">
-            <h2 class="text-lg font-semibold text-foreground mb-4">
-              {{ selectedResource.name }}
-            </h2>
-            <div class="space-y-3">
-              <div class="flex justify-between py-2 border-b border-border">
-                <span
-                  class="text-sm text-foreground-secondary dark:text-slate-400"
-                  >{{ t("sourceResources.form.type") }}</span
-                >
-                <span class="text-sm text-foreground">{{
-                  selectedResource.resource_type_display
-                }}</span>
-              </div>
-              <div class="flex justify-between py-2 border-b border-border">
-                <span
-                  class="text-sm text-foreground-secondary dark:text-slate-400"
-                  >{{ t("sourceResources.status.label") }}</span
-                >
-                <span
-                  :class="[
-                    'text-sm font-medium',
-                    selectedResource.status === 'active'
-                      ? 'text-emerald-600'
-                      : selectedResource.status === 'error'
-                        ? 'text-red-600'
-                        : 'text-slate-600',
-                  ]"
-                  >{{ selectedResource.status }}</span
-                >
-              </div>
-              <div class="flex justify-between py-2 border-b border-border">
-                <span
-                  class="text-sm text-foreground-secondary dark:text-slate-400"
-                  >{{ t("sourceResources.mountStatus") }}</span
-                >
-                <span class="text-sm text-foreground">{{
-                  selectedResource.mount_status
-                }}</span>
-              </div>
-              <div class="flex justify-between py-2 border-b border-border">
-                <span
-                  class="text-sm text-foreground-secondary dark:text-slate-400"
-                  >{{ t("sourceResources.mountPoint") }}</span
-                >
-                <span class="text-sm text-foreground">{{
-                  selectedResource.mount_point || "-"
-                }}</span>
-              </div>
-              <div class="flex justify-between py-2">
-                <span
-                  class="text-sm text-foreground-secondary dark:text-slate-400"
-                  >{{ t("sourceResources.boundNode") }}</span
-                >
-                <span class="text-sm text-foreground">{{
-                  selectedResource.bound_node?.name || "-"
-                }}</span>
-              </div>
+          <div
+            class="px-6 py-4 border-b border-border flex items-center justify-between sticky top-0 modal-surface z-10"
+          >
+            <div class="min-w-0">
+              <h2 class="text-lg font-semibold text-foreground truncate">
+                {{ selectedResource.name }}
+              </h2>
+              <p class="mt-1 text-sm text-foreground-secondary truncate">
+                {{
+                  selectedResource.description ||
+                  selectedResource.resource_type_display ||
+                  selectedResource.resource_type
+                }}
+              </p>
             </div>
-            <div class="flex justify-end mt-6">
-              <button
-                @click="showDetailModal = false"
-                class="px-4 py-2 text-sm bg-background-tertiary text-slate-600 rounded-lg hover:bg-slate-200"
+            <button
+              @click="showDetailModal = false"
+              class="p-1 rounded-lg hover:bg-hover"
+            >
+              <XMarkIcon class="w-5 h-5 text-foreground-muted" />
+            </button>
+          </div>
+
+          <div class="p-6 space-y-4">
+            <div class="flex items-center gap-3">
+              <div
+                :class="[
+                  'w-12 h-12 rounded-lg flex items-center justify-center',
+                  selectedResource.resource_type === 's3'
+                    ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+                    : selectedResource.resource_type === 'local'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+                ]"
               >
-                {{ t("common.close") }}
-              </button>
+                <component
+                  :is="getResourceIcon(selectedResource.resource_type)"
+                  class="w-6 h-6"
+                />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-foreground">
+                  {{
+                    selectedResource.resource_type_display ||
+                    selectedResource.resource_type
+                  }}
+                </p>
+                <p class="text-sm text-foreground-secondary">
+                  {{
+                    selectedResource.status_display || selectedResource.status
+                  }}
+                </p>
+              </div>
+              <span
+                class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
+                :class="
+                  selectedResource.status === 'active'
+                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                    : selectedResource.status === 'error'
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                      : 'bg-background-secondary text-foreground-secondary'
+                "
+              >
+                {{
+                  selectedResource.status_display ||
+                  selectedResource.status ||
+                  "-"
+                }}
+              </span>
             </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="bg-background-secondary rounded-lg p-4">
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("sourceResources.form.type") }}
+                </p>
+                <p class="mt-1 font-semibold text-foreground">
+                  {{
+                    selectedResource.resource_type_display ||
+                    selectedResource.resource_type
+                  }}
+                </p>
+              </div>
+              <div class="bg-background-secondary rounded-lg p-4">
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("sourceResources.status.label") }}
+                </p>
+                <p
+                  :class="[
+                    'mt-1 font-semibold',
+                    selectedResource.status === 'active'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : selectedResource.status === 'error'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-foreground',
+                  ]"
+                >
+                  {{
+                    selectedResource.status_display || selectedResource.status
+                  }}
+                </p>
+              </div>
+              <div class="bg-background-secondary rounded-lg p-4">
+                <p class="text-xs text-foreground-secondary">
+                  {{ t("sourceResources.capacity") }}
+                </p>
+                <p class="mt-1 font-semibold text-foreground">
+                  {{ getCapacityText(selectedResource) }}
+                </p>
+                <div
+                  class="mt-3 h-2 rounded-full bg-background-tertiary overflow-hidden"
+                >
+                  <div
+                    class="h-full rounded-full bg-blue-500"
+                    :style="{ width: `${getUsagePercent(selectedResource)}%` }"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-background-secondary rounded-lg p-4">
+              <h3 class="text-sm font-semibold text-foreground mb-3">
+                {{ t("sourceResources.details.connectionConfig") }}
+              </h3>
+              <dl class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div
+                  v-for="row in selectedResourceConfigRows"
+                  :key="row.label"
+                  class="rounded-lg bg-background/60 px-3 py-2"
+                >
+                  <dt class="text-xs text-foreground-secondary">
+                    {{ row.label }}
+                  </dt>
+                  <dd
+                    class="mt-1 text-sm font-medium text-foreground break-all"
+                  >
+                    {{ row.value || "-" }}
+                  </dd>
+                </div>
+                <div
+                  v-if="selectedResourceConfigRows.length === 0"
+                  class="md:col-span-2 text-sm text-foreground-secondary"
+                >
+                  {{ t("common.noData") }}
+                </div>
+              </dl>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-background-secondary rounded-lg p-4">
+                <h3 class="text-sm font-semibold text-foreground mb-3">
+                  {{ t("sourceResources.details.boundNode") }}
+                </h3>
+                <dl class="space-y-3">
+                  <div>
+                    <dt class="text-xs text-foreground-secondary">
+                      {{ t("common.name") }}
+                    </dt>
+                    <dd class="mt-1 text-sm font-medium text-foreground">
+                      {{ selectedResource.bound_node?.name || "-" }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs text-foreground-secondary">
+                      {{ t("common.status") }}
+                    </dt>
+                    <dd class="mt-1 text-sm font-medium text-foreground">
+                      {{ selectedResource.bound_node?.status || "-" }}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div class="bg-background-secondary rounded-lg p-4">
+                <h3 class="text-sm font-semibold text-foreground mb-3">
+                  {{ t("sourceResources.details.statistics") }}
+                </h3>
+                <dl class="space-y-3">
+                  <div
+                    v-for="row in selectedResourceStatsRows"
+                    :key="row.label"
+                  >
+                    <dt class="text-xs text-foreground-secondary">
+                      {{ row.label }}
+                    </dt>
+                    <dd class="mt-1 text-sm font-medium text-foreground">
+                      {{ row.value }}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+
+            <div class="bg-background-secondary rounded-lg p-4">
+              <h3 class="text-sm font-semibold text-foreground mb-3">
+                {{ t("sourceResources.details.runtime") }}
+              </h3>
+              <dl class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="rounded-lg bg-background/60 px-3 py-2">
+                  <dt class="text-xs text-foreground-secondary">
+                    {{ t("sourceResources.details.statusMessage") }}
+                  </dt>
+                  <dd
+                    class="mt-1 text-sm font-medium text-foreground break-all"
+                  >
+                    {{ selectedResource.status_message || "-" }}
+                  </dd>
+                </div>
+                <div class="rounded-lg bg-background/60 px-3 py-2">
+                  <dt class="text-xs text-foreground-secondary">
+                    {{ t("sourceResources.details.mountError") }}
+                  </dt>
+                  <dd
+                    class="mt-1 text-sm font-medium text-foreground break-all"
+                  >
+                    {{ selectedResource.mount_error || "-" }}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          <div
+            class="px-6 py-4 border-t border-border flex justify-end sticky bottom-0 modal-surface"
+          >
+            <button
+              @click="showDetailModal = false"
+              class="px-4 py-2 text-sm text-foreground-secondary hover:bg-hover rounded-lg"
+            >
+              {{ t("common.close") }}
+            </button>
           </div>
         </div>
       </div>

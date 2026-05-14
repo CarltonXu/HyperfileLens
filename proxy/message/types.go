@@ -38,15 +38,16 @@ const (
 	MsgTypeHeartbeat = "heartbeat"
 
 	// ==================== Task Commands (Backend -> Proxy) ====================
-	MsgTypeBackup         = "backup"
-	MsgTypeRestore        = "restore"
-	MsgTypeMount          = "mount"
-	MsgTypeUnmount        = "unmount"
-	MsgTypeListSnapshots  = "list_snapshots"
-	MsgTypeCancel         = "cancel"
-	MsgTypeTestStorage    = "test_storage"
-	MsgTypeInitRepository = "init_repository"
-	MsgTypeListDirectory  = "list_directory"
+	MsgTypeBackup            = "backup"
+	MsgTypeRestore           = "restore"
+	MsgTypeMount             = "mount"
+	MsgTypeUnmount           = "unmount"
+	MsgTypeListSnapshots     = "list_snapshots"
+	MsgTypeCancel            = "cancel"
+	MsgTypeTestStorage       = "test_storage"
+	MsgTypeInitRepository    = "init_repository"
+	MsgTypeListDirectory     = "list_directory"
+	MsgTypeListSnapshotFiles = "list_snapshot_files"
 
 	// ==================== Task Status (Proxy -> Backend) ====================
 	// Unified task status messages

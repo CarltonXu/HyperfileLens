@@ -1,10 +1,13 @@
 package task
 
 import (
+	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +17,8 @@ import (
 	"github.com/hyperfilelens/proxy/message"
 	"github.com/hyperfilelens/proxy/mount"
 	"github.com/hyperfilelens/proxy/ws"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // Type constants for task types (using message package constants)
@@ -160,6 +165,8 @@ func (d *Dispatcher) HandleMessage(msg ws.Message) {
 		go d.executeInitRepository(msg)
 	case message.MsgTypeListDirectory:
 		go d.executeListDirectory(msg)
+	case message.MsgTypeListSnapshotFiles:
+		go d.listSnapshotFiles(msg)
 
 	// Control messages
 	case message.MsgTypePing:
@@ -324,6 +331,7 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 
 	// Notify start
 	d.sendTaskStart(msg.ID, taskID, TypeBackup)
+	d.sendTaskProgress(msg.ID, taskID, TypeBackup, 5, "Connecting repository")
 
 	// Connect to repository if config provided
 	if len(repoConfig) > 0 {
@@ -338,10 +346,29 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 		}
 		logger.Debug("Repository connected successfully", nil)
 	}
+	d.sendTaskProgress(msg.ID, taskID, TypeBackup, 20, "Repository connected")
 
 	// Execute backup
 	logger.Debug("Starting Kopia backup...", nil)
-	result, err := d.kopia.Backup(taskID, sourcePath, password)
+	progress := NewProgress(taskID, TypeBackup, "Creating Kopia snapshot")
+	progress.Progress = 25
+	d.sendTaskProgressWithDetails(msg.ID, progress)
+	result, err := d.kopia.BackupWithProgress(taskID, sourcePath, password, func(update kopia.BackupProgress) {
+		progress.ProcessedFiles = update.ProcessedFiles
+		progress.TotalFiles = update.TotalFiles
+		progress.ProcessedBytes = update.ProcessedBytes
+		progress.TotalBytes = update.TotalBytes
+		progress.SpeedMBps = update.SpeedMBps
+		progress.ETA = update.ETA
+		if update.Percent > 0 {
+			progress.Progress = 25 + int(float64(update.Percent)*0.70)
+		}
+		if progress.Progress > 95 {
+			progress.Progress = 95
+		}
+		progress.Message = "Kopia snapshot running"
+		d.sendTaskProgressWithDetails(msg.ID, progress)
+	})
 
 	if err != nil {
 		logger.Error("Backup failed", map[string]interface{}{
@@ -350,6 +377,13 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 		d.failTask(taskID, err.Error())
 		d.sendTaskFailed(msg.ID, taskID, err.Error())
 	} else {
+		progress.TotalFiles = result.TotalFiles
+		progress.ProcessedFiles = result.BackedUpFiles
+		progress.TotalBytes = result.TotalSize
+		progress.ProcessedBytes = result.BackedUpSize
+		progress.SpeedMBps = float64(result.BytesPerSecond) / 1024 / 1024
+		progress.MarkCompleted("Backup completed")
+		d.sendTaskProgressWithDetails(msg.ID, progress)
 		logger.Debug("Backup completed successfully", map[string]interface{}{
 			"result": result,
 		})
@@ -533,6 +567,62 @@ func (d *Dispatcher) listSnapshots(msg ws.Message) {
 	})
 
 	logger.Debug("Snapshot list end", nil)
+}
+
+func (d *Dispatcher) listSnapshotFiles(msg ws.Message) {
+	taskID := getString(msg.Payload, "task_id", msg.ID)
+	snapshotID := getString(msg.Payload, "snapshot_id", "")
+	objectID := getString(msg.Payload, "object_id", snapshotID)
+	path := getString(msg.Payload, "path", "")
+	repoConfig := getMap(msg.Payload, "repository")
+	password := getString(msg.Payload, "password", "")
+
+	logger.Debug("Snapshot file browser start", map[string]interface{}{
+		"task_id":     taskID,
+		"snapshot_id": snapshotID,
+		"object_id":   objectID,
+		"path":        path,
+	})
+
+	if objectID == "" {
+		d.sendError(msg.ID, taskID, "object_id is required")
+		return
+	}
+
+	d.sendTaskStart(msg.ID, taskID, message.MsgTypeListSnapshotFiles)
+	if len(repoConfig) > 0 {
+		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+			d.sendTaskFailed(msg.ID, taskID, err.Error())
+			return
+		}
+	}
+
+	files, err := d.kopia.ListSnapshotFiles(objectID, path, password)
+	if err != nil {
+		d.sendTaskFailed(msg.ID, taskID, err.Error())
+		return
+	}
+
+	d.wsClient.Send(ws.Message{
+		Type: message.MsgTypeTaskComplete,
+		ID:   msg.ID,
+		Payload: map[string]interface{}{
+			"task_id":   taskID,
+			"task_type": message.MsgTypeListSnapshotFiles,
+			"success":   true,
+			"result": map[string]interface{}{
+				"snapshot_id": snapshotID,
+				"path":        path,
+				"files":       files,
+				"count":       len(files),
+			},
+			"timestamp": time.Now(),
+		},
+	})
+	logger.Debug("Snapshot file browser end", map[string]interface{}{
+		"task_id": taskID,
+		"count":   len(files),
+	})
 }
 
 // cancelTask cancels a running task
@@ -799,6 +889,85 @@ func getSlice(m map[string]interface{}, key string) []interface{} {
 	return nil
 }
 
+func calculateS3PrefixUsage(ctx context.Context, endpoint, bucket, prefix, region, urlStyle string, useTLS bool, accessKey, secretKey string) (int64, int64, int64, error) {
+	var totalSize int64
+	var objectCount int64
+	var iterations int64
+	const maxObjects int64 = 1000000
+
+	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	if !strings.HasPrefix(endpoint, "http://") && !strings.HasPrefix(endpoint, "https://") {
+		if useTLS {
+			endpoint = "https://" + endpoint
+		} else {
+			endpoint = "http://" + endpoint
+		}
+	}
+
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return totalSize, objectCount, iterations, err
+	}
+	if parsed.Host == "" {
+		return totalSize, objectCount, iterations, fmt.Errorf("invalid S3 endpoint: %s", endpoint)
+	}
+
+	bucketLookup := minio.BucketLookupAuto
+	if urlStyle == "path" {
+		bucketLookup = minio.BucketLookupPath
+	} else if urlStyle == "virtual" {
+		bucketLookup = minio.BucketLookupDNS
+	}
+
+	client, err := minio.New(parsed.Host, &minio.Options{
+		Creds:        credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure:       parsed.Scheme == "https",
+		Region:       region,
+		BucketLookup: bucketLookup,
+	})
+	if err != nil {
+		return totalSize, objectCount, iterations, err
+	}
+
+	exists, err := client.BucketExists(ctx, bucket)
+	if err != nil {
+		return totalSize, objectCount, iterations, err
+	}
+	if !exists {
+		return totalSize, objectCount, iterations, fmt.Errorf("bucket does not exist or is not accessible: %s", bucket)
+	}
+
+	objectCh := client.ListObjects(ctx, bucket, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	})
+	for object := range objectCh {
+		if object.Err != nil {
+			return totalSize, objectCount, iterations, object.Err
+		}
+		totalSize += object.Size
+		objectCount++
+		if objectCount%1000 == 0 {
+			iterations++
+		}
+		if objectCount >= maxObjects {
+			logger.Warn("S3 object listing reached safety limit", map[string]interface{}{
+				"bucket":       bucket,
+				"prefix":       prefix,
+				"object_count": objectCount,
+				"max_objects":  maxObjects,
+				"total_size":   totalSize,
+			})
+			break
+		}
+	}
+	if objectCount > 0 && iterations == 0 {
+		iterations = 1
+	}
+
+	return totalSize, objectCount, iterations, nil
+}
+
 // executeTestStorage executes a storage connectivity test.
 func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 	// Use payload for unified message format
@@ -855,8 +1024,9 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 		// Test NAS/NFS connectivity
 		server := getString(msg.Payload, "server", "")
 		path := getString(msg.Payload, "path", "")
-		mountType := getString(msg.Payload, "mount_type", "nfs") // nfs or smb
+		mountType := getString(msg.Payload, "mount_type", "nfs") // nfs, smb, or cifs
 		mountPath := getString(msg.Payload, "mount_path", "")
+		mountOptions := getString(msg.Payload, "mount_options", "")
 
 		logger.Debug("NAS/NFS test parameters", map[string]interface{}{
 			"server":     server,
@@ -874,7 +1044,7 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 		// Test connectivity
 		logger.Debug("Starting connectivity test...", nil)
 		var connResult *mount.ConnectivityResult
-		if mountType == "smb" {
+		if mountType == "smb" || mountType == "cifs" {
 			logger.Debug("Testing SMB connectivity", map[string]interface{}{
 				"server": server,
 			})
@@ -906,100 +1076,74 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 			return
 		}
 
-		// Test write if mount_path provided or create temporary mount point
-		if testWrite {
-			// If mount_path is empty, create a temporary mount point
-			if mountPath == "" {
-				logger.Info("Creating temporary mount point for write test", nil)
-				tempDir := filepath.Join(os.TempDir(), "hyperfilelens-nfs-test-"+taskID[:8])
-				if err := os.MkdirAll(tempDir, 0755); err != nil {
-					logger.Error("Failed to create temporary mount directory", map[string]interface{}{
-						"error": err.Error(),
-					})
-					result["write_test"] = map[string]interface{}{
-						"writable":    false,
-						"write_speed": 0,
-						"read_speed":  0,
-						"error":       fmt.Sprintf("failed to create temp mount dir: %v", err),
-					}
-					result["success"] = true
-					d.sendStorageTestResult(msg.ID, taskID, result, "")
-					return
-				}
-				mountPath = tempDir
-				logger.Debug("Created temporary mount point", map[string]interface{}{
-					"mount_path": mountPath,
+		if mountPath == "" {
+			logger.Info("Creating temporary mount point for NAS storage test", nil)
+			tempDir := filepath.Join(os.TempDir(), "hyperfilelens-nas-test-"+taskID[:8])
+			if err := os.MkdirAll(tempDir, 0755); err != nil {
+				logger.Error("Failed to create temporary mount directory", map[string]interface{}{
+					"error": err.Error(),
 				})
-
-				// Mount NFS to temporary directory
-				logger.Info("Mounting NFS for write test", map[string]interface{}{
-					"server": server,
-					"path":   path,
-					"target": mountPath,
-				})
-
-				// Get user-provided mount options
-				mountOptions := getString(msg.Payload, "mount_options", "")
-
-				var mountErr error
-				if mountType == "smb" {
-					username := getString(msg.Payload, "username", "")
-					password := getString(msg.Payload, "password", "")
-					share := path // For SMB, path is actually the share name
-					mountErr = d.mountMgr.MountSMB(server, share, mountPath, username, password, mountOptions)
-				} else {
-					mountErr = d.mountMgr.MountNFS(server, path, mountPath, mountOptions)
-				}
-
-				if mountErr != nil {
-					logger.Error("Failed to mount for write test", map[string]interface{}{
-						"error": mountErr.Error(),
-					})
-					result["write_test"] = map[string]interface{}{
-						"writable":    false,
-						"write_speed": 0,
-						"read_speed":  0,
-						"error":       fmt.Sprintf("mount failed: %v", mountErr),
-					}
-					result["success"] = true
-					d.sendStorageTestResult(msg.ID, taskID, result, "")
-					return
-				}
-
-				logger.Debug("NFS mounted successfully for write test", nil)
-
-				// Ensure cleanup after test
-				defer func() {
-					logger.Debug("Cleaning up temporary mount", map[string]interface{}{
-						"mount_path": mountPath,
-					})
-					// Unmount
-					d.mountMgr.Unmount(mountPath)
-					// Remove temp directory
-					os.RemoveAll(mountPath)
-					logger.Debug("Temporary mount cleaned up", nil)
-				}()
+				d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("failed to create temp mount dir: %v", err))
+				return
 			}
-
-			logger.Debug("Starting write test", map[string]interface{}{
+			mountPath = tempDir
+			logger.Debug("Created temporary mount point", map[string]interface{}{
 				"mount_path": mountPath,
 			})
 
-			// Check if mount path exists (should exist now)
-			if _, err := os.Stat(mountPath); os.IsNotExist(err) {
-				logger.Error("Mount path does not exist", map[string]interface{}{
-					"mount_path": mountPath,
+			logger.Info("Mounting NAS for storage test", map[string]interface{}{
+				"server": server,
+				"path":   path,
+				"target": mountPath,
+			})
+
+			var mountErr error
+			if mountType == "smb" || mountType == "cifs" {
+				username := getString(msg.Payload, "username", "")
+				password := getString(msg.Payload, "password", "")
+				mountErr = d.mountMgr.MountSMB(server, path, mountPath, username, password, mountOptions)
+			} else {
+				mountErr = d.mountMgr.MountNFS(server, path, mountPath, mountOptions)
+			}
+
+			if mountErr != nil {
+				logger.Error("Failed to mount for storage test", map[string]interface{}{
+					"error": mountErr.Error(),
 				})
-				result["write_test"] = map[string]interface{}{
-					"writable":    false,
-					"write_speed": 0,
-					"read_speed":  0,
-					"error":       fmt.Sprintf("mount path does not exist: %s", mountPath),
-				}
-				result["success"] = true
-				d.sendStorageTestResult(msg.ID, taskID, result, "")
+				os.RemoveAll(mountPath)
+				d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("mount failed: %v", mountErr))
 				return
 			}
+
+			logger.Debug("NAS mounted successfully for storage test", nil)
+
+			defer func() {
+				logger.Debug("Cleaning up temporary mount", map[string]interface{}{
+					"mount_path": mountPath,
+				})
+				if err := d.mountMgr.Unmount(mountPath); err != nil {
+					logger.Warn("Failed to unmount temporary NAS test path", map[string]interface{}{
+						"mount_path": mountPath,
+						"error":      err.Error(),
+					})
+				}
+				os.RemoveAll(mountPath)
+				logger.Debug("Temporary mount cleaned up", nil)
+			}()
+		}
+
+		if _, err := os.Stat(mountPath); os.IsNotExist(err) {
+			logger.Error("Mount path does not exist", map[string]interface{}{
+				"mount_path": mountPath,
+			})
+			d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("mount path does not exist: %s", mountPath))
+			return
+		}
+
+		if testWrite {
+			logger.Debug("Starting write test", map[string]interface{}{
+				"mount_path": mountPath,
+			})
 
 			writeResult := mount.TestWriteSimple(mountPath)
 
@@ -1017,27 +1161,39 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 				"error":       writeResult.Error,
 			}
 
-			// Get space info
-			logger.Debug("Getting space info", map[string]interface{}{
-				"mount_path": mountPath,
-			})
-			total, used, free, err := mount.GetMountSpaceInfo(mountPath)
-			if err == nil {
-				logger.Debug("Space info", map[string]interface{}{
-					"total_gb": float64(total) / 1024 / 1024 / 1024,
-					"used_gb":  float64(used) / 1024 / 1024 / 1024,
-					"free_gb":  float64(free) / 1024 / 1024 / 1024,
-				})
-				result["space_info"] = map[string]interface{}{
-					"total_bytes": total,
-					"used_bytes":  used,
-					"free_bytes":  free,
+			if !writeResult.Writable {
+				result["write_test"] = map[string]interface{}{
+					"writable":    false,
+					"write_speed": 0,
+					"read_speed":  0,
+					"error":       writeResult.Error,
 				}
-			} else {
-				logger.Error("Failed to get space info", map[string]interface{}{
-					"error": err.Error(),
-				})
+				result["success"] = true
+				d.sendStorageTestResult(msg.ID, taskID, result, "")
+				return
 			}
+		}
+
+		// Get space info even when write test is disabled.
+		logger.Debug("Getting space info", map[string]interface{}{
+			"mount_path": mountPath,
+		})
+		total, used, free, err := mount.GetMountSpaceInfo(mountPath)
+		if err == nil {
+			logger.Debug("Space info", map[string]interface{}{
+				"total_gb": float64(total) / 1024 / 1024 / 1024,
+				"used_gb":  float64(used) / 1024 / 1024 / 1024,
+				"free_gb":  float64(free) / 1024 / 1024 / 1024,
+			})
+			result["space_info"] = map[string]interface{}{
+				"total_bytes": total,
+				"used_bytes":  used,
+				"free_bytes":  free,
+			}
+		} else {
+			logger.Error("Failed to get space info", map[string]interface{}{
+				"error": err.Error(),
+			})
 		}
 
 		result["success"] = true
@@ -1047,11 +1203,55 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 		d.sendStorageTestResult(msg.ID, taskID, result, "")
 
 	case "s3":
-		// Test S3 connectivity (using kopia's built-in S3 support)
-		// S3 connectivity test is handled by the backend directly via boto3
-		// This is for cases where Sync Proxy needs to test S3 access
+		endpoint := getString(msg.Payload, "endpoint", "")
+		bucket := getString(msg.Payload, "bucket", "")
+		prefix := strings.TrimLeft(getString(msg.Payload, "prefix", ""), "/")
+		region := getString(msg.Payload, "region", "us-east-1")
+		urlStyle := getString(msg.Payload, "url_style", "virtual")
+		useTLS := getBool(msg.Payload, "use_tls", true)
+		accessKey := getString(msg.Payload, "access_key", "")
+		secretKey := getString(msg.Payload, "secret_key", "")
+
+		if endpoint == "" || bucket == "" || accessKey == "" || secretKey == "" {
+			d.sendStorageTestResult(msg.ID, taskID, result, "S3 endpoint, bucket, access key and secret key are required")
+			return
+		}
+
+		logger.Info("Executing S3 storage test via minio-go on proxy", map[string]interface{}{
+			"task_id":      taskID,
+			"endpoint":     endpoint,
+			"bucket":       bucket,
+			"prefix":       prefix,
+			"region":       region,
+			"url_style":    urlStyle,
+			"storage_type": storageType,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		totalSize, objectCount, iterations, err := calculateS3PrefixUsage(ctx, endpoint, bucket, prefix, region, urlStyle, useTLS, accessKey, secretKey)
+		if err != nil {
+			d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("S3 test failed: %v", err))
+			return
+		}
+
+		result["connectivity"] = map[string]interface{}{
+			"bucket_accessible": true,
+			"list_objects":      true,
+		}
+		result["endpoint"] = endpoint
+		result["bucket"] = bucket
+		result["prefix"] = prefix
+		result["region"] = region
+		result["object_count"] = objectCount
+		result["iterations"] = iterations
+		result["space_info"] = map[string]interface{}{
+			"total_bytes": totalSize,
+			"used_bytes":  totalSize,
+			"free_bytes":  0,
+		}
 		result["success"] = true
-		result["message"] = "S3 connectivity test should be performed by control plane"
 		d.sendStorageTestResult(msg.ID, taskID, result, "")
 
 	case "local":

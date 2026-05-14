@@ -12,6 +12,8 @@ from .models import RecoveryTask
 from .serializers import RecoveryTaskSerializer, RecoveryTaskCreateSerializer
 from .tasks import execute_recovery_task
 from licenses.quota import QuotaCheckMixin
+from nodes.models import ProxyTask
+from nodes.proxy_service import ProxyService
 
 
 class RecoveryTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
@@ -73,7 +75,32 @@ class RecoveryTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             )
         
         task.status = 'cancelled'
-        task.save(update_fields=['status', 'updated_at'])
+        task.completed_at = timezone.now()
+        task.save(update_fields=['status', 'completed_at', 'updated_at'])
+
+        proxy_tasks = ProxyTask.objects.filter(
+            parameters__recovery_task_id=str(task.id),
+            status__in=[
+                ProxyTask.TaskStatus.PENDING,
+                ProxyTask.TaskStatus.DISPATCHED,
+                ProxyTask.TaskStatus.ACCEPTED,
+                ProxyTask.TaskStatus.RUNNING,
+            ],
+        ).select_related('proxy')
+        for proxy_task in proxy_tasks:
+            proxy_task.cancel()
+            ProxyService.send_to_proxy(
+                str(proxy_task.proxy_id),
+                {
+                    'type': 'cancel',
+                    'id': str(proxy_task.id),
+                    'timestamp': timezone.now().isoformat(),
+                    'payload': {
+                        'task_id': str(proxy_task.id),
+                        'reason': 'Task cancelled by user',
+                    },
+                },
+            )
         
         return Response({'message': 'Task cancelled'})
     

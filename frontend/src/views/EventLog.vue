@@ -7,6 +7,7 @@ import {
   ClockIcon,
   ExclamationCircleIcon,
   InformationCircleIcon,
+  StopIcon,
   XCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -52,6 +53,7 @@ const stats = ref({
   cancelled: 0,
 });
 const loading = ref(false);
+const cancellingTaskId = ref<string | null>(null);
 const selectedTask = ref<ManagedTask | null>(null);
 const search = ref("");
 const statusFilter = ref("");
@@ -141,7 +143,8 @@ type TaskColumnKey =
   | "status"
   | "progress"
   | "proxy_name"
-  | "created_at";
+  | "created_at"
+  | "actions";
 
 const taskColumns = computed(() => [
   { key: "name" as const, label: t("taskManagement.task"), min: 300, max: 720 },
@@ -175,6 +178,12 @@ const taskColumns = computed(() => [
     min: 190,
     max: 320,
   },
+  {
+    key: "actions" as const,
+    label: t("common.actions"),
+    min: 110,
+    max: 160,
+  },
 ]);
 
 const taskTable = useResizableSortableTable<ManagedTask, TaskColumnKey>({
@@ -187,6 +196,7 @@ const taskTable = useResizableSortableTable<ManagedTask, TaskColumnKey>({
     if (key === "created_at")
       return task.created_at ? new Date(task.created_at).getTime() : 0;
     if (key === "progress") return task.progress || 0;
+    if (key === "actions") return "";
     return task[key] ?? "";
   },
   getColumnText: (task, key) => {
@@ -194,6 +204,7 @@ const taskTable = useResizableSortableTable<ManagedTask, TaskColumnKey>({
     if (key === "status") return t(`taskManagement.status.${task.status}`);
     if (key === "progress") return `${task.progress || 0}%`;
     if (key === "created_at") return formatDate(task.created_at);
+    if (key === "actions") return "";
     return String(task[key] ?? "");
   },
 });
@@ -233,6 +244,28 @@ function changePage(page: number) {
 function handlePageSizeChange() {
   pagination.value.page = 1;
   fetchTasks();
+}
+
+function isCancellable(task: ManagedTask) {
+  return ["pending", "dispatched", "accepted", "running"].includes(task.status);
+}
+
+async function cancelTask(task: ManagedTask) {
+  if (!isCancellable(task)) return;
+  if (!window.confirm(t("taskManagement.confirmCancel"))) return;
+
+  cancellingTaskId.value = task.id;
+  try {
+    await taskManagementApi.cancelTask(task.id, {
+      reason: t("taskManagement.cancelReason"),
+    });
+    if (selectedTask.value?.id === task.id) {
+      selectedTask.value = null;
+    }
+    await fetchTasks();
+  } finally {
+    cancellingTaskId.value = null;
+  }
 }
 
 function statusClass(status: string) {
@@ -428,7 +461,7 @@ onMounted(fetchTasks);
           <tbody class="divide-y divide-border">
             <tr v-if="loading">
               <td
-                colspan="6"
+                colspan="7"
                 class="px-4 py-10 text-center text-foreground-secondary"
               >
                 {{ t("common.loading") }}
@@ -497,10 +530,31 @@ onMounted(fetchTasks);
               >
                 {{ formatDate(task.created_at) }}
               </td>
+              <td
+                class="px-4 py-3 text-right"
+                :style="taskTable.columnStyle('actions')"
+              >
+                <button
+                  v-if="isCancellable(task)"
+                  type="button"
+                  @click.stop="cancelTask(task)"
+                  :disabled="cancellingTaskId === task.id"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :title="t('taskManagement.cancel')"
+                  :aria-label="t('taskManagement.cancel')"
+                >
+                  <ArrowPathIcon
+                    v-if="cancellingTaskId === task.id"
+                    class="w-4 h-4 animate-spin"
+                  />
+                  <StopIcon v-else class="w-4 h-4" />
+                </button>
+                <span v-else class="text-xs text-foreground-muted">-</span>
+              </td>
             </tr>
             <tr v-if="!loading && tasks.length === 0">
               <td
-                colspan="6"
+                colspan="7"
                 class="px-4 py-10 text-center text-foreground-secondary"
               >
                 {{ t("common.noData") }}
@@ -598,6 +652,21 @@ onMounted(fetchTasks);
               class="p-2 rounded-lg hover:bg-background-tertiary text-foreground-muted"
             >
               ×
+            </button>
+          </div>
+          <div v-if="isCancellable(selectedTask)" class="mt-4 flex justify-end">
+            <button
+              type="button"
+              @click="cancelTask(selectedTask)"
+              :disabled="cancellingTaskId === selectedTask.id"
+              class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30 disabled:opacity-50"
+            >
+              <ArrowPathIcon
+                v-if="cancellingTaskId === selectedTask.id"
+                class="w-4 h-4 animate-spin"
+              />
+              <StopIcon v-else class="w-4 h-4" />
+              {{ t("taskManagement.cancel") }}
             </button>
           </div>
 

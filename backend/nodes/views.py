@@ -1386,6 +1386,47 @@ def build_global_task_items(request):
     search = (request.query_params.get('search') or '').lower()
 
     tasks = []
+    active_statuses = {'pending', 'dispatched', 'accepted', 'running'}
+
+    def reconcile_proxy_task(task):
+        """Keep long-running proxy task state from getting stuck forever."""
+        if task.status not in active_statuses:
+            return
+
+        now = timezone.now()
+        started_at = task.started_at or task.dispatched_at or task.created_at
+        timeout_seconds = task.timeout_seconds or 3600
+        heartbeat_deadline = None
+
+        if task.proxy and task.proxy.last_heartbeat:
+            heartbeat_deadline = (now - task.proxy.last_heartbeat).total_seconds()
+
+        timed_out = started_at and (now - started_at).total_seconds() > timeout_seconds
+        proxy_offline = (
+            task.status in {'dispatched', 'accepted', 'running'}
+            and heartbeat_deadline is not None
+            and heartbeat_deadline > max(getattr(task.proxy, 'heartbeat_interval', 60) * 2, 120)
+        )
+
+        if not timed_out and not proxy_offline:
+            return
+
+        error = (
+            f"Task timed out after {timeout_seconds} seconds"
+            if timed_out
+            else f"Proxy heartbeat timeout while task was {task.status}"
+        )
+        task.fail(error)
+
+        backup_task_id = (task.parameters or {}).get('backup_task_id')
+        if backup_task_id and task.task_type == ProxyTask.TaskType.BACKUP:
+            BackupTask.objects.filter(id=backup_task_id, status=BackupTask.STATUS_RUNNING).update(
+                status=BackupTask.STATUS_FAILED,
+                error_message=error,
+                status_message=error,
+                completed_at=now,
+                updated_at=now,
+            )
 
     def allowed_proxy_queryset():
         qs = ProxyTask.objects.select_related('proxy').order_by('-created_at')
@@ -1396,7 +1437,10 @@ def build_global_task_items(request):
         return qs.filter(proxy__owner=user)
 
     def append_task(item):
-        if status_filter and item['status'] != status_filter:
+        if status_filter == 'running':
+            if item['status'] not in active_statuses:
+                return
+        elif status_filter and item['status'] != status_filter:
             return
         if source_filter and item['source'] != source_filter:
             return
@@ -1405,11 +1449,40 @@ def build_global_task_items(request):
             return
         tasks.append(item)
 
-    for task in allowed_proxy_queryset():
+    proxy_tasks = list(allowed_proxy_queryset())
+    backup_task_ids = {
+        str((task.parameters or {}).get('backup_task_id'))
+        for task in proxy_tasks
+        if task.task_type == ProxyTask.TaskType.BACKUP and (task.parameters or {}).get('backup_task_id')
+    }
+    backup_task_lookup = {
+        str(item.id): item
+        for item in BackupTask.objects.filter(id__in=backup_task_ids).only('id', 'name', 'task_type')
+    }
+
+    def proxy_task_source(task):
+        if task.task_type == ProxyTask.TaskType.BACKUP:
+            return 'backup'
+        if task.task_type == ProxyTask.TaskType.RESTORE:
+            return 'recovery'
+        return 'proxy'
+
+    def proxy_task_name(task):
+        parameters = task.parameters or {}
+        if task.task_type == ProxyTask.TaskType.BACKUP:
+            backup_task = backup_task_lookup.get(str(parameters.get('backup_task_id')))
+            backup_name = backup_task.name if backup_task else parameters.get('backup_task_name')
+            return f"Backup Run - {backup_name or task.proxy.name}"
+        if task.task_type == ProxyTask.TaskType.RESTORE:
+            return f"Recovery Run - {task.proxy.name}"
+        return f"{task.get_task_type_display()} - {task.proxy.name}"
+
+    for task in proxy_tasks:
+        reconcile_proxy_task(task)
         append_task({
             'id': str(task.id),
-            'source': 'proxy',
-            'name': f"{task.get_task_type_display()} - {task.proxy.name}",
+            'source': proxy_task_source(task),
+            'name': proxy_task_name(task),
             'task_type': task.task_type,
             'status': task.status,
             'progress': task.progress,
@@ -1676,28 +1749,101 @@ class TaskManagementViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
-        """Cancel a ProxyTask through the global task endpoint."""
-        task = ProxyTask.objects.filter(id=pk).select_related('proxy').first()
-        if not task:
-            return Response(
-                {'detail': 'Only proxy tasks can be cancelled from this endpoint.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        if not request.user.is_superuser:
+        """Cancel a task through the global task endpoint."""
+        from backup_tasks.models import BackupTask
+        from recovery_tasks.models import RecoveryTask
+
+        def user_can_access_proxy_task(proxy_task):
+            if request.user.is_superuser:
+                return True
             if getattr(request.user, 'tenant', None):
-                if task.proxy.tenant_id != request.user.tenant_id:
-                    return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-            elif task.proxy.owner_id != request.user.id:
-                return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if task.status in ['completed', 'failed', 'cancelled']:
-            return Response(
-                {'error': 'Cannot cancel completed or failed task'},
-                status=status.HTTP_400_BAD_REQUEST
+                return proxy_task.proxy.tenant_id == request.user.tenant_id
+            return proxy_task.proxy.owner_id == request.user.id
+
+        def send_proxy_cancel(proxy_task):
+            ProxyService.send_to_proxy(
+                str(proxy_task.proxy_id),
+                {
+                    'type': 'cancel',
+                    'id': str(proxy_task.id),
+                    'timestamp': timezone.now().isoformat(),
+                    'payload': {
+                        'task_id': str(proxy_task.id),
+                        'reason': request.data.get('reason', 'Task cancelled by user'),
+                    },
+                },
             )
-        task.cancel()
-        if task.proxy:
-            invalidate_cache(str(task.proxy.id))
-        return Response(ProxyTaskSerializer(task).data)
+
+        task = ProxyTask.objects.filter(id=pk).select_related('proxy').first()
+        if task:
+            if not user_can_access_proxy_task(task):
+                return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+            if task.status in ['completed', 'failed', 'cancelled']:
+                return Response(
+                    {'error': 'Cannot cancel completed or failed task'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            task.cancel()
+            send_proxy_cancel(task)
+            if task.proxy:
+                invalidate_cache(str(task.proxy.id))
+            return Response(ProxyTaskSerializer(task).data)
+
+        backup_task = BackupTask.objects.filter(id=pk).select_related('source_resource__bound_node').first()
+        if backup_task:
+            if not request.user.is_superuser:
+                if getattr(request.user, 'tenant', None):
+                    if backup_task.tenant_id != request.user.tenant_id:
+                        return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+                elif backup_task.user_id != request.user.id:
+                    return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+            if backup_task.status not in [BackupTask.STATUS_PENDING, BackupTask.STATUS_RUNNING]:
+                return Response({'error': 'Task is not cancellable'}, status=status.HTTP_400_BAD_REQUEST)
+
+            now = timezone.now()
+            reason = request.data.get('reason', 'Task cancelled by user')
+            backup_task.status = BackupTask.STATUS_CANCELLED
+            backup_task.status_message = reason
+            backup_task.completed_at = now
+            backup_task.save(update_fields=['status', 'status_message', 'completed_at', 'updated_at'])
+
+            proxy_tasks = ProxyTask.objects.filter(
+                parameters__backup_task_id=str(backup_task.id),
+                status__in=['pending', 'dispatched', 'accepted', 'running'],
+            ).select_related('proxy')
+            for proxy_task in proxy_tasks:
+                proxy_task.cancel()
+                send_proxy_cancel(proxy_task)
+                invalidate_cache(str(proxy_task.proxy_id))
+
+            return Response({'message': 'Task cancelled', 'task_id': str(backup_task.id)})
+
+        recovery_task = RecoveryTask.objects.filter(id=pk).select_related('target_node').first()
+        if recovery_task:
+            if not request.user.is_superuser:
+                if getattr(request.user, 'tenant', None):
+                    if recovery_task.tenant_id != request.user.tenant_id:
+                        return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+                elif recovery_task.user_id != request.user.id:
+                    return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+            if recovery_task.status not in [RecoveryTask.STATUS_PENDING, RecoveryTask.STATUS_RUNNING]:
+                return Response({'error': 'Task is not cancellable'}, status=status.HTTP_400_BAD_REQUEST)
+
+            recovery_task.status = RecoveryTask.STATUS_CANCELLED
+            recovery_task.completed_at = timezone.now()
+            recovery_task.save(update_fields=['status', 'completed_at', 'updated_at'])
+            proxy_tasks = ProxyTask.objects.filter(
+                parameters__recovery_task_id=str(recovery_task.id),
+                status__in=['pending', 'dispatched', 'accepted', 'running'],
+            ).select_related('proxy')
+            for proxy_task in proxy_tasks:
+                proxy_task.cancel()
+                send_proxy_cancel(proxy_task)
+                invalidate_cache(str(proxy_task.proxy_id))
+
+            return Response({'message': 'Task cancelled', 'task_id': str(recovery_task.id)})
+
+        return Response({'detail': 'Task not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class NodeConnectionViewSet(viewsets.ReadOnlyModelViewSet):

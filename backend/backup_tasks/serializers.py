@@ -75,6 +75,7 @@ class BackupTaskSerializer(serializers.ModelSerializer):
     
     # Execution node (from source resource)
     execution_node_name = serializers.SerializerMethodField()
+    schedule_name = serializers.CharField(source='schedule.name', read_only=True)
     
     # User info
     user_email = serializers.CharField(
@@ -98,10 +99,10 @@ class BackupTaskSerializer(serializers.ModelSerializer):
             'target_repository', 'target_repository_name', 'target_repository_type',
             'execution_node_name',
             # Task configuration
-            'task_type', 'priority', 'backup_paths', 'exclude_patterns', 'include_patterns',
+            'task_type', 'priority', 'is_enabled', 'backup_paths', 'exclude_patterns', 'include_patterns',
             'compression_enabled', 'compression_type', 'encryption_enabled',
             # Scheduling
-            'schedule', 'next_run_time', 'last_run_time',
+            'schedule', 'schedule_name', 'next_run_time', 'last_run_time',
             # Status
             'status', 'status_message', 'progress', 'progress_percent', 'error_message',
             # Retention
@@ -111,6 +112,10 @@ class BackupTaskSerializer(serializers.ModelSerializer):
             # Statistics
             'total_files', 'backed_up_files', 'total_size', 'backed_up_size',
             'skipped_files', 'failed_files', 'bytes_per_second',
+            # Execution controls
+            'bandwidth_limit_kbps', 'enable_checkpoint', 'checkpoint_interval_minutes',
+            'compression_level', 'max_concurrent_files', 'verify_checksum',
+            'max_retries', 'retry_count', 'estimated_completion_at', 'parent_task',
             # Formatted
             'duration_formatted', 'snapshot_count',
             # Computed
@@ -120,7 +125,8 @@ class BackupTaskSerializer(serializers.ModelSerializer):
             'id', 'status', 'status_message', 'progress', 'error_message', 'user',
             'created_at', 'updated_at', 'started_at', 'completed_at',
             'total_files', 'backed_up_files', 'total_size', 'backed_up_size',
-            'skipped_files', 'failed_files', 'bytes_per_second'
+            'skipped_files', 'failed_files', 'bytes_per_second',
+            'retry_count', 'estimated_completion_at', 'parent_task'
         ]
     
     def get_execution_node_name(self, obj):
@@ -137,28 +143,40 @@ class BackupTaskListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for task lists."""
     
     source_resource_name = serializers.CharField(source='source_resource.name', read_only=True)
+    source_resource_type = serializers.CharField(source='source_resource.resource_type', read_only=True)
     target_repository_name = serializers.CharField(source='target_repository.name', read_only=True)
+    target_repository_type = serializers.CharField(source='target_repository.repo_type', read_only=True)
+    schedule_name = serializers.CharField(source='schedule.name', read_only=True)
     execution_node_name = serializers.SerializerMethodField()
     duration_formatted = serializers.CharField(read_only=True)
+    snapshot_count = serializers.SerializerMethodField()
     
     class Meta:
         model = BackupTask
         fields = [
             'id', 'name', 'description',
             'source_resource', 'source_resource_name',
+            'source_resource_type',
             'target_repository', 'target_repository_name',
+            'target_repository_type',
             'execution_node_name',
-            'task_type', 'priority', 'status', 'progress',
+            'schedule', 'schedule_name',
+            'task_type', 'priority', 'status', 'progress', 'is_enabled',
             'next_run_time', 'last_run_time',
             'created_at', 'started_at', 'completed_at',
             'duration_formatted',
-            'total_files', 'total_size'
+            'total_files', 'total_size', 'snapshot_count',
+            'enable_checkpoint', 'checkpoint_interval_minutes',
+            'max_retries', 'retry_count', 'estimated_completion_at'
         ]
     
     def get_execution_node_name(self, obj):
         """Get the name of the execution node."""
         node = obj.execution_node
         return node.name if node else None
+
+    def get_snapshot_count(self, obj):
+        return obj.snapshots.count()
 
 
 class BackupTaskCreateSerializer(serializers.ModelSerializer):
@@ -171,7 +189,10 @@ class BackupTaskCreateSerializer(serializers.ModelSerializer):
             'source_resource', 'target_repository',
             'task_type', 'priority', 'backup_paths', 'exclude_patterns', 'include_patterns',
             'compression_enabled', 'compression_type', 'encryption_enabled',
-            'schedule', 'retention_days', 'max_snapshots'
+            'schedule', 'retention_days', 'max_snapshots', 'is_enabled',
+            'bandwidth_limit_kbps', 'enable_checkpoint', 'checkpoint_interval_minutes',
+            'compression_level', 'max_concurrent_files', 'verify_checksum',
+            'max_retries'
         ]
     
     def validate_backup_paths(self, value):
@@ -219,7 +240,10 @@ class BackupTaskUpdateSerializer(serializers.ModelSerializer):
             'name', 'description',
             'backup_paths', 'exclude_patterns', 'include_patterns',
             'compression_enabled', 'compression_type', 'encryption_enabled',
-            'schedule', 'retention_days', 'max_snapshots', 'priority'
+            'schedule', 'retention_days', 'max_snapshots', 'priority', 'is_enabled',
+            'bandwidth_limit_kbps', 'enable_checkpoint', 'checkpoint_interval_minutes',
+            'compression_level', 'max_concurrent_files', 'verify_checksum',
+            'max_retries'
         ]
     
     def validate_backup_paths(self, value):
@@ -240,6 +264,12 @@ class BackupTaskExecuteSerializer(serializers.Serializer):
         required=False,
         default=BackupTask.TYPE_INCREMENTAL,
         help_text="Override task type for this execution"
+    )
+    repository_password = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        help_text="Optional Kopia repository password for this execution"
     )
 
 

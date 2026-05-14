@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
+  ArrowPathIcon,
   CheckCircleIcon,
   ChevronRightIcon,
   CloudIcon,
@@ -9,6 +10,7 @@ import {
   ExclamationCircleIcon,
   FolderIcon,
   ServerIcon,
+  SignalIcon,
   XMarkIcon,
   XCircleIcon,
 } from "@heroicons/vue/24/outline";
@@ -32,6 +34,7 @@ const testResult = ref<null | {
   success: boolean;
   message: string;
   details?: any;
+  taskId?: string;
 }>(null);
 const testing = ref(false);
 const loadingDirectories = ref(false);
@@ -53,6 +56,8 @@ const form = reactive({
   bucket: "",
   prefix: "",
   region: "",
+  url_style: "virtual" as "virtual" | "path",
+  use_tls: true,
   username: "",
   password: "",
   access_key: "",
@@ -93,6 +98,7 @@ const canNext = computed(() => {
   if (step.value === 1) return !!form.source_kind;
   if (step.value === 2)
     return !!form.name.trim() && !!form.bound_node && hasConnectionConfig.value;
+  if (step.value === 3) return testResult.value?.success === true;
   return true;
 });
 
@@ -126,6 +132,58 @@ const endpointPreview = computed(() => {
   return `${form.endpoint || "-"}/${form.bucket || ""}${form.prefix ? `/${form.prefix}` : ""}`;
 });
 
+const testDetailRows = computed(() => {
+  const result = testResult.value;
+  const details = result?.details || {};
+  const spaceInfo = details.space_info || {};
+  const rows: Array<{ label: string; value: string }> = [];
+
+  if (result?.taskId) {
+    rows.push({
+      label: t("sourceResources.testResult.taskId"),
+      value: result.taskId,
+    });
+  }
+  if (details.storage_type) {
+    rows.push({
+      label: t("sourceResources.testResult.storageType"),
+      value: details.storage_type,
+    });
+  }
+  if (details.repository_id) {
+    rows.push({
+      label: t("sourceResources.testResult.repositoryId"),
+      value: details.repository_id,
+    });
+  }
+  if (typeof details.success === "boolean") {
+    rows.push({
+      label: t("sourceResources.testResult.proxyResult"),
+      value: details.success ? t("common.success") : t("common.error"),
+    });
+  }
+  if (typeof spaceInfo.total_bytes === "number") {
+    rows.push({
+      label: t("sourceResources.testResult.totalSpace"),
+      value: formatBytes(spaceInfo.total_bytes),
+    });
+  }
+  if (typeof spaceInfo.used_bytes === "number") {
+    rows.push({
+      label: t("sourceResources.testResult.usedSpace"),
+      value: formatBytes(spaceInfo.used_bytes),
+    });
+  }
+  if (typeof spaceInfo.free_bytes === "number") {
+    rows.push({
+      label: t("sourceResources.testResult.freeSpace"),
+      value: formatBytes(spaceInfo.free_bytes),
+    });
+  }
+
+  return rows;
+});
+
 watch(
   () => props.modelValue,
   (resource) => {
@@ -157,6 +215,8 @@ watch(
     form.bucket = resource.config?.bucket || "";
     form.prefix = resource.config?.prefix || "";
     form.region = resource.config?.region || "";
+    form.url_style = resource.config?.url_style || "virtual";
+    form.use_tls = resource.config?.use_tls !== false;
     form.username = resource.credentials?.username || "";
     form.password = "";
     form.access_key = resource.credentials?.access_key || "";
@@ -171,11 +231,34 @@ watch([() => form.bound_node, () => form.source_kind], () => {
   }
 });
 
+watch(
+  [
+    () => form.name,
+    () => form.bound_node,
+    () => form.root_path,
+    () => form.server,
+    () => form.export_path,
+    () => form.share,
+    () => form.mount_options,
+    () => form.endpoint,
+    () => form.bucket,
+    () => form.prefix,
+    () => form.region,
+    () => form.url_style,
+    () => form.use_tls,
+    () => form.username,
+    () => form.password,
+    () => form.access_key,
+    () => form.secret_key,
+  ],
+  () => {
+    testResult.value = null;
+  },
+);
+
 const canGoToStep = (targetStep: number) => {
-  // Cannot skip steps forward
+  if (targetStep > step.value + 1) return false;
   if (targetStep > step.value && !canNext.value) return false;
-  // Cannot jump backward more than 1 step (must go through each step)
-  if (targetStep < step.value && targetStep < step.value - 1) return false;
   return true;
 };
 
@@ -195,6 +278,8 @@ function reset() {
     bucket: "",
     prefix: "",
     region: "",
+    url_style: "virtual",
+    use_tls: true,
     username: "",
     password: "",
     access_key: "",
@@ -203,6 +288,7 @@ function reset() {
 }
 
 function selectType(type: "local" | "nas" | "s3") {
+  if (props.modelValue) return;
   form.source_kind = type;
   testResult.value = null;
   directories.value = [];
@@ -219,6 +305,7 @@ async function runDraftCheck() {
       message:
         response.data.message || t("sourceResources.wizard.draftCheckPassed"),
       details: response.data.details,
+      taskId: response.data.task_id,
     };
   } catch (error: any) {
     testResult.value = {
@@ -227,6 +314,8 @@ async function runDraftCheck() {
         error.response?.data?.message ||
         error.response?.data?.error ||
         t("sourceResources.wizard.draftCheckFailed"),
+      details: error.response?.data?.details,
+      taskId: error.response?.data?.task_id,
     };
   } finally {
     testing.value = false;
@@ -285,8 +374,8 @@ function buildPayload() {
     if (form.nas_protocol === "nfs") config.export_path = form.export_path;
     else {
       config.share = form.share;
-      credentials.username = form.username;
-      credentials.password = form.password;
+      if (form.username) credentials.username = form.username;
+      if (form.password) credentials.password = form.password;
     }
   } else {
     resource_type = "s3";
@@ -294,18 +383,42 @@ function buildPayload() {
     config.bucket = form.bucket;
     config.prefix = form.prefix;
     config.region = form.region;
-    credentials.access_key = form.access_key;
-    credentials.secret_key = form.secret_key;
+    config.url_style = form.url_style;
+    config.use_tls = form.use_tls;
+    if (form.access_key) credentials.access_key = form.access_key;
+    if (form.secret_key) credentials.secret_key = form.secret_key;
   }
 
-  return {
+  const payload: Record<string, any> = {
     name: form.name.trim(),
     description: form.description,
     resource_type,
     config,
-    credentials,
     bound_node: form.bound_node || null,
   };
+  const spaceInfo = testResult.value?.details?.space_info;
+  if (testResult.value?.success && spaceInfo) {
+    payload.total_size = spaceInfo.total_bytes || 0;
+    payload.used_size = spaceInfo.used_bytes || 0;
+    payload.free_size = spaceInfo.free_bytes || 0;
+    payload.file_count = testResult.value.details?.object_count || 0;
+  }
+  if (Object.keys(credentials).length > 0) {
+    payload.credentials = credentials;
+  }
+  return payload;
+}
+
+function formatBytes(bytes?: number): string {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
 }
 
 function save() {
@@ -392,13 +505,15 @@ function save() {
                 v-for="type in sourceTypes"
                 :key="type.value"
                 type="button"
+                :disabled="!!modelValue"
                 :class="[
                   'text-left rounded-xl border-2 p-4 transition-all',
+                  modelValue ? 'cursor-not-allowed opacity-60' : '',
                   form.source_kind === type.value
                     ? 'border-blue-500 dark:border-blue-400 bg-background/50 shadow-sm'
                     : 'border-border bg-background/50 hover:border-border-secondary',
                 ]"
-                @click="selectType(type.value as any)"
+                @click="!modelValue && selectType(type.value as any)"
               >
                 <div class="flex items-center gap-3">
                   <div
@@ -673,6 +788,9 @@ function save() {
                     placeholder="https://s3.amazonaws.com"
                     class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <p class="mt-1 text-xs text-foreground-secondary">
+                    {{ t("sourceResources.form.endpointHint") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1"
@@ -683,6 +801,9 @@ function save() {
                     placeholder="my-backup-bucket"
                     class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <p class="mt-1 text-xs text-foreground-secondary">
+                    {{ t("sourceResources.form.bucketHint") }}
+                  </p>
                 </div>
                 <div>
                   <label
@@ -694,6 +815,60 @@ function save() {
                     placeholder="us-east-1"
                     class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <p class="mt-1 text-xs text-foreground-secondary">
+                    {{ t("sourceResources.form.regionHint") }}
+                  </p>
+                </div>
+                <div>
+                  <label
+                    class="block text-sm font-medium text-foreground mb-1"
+                    >{{ t("sourceResources.form.urlStyle") }}</label
+                  >
+                  <select
+                    v-model="form.url_style"
+                    class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option class="bg-background" value="virtual">
+                      {{ t("sourceResources.form.urlStyleVirtual") }}
+                    </option>
+                    <option class="bg-background" value="path">
+                      {{ t("sourceResources.form.urlStylePath") }}
+                    </option>
+                  </select>
+                  <p class="mt-1 text-xs text-foreground-secondary">
+                    {{ t("sourceResources.form.urlStyleHint") }}
+                  </p>
+                </div>
+                <div
+                  class="rounded-lg border border-border bg-background/40 px-3 py-2"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <p class="text-sm font-medium text-foreground">
+                        {{ t("sourceResources.form.useTLS") }}
+                      </p>
+                      <p class="mt-1 text-xs text-foreground-secondary">
+                        {{ t("sourceResources.form.useTLSHint") }}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      :aria-checked="form.use_tls"
+                      @click="form.use_tls = !form.use_tls"
+                      :class="[
+                        'relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors',
+                        form.use_tls ? 'bg-blue-600' : 'bg-background-tertiary',
+                      ]"
+                    >
+                      <span
+                        :class="[
+                          'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform mt-0.5',
+                          form.use_tls ? 'translate-x-5' : 'translate-x-0.5',
+                        ]"
+                      />
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label
@@ -705,6 +880,9 @@ function save() {
                     placeholder="backups/"
                     class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <p class="mt-1 text-xs text-foreground-secondary">
+                    {{ t("sourceResources.form.prefixHint") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1"
@@ -715,6 +893,9 @@ function save() {
                     placeholder="AKIAIOSFODNN7EXAMPLE"
                     class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <p class="mt-1 text-xs text-foreground-secondary">
+                    {{ t("sourceResources.form.accessKeyHint") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1"
@@ -725,6 +906,9 @@ function save() {
                     type="password"
                     class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <p class="mt-1 text-xs text-foreground-secondary">
+                    {{ t("sourceResources.form.secretKeyHint") }}
+                  </p>
                 </div>
               </div>
             </div>
@@ -749,29 +933,33 @@ function save() {
                 </p>
                 <button
                   type="button"
-                  class="mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                  :disabled="testing || !canNext"
+                  class="mt-4 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="
+                    testing || !hasConnectionConfig || !form.bound_node
+                  "
+                  :title="
+                    testing
+                      ? t('common.loading')
+                      : t('sourceResources.testConnection')
+                  "
+                  :aria-label="
+                    testing
+                      ? t('common.loading')
+                      : t('sourceResources.testConnection')
+                  "
                   @click="runDraftCheck"
                 >
-                  {{
-                    testing
-                      ? t("common.loading")
-                      : t("sourceResources.testConnection")
-                  }}
+                  <ArrowPathIcon v-if="testing" class="h-4 w-4 animate-spin" />
+                  <SignalIcon v-else class="h-4 w-4" />
                 </button>
                 <div
                   v-if="testResult"
-                  :class="[
-                    'mt-4 p-3 rounded-lg border',
-                    testResult.success
-                      ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800'
-                      : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800',
-                  ]"
+                  class="mt-4 p-4 rounded-xl border border-border bg-background/50"
                 >
                   <div class="flex items-start gap-3">
                     <CheckCircleIcon
                       v-if="testResult.success"
-                      class="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0"
+                      class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"
                     />
                     <XCircleIcon
                       v-else
@@ -782,7 +970,7 @@ function save() {
                         :class="[
                           'font-semibold',
                           testResult.success
-                            ? 'text-emerald-700 dark:text-emerald-400'
+                            ? 'text-foreground'
                             : 'text-red-700 dark:text-red-400',
                         ]"
                       >
@@ -796,12 +984,42 @@ function save() {
                         :class="[
                           'text-sm mt-1',
                           testResult.success
-                            ? 'text-emerald-600 dark:text-emerald-300'
+                            ? 'text-foreground-secondary'
                             : 'text-red-600 dark:text-red-300',
                         ]"
                       >
                         {{ testResult.message }}
                       </p>
+                      <dl
+                        v-if="testDetailRows.length"
+                        class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2"
+                      >
+                        <div
+                          v-for="row in testDetailRows"
+                          :key="row.label"
+                          class="rounded-lg border border-border bg-background-secondary/50 px-3 py-2"
+                        >
+                          <dt class="text-xs text-foreground-secondary">
+                            {{ row.label }}
+                          </dt>
+                          <dd
+                            class="mt-1 text-sm font-medium text-foreground break-all"
+                          >
+                            {{ row.value || "-" }}
+                          </dd>
+                        </div>
+                      </dl>
+                      <details v-if="testResult.details" class="mt-3 text-xs">
+                        <summary class="cursor-pointer font-medium">
+                          {{ t("sourceResources.testResult.rawDetails") }}
+                        </summary>
+                        <pre
+                          class="mt-2 max-h-40 overflow-auto rounded-lg border border-border bg-background-secondary/50 p-3 whitespace-pre-wrap break-all text-foreground"
+                          >{{
+                            JSON.stringify(testResult.details, null, 2)
+                          }}</pre
+                        >
+                      </details>
                     </div>
                   </div>
                 </div>

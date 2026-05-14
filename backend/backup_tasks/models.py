@@ -94,6 +94,10 @@ class BackupTask(models.Model):
         default=PRIORITY_NORMAL,
         help_text="Task priority"
     )
+    is_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether this backup task is enabled for manual or scheduled execution"
+    )
     
     # Backup paths - relative to source resource mount point
     # For LOCAL source: absolute paths on the node
@@ -212,6 +216,54 @@ class BackupTask(models.Model):
     bytes_per_second = models.BigIntegerField(
         default=0,
         help_text="Backup speed in bytes per second"
+    )
+
+    # Execution controls
+    bandwidth_limit_kbps = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional bandwidth limit in KB/s"
+    )
+    enable_checkpoint = models.BooleanField(
+        default=True,
+        help_text="Enable resumable backup checkpoints"
+    )
+    checkpoint_interval_minutes = models.IntegerField(
+        default=15,
+        help_text="Checkpoint interval in minutes"
+    )
+    compression_level = models.IntegerField(
+        default=6,
+        help_text="Compression level, usually 0-9 depending on algorithm"
+    )
+    max_concurrent_files = models.IntegerField(
+        default=4,
+        help_text="Maximum files processed concurrently"
+    )
+    verify_checksum = models.BooleanField(
+        default=True,
+        help_text="Verify file checksum after backup"
+    )
+    max_retries = models.IntegerField(
+        default=3,
+        help_text="Maximum retry attempts for this backup task"
+    )
+    retry_count = models.IntegerField(
+        default=0,
+        help_text="Current retry count"
+    )
+    estimated_completion_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Estimated completion time"
+    )
+    parent_task = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='child_tasks',
+        help_text="Parent task for retry or derived backup executions"
     )
     
     class Meta:
