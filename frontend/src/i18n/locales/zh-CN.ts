@@ -905,6 +905,20 @@ export default {
     noSnapshots: "暂无快照",
     noRuns: "暂无执行任务",
 
+    emptyStates: {
+      snapshotsTitle: "暂无可用快照",
+      snapshotsDesc:
+        "当前备份任务成功完成后，快照会显示在这里。之后可以选择某个快照浏览其中的文件。",
+      runsTitle: "暂无任务执行记录",
+      runsDesc:
+        "当任务被手动启动或由调度触发后，执行历史会显示在这里。",
+    },
+
+    policySummary: {
+      taskSettings: "任务自身配置 · {retention}",
+      taskRetention: "保留 {days} 天 / {snapshots} 个快照",
+    },
+
     tabs: {
       overview: "基础信息",
       snapshots: "快照列表",
@@ -939,7 +953,7 @@ export default {
       retentionDays: "保留天数",
       maxSnapshots: "最大快照数",
       policy: "备份策略",
-      noPolicy: "手动执行 / 不绑定策略",
+      noPolicy: "不绑定策略 / 使用当前任务配置",
       policyHint: "选择 Policies 页面中配置的策略；不选择则作为手动任务。",
       schedule: "调度",
       runNow: "立即运行",
@@ -1017,6 +1031,26 @@ export default {
       snapshots: "快照数量",
     },
 
+    sourceDetails: {
+      title: "已选源端资源",
+      fixedScopeDesc:
+        "源端资源已经定义了受保护的目录、共享、Bucket 或 Prefix。当前任务将直接使用这个固定范围。",
+      selectHint: "选择源端资源后查看固定保护范围。",
+      protectedScope: "保护范围",
+      type: "类型",
+      status: "状态",
+      boundNode: "绑定节点",
+      path: "路径",
+      endpoint: "Endpoint",
+      bucket: "Bucket",
+      prefix: "Prefix",
+      region: "Region",
+      mountPoint: "挂载点",
+      mountOptions: "挂载参数",
+      capacity: "容量",
+      files: "文件数",
+    },
+
     schedule: {
       manual: "手动备份",
       interval: "自动定时",
@@ -1034,6 +1068,73 @@ export default {
       policy: "关联策略模板",
       custom: "自定义保留",
       customSummary: "保留 {snapshots} 个快照 / {days} 天",
+      latest: "最近",
+      latestDesc: "保留最近生成的快照，不受小时、天、周等时间桶限制。",
+      hourly: "每小时",
+      hourlyDesc: "按小时保留最近每小时中的最新快照。",
+      daily: "每天",
+      dailyDesc: "按天保留最近每天中的最新快照。",
+      weekly: "每周",
+      weeklyDesc: "按周保留最近每周中的最新快照。",
+      monthly: "每月",
+      monthlyDesc: "按月保留最近每月中的最新快照。",
+      annual: "每年",
+      annualDesc: "按年保留最近每年中的最新快照。",
+    },
+
+    files: {
+      title: "文件与排除规则",
+      exclusionPatterns: "排除规则",
+      exclusionPatternsDesc:
+        "Patterns support glob syntax. See Restic documentation for more details.",
+      dotIgnoreFiles: "Dot Ignore Files",
+      dotIgnoreFilesDesc:
+        "源目录中用于声明忽略规则的文件名，例如 .kopiaignore。",
+      oneFileSystem: "限制在单一文件系统",
+      oneFileSystemDesc:
+        "阻止 Kopia 跨越文件系统边界，适合避免备份源目录内挂载的网络盘或其他分区。",
+      ignoreFileErrors: "忽略文件错误",
+      ignoreFileErrorsDesc:
+        "当单个文件无法读取时继续创建快照。",
+      ignoreDirErrors: "忽略目录错误",
+      ignoreDirErrorsDesc:
+        "当目录无法列出或遍历时继续创建快照。",
+    },
+
+    compression: {
+      title: "压缩与性能",
+      algorithm: "算法",
+      algorithmDesc:
+        "用于文件内容的压缩算法，选择 none 表示不压缩。",
+      parallelReads: "并行读取文件数",
+      parallelReadsDesc:
+        "创建快照时 Kopia 可并行读取的最大文件数量。",
+      metadata: "压缩元数据",
+      metadataDesc:
+        "压缩仓库元数据以减少存储占用。",
+      ignoreIdentical: "忽略相同快照",
+      ignoreIdenticalDesc:
+        "当源端内容未变化时跳过保存新的相同快照。",
+    },
+
+    policyOverrides: {
+      policyBaseline: "策略基线",
+      policyBaselineDesc:
+        "绑定 Kopia 策略作为基线，只覆盖当前任务需要不同的配置。",
+      none: "未覆盖",
+      schedule: "调度",
+      retention: "保留",
+      files: "文件规则",
+      compression: "压缩",
+      overrideSchedule: "覆盖当前任务的调度",
+      usePolicyRetention: "使用策略保留规则",
+      overrideRetention: "覆盖当前任务的保留规则",
+      taskRetentionDesc:
+        "当前未选择策略，保留规则将使用此任务中配置的数值。",
+      taskExclusions: "任务级排除规则",
+      taskExclusionsDesc:
+        "这些忽略规则会和已选策略合并，并在创建快照前应用。",
+      overrideCompression: "覆盖压缩与性能参数",
     },
 
     diagnostics: {
@@ -1089,6 +1190,55 @@ export default {
       requiredFields: "任务名称和至少一个源路径不能为空。",
       runningReadonly: "运行中的备份任务不能编辑。",
       updateSuccess: "备份任务更新成功",
+      sections: {
+        readonly: "绑定源端与仓库",
+        readonlyDesc:
+          "已有任务固定源端资源和目标仓库，以保持快照链路和历史记录可追踪。",
+        basicDesc:
+          "更新展示名称、优先级、描述，以及任务是否允许执行。",
+        scheduleRetentionDesc:
+          "选择策略基线，并配置后续运行使用的任务级保留限制。",
+        pathsDesc:
+          "查看保护路径并配置包含或排除规则。每行填写一个值。",
+        securityDesc:
+          "调整加密、校验、压缩、断点续传、吞吐和重试行为。",
+      },
+      placeholders: {
+        name: "例如：财务服务器每日增量备份",
+        description: "描述受保护业务、环境和运维备注。",
+        retentionDays: "30",
+        maxSnapshots: "10",
+        sourcePaths: "/data\n/home/app",
+        includePatterns: "*.db\nimportant/**",
+        excludePatterns: "*.tmp\nnode_modules/**\n.cache/",
+        compressionLevel: "6",
+        checkpointInterval: "15",
+        concurrency: "4",
+        bandwidthLimit: "留空表示不限制",
+        maxRetries: "3",
+      },
+      fieldDescriptions: {
+        name: "清晰的任务名称便于识别受保护的业务和环境。",
+        priority: "高优先级任务可在调度或执行时优先处理。",
+        description: "可选备注可以记录负责人、环境或运维说明。",
+        enabled: "禁用后任务仍会保留，但不能手动执行或由调度触发。",
+        policy: "选择可复用的策略基线；留空则使用任务自身配置。",
+        retentionDays: "使用任务配置时，快照按最大保留天数进行限制。",
+        maxSnapshots: "当前任务最多保留的快照数量。",
+        sourcePaths: "保护路径会在绑定的源端资源或代理环境中解析。",
+        includePatterns: "填写包含规则后，仅匹配的文件会被纳入备份。",
+        excludePatterns: "匹配的文件或目录会在备份时跳过。",
+        encryption: "保持备份写入仓库后的数据加密。",
+        checksum: "通过校验和发现处理过程中的数据损坏。",
+        compression: "压缩文件内容以降低仓库存储占用。",
+        checkpoint: "允许长时间运行的备份通过周期性检查点恢复。",
+        compressionType: "选择备份引擎使用的压缩算法。",
+        compressionLevel: "级别越高可能越节省空间，但会增加 CPU 开销。",
+        checkpointInterval: "检查点状态的记录间隔，单位为分钟。",
+        concurrency: "备份过程中同时读取的最大文件数量。",
+        bandwidthLimit: "可选网络吞吐限制，单位 KB/s；留空表示不限制。",
+        maxRetries: "任务失败后的自动重试次数。",
+      },
     },
 
     actions: {
@@ -1538,7 +1688,8 @@ export default {
   // Policies
   policies: {
     title: "备份策略",
-    subtitle: "定义备份规则和调度",
+    subtitle: "定义 Kopia 原生备份策略、调度和保留规则",
+    kopiaSubtitle: "按 Kopia 对仓库和快照路径实际生效的策略模型进行配置。",
 
     stats: {
       total: "策略总数",
@@ -1557,8 +1708,87 @@ export default {
       compression: "压缩",
       encryption: "加密",
       backupTask: "备份任务",
+      backupType: "备份类型",
       time: "时间",
       nextRun: "下次运行",
+    },
+
+    sections: {
+      basic: "基础信息",
+      schedule: "快照调度",
+      files: "文件与排除规则",
+      compression: "压缩与性能",
+    },
+
+    basic: {
+      description:
+        "为策略命名，并定义它代表的默认备份行为。",
+      namePlaceholder: "例如：生产 Linux 每日备份策略",
+      nameDesc:
+        "建议包含业务、环境和备份意图，便于后续选择和维护。",
+      backupTypeDesc:
+        "选择该策略代表的备份方式。常规 Kopia 快照建议使用增量备份。",
+      descriptionPlaceholder:
+        "描述该策略的适用场景，例如保护对象、调度意图或合规说明。",
+      descriptionDesc:
+        "可选说明可以帮助运维人员理解策略用途和适用范围。",
+      enabledDesc:
+        "禁用后策略仍会保留，但不应再用于新的计划备份任务。",
+    },
+
+    target: {
+      title: "策略目标",
+      description:
+        "定义该策略应用到什么范围。范围越精确，优先级越高。",
+      host: "主机",
+      hostDesc: "将该策略应用到指定主机产生的快照。",
+      user: "用户",
+      userDesc: "将该策略应用到指定主机上某个用户的快照。",
+      path: "路径",
+      pathDesc: "仅将该策略应用到指定源路径。",
+      scopeDescriptions: {
+        global: "作为所有快照的默认策略。",
+        host: "应用到某一台主机产生的所有快照。",
+        user: "应用到某台主机上某个用户的快照。",
+        path: "应用到一个精确的源端路径。",
+      },
+    },
+
+    scopes: {
+      global: "全局",
+      host: "主机",
+      user: "用户",
+      path: "路径",
+    },
+
+    scheduleModes: {
+      manual: "手动",
+      interval: "间隔",
+      time: "每日时间",
+      cron: "Cron",
+    },
+
+    schedule: {
+      title: "备份频率",
+      description: "定义快照应该多久执行一次。",
+      interval: "快照间隔",
+      intervalDesc:
+        "按固定时间间隔重复执行快照，例如 4h 或 24h。",
+      timeOfDay: "每日时间",
+      timeOfDayDesc:
+        "使用基于时间的调度时，在本地时间的这个时刻执行快照。",
+      cron: "Cron 表达式",
+      cronDesc:
+        "使用 crontab 表达式配置高级调度，例如 0 2 * * *。",
+      runMissed: "补跑错过的快照",
+      runMissedDesc:
+        "如果系统离线或调度器未运行，恢复后自动补跑错过的计划快照。",
+      modeDescriptions: {
+        manual: "仅在用户或系统显式启动任务时创建快照。",
+        interval: "按固定时间间隔重复创建快照。",
+        time: "每天在指定时间创建快照。",
+        cron: "按照自定义 Cron 表达式创建快照。",
+      },
     },
 
     scheduleTypes: {
@@ -1567,6 +1797,58 @@ export default {
       weekly: "每周",
       monthly: "每月",
       manual: "手动",
+    },
+
+    retention: {
+      title: "保留策略",
+      kopiaRetention: "Kopia 保留策略",
+      description: "定义要保留多少快照。留空表示全部保留。",
+      keep_latest: "保留最近 N 个快照",
+      keep_latest_desc: "保留最近创建的 N 个快照。",
+      keep_hourly: "保留每小时快照",
+      keep_hourly_desc: "保留最近 N 个每小时快照。",
+      keep_daily: "保留每天快照",
+      keep_daily_desc: "保留最近 N 个每天快照。",
+      keep_weekly: "保留每周快照",
+      keep_weekly_desc: "保留最近 N 个每周快照。",
+      keep_monthly: "保留每月快照",
+      keep_monthly_desc: "保留最近 N 个每月快照。",
+      keep_annual: "保留每年快照",
+      keep_annual_desc: "保留最近 N 个每年快照。",
+    },
+
+    files: {
+      ignorePatterns: "排除规则",
+      dotIgnoreFiles: "忽略规则文件",
+      oneFileSystem: "限制在单一文件系统",
+      ignoreFileErrors: "忽略文件错误",
+      ignoreDirErrors: "忽略目录错误",
+    },
+
+    compression: {
+      algorithm: "算法",
+      metadata: "压缩元数据",
+      parallelReads: "并行读取文件数",
+      ignoreIdentical: "忽略相同快照",
+    },
+
+    preview: {
+      title: "策略预览",
+      description: "检查该策略对应的 Kopia 命令。",
+    },
+
+    validation: {
+      nameRequired: "策略名称不能为空。",
+    },
+
+    actions: {
+      enable: "启用策略",
+      disable: "禁用策略",
+    },
+
+    details: {
+      subtitle:
+        "查看策略范围、备份频率、保留规则以及对应的 Kopia 命令预览。",
     },
 
     empty: {

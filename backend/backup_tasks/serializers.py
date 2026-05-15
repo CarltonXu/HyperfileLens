@@ -102,7 +102,8 @@ class BackupTaskSerializer(serializers.ModelSerializer):
             'task_type', 'priority', 'is_enabled', 'backup_paths', 'exclude_patterns', 'include_patterns',
             'compression_enabled', 'compression_type', 'encryption_enabled',
             # Scheduling
-            'schedule', 'schedule_name', 'next_run_time', 'last_run_time',
+            'schedule', 'schedule_name', 'policy_overrides', 'effective_policy',
+            'next_run_time', 'last_run_time',
             # Status
             'status', 'status_message', 'progress', 'progress_percent', 'error_message',
             # Retention
@@ -126,7 +127,7 @@ class BackupTaskSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'started_at', 'completed_at',
             'total_files', 'backed_up_files', 'total_size', 'backed_up_size',
             'skipped_files', 'failed_files', 'bytes_per_second',
-            'retry_count', 'estimated_completion_at', 'parent_task'
+            'retry_count', 'estimated_completion_at', 'parent_task', 'effective_policy'
         ]
     
     def get_execution_node_name(self, obj):
@@ -160,8 +161,8 @@ class BackupTaskListSerializer(serializers.ModelSerializer):
             'target_repository', 'target_repository_name',
             'target_repository_type',
             'execution_node_name',
-            'schedule', 'schedule_name',
             'task_type', 'priority', 'status', 'progress', 'is_enabled',
+            'schedule', 'schedule_name', 'policy_overrides', 'effective_policy',
             'next_run_time', 'last_run_time',
             'created_at', 'started_at', 'completed_at',
             'duration_formatted',
@@ -189,7 +190,7 @@ class BackupTaskCreateSerializer(serializers.ModelSerializer):
             'source_resource', 'target_repository',
             'task_type', 'priority', 'backup_paths', 'exclude_patterns', 'include_patterns',
             'compression_enabled', 'compression_type', 'encryption_enabled',
-            'schedule', 'retention_days', 'max_snapshots', 'is_enabled',
+            'schedule', 'policy_overrides', 'retention_days', 'max_snapshots', 'is_enabled',
             'bandwidth_limit_kbps', 'enable_checkpoint', 'checkpoint_interval_minutes',
             'compression_level', 'max_concurrent_files', 'verify_checksum',
             'max_retries'
@@ -240,7 +241,7 @@ class BackupTaskUpdateSerializer(serializers.ModelSerializer):
             'name', 'description',
             'backup_paths', 'exclude_patterns', 'include_patterns',
             'compression_enabled', 'compression_type', 'encryption_enabled',
-            'schedule', 'retention_days', 'max_snapshots', 'priority', 'is_enabled',
+            'schedule', 'policy_overrides', 'retention_days', 'max_snapshots', 'priority', 'is_enabled',
             'bandwidth_limit_kbps', 'enable_checkpoint', 'checkpoint_interval_minutes',
             'compression_level', 'max_concurrent_files', 'verify_checksum',
             'max_retries'

@@ -20,7 +20,9 @@ import type { ProxyNode } from "@/types/proxy";
 import type { Repository } from "@/types/repository";
 import type { SourceResource } from "@/types/sourceResource";
 import { usePagination } from "@/composables/usePagination";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import Pagination from "@/components/Pagination.vue";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 import BackupTaskWizard from "@/components/BackupTaskWizard.vue";
 import {
   CloudArrowUpIcon,
@@ -184,11 +186,100 @@ const filteredTasks = computed(() => {
   return result;
 });
 
+type BackupTaskColumnKey =
+  | "name"
+  | "policy"
+  | "source"
+  | "repository"
+  | "status"
+  | "last_backup"
+  | "next_backup"
+  | "actions";
+
+const backupTaskColumns = computed(() => [
+  { key: "name" as const, label: t("common.name"), min: 220, max: 420 },
+  {
+    key: "policy" as const,
+    label: t("backupTasks.form.policy"),
+    min: 220,
+    max: 380,
+  },
+  {
+    key: "source" as const,
+    label: t("backupTasks.form.sourceNode"),
+    min: 190,
+    max: 340,
+  },
+  {
+    key: "repository" as const,
+    label: t("backupTasks.form.repository"),
+    min: 200,
+    max: 360,
+  },
+  { key: "status" as const, label: t("common.status"), min: 140, max: 220 },
+  {
+    key: "last_backup" as const,
+    label: t("backupTasks.lastBackup"),
+    min: 150,
+    max: 260,
+  },
+  {
+    key: "next_backup" as const,
+    label: t("backupTasks.nextBackup"),
+    min: 150,
+    max: 260,
+  },
+  {
+    key: "actions" as const,
+    label: t("common.actions"),
+    min: 160,
+    max: 220,
+    sortable: false,
+    align: "right" as const,
+  },
+]);
+
+const backupTaskTable = useResizableSortableTable<
+  BackupTask,
+  BackupTaskColumnKey
+>({
+  storageKey: "hyperfilelens:backup-tasks:columns",
+  columns: backupTaskColumns,
+  rows: filteredTasks,
+  defaultSort: { key: "name", direction: "asc" },
+  minTableWidth: 1440,
+  getSortValue: (task, key) => {
+    if (key === "name") return task.name;
+    if (key === "policy") return task.schedule_name || "";
+    if (key === "source") return task.source_resource_name || "";
+    if (key === "repository") return task.target_repository_name || "";
+    if (key === "status") return task.status || "";
+    if (key === "last_backup")
+      return task.last_run_time ? new Date(task.last_run_time).getTime() : 0;
+    if (key === "next_backup")
+      return task.next_run_time ? new Date(task.next_run_time).getTime() : 0;
+    return "";
+  },
+  getColumnText: (task, key) => {
+    if (key === "name") return `${task.name} ${task.task_type || ""}`;
+    if (key === "policy")
+      return `${task.schedule_name || ""} ${getTaskPolicySummary(task)}`;
+    if (key === "source")
+      return `${task.source_resource_name || ""} ${task.execution_node_name || ""}`;
+    if (key === "repository")
+      return `${task.target_repository_name || ""} ${task.target_repository_type || ""}`;
+    if (key === "status") return task.status || "";
+    if (key === "last_backup") return formatDateTime(task.last_run_time);
+    if (key === "next_backup") return formatDateTime(task.next_run_time);
+    return "";
+  },
+});
+
 // Paginated tasks for display
 const paginatedTasks = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
-  return filteredTasks.value.slice(start, end);
+  return backupTaskTable.sortedRows.value.slice(start, end);
 });
 
 const currentDetailTabLoading = computed(() => {
@@ -732,6 +823,62 @@ function canRunTask(task: BackupTask) {
   return task.status !== "running" && task.is_enabled !== false;
 }
 
+function policyForTask(task: BackupTask) {
+  if (!task.schedule) return null;
+  return (
+    backupPolicies.value.find(
+      (policy) => String(policy.id) === String(task.schedule),
+    ) || null
+  );
+}
+
+function getTaskPolicyScheduleSummary(task: BackupTask) {
+  const policy = policyForTask(task);
+  const effectivePolicy = task.effective_policy || {};
+  const schedule =
+    policy?.snapshot_schedule || effectivePolicy.snapshot_schedule || {};
+  const mode = schedule.mode || policy?.frequency || "manual";
+
+  if (mode === "interval") {
+    return `${t("policies.scheduleModes.interval")} ${schedule.interval || "24h"}`;
+  }
+  if (mode === "time") {
+    return `${t("policies.scheduleModes.time")} ${schedule.time_of_day || policy?.schedule_time || "-"}`;
+  }
+  if (mode === "cron") {
+    return `${t("policies.scheduleModes.cron")} ${schedule.cron || "-"}`;
+  }
+  if (mode === "hourly" || mode === "daily" || mode === "weekly" || mode === "monthly") {
+    return t(`policies.scheduleTypes.${mode}`);
+  }
+  return t("policies.scheduleModes.manual");
+}
+
+function getTaskPolicyRetentionSummary(task: BackupTask) {
+  const policy = policyForTask(task);
+  const effectivePolicy = task.effective_policy || {};
+  const retention =
+    policy?.retention_policy || effectivePolicy.retention_policy || null;
+
+  if (retention) {
+    return `L${retention.keep_latest ?? 0} H${retention.keep_hourly ?? 0} D${retention.keep_daily ?? 0} W${retention.keep_weekly ?? 0} M${retention.keep_monthly ?? 0} A${retention.keep_annual ?? 0}`;
+  }
+
+  return t("backupTasks.policySummary.taskRetention", {
+    days: task.retention_days || "-",
+    snapshots: task.max_snapshots || "-",
+  });
+}
+
+function getTaskPolicySummary(task: BackupTask) {
+  if (!task.schedule) {
+    return t("backupTasks.policySummary.taskSettings", {
+      retention: getTaskPolicyRetentionSummary(task),
+    });
+  }
+  return `${getTaskPolicyScheduleSummary(task)} · ${getTaskPolicyRetentionSummary(task)}`;
+}
+
 function formatDateTime(value?: string | null) {
   return value ? new Date(value).toLocaleString() : "-";
 }
@@ -1000,49 +1147,46 @@ onMounted(() => {
 
     <div v-else class="bg-card rounded-xl border border-border shadow-sm">
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[1180px]">
+        <table
+          class="w-full table-fixed"
+          :style="{ minWidth: backupTaskTable.tableMinWidth.value }"
+        >
+          <colgroup>
+            <col
+              v-for="column in backupTaskColumns"
+              :key="column.key"
+              :style="backupTaskTable.columnStyle(column.key)"
+            />
+          </colgroup>
           <thead class="bg-background-secondary border-b border-border">
             <tr>
-              <th
-                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-              >
-                {{ t("common.name") }}
-              </th>
-              <th
-                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-              >
-                {{ t("backupTasks.form.policy") }}
-              </th>
-              <th
-                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-              >
-                {{ t("backupTasks.form.sourceNode") }}
-              </th>
-              <th
-                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-              >
-                {{ t("backupTasks.form.repository") }}
-              </th>
-              <th
-                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-              >
-                {{ t("common.status") }}
-              </th>
-              <th
-                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-              >
-                {{ t("backupTasks.lastBackup") }}
-              </th>
-              <th
-                class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-              >
-                {{ t("backupTasks.nextBackup") }}
-              </th>
-              <th
-                class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-              >
-                {{ t("common.actions") }}
-              </th>
+              <ResizableSortableTh
+                v-for="column in backupTaskColumns"
+                :key="column.key"
+                :column-key="column.key"
+                :label="column.label"
+                :style-value="backupTaskTable.columnStyle(column.key)"
+                :sortable="column.sortable !== false"
+                :active="backupTaskTable.sort.value.key === column.key"
+                :align="column.align"
+                :sort-icon="backupTaskTable.getSortIcon(column.key)"
+                :resizing="backupTaskTable.resizingColumn.value === column.key"
+                @sort="
+                  backupTaskTable.toggleSort($event as BackupTaskColumnKey)
+                "
+                @resize-start="
+                  (key, event) =>
+                    backupTaskTable.startResize(
+                      key as BackupTaskColumnKey,
+                      event,
+                    )
+                "
+                @resize-reset="
+                  backupTaskTable.resetColumnWidth(
+                    $event as BackupTaskColumnKey,
+                  )
+                "
+              />
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
@@ -1051,7 +1195,7 @@ onMounted(() => {
               :key="task.id"
               class="hover:bg-hover transition-colors"
             >
-              <td class="px-6 py-4">
+              <td class="px-4 py-4" :style="backupTaskTable.columnStyle('name')">
                 <div class="flex items-center gap-3">
                   <div
                     :class="[
@@ -1109,12 +1253,15 @@ onMounted(() => {
                   </div>
                 </div>
               </td>
-              <td class="px-6 py-4">
-                <span class="text-sm text-foreground-secondary">
+              <td class="px-4 py-4" :style="backupTaskTable.columnStyle('policy')">
+                <p class="text-sm font-medium text-foreground">
                   {{ task.schedule_name || t("backupTasks.form.noPolicy") }}
-                </span>
+                </p>
+                <p class="mt-1 max-w-[260px] truncate text-xs text-foreground-muted">
+                  {{ getTaskPolicySummary(task) }}
+                </p>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-4 py-4" :style="backupTaskTable.columnStyle('source')">
                 <p class="text-sm text-foreground">
                   {{ task.source_resource_name || "-" }}
                 </p>
@@ -1122,7 +1269,10 @@ onMounted(() => {
                   {{ task.execution_node_name || "-" }}
                 </p>
               </td>
-              <td class="px-6 py-4">
+              <td
+                class="px-4 py-4"
+                :style="backupTaskTable.columnStyle('repository')"
+              >
                 <p class="text-sm text-foreground">
                   {{ task.target_repository_name || "-" }}
                 </p>
@@ -1130,7 +1280,7 @@ onMounted(() => {
                   {{ task.target_repository_type || "-" }}
                 </p>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-4 py-4" :style="backupTaskTable.columnStyle('status')">
                 <span
                   :class="[
                     'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium',
@@ -1144,13 +1294,22 @@ onMounted(() => {
                   {{ t(`backupTasks.status.${task.status}`) }}
                 </span>
               </td>
-              <td class="px-6 py-4 text-sm text-foreground-secondary">
+              <td
+                class="px-4 py-4 text-sm text-foreground-secondary"
+                :style="backupTaskTable.columnStyle('last_backup')"
+              >
                 {{ formatDateTime(task.last_run_time || task.completed_at) }}
               </td>
-              <td class="px-6 py-4 text-sm text-foreground-secondary">
+              <td
+                class="px-4 py-4 text-sm text-foreground-secondary"
+                :style="backupTaskTable.columnStyle('next_backup')"
+              >
                 {{ formatDateTime(task.next_run_time) }}
               </td>
-              <td class="px-6 py-4 text-right">
+              <td
+                class="px-4 py-4 text-right"
+                :style="backupTaskTable.columnStyle('actions')"
+              >
                 <div class="flex items-center justify-end gap-2">
                   <button
                     v-if="canRunTask(task)"
@@ -1389,6 +1548,15 @@ onMounted(() => {
             <div
               class="rounded-lg border border-border bg-background-secondary p-4"
             >
+              <div class="mb-4 flex items-center gap-2">
+                <CloudArrowUpIcon class="h-5 w-5 text-primary" />
+                <h3 class="font-semibold text-foreground">
+                  {{ t("backupTasks.edit.sections.readonly") }}
+                </h3>
+              </div>
+              <p class="mb-4 text-xs text-foreground-secondary">
+                {{ t("backupTasks.edit.sections.readonlyDesc") }}
+              </p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
                   <p class="text-foreground-secondary">
@@ -1435,9 +1603,15 @@ onMounted(() => {
             </div>
 
             <section class="rounded-lg border border-border bg-card p-4">
-              <h3 class="font-semibold text-foreground mb-4">
-                {{ t("backupTasks.detail.basic") }}
-              </h3>
+              <div class="mb-2 flex items-center gap-2">
+                <DocumentIcon class="h-5 w-5 text-primary" />
+                <h3 class="font-semibold text-foreground">
+                  {{ t("backupTasks.detail.basic") }}
+                </h3>
+              </div>
+              <p class="mb-4 text-xs text-foreground-secondary">
+                {{ t("backupTasks.edit.sections.basicDesc") }}
+              </p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1446,9 +1620,13 @@ onMounted(() => {
                   <input
                     v-model="editForm.name"
                     type="text"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.name')"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.name") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1462,6 +1640,9 @@ onMounted(() => {
                     <option value="normal">Normal</option>
                     <option value="high">High</option>
                   </select>
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.priority") }}
+                  </p>
                 </div>
                 <div class="md:col-span-2">
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1470,26 +1651,41 @@ onMounted(() => {
                   <textarea
                     v-model="editForm.description"
                     rows="3"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.description')"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.description") }}
+                  </p>
                 </div>
                 <label
-                  class="inline-flex items-center gap-3 text-sm text-foreground"
+                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground md:col-span-2"
                 >
                   <input
                     v-model="editForm.is_enabled"
                     type="checkbox"
-                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
                   />
-                  {{ t("backupTasks.enabled") }}
+                  <span>
+                    <span class="font-medium">{{ t("backupTasks.enabled") }}</span>
+                    <span class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      {{ t("backupTasks.edit.fieldDescriptions.enabled") }}
+                    </span>
+                  </span>
                 </label>
               </div>
             </section>
 
             <section class="rounded-lg border border-border bg-card p-4">
-              <h3 class="font-semibold text-foreground mb-4">
-                {{ t("backupTasks.detail.scheduleRetention") }}
-              </h3>
+              <div class="mb-2 flex items-center gap-2">
+                <ClockIcon class="h-5 w-5 text-primary" />
+                <h3 class="font-semibold text-foreground">
+                  {{ t("backupTasks.detail.scheduleRetention") }}
+                </h3>
+              </div>
+              <p class="mb-4 text-xs text-foreground-secondary">
+                {{ t("backupTasks.edit.sections.scheduleRetentionDesc") }}
+              </p>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1510,6 +1706,9 @@ onMounted(() => {
                       {{ policy.name }}
                     </option>
                   </select>
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.policy") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1519,8 +1718,12 @@ onMounted(() => {
                     v-model.number="editForm.retention_days"
                     type="number"
                     min="1"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.retentionDays')"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.retentionDays") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1530,16 +1733,26 @@ onMounted(() => {
                     v-model.number="editForm.max_snapshots"
                     type="number"
                     min="1"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.maxSnapshots')"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.maxSnapshots") }}
+                  </p>
                 </div>
               </div>
             </section>
 
             <section class="rounded-lg border border-border bg-card p-4">
-              <h3 class="font-semibold text-foreground mb-4">
-                {{ t("backupTasks.detail.pathsAndFilters") }}
-              </h3>
+              <div class="mb-2 flex items-center gap-2">
+                <FolderIcon class="h-5 w-5 text-primary" />
+                <h3 class="font-semibold text-foreground">
+                  {{ t("backupTasks.detail.pathsAndFilters") }}
+                </h3>
+              </div>
+              <p class="mb-4 text-xs text-foreground-secondary">
+                {{ t("backupTasks.edit.sections.pathsDesc") }}
+              </p>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1548,9 +1761,13 @@ onMounted(() => {
                   <textarea
                     v-model="editForm.backup_paths_text"
                     rows="6"
-                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.sourcePaths')"
+                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.sourcePaths") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1559,8 +1776,12 @@ onMounted(() => {
                   <textarea
                     v-model="editForm.include_patterns_text"
                     rows="6"
-                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.includePatterns')"
+                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.includePatterns") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1569,8 +1790,12 @@ onMounted(() => {
                   <textarea
                     v-model="editForm.exclude_patterns_text"
                     rows="6"
-                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.excludePatterns')"
+                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.excludePatterns") }}
+                  </p>
                 </div>
               </div>
               <p class="mt-2 text-xs text-foreground-secondary">
@@ -1579,41 +1804,67 @@ onMounted(() => {
             </section>
 
             <section class="rounded-lg border border-border bg-card p-4">
-              <h3 class="font-semibold text-foreground mb-4">
-                {{ t("backupTasks.detail.securityCompression") }}
-              </h3>
+              <div class="mb-2 flex items-center gap-2">
+                <ShieldCheckIcon class="h-5 w-5 text-primary" />
+                <h3 class="font-semibold text-foreground">
+                  {{ t("backupTasks.detail.securityCompression") }}
+                </h3>
+              </div>
+              <p class="mb-4 text-xs text-foreground-secondary">
+                {{ t("backupTasks.edit.sections.securityDesc") }}
+              </p>
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <label class="inline-flex items-center gap-3 text-sm text-foreground">
+                <label class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
                   <input
                     v-model="editForm.encryption_enabled"
                     type="checkbox"
-                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
                   />
-                  {{ t("backupTasks.detail.encryption") }}
+                  <span>
+                    <span class="font-medium">{{ t("backupTasks.detail.encryption") }}</span>
+                    <span class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      {{ t("backupTasks.edit.fieldDescriptions.encryption") }}
+                    </span>
+                  </span>
                 </label>
-                <label class="inline-flex items-center gap-3 text-sm text-foreground">
+                <label class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
                   <input
                     v-model="editForm.verify_checksum"
                     type="checkbox"
-                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
                   />
-                  {{ t("backupTasks.detail.checksum") }}
+                  <span>
+                    <span class="font-medium">{{ t("backupTasks.detail.checksum") }}</span>
+                    <span class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      {{ t("backupTasks.edit.fieldDescriptions.checksum") }}
+                    </span>
+                  </span>
                 </label>
-                <label class="inline-flex items-center gap-3 text-sm text-foreground">
+                <label class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
                   <input
                     v-model="editForm.compression_enabled"
                     type="checkbox"
-                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
                   />
-                  {{ t("backupTasks.detail.compression") }}
+                  <span>
+                    <span class="font-medium">{{ t("backupTasks.detail.compression") }}</span>
+                    <span class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      {{ t("backupTasks.edit.fieldDescriptions.compression") }}
+                    </span>
+                  </span>
                 </label>
-                <label class="inline-flex items-center gap-3 text-sm text-foreground">
+                <label class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
                   <input
                     v-model="editForm.enable_checkpoint"
                     type="checkbox"
-                    class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
                   />
-                  {{ t("backupTasks.detail.checkpoint") }}
+                  <span>
+                    <span class="font-medium">{{ t("backupTasks.detail.checkpoint") }}</span>
+                    <span class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      {{ t("backupTasks.edit.fieldDescriptions.checkpoint") }}
+                    </span>
+                  </span>
                 </label>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1628,6 +1879,9 @@ onMounted(() => {
                     <option value="gzip">gzip</option>
                     <option value="none">{{ t("common.none") }}</option>
                   </select>
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.compressionType") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1639,8 +1893,12 @@ onMounted(() => {
                     min="0"
                     max="9"
                     :disabled="!editForm.compression_enabled"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                    :placeholder="t('backupTasks.edit.placeholders.compressionLevel')"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.compressionLevel") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1651,8 +1909,12 @@ onMounted(() => {
                     type="number"
                     min="1"
                     :disabled="!editForm.enable_checkpoint"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                    :placeholder="t('backupTasks.edit.placeholders.checkpointInterval')"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.checkpointInterval") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1662,8 +1924,12 @@ onMounted(() => {
                     v-model.number="editForm.max_concurrent_files"
                     type="number"
                     min="1"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.concurrency')"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.concurrency") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1673,8 +1939,12 @@ onMounted(() => {
                     v-model.number="editForm.bandwidth_limit_kbps"
                     type="number"
                     min="0"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.bandwidthLimit')"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.bandwidthLimit") }}
+                  </p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
@@ -1684,8 +1954,12 @@ onMounted(() => {
                     v-model.number="editForm.max_retries"
                     type="number"
                     min="0"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    :placeholder="t('backupTasks.edit.placeholders.maxRetries')"
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("backupTasks.edit.fieldDescriptions.maxRetries") }}
+                  </p>
                 </div>
               </div>
             </section>
@@ -1752,16 +2026,22 @@ onMounted(() => {
             class="px-6 py-3 border-b border-border flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3"
           >
             <div class="flex flex-wrap items-center gap-2">
-              <div class="flex flex-wrap gap-2">
+              <div
+                class="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-background-secondary p-1"
+                role="tablist"
+              >
                 <button
                   v-for="tab in ['overview', 'snapshots', 'tasks']"
                   :key="tab"
+                  type="button"
+                  role="tab"
+                  :aria-selected="detailTab === tab"
                   @click="selectDetailTab(tab as any)"
                   :class="[
-                    'px-3 py-1.5 rounded-lg text-sm font-medium',
+                    'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-primary/40',
                     detailTab === tab
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-foreground-secondary hover:bg-hover',
+                      ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                      : 'border-transparent text-foreground-secondary hover:border-border hover:bg-card hover:text-foreground',
                   ]"
                 >
                   {{ t(`backupTasks.tabs.${tab}`) }}
@@ -2241,9 +2521,19 @@ onMounted(() => {
               </div>
               <div
                 v-else-if="selectedTaskSnapshots.length === 0"
-                class="py-10 text-center text-foreground-secondary"
+                class="rounded-xl border border-dashed border-border bg-background/50 px-6 py-12 text-center"
               >
-                {{ t("backupTasks.noSnapshots") }}
+                <div
+                  class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300"
+                >
+                  <CircleStackIcon class="h-7 w-7" />
+                </div>
+                <h3 class="mt-4 text-sm font-semibold text-foreground">
+                  {{ t("backupTasks.emptyStates.snapshotsTitle") }}
+                </h3>
+                <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-foreground-secondary">
+                  {{ t("backupTasks.emptyStates.snapshotsDesc") }}
+                </p>
               </div>
               <template v-else>
                 <div
@@ -2471,89 +2761,110 @@ onMounted(() => {
               </div>
               <div
                 v-else-if="selectedTaskRuns.length === 0"
-                class="py-10 text-center text-foreground-secondary"
+                class="rounded-xl border border-dashed border-border bg-background/50 px-6 py-12 text-center"
               >
-                {{ t("backupTasks.noRuns") }}
+                <div
+                  class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-300"
+                >
+                  <ListBulletIcon class="h-7 w-7" />
+                </div>
+                <h3 class="mt-4 text-sm font-semibold text-foreground">
+                  {{ t("backupTasks.emptyStates.runsTitle") }}
+                </h3>
+                <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-foreground-secondary">
+                  {{ t("backupTasks.emptyStates.runsDesc") }}
+                </p>
               </div>
-              <div v-else class="space-y-1">
+              <div v-else class="space-y-2">
                 <div
                   v-for="run in selectedTaskRuns"
                   :key="run.id"
-                  class="rounded-lg border border-border bg-card p-4"
+                  class="rounded-lg border border-border bg-card px-3 py-2.5 hover:bg-hover transition-colors"
                 >
-                  <div class="flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                      <ListBulletIcon class="w-5 h-5 text-foreground-muted" />
-                      <div>
-                        <p class="font-medium text-foreground">
+                  <div class="flex flex-col gap-2">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="flex min-w-0 items-start gap-2.5">
+                        <span
+                          class="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background-secondary text-foreground-muted"
+                        >
+                          <ListBulletIcon class="w-4 h-4" />
+                        </span>
+                        <div class="min-w-0">
+                          <p class="truncate text-sm font-medium text-foreground">
                           {{ run.name }}
                         </p>
-                        <p class="text-xs text-foreground-secondary">
-                          {{ formatDateTime(run.created_at) }}
+                          <p class="mt-0.5 truncate text-xs text-foreground-secondary">
+                            {{ formatDateTime(run.created_at) }}
+                            <span v-if="run.proxy_name"> · {{ run.proxy_name }}</span>
+                        </p>
+                          <p
+                            v-if="run.message || run.error_message"
+                            class="mt-1 truncate text-xs text-foreground-secondary"
+                          >
+                            {{ run.message || run.error_message }}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        :class="[
+                          'inline-flex shrink-0 items-center px-2 py-0.5 rounded-full text-[11px] font-medium',
+                          getStatusColor(run.status),
+                        ]"
+                      >
+                        {{ t(`backupTasks.status.${run.status}`) }}
+                      </span>
+                    </div>
+
+                    <div
+                      class="grid grid-cols-2 gap-2 text-xs md:grid-cols-[90px_110px_1fr_100px]"
+                    >
+                      <div>
+                        <p class="text-[11px] text-foreground-muted">
+                          {{ t("backupTasks.progress.progress") }}
+                        </p>
+                        <p class="font-medium text-foreground">
+                          {{ run.progress || 0 }}%
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-[11px] text-foreground-muted">
+                          {{ t("alertsCenter.common.duration") }}
+                        </p>
+                        <p class="font-medium text-foreground">
+                          {{ runDuration(run) }}
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-[11px] text-foreground-muted">
+                          {{ t("backupTasks.progress.files") }}
+                        </p>
+                        <p class="font-medium text-foreground">
+                          {{ run.processed_files || 0 }} /
+                          {{ run.total_files || 0 }}
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-[11px] text-foreground-muted">
+                          {{ t("backupTasks.progress.speed") }}
+                        </p>
+                        <p class="font-medium text-foreground">
+                          {{
+                            run.speed_mbps
+                              ? `${run.speed_mbps.toFixed(2)} MB/s`
+                              : "-"
+                          }}
                         </p>
                       </div>
                     </div>
-                    <span
-                      :class="[
-                        'inline-flex items-center px-2 py-1 rounded-full text-xs',
-                        getStatusColor(run.status),
-                      ]"
-                    >
-                      {{ t(`backupTasks.status.${run.status}`) }}
-                    </span>
-                  </div>
-                  <p
-                    v-if="run.message || run.error_message"
-                    class="mt-2 text-sm text-foreground-secondary"
-                  >
-                    {{ run.message || run.error_message }}
-                  </p>
-                  <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div class="bg-background-secondary rounded-lg p-3">
-                      <p class="text-xs text-foreground-secondary">
-                        {{ t("backupTasks.progress.progress") }}
-                      </p>
-                      <p class="text-sm font-medium text-foreground">
-                        {{ run.progress || 0 }}%
-                      </p>
-                    </div>
-                    <div class="bg-background-secondary rounded-lg p-3">
-                      <p class="text-xs text-foreground-secondary">
-                        {{ t("alertsCenter.common.duration") }}
-                      </p>
-                      <p class="text-sm font-medium text-foreground">
-                        {{ runDuration(run) }}
-                      </p>
-                    </div>
-                    <div class="bg-background-secondary rounded-lg p-3">
-                      <p class="text-xs text-foreground-secondary">
-                        {{ t("backupTasks.progress.files") }}
-                      </p>
-                      <p class="text-sm font-medium text-foreground">
-                        {{ run.processed_files || 0 }} /
-                        {{ run.total_files || 0 }}
-                      </p>
-                    </div>
-                    <div class="bg-background-secondary rounded-lg p-3">
-                      <p class="text-xs text-foreground-secondary">
-                        {{ t("backupTasks.progress.speed") }}
-                      </p>
-                      <p class="text-sm font-medium text-foreground">
-                        {{
-                          run.speed_mbps
-                            ? `${run.speed_mbps.toFixed(2)} MB/s`
-                            : "-"
-                        }}
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    class="mt-3 h-2 rounded-full bg-background-tertiary overflow-hidden"
-                  >
+
                     <div
-                      class="h-full bg-primary transition-all"
-                      :style="{ width: `${Math.min(run.progress || 0, 100)}%` }"
-                    />
+                      class="h-1.5 rounded-full bg-background-tertiary overflow-hidden"
+                    >
+                      <div
+                        class="h-full bg-primary transition-all"
+                        :style="{ width: `${Math.min(run.progress || 0, 100)}%` }"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

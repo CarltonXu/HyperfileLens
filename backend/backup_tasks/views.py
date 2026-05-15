@@ -4,6 +4,7 @@ HyperFileLens Backend - Backup Tasks Views
 This module provides REST API views for backup task management.
 """
 
+import copy
 import time
 import uuid
 
@@ -33,6 +34,28 @@ from .serializers import (
     BackupSnapshotSerializer,
     BackupSnapshotListSerializer,
 )
+
+
+def _dedupe_list(values):
+    result = []
+    seen = set()
+    for value in values or []:
+        if value is None:
+            continue
+        item = str(value).strip()
+        if item and item not in seen:
+            result.append(item)
+            seen.add(item)
+    return result
+
+
+def _merge_policy_section(base, overrides, override_key):
+    base_section = copy.deepcopy(base or {})
+    override_section = copy.deepcopy(overrides.get(override_key) or {})
+    if override_section.get('override') is True:
+        override_section.pop('override', None)
+        base_section.update({k: v for k, v in override_section.items() if v is not None})
+    return base_section
 
 
 class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
@@ -186,6 +209,7 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 {'error': 'Backup task has no source path to execute'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        effective_policy = self._build_effective_policy(task, source_path)
 
         repository_password = (
             serializer.validated_data.get('repository_password')
@@ -215,6 +239,8 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'backup_paths': task.backup_paths,
                 'exclude_patterns': task.exclude_patterns,
                 'include_patterns': task.include_patterns,
+                'policy_overrides': task.policy_overrides,
+                'effective_policy': effective_policy,
                 'task_type': serializer.validated_data.get('task_type') or task.task_type,
                 'priority': task.priority,
             },
@@ -234,6 +260,8 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             'backup_paths': task.backup_paths,
             'exclude_patterns': task.exclude_patterns,
             'include_patterns': task.include_patterns,
+            'policy_overrides': task.policy_overrides,
+            'effective_policy': effective_policy,
             'repository': repository_config,
             'password': repository_password,
             'task_type': serializer.validated_data.get('task_type') or task.task_type,
@@ -266,11 +294,12 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         task.progress = 0
         task.status_message = 'Backup command dispatched to proxy'
         task.error_message = ''
+        task.effective_policy = effective_policy
         task.started_at = timezone.now()
         task.last_run_time = timezone.now()
         task.save(update_fields=[
             'status', 'progress', 'status_message', 'error_message',
-            'started_at', 'last_run_time', 'updated_at'
+            'effective_policy', 'started_at', 'last_run_time', 'updated_at'
         ])
         
         return Response({
@@ -293,6 +322,92 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         if source.resource_type == 's3':
             return config.get('prefix') or '/'
         return source.mount_point or source.get_effective_mount_point()
+
+    def _build_effective_policy(self, task, source_path):
+        """Resolve the Kopia policy that must be applied before snapshot creation."""
+        policy = task.schedule
+        overrides = task.policy_overrides or {}
+
+        if policy:
+            effective = {
+                'source': 'policy',
+                'policy_id': str(policy.id),
+                'policy_name': policy.name,
+                'policy_scope': policy.policy_scope,
+                'policy_target': copy.deepcopy(policy.policy_target or {}),
+                'snapshot_schedule': copy.deepcopy(policy.snapshot_schedule or {}),
+                'retention_policy': copy.deepcopy(policy.retention_policy or {}),
+                'file_policy': {
+                    'ignore_patterns': [],
+                    'dot_ignore_files': ['.kopiaignore'],
+                    'one_file_system': False,
+                    'ignore_file_errors': False,
+                    'ignore_dir_errors': False,
+                },
+                'compression_policy': {
+                    'compression': task.compression_type if task.compression_enabled else 'none',
+                    'metadata_compression': task.compression_enabled,
+                    'max_parallel_file_reads': task.max_concurrent_files,
+                    'ignore_identical_snapshots': True,
+                },
+                'advanced_policy': copy.deepcopy(policy.advanced_policy or {}),
+            }
+        else:
+            effective = {
+                'source': 'task',
+                'policy_id': None,
+                'policy_name': '',
+                'policy_scope': 'path',
+                'policy_target': {},
+                'snapshot_schedule': {'mode': 'manual', 'interval': '', 'time_of_day': '', 'cron': '', 'run_missed': True},
+                'retention_policy': {
+                    'keep_latest': task.max_snapshots,
+                    'keep_hourly': 0,
+                    'keep_daily': task.retention_days,
+                    'keep_weekly': 0,
+                    'keep_monthly': 0,
+                    'keep_annual': 0,
+                },
+                'file_policy': {
+                    'ignore_patterns': [],
+                    'dot_ignore_files': ['.kopiaignore'],
+                    'one_file_system': False,
+                    'ignore_file_errors': False,
+                    'ignore_dir_errors': False,
+                },
+                'compression_policy': {
+                    'compression': task.compression_type if task.compression_enabled else 'none',
+                    'metadata_compression': task.compression_enabled,
+                    'max_parallel_file_reads': task.max_concurrent_files,
+                    'ignore_identical_snapshots': True,
+                },
+                'advanced_policy': {},
+            }
+
+        effective['policy_target'] = copy.deepcopy(effective.get('policy_target') or {})
+        if not effective['policy_target'].get('kopia_target'):
+            effective['policy_target']['kopia_target'] = source_path
+
+        effective['snapshot_schedule'] = _merge_policy_section(effective.get('snapshot_schedule'), overrides, 'snapshot_schedule')
+        effective['retention_policy'] = _merge_policy_section(effective.get('retention_policy'), overrides, 'retention_policy')
+        effective['compression_policy'] = _merge_policy_section(effective.get('compression_policy'), overrides, 'compression_policy')
+
+        file_policy = copy.deepcopy(effective.get('file_policy') or {})
+        file_override = copy.deepcopy(overrides.get('file_policy') or {})
+        if file_override.get('override') is True:
+            file_override.pop('override', None)
+            file_policy.update({k: v for k, v in file_override.items() if v is not None})
+
+        merged_ignores = []
+        merged_ignores.extend(file_policy.get('ignore_patterns') or [])
+        merged_ignores.extend(task.exclude_patterns or [])
+        merged_ignores.extend(file_override.get('additional_ignore_patterns') or [])
+        file_policy['ignore_patterns'] = _dedupe_list(merged_ignores)
+        file_policy['include_patterns'] = _dedupe_list(task.include_patterns or [])
+        effective['file_policy'] = file_policy
+
+        effective['task_overrides'] = overrides
+        return effective
 
     def _build_repository_config(self, repo):
         """Build the repository payload expected by the Go proxy Kopia client."""

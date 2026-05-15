@@ -11,6 +11,46 @@ from datetime import timedelta
 from accounts.models import User
 
 
+def default_kopia_retention_policy():
+    return {
+        'keep_latest': 10,
+        'keep_hourly': 48,
+        'keep_daily': 14,
+        'keep_weekly': 25,
+        'keep_monthly': 24,
+        'keep_annual': 3,
+    }
+
+
+def default_kopia_schedule_policy():
+    return {
+        'mode': 'interval',
+        'interval': '24h',
+        'time_of_day': '02:00',
+        'cron': '',
+        'run_missed': True,
+    }
+
+
+def default_kopia_file_policy():
+    return {
+        'ignore_patterns': [],
+        'dot_ignore_files': ['.kopiaignore'],
+        'one_file_system': False,
+        'ignore_file_errors': False,
+        'ignore_dir_errors': False,
+    }
+
+
+def default_kopia_compression_policy():
+    return {
+        'compression': 'zstd',
+        'metadata_compression': True,
+        'max_parallel_file_reads': 4,
+        'ignore_identical_snapshots': True,
+    }
+
+
 class BackupPolicy(models.Model):
     """
     Represents a backup policy that defines scheduling and retention rules.
@@ -51,6 +91,18 @@ class BackupPolicy(models.Model):
         (4, 'Friday'),
         (5, 'Saturday'),
         (6, 'Sunday'),
+    ]
+
+    SCOPE_GLOBAL = 'global'
+    SCOPE_HOST = 'host'
+    SCOPE_USER = 'user'
+    SCOPE_PATH = 'path'
+
+    SCOPE_CHOICES = [
+        (SCOPE_GLOBAL, 'Global Policy'),
+        (SCOPE_HOST, 'Host Policy'),
+        (SCOPE_USER, 'User Policy'),
+        (SCOPE_PATH, 'Path Policy'),
     ]
     
     # Fields
@@ -96,6 +148,44 @@ class BackupPolicy(models.Model):
     retention_before_backup = models.BooleanField(
         default=True,
         help_text="Keep snapshots before running new backup"
+    )
+
+    # Kopia-native policy configuration
+    policy_scope = models.CharField(
+        max_length=20,
+        choices=SCOPE_CHOICES,
+        default=SCOPE_PATH,
+        help_text="Kopia policy target scope"
+    )
+    policy_target = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Kopia policy target, e.g. {host,user,path}"
+    )
+    snapshot_schedule = models.JSONField(
+        default=default_kopia_schedule_policy,
+        blank=True,
+        help_text="Kopia snapshot scheduling policy"
+    )
+    retention_policy = models.JSONField(
+        default=default_kopia_retention_policy,
+        blank=True,
+        help_text="Kopia retention policy"
+    )
+    file_policy = models.JSONField(
+        default=default_kopia_file_policy,
+        blank=True,
+        help_text="Kopia file and ignore policy"
+    )
+    compression_policy = models.JSONField(
+        default=default_kopia_compression_policy,
+        blank=True,
+        help_text="Kopia compression and performance policy"
+    )
+    advanced_policy = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Advanced Kopia policy options"
     )
     
     # Options

@@ -596,10 +596,10 @@ export const policiesApi = {
     api.delete(`/api/v1/policies/policies/${id}/`),
 
   enable: (id: number | string) =>
-    api.post(`/api/v1/policies/policies/${id}/enable/`),
+    api.post(`/api/v1/policies/policies/${id}/activate/`),
 
   disable: (id: number | string) =>
-    api.post(`/api/v1/policies/policies/${id}/disable/`),
+    api.post(`/api/v1/policies/policies/${id}/deactivate/`),
 };
 
 // ============== Schedules API ==============

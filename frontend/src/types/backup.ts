@@ -33,6 +33,8 @@ export interface BackupTask {
   compression_type?: string;
   encryption_enabled?: boolean;
   schedule?: string | null;
+  policy_overrides?: Record<string, any>;
+  effective_policy?: Record<string, any>;
   next_run_time?: string | null;
   last_run_time?: string | null;
   retention_days?: number;
@@ -75,8 +77,11 @@ export interface BackupTaskCreateData {
   include_patterns?: string[];
   compression_enabled?: boolean;
   compression_type?: string;
+  compression_level?: number;
+  max_concurrent_files?: number;
   encryption_enabled?: boolean;
   schedule?: string | null;
+  policy_overrides?: Record<string, any>;
   retention_days?: number;
   max_snapshots?: number;
 }
@@ -91,6 +96,7 @@ export interface BackupTaskUpdateData {
   compression_type?: string;
   encryption_enabled?: boolean;
   schedule?: string | null;
+  policy_overrides?: Record<string, any>;
   retention_days?: number;
   max_snapshots?: number;
   priority?: BackupPriority;

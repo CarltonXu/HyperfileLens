@@ -28,6 +28,9 @@ class BackupPolicySerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'frequency', 'frequency_display',
             'backup_type', 'backup_type_display', 'schedule_time', 'schedule_day',
             'retention_days', 'retention_snapshots', 'retention_before_backup',
+            'policy_scope', 'policy_target', 'snapshot_schedule',
+            'retention_policy', 'file_policy', 'compression_policy',
+            'advanced_policy',
             'compression_enabled', 'encryption_enabled', 'is_active',
             'user', 'user_email', 'created_at', 'updated_at', 'next_run_time'
         ]
@@ -47,6 +50,9 @@ class BackupPolicyCreateSerializer(serializers.ModelSerializer):
             'name', 'description', 'frequency', 'backup_type',
             'schedule_time', 'schedule_day', 'retention_days',
             'retention_snapshots', 'retention_before_backup',
+            'policy_scope', 'policy_target', 'snapshot_schedule',
+            'retention_policy', 'file_policy', 'compression_policy',
+            'advanced_policy',
             'compression_enabled', 'encryption_enabled', 'is_active'
         ]
     

@@ -170,6 +170,108 @@ func (c *Client) ConnectRepo(repoConfig map[string]interface{}, password string)
 	return nil
 }
 
+// ApplyPolicy applies the resolved Kopia policy for a backup source before snapshot creation.
+func (c *Client) ApplyPolicy(effectivePolicy map[string]interface{}, sourcePath, password string) error {
+	if len(effectivePolicy) == 0 {
+		return nil
+	}
+
+	args := []string{"policy", "set", "--password", password}
+	target := policyTarget(effectivePolicy, sourcePath)
+	if strings.EqualFold(stringFromAny(effectivePolicy["policy_scope"]), "global") {
+		args = append(args, "--global")
+	} else if target == "" {
+		target = sourcePath
+	}
+
+	if retention := nestedMap(effectivePolicy, "retention_policy"); len(retention) > 0 {
+		appendIntFlag := func(flag, key string) {
+			if value, ok := retention[key]; ok {
+				args = append(args, flag, strconv.FormatInt(int64FromAny(value), 10))
+			}
+		}
+		appendIntFlag("--keep-latest", "keep_latest")
+		appendIntFlag("--keep-hourly", "keep_hourly")
+		appendIntFlag("--keep-daily", "keep_daily")
+		appendIntFlag("--keep-weekly", "keep_weekly")
+		appendIntFlag("--keep-monthly", "keep_monthly")
+		appendIntFlag("--keep-annual", "keep_annual")
+	}
+
+	if schedule := nestedMap(effectivePolicy, "snapshot_schedule"); len(schedule) > 0 {
+		mode := strings.ToLower(stringFromAny(schedule["mode"]))
+		switch mode {
+		case "manual":
+			args = append(args, "--manual")
+		case "interval":
+			if interval := stringFromAny(schedule["interval"]); interval != "" {
+				args = append(args, "--snapshot-interval", interval)
+			}
+		case "cron":
+			if cron := stringFromAny(schedule["cron"]); cron != "" {
+				args = append(args, "--snapshot-time-crontab", cron)
+			}
+		}
+		if timeOfDay := stringFromAny(schedule["time_of_day"]); timeOfDay != "" {
+			args = append(args, "--snapshot-time", timeOfDay)
+		}
+		if _, ok := schedule["run_missed"]; ok {
+			args = append(args, "--run-missed", boolString(boolFromAny(schedule["run_missed"], true)))
+		}
+	}
+
+	if filePolicy := nestedMap(effectivePolicy, "file_policy"); len(filePolicy) > 0 {
+		if _, ok := filePolicy["ignore_patterns"]; ok {
+			args = append(args, "--clear-ignore")
+		}
+		for _, pattern := range stringSliceFromAny(filePolicy["ignore_patterns"]) {
+			args = append(args, "--add-ignore", pattern)
+		}
+		if _, ok := filePolicy["dot_ignore_files"]; ok {
+			args = append(args, "--clear-dot-ignore")
+		}
+		for _, filename := range stringSliceFromAny(filePolicy["dot_ignore_files"]) {
+			args = append(args, "--add-dot-ignore", filename)
+		}
+		if _, ok := filePolicy["one_file_system"]; ok {
+			args = append(args, "--one-file-system", boolString(boolFromAny(filePolicy["one_file_system"], false)))
+		}
+		if _, ok := filePolicy["ignore_file_errors"]; ok {
+			args = append(args, "--ignore-file-errors", boolString(boolFromAny(filePolicy["ignore_file_errors"], false)))
+		}
+		if _, ok := filePolicy["ignore_dir_errors"]; ok {
+			args = append(args, "--ignore-dir-errors", boolString(boolFromAny(filePolicy["ignore_dir_errors"], false)))
+		}
+	}
+
+	if compression := nestedMap(effectivePolicy, "compression_policy"); len(compression) > 0 {
+		algorithm := stringFromAny(compression["compression"])
+		if algorithm != "" {
+			args = append(args, "--compression", algorithm)
+		}
+		if value, ok := compression["max_parallel_file_reads"]; ok {
+			args = append(args, "--max-parallel-file-reads", strconv.FormatInt(int64FromAny(value), 10))
+		}
+		if _, ok := compression["ignore_identical_snapshots"]; ok {
+			args = append(args, "--ignore-identical-snapshots", boolString(boolFromAny(compression["ignore_identical_snapshots"], true)))
+		}
+	}
+
+	if target != "" && !contains(args, "--global") {
+		args = append(args, target)
+	}
+
+	logger.Debug("Executing kopia policy set", map[string]interface{}{
+		"target": target,
+		"args":   sanitizeArgs(args),
+	})
+	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to apply Kopia policy: %w, output: %s", err, string(output))
+	}
+	return nil
+}
+
 // CreateRepo initializes a Kopia repository using the legacy dispatcher payload shape.
 func (c *Client) CreateRepo(repoConfig map[string]interface{}, password string) (*CreateRepoResult, error) {
 	args, repositoryPath := repositoryCommandArgs("create", repoConfig, password)
@@ -667,6 +769,79 @@ func stringFromAny(value interface{}) string {
 	default:
 		return fmt.Sprintf("%v", v)
 	}
+}
+
+func nestedMap(m map[string]interface{}, key string) map[string]interface{} {
+	if value, ok := m[key]; ok {
+		if typed, ok := value.(map[string]interface{}); ok {
+			return typed
+		}
+	}
+	return map[string]interface{}{}
+}
+
+func policyTarget(effectivePolicy map[string]interface{}, sourcePath string) string {
+	targetConfig := nestedMap(effectivePolicy, "policy_target")
+	for _, key := range []string{"kopia_target", "target", "path"} {
+		if value := strings.TrimSpace(stringFromAny(targetConfig[key])); value != "" {
+			return value
+		}
+	}
+	return sourcePath
+}
+
+func boolFromAny(value interface{}, fallback bool) bool {
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			return parsed
+		}
+	case int:
+		return v != 0
+	case int64:
+		return v != 0
+	case float64:
+		return v != 0
+	}
+	return fallback
+}
+
+func boolString(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
+}
+
+func stringSliceFromAny(value interface{}) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []interface{}:
+		result := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text := strings.TrimSpace(stringFromAny(item)); text != "" {
+				result = append(result, text)
+			}
+		}
+		return result
+	default:
+		if text := strings.TrimSpace(stringFromAny(value)); text != "" {
+			return []string{text}
+		}
+	}
+	return nil
+}
+
+func contains(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func int64FromAny(value interface{}) int64 {

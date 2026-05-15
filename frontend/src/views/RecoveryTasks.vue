@@ -18,7 +18,9 @@ import type {
 import type { ProxyNode } from "@/types/proxy";
 import type { Repository } from "@/types/repository";
 import { usePagination } from "@/composables/usePagination";
+import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import Pagination from "@/components/Pagination.vue";
+import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 import {
   ArrowDownTrayIcon,
   PlusIcon,
@@ -106,11 +108,74 @@ const filteredTasks = computed(() => {
   return result;
 });
 
+type RecoveryTaskColumnKey =
+  | "name"
+  | "type"
+  | "status"
+  | "progress"
+  | "date"
+  | "actions";
+
+const recoveryTaskColumns = computed(() => [
+  { key: "name" as const, label: t("common.name"), min: 240, max: 460 },
+  {
+    key: "type" as const,
+    label: t("recoveryTasks.form.type"),
+    min: 180,
+    max: 280,
+  },
+  { key: "status" as const, label: t("common.status"), min: 140, max: 220 },
+  {
+    key: "progress" as const,
+    label: t("recoveryTasks.progress.progress"),
+    min: 150,
+    max: 240,
+  },
+  { key: "date" as const, label: t("common.date"), min: 150, max: 260 },
+  {
+    key: "actions" as const,
+    label: t("common.actions"),
+    min: 130,
+    max: 200,
+    sortable: false,
+    align: "right" as const,
+  },
+]);
+
+const recoveryTaskTable = useResizableSortableTable<
+  RecoveryTask,
+  RecoveryTaskColumnKey
+>({
+  storageKey: "hyperfilelens:recovery-tasks:columns",
+  columns: recoveryTaskColumns,
+  rows: filteredTasks,
+  defaultSort: { key: "date", direction: "desc" },
+  minTableWidth: 1020,
+  getSortValue: (task, key) => {
+    if (key === "name") return task.name;
+    if (key === "type") return task.recovery_type || "";
+    if (key === "status") return task.status || "";
+    if (key === "progress") return task.progress || 0;
+    if (key === "date")
+      return task.created_at ? new Date(task.created_at).getTime() : 0;
+    return "";
+  },
+  getColumnText: (task, key) => {
+    if (key === "name") return `${task.name} ${task.target_node_name || ""}`;
+    if (key === "type")
+      return t(`recoveryTasks.types.${task.recovery_type || "original_location"}`);
+    if (key === "status") return task.status || "";
+    if (key === "progress") return String(task.progress || 0);
+    if (key === "date") return formatDateTime(task.created_at);
+    return "";
+  },
+});
+
 // Paginated tasks for display
 const paginatedTasks = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
-  return filteredTasks.value.slice(start, end);
+  return recoveryTaskTable.sortedRows.value.slice(start, end);
 });
 
 // Reset page when filters change
@@ -218,6 +283,10 @@ function formatBytes(bytes: number): string {
   const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+function formatDateTime(value?: string | null): string {
+  return value ? new Date(value).toLocaleString() : "-";
 }
 
 function getStatusColor(status: string): string {
@@ -389,39 +458,47 @@ onMounted(() => {
       v-else
       class="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
     >
-      <table class="w-full">
+      <div class="overflow-x-auto">
+      <table
+        class="w-full table-fixed"
+        :style="{ minWidth: recoveryTaskTable.tableMinWidth.value }"
+      >
+        <colgroup>
+          <col
+            v-for="column in recoveryTaskColumns"
+            :key="column.key"
+            :style="recoveryTaskTable.columnStyle(column.key)"
+          />
+        </colgroup>
         <thead class="bg-background-secondary border-b border-border">
           <tr>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("common.name") }}
-            </th>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("recoveryTasks.form.type") }}
-            </th>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("common.status") }}
-            </th>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("recoveryTasks.progress.progress") }}
-            </th>
-            <th
-              class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("common.date") }}
-            </th>
-            <th
-              class="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3"
-            >
-              {{ t("common.actions") }}
-            </th>
+            <ResizableSortableTh
+              v-for="column in recoveryTaskColumns"
+              :key="column.key"
+              :column-key="column.key"
+              :label="column.label"
+              :style-value="recoveryTaskTable.columnStyle(column.key)"
+              :sortable="column.sortable !== false"
+              :active="recoveryTaskTable.sort.value.key === column.key"
+              :align="column.align"
+              :sort-icon="recoveryTaskTable.getSortIcon(column.key)"
+              :resizing="recoveryTaskTable.resizingColumn.value === column.key"
+              @sort="
+                recoveryTaskTable.toggleSort($event as RecoveryTaskColumnKey)
+              "
+              @resize-start="
+                (key, event) =>
+                  recoveryTaskTable.startResize(
+                    key as RecoveryTaskColumnKey,
+                    event,
+                  )
+              "
+              @resize-reset="
+                recoveryTaskTable.resetColumnWidth(
+                  $event as RecoveryTaskColumnKey,
+                )
+              "
+            />
           </tr>
         </thead>
         <tbody
@@ -432,7 +509,7 @@ onMounted(() => {
             :key="task.id"
             class="hover:bg-hover transition-colors"
           >
-            <td class="px-6 py-4">
+            <td class="px-4 py-4" :style="recoveryTaskTable.columnStyle('name')">
               <div class="flex items-center gap-3">
                 <div
                   :class="[
@@ -469,7 +546,7 @@ onMounted(() => {
                 </div>
               </div>
             </td>
-            <td class="px-6 py-4">
+            <td class="px-4 py-4" :style="recoveryTaskTable.columnStyle('type')">
               <span
                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-background-tertiary text-foreground"
               >
@@ -480,7 +557,7 @@ onMounted(() => {
                 }}
               </span>
             </td>
-            <td class="px-6 py-4">
+            <td class="px-4 py-4" :style="recoveryTaskTable.columnStyle('status')">
               <span
                 :class="[
                   'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium',
@@ -494,7 +571,10 @@ onMounted(() => {
                 {{ t(`recoveryTasks.status.${task.status}`) }}
               </span>
             </td>
-            <td class="px-6 py-4">
+            <td
+              class="px-4 py-4"
+              :style="recoveryTaskTable.columnStyle('progress')"
+            >
               <div
                 v-if="task.status === 'running' || task.progress"
                 class="w-32"
@@ -516,15 +596,15 @@ onMounted(() => {
               <span v-else class="text-sm text-slate-400">-</span>
             </td>
             <td
-              class="px-6 py-4 text-sm text-foreground-secondary dark:text-slate-400"
+              class="px-4 py-4 text-sm text-foreground-secondary dark:text-slate-400"
+              :style="recoveryTaskTable.columnStyle('date')"
             >
-              {{
-                task.created_at
-                  ? new Date(task.created_at).toLocaleDateString()
-                  : "-"
-              }}
+              {{ formatDateTime(task.created_at) }}
             </td>
-            <td class="px-6 py-4 text-right">
+            <td
+              class="px-4 py-4 text-right"
+              :style="recoveryTaskTable.columnStyle('actions')"
+            >
               <div class="flex items-center justify-end gap-2">
                 <button
                   v-if="task.status === 'pending' || task.status === 'failed'"
@@ -557,6 +637,7 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
+      </div>
 
       <!-- Pagination -->
       <Pagination

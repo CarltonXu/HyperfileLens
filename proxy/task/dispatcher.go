@@ -303,6 +303,7 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 	taskID := getString(msg.Payload, "task_id", msg.ID)
 	sourcePath := getString(msg.Payload, "source_path", "")
 	repoConfig := getMap(msg.Payload, "repository")
+	effectivePolicy := getMap(msg.Payload, "effective_policy")
 	password := getString(msg.Payload, "password", "")
 
 	logger.Debug("Backup task start", map[string]interface{}{
@@ -347,6 +348,19 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 		logger.Debug("Repository connected successfully", nil)
 	}
 	d.sendTaskProgress(msg.ID, taskID, TypeBackup, 20, "Repository connected")
+
+	if len(effectivePolicy) > 0 {
+		d.sendTaskProgress(msg.ID, taskID, TypeBackup, 22, "Applying backup policy")
+		if err := d.kopia.ApplyPolicy(effectivePolicy, sourcePath, password); err != nil {
+			logger.Error("Failed to apply backup policy", map[string]interface{}{
+				"error": err.Error(),
+			})
+			d.failTask(taskID, err.Error())
+			d.sendTaskFailed(msg.ID, taskID, err.Error())
+			return
+		}
+		d.sendTaskProgress(msg.ID, taskID, TypeBackup, 24, "Backup policy applied")
+	}
 
 	// Execute backup
 	logger.Debug("Starting Kopia backup...", nil)

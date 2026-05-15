@@ -143,6 +143,16 @@ class BackupTask(models.Model):
         related_name='tasks',
         help_text="Associated backup policy/schedule"
     )
+    policy_overrides = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Task-level overrides merged on top of the associated backup policy"
+    )
+    effective_policy = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Resolved Kopia policy used for the latest execution"
+    )
     next_run_time = models.DateTimeField(
         null=True,
         blank=True,

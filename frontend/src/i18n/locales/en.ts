@@ -928,6 +928,20 @@ export default {
     noSnapshots: "No snapshots yet",
     noRuns: "No task runs yet",
 
+    emptyStates: {
+      snapshotsTitle: "No snapshots available",
+      snapshotsDesc:
+        "Snapshots will appear here after this backup task completes successfully. You can then select a snapshot to browse its files.",
+      runsTitle: "No task runs available",
+      runsDesc:
+        "Execution history will appear here after the task is started manually or triggered by a schedule.",
+    },
+
+    policySummary: {
+      taskSettings: "Task settings · {retention}",
+      taskRetention: "Retention {days} days / {snapshots} snapshots",
+    },
+
     tabs: {
       overview: "Overview",
       snapshots: "Snapshots",
@@ -962,7 +976,7 @@ export default {
       retentionDays: "Retention Days",
       maxSnapshots: "Max Snapshots",
       policy: "Backup Policy",
-      noPolicy: "Manual / No Policy",
+      noPolicy: "No Policy / Use Task Settings",
       policyHint:
         "Choose a policy configured on the Policies page, or leave empty for manual execution.",
       schedule: "Schedule",
@@ -1044,6 +1058,26 @@ export default {
       snapshots: "Snapshots",
     },
 
+    sourceDetails: {
+      title: "Selected Source Resource",
+      fixedScopeDesc:
+        "The source resource already defines the protected directory, share, bucket, or prefix. This task will use that fixed scope.",
+      selectHint: "Select a source resource to review its protected scope.",
+      protectedScope: "Protected Scope",
+      type: "Type",
+      status: "Status",
+      boundNode: "Bound Node",
+      path: "Path",
+      endpoint: "Endpoint",
+      bucket: "Bucket",
+      prefix: "Prefix",
+      region: "Region",
+      mountPoint: "Mount Point",
+      mountOptions: "Mount Options",
+      capacity: "Capacity",
+      files: "Files",
+    },
+
     schedule: {
       manual: "Manual backup",
       interval: "Automatic interval",
@@ -1061,6 +1095,73 @@ export default {
       policy: "Use policy template",
       custom: "Custom retention",
       customSummary: "Keep {snapshots} snapshots / {days} days",
+      latest: "Latest",
+      latestDesc: "Keep the most recent snapshots regardless of time bucket.",
+      hourly: "Hourly",
+      hourlyDesc: "Keep the newest snapshot for each recent hour.",
+      daily: "Daily",
+      dailyDesc: "Keep the newest snapshot for each recent day.",
+      weekly: "Weekly",
+      weeklyDesc: "Keep the newest snapshot for each recent week.",
+      monthly: "Monthly",
+      monthlyDesc: "Keep the newest snapshot for each recent month.",
+      annual: "Annual",
+      annualDesc: "Keep the newest snapshot for each recent year.",
+    },
+
+    files: {
+      title: "Files & Exclusions",
+      exclusionPatterns: "Exclusion Patterns",
+      exclusionPatternsDesc:
+        "Patterns support glob syntax. See Restic documentation for more details.",
+      dotIgnoreFiles: "Dot Ignore Files",
+      dotIgnoreFilesDesc:
+        "File names that contain ignore rules inside the backup source, such as .kopiaignore.",
+      oneFileSystem: "Stay on one filesystem",
+      oneFileSystemDesc:
+        "Prevent Kopia from crossing file system boundaries. This is useful to avoid backing up network mounts or other partitions that might be mounted inside your backup source.",
+      ignoreFileErrors: "Ignore file errors",
+      ignoreFileErrorsDesc:
+        "Continue the snapshot when individual files cannot be read.",
+      ignoreDirErrors: "Ignore directory errors",
+      ignoreDirErrorsDesc:
+        "Continue the snapshot when a directory cannot be listed or traversed.",
+    },
+
+    compression: {
+      title: "Compression & Performance",
+      algorithm: "Algorithm",
+      algorithmDesc:
+        "Compression algorithm applied to file contents. Use none to disable compression.",
+      parallelReads: "Parallel File Reads",
+      parallelReadsDesc:
+        "Maximum number of files Kopia can read in parallel during snapshot creation.",
+      metadata: "Compress metadata",
+      metadataDesc:
+        "Compress repository metadata to reduce storage usage.",
+      ignoreIdentical: "Ignore identical snapshots",
+      ignoreIdenticalDesc:
+        "Skip saving a new snapshot when the selected source has not changed.",
+    },
+
+    policyOverrides: {
+      policyBaseline: "Policy Baseline",
+      policyBaselineDesc:
+        "Bind a Kopia policy as the baseline, then override only the task-specific parts that need to be different.",
+      none: "No overrides",
+      schedule: "Schedule",
+      retention: "Retention",
+      files: "Files",
+      compression: "Compression",
+      overrideSchedule: "Override schedule for this task",
+      usePolicyRetention: "Use policy retention",
+      overrideRetention: "Override retention for this task",
+      taskRetentionDesc:
+        "No policy is selected. Retention will use the values configured on this task.",
+      taskExclusions: "Task-specific exclusions",
+      taskExclusionsDesc:
+        "These ignore patterns are merged with the selected policy and applied before the snapshot.",
+      overrideCompression: "Override compression and performance",
     },
 
     diagnostics: {
@@ -1117,6 +1218,74 @@ export default {
       requiredFields: "Task name and at least one source path are required.",
       runningReadonly: "Running backup tasks cannot be edited.",
       updateSuccess: "Backup task updated successfully",
+      sections: {
+        readonly: "Bound Source & Repository",
+        readonlyDesc:
+          "Existing tasks keep their source resource and target repository fixed to preserve snapshot lineage.",
+        basicDesc:
+          "Update the display name, priority, description, and whether the task is available for execution.",
+        scheduleRetentionDesc:
+          "Choose the baseline policy and task-level retention limits used for future runs.",
+        pathsDesc:
+          "Review protected paths and configure include or exclude patterns. Use one value per line.",
+        securityDesc:
+          "Tune encryption, verification, compression, checkpointing, throughput, and retry behavior.",
+      },
+      placeholders: {
+        name: "Example: Finance server daily incremental backup",
+        description: "Describe the protected workload and operational notes.",
+        retentionDays: "30",
+        maxSnapshots: "10",
+        sourcePaths: "/data\n/home/app",
+        includePatterns: "*.db\nimportant/**",
+        excludePatterns: "*.tmp\nnode_modules/**\n.cache/",
+        compressionLevel: "6",
+        checkpointInterval: "15",
+        concurrency: "4",
+        bandwidthLimit: "Leave empty for unlimited",
+        maxRetries: "3",
+      },
+      fieldDescriptions: {
+        name: "A clear task name helps operators identify the protected workload.",
+        priority:
+          "Higher priority tasks can be scheduled or executed ahead of normal work.",
+        description:
+          "Optional notes can include ownership, environment, or operational context.",
+        enabled:
+          "Disabled tasks remain saved but cannot be run manually or by schedule.",
+        policy:
+          "Select a reusable policy baseline, or leave empty to use task-specific settings.",
+        retentionDays:
+          "Maximum age in days for retained snapshots when task settings are used.",
+        maxSnapshots:
+          "Maximum number of snapshots to keep for this task.",
+        sourcePaths:
+          "Protected paths are resolved on the bound source resource or proxy.",
+        includePatterns:
+          "Only matching files are included when include patterns are provided.",
+        excludePatterns:
+          "Matching files or directories are skipped during backup.",
+        encryption:
+          "Keep repository data encrypted during backup storage.",
+        checksum:
+          "Verify checksums to detect data corruption during processing.",
+        compression:
+          "Compress file contents to reduce repository storage usage.",
+        checkpoint:
+          "Allow long-running backups to resume from periodic checkpoints.",
+        compressionType:
+          "Choose the compression algorithm used by the backup engine.",
+        compressionLevel:
+          "Higher levels may save more space but can increase CPU usage.",
+        checkpointInterval:
+          "How often checkpoint state is recorded, in minutes.",
+        concurrency:
+          "Maximum number of files read concurrently during backup.",
+        bandwidthLimit:
+          "Optional network throughput limit in KB/s. Leave empty for no limit.",
+        maxRetries:
+          "Number of automatic retry attempts after a failed run.",
+      },
     },
 
     actions: {
@@ -1584,7 +1753,9 @@ export default {
   // Policies
   policies: {
     title: "Backup Policies",
-    subtitle: "Define backup rules and schedules",
+    subtitle: "Define Kopia-native backup policy, schedule, and retention rules",
+    kopiaSubtitle:
+      "Configure the same policy model Kopia applies to repositories and snapshot paths.",
 
     stats: {
       total: "Total Policies",
@@ -1603,8 +1774,87 @@ export default {
       compression: "Compression",
       encryption: "Encryption",
       backupTask: "Backup Task",
+      backupType: "Backup Type",
       time: "Time",
       nextRun: "Next Run",
+    },
+
+    sections: {
+      basic: "Basic",
+      schedule: "Snapshot Schedule",
+      files: "Files & Exclusions",
+      compression: "Compression & Performance",
+    },
+
+    basic: {
+      description:
+        "Name the policy and define the default backup behavior it represents.",
+      namePlaceholder: "Example: Production Linux daily backup policy",
+      nameDesc:
+        "Use a clear name that describes the workload, environment, and backup intent.",
+      backupTypeDesc:
+        "Choose the backup style this policy represents. Incremental is recommended for regular Kopia snapshots.",
+      descriptionPlaceholder:
+        "Describe when this policy should be used, such as protected systems, schedule intent, or compliance notes.",
+      descriptionDesc:
+        "Optional notes help operators understand the purpose and scope of the policy.",
+      enabledDesc:
+        "Disabled policies remain saved but should not be selected for new scheduled backup tasks.",
+    },
+
+    target: {
+      title: "Policy Target",
+      description:
+        "Define where this policy applies. Narrower targets override broader targets.",
+      host: "Host",
+      hostDesc: "Apply this policy to snapshots from a specific host.",
+      user: "User",
+      userDesc: "Apply this policy to snapshots owned by a specific user on the host.",
+      path: "Path",
+      pathDesc: "Apply this policy only to a specific source path.",
+      scopeDescriptions: {
+        global: "Apply this policy as the default for all snapshots.",
+        host: "Apply this policy to all snapshots from one host.",
+        user: "Apply this policy to snapshots for one user on one host.",
+        path: "Apply this policy to one exact source path.",
+      },
+    },
+
+    scopes: {
+      global: "Global",
+      host: "Host",
+      user: "User",
+      path: "Path",
+    },
+
+    scheduleModes: {
+      manual: "Manual",
+      interval: "Interval",
+      time: "Time of Day",
+      cron: "Cron",
+    },
+
+    schedule: {
+      title: "Backup Frequency",
+      description: "Define how often snapshots should be taken.",
+      interval: "Snapshot Interval",
+      intervalDesc:
+        "Take snapshots repeatedly after this duration, for example 4h or 24h.",
+      timeOfDay: "Time of Day",
+      timeOfDayDesc:
+        "Take snapshots at this local time when using a time-based schedule.",
+      cron: "Cron Expression",
+      cronDesc:
+        "Use a crontab expression for advanced schedules, for example 0 2 * * *.",
+      runMissed: "Run missed snapshots",
+      runMissedDesc:
+        "If the system was offline or the scheduler was not running, run missed scheduled snapshots when it becomes available again.",
+      modeDescriptions: {
+        manual: "Snapshots only run when a user or system explicitly starts the task.",
+        interval: "Snapshots run repeatedly at a fixed interval.",
+        time: "Snapshots run once per day at a selected time.",
+        cron: "Snapshots follow a custom cron expression.",
+      },
     },
 
     scheduleTypes: {
@@ -1613,6 +1863,58 @@ export default {
       weekly: "Weekly",
       monthly: "Monthly",
       manual: "Manual",
+    },
+
+    retention: {
+      title: "Retention",
+      kopiaRetention: "Kopia Retention",
+      description: "Define how many snapshots to keep. Leave empty to keep all.",
+      keep_latest: "Keep last N snapshots",
+      keep_latest_desc: "Keep the N most recent snapshots.",
+      keep_hourly: "Keep hourly",
+      keep_hourly_desc: "Keep the last N hourly snapshots.",
+      keep_daily: "Keep daily",
+      keep_daily_desc: "Keep the last N daily snapshots.",
+      keep_weekly: "Keep weekly",
+      keep_weekly_desc: "Keep the last N weekly snapshots.",
+      keep_monthly: "Keep monthly",
+      keep_monthly_desc: "Keep the last N monthly snapshots.",
+      keep_annual: "Keep annual",
+      keep_annual_desc: "Keep the last N annual snapshots.",
+    },
+
+    files: {
+      ignorePatterns: "Ignore Patterns",
+      dotIgnoreFiles: "Dot Ignore Files",
+      oneFileSystem: "Stay on one filesystem",
+      ignoreFileErrors: "Ignore file errors",
+      ignoreDirErrors: "Ignore directory errors",
+    },
+
+    compression: {
+      algorithm: "Algorithm",
+      metadata: "Compress metadata",
+      parallelReads: "Parallel File Reads",
+      ignoreIdentical: "Ignore identical snapshots",
+    },
+
+    preview: {
+      title: "Policy Preview",
+      description: "Review the Kopia command that this policy represents.",
+    },
+
+    validation: {
+      nameRequired: "Policy name is required.",
+    },
+
+    actions: {
+      enable: "Enable Policy",
+      disable: "Disable Policy",
+    },
+
+    details: {
+      subtitle:
+        "Review policy scope, backup frequency, retention, and the Kopia command preview.",
     },
 
     empty: {

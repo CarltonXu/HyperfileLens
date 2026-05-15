@@ -2,7 +2,6 @@
 import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
-  ArrowPathIcon,
   CheckCircleIcon,
   CircleStackIcon,
   ClockIcon,
@@ -16,7 +15,6 @@ import {
   TagIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
-import { sourceResourcesApi } from "@/api";
 import type { BackupTaskCreateData } from "@/types/backup";
 import type { Repository } from "@/types/repository";
 import type { SourceResource } from "@/types/sourceResource";
@@ -37,13 +35,16 @@ const { t } = useI18n();
 type SourceKind = "local" | "nas" | "s3";
 type ScheduleMode = "manual" | "interval" | "cron";
 type RetentionMode = "policy" | "custom";
+type RetentionFieldKey =
+  | "keep_latest"
+  | "keep_hourly"
+  | "keep_daily"
+  | "keep_weekly"
+  | "keep_monthly"
+  | "keep_annual";
 
 const step = ref(1);
 const searchQuery = ref("");
-const directoryLoading = ref(false);
-const directoryError = ref("");
-const currentPath = ref("/");
-const directories = ref<Array<{ name: string; path: string }>>([]);
 const tagInput = ref("");
 
 const form = reactive({
@@ -61,13 +62,29 @@ const form = reactive({
   interval_value: 4,
   interval_unit: "hours" as "minutes" | "hours" | "days",
   cron_expression: "",
-  retention_mode: "policy" as RetentionMode,
+  retention_mode: "custom" as RetentionMode,
   schedule: "" as string,
+  override_schedule: false,
+  override_retention: false,
   retention_days: 30,
   max_snapshots: 10,
+  keep_latest: 10,
+  keep_hourly: 0,
+  keep_daily: 30,
+  keep_weekly: 0,
+  keep_monthly: 0,
+  keep_annual: 0,
+  dot_ignore_files: [".kopiaignore"] as string[],
+  one_file_system: false,
+  ignore_file_errors: false,
+  ignore_dir_errors: false,
   compression_enabled: true,
   encryption_enabled: true,
   compression_type: "zstd",
+  compression_level: 6,
+  max_concurrent_files: 4,
+  metadata_compression: true,
+  ignore_identical_snapshots: true,
 });
 
 const steps = computed(() => [
@@ -77,6 +94,15 @@ const steps = computed(() => [
   t("backupTasks.wizard.scheduleRetention"),
   t("backupTasks.wizard.review"),
 ]);
+
+const retentionFields: Array<{ key: RetentionFieldKey; label: string }> = [
+  { key: "keep_latest", label: "latest" },
+  { key: "keep_hourly", label: "hourly" },
+  { key: "keep_daily", label: "daily" },
+  { key: "keep_weekly", label: "weekly" },
+  { key: "keep_monthly", label: "monthly" },
+  { key: "keep_annual", label: "annual" },
+];
 
 const localSources = computed(() =>
   props.sources.filter((source) => source.resource_type === "local"),
@@ -235,14 +261,104 @@ const repositoryDetails = computed(() => {
   return rows;
 });
 
-const includePathsText = computed({
-  get: () => form.backup_paths.join("\n"),
-  set: (value: string) => {
-    form.backup_paths = value
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  },
+const sourceProtectionPaths = computed(() => {
+  const source = selectedSource.value;
+  if (!source) return [];
+  const config = source.config || {};
+  if (source.resource_type === "local") {
+    return [config.root_path || config.path || "/"];
+  }
+  if (source.resource_type === "s3") {
+    return [config.prefix || "/"];
+  }
+  if (["nas", "nfs", "cifs"].includes(source.resource_type)) {
+    return [
+      source.mount_point ||
+        (config as any).mount_point ||
+        config.export_path ||
+        config.share ||
+        "/",
+    ];
+  }
+  return ["/"];
+});
+
+const sourceDetails = computed(() => {
+  const source = selectedSource.value;
+  if (!source) return [];
+  const config = source.config || {};
+  const rows: Array<{ label: string; value: string }> = [
+    {
+      label: t("backupTasks.sourceDetails.type"),
+      value: source.resource_type_display || source.resource_type,
+    },
+    {
+      label: t("backupTasks.sourceDetails.status"),
+      value: source.status_display || source.status || "-",
+    },
+    {
+      label: t("backupTasks.sourceDetails.boundNode"),
+      value: sourceNodeName(source) || "-",
+    },
+  ];
+
+  if (source.resource_type === "local") {
+    rows.push({
+      label: t("backupTasks.sourceDetails.path"),
+      value: config.root_path || config.path || "/",
+    });
+  } else if (source.resource_type === "s3") {
+    rows.push(
+      {
+        label: t("backupTasks.sourceDetails.endpoint"),
+        value: config.endpoint || "-",
+      },
+      {
+        label: t("backupTasks.sourceDetails.bucket"),
+        value: config.bucket || "-",
+      },
+      {
+        label: t("backupTasks.sourceDetails.prefix"),
+        value: config.prefix || "/",
+      },
+      {
+        label: t("backupTasks.sourceDetails.region"),
+        value: config.region || "-",
+      },
+    );
+  } else {
+    rows.push(
+      {
+        label: t("backupTasks.sourceDetails.endpoint"),
+        value:
+          config.server && (config.export_path || config.share)
+            ? `${config.server}:${config.export_path || config.share}`
+            : config.server || "-",
+      },
+      {
+        label: t("backupTasks.sourceDetails.mountPoint"),
+        value: source.mount_point || (config as any).mount_point || "-",
+      },
+      {
+        label: t("backupTasks.sourceDetails.mountOptions"),
+        value: config.mount_options || "-",
+      },
+    );
+  }
+
+  rows.push(
+    {
+      label: t("backupTasks.sourceDetails.capacity"),
+      value: source.total_size
+        ? `${formatBytes(source.used_size)} / ${formatBytes(source.total_size)}`
+        : t("backupTasks.wizard.capacityUnknown"),
+    },
+    {
+      label: t("backupTasks.sourceDetails.files"),
+      value: String(source.file_count || 0),
+    },
+  );
+  return rows;
 });
 
 const excludePatternsText = computed({
@@ -255,16 +371,14 @@ const excludePatternsText = computed({
   },
 });
 
-const rootPath = computed(() => {
-  const source = selectedSource.value;
-  if (!source) return "/";
-  if (source.resource_type === "local") {
-    return source.config?.root_path || source.config?.path || "/";
-  }
-  if (source.resource_type === "s3") {
-    return source.config?.prefix || "/";
-  }
-  return source.mount_point || "/";
+const dotIgnoreFilesText = computed({
+  get: () => form.dot_ignore_files.join("\n"),
+  set: (value: string) => {
+    form.dot_ignore_files = value
+      .split(/[\n,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  },
 });
 
 const repositoryCapacity = computed(() => {
@@ -291,9 +405,31 @@ const retentionSummary = computed(() => {
     return selectedPolicy.value?.name || t("backupTasks.form.noPolicy");
   }
   return t("backupTasks.retention.customSummary", {
-    snapshots: form.max_snapshots,
-    days: form.retention_days,
+    snapshots: form.keep_latest,
+    days: form.keep_daily,
   });
+});
+
+const policyOverrideSummary = computed(() => {
+  const values = [];
+  if (form.override_schedule)
+    values.push(t("backupTasks.policyOverrides.schedule"));
+  if (form.override_retention || form.retention_mode === "custom") {
+    values.push(t("backupTasks.policyOverrides.retention"));
+  }
+  if (
+    form.exclude_patterns.length ||
+    form.dot_ignore_files.length ||
+    form.one_file_system ||
+    form.ignore_file_errors ||
+    form.ignore_dir_errors
+  ) {
+    values.push(t("backupTasks.policyOverrides.files"));
+  }
+  values.push(t("backupTasks.policyOverrides.compression"));
+  return values.length
+    ? values.join(" / ")
+    : t("backupTasks.policyOverrides.none");
 });
 
 const canNext = computed(() => {
@@ -307,7 +443,7 @@ const canNext = computed(() => {
       return false;
     }
     if (form.retention_mode === "policy") return !!form.schedule;
-    return form.retention_days > 0 && form.max_snapshots > 0;
+    return form.keep_latest >= 0 && form.keep_daily >= 0;
   }
   return true;
 });
@@ -317,22 +453,13 @@ watch(
   () => {
     form.source_resource = "";
     form.backup_paths = [];
-    directories.value = [];
-    directoryError.value = "";
-    currentPath.value = "/";
   },
 );
 
 watch(
   () => form.source_resource,
   () => {
-    form.backup_paths = [];
-    directories.value = [];
-    directoryError.value = "";
-    currentPath.value = rootPath.value || "/";
-    if (selectedSource.value) {
-      void fetchDirectories(currentPath.value);
-    }
+    form.backup_paths = [...sourceProtectionPaths.value];
   },
 );
 
@@ -371,68 +498,7 @@ function removeTag(tag: string) {
 
 function selectSource(source: SourceResource) {
   form.source_resource = source.id;
-}
-
-function togglePath(path: string) {
-  if (form.backup_paths.includes(path)) {
-    form.backup_paths = form.backup_paths.filter((item) => item !== path);
-  } else {
-    form.backup_paths.push(path);
-  }
-}
-
-async function fetchDirectories(path = rootPath.value || "/") {
-  const source = selectedSource.value;
-  if (!source || source.resource_type === "s3") {
-    directories.value = [];
-    return;
-  }
-
-  directoryLoading.value = true;
-  directoryError.value = "";
-  try {
-    const response = await sourceResourcesApi.scan(
-      source.id,
-      path || undefined,
-    );
-    currentPath.value = response.data.path || path || "/";
-    directories.value =
-      response.data.entries ||
-      (response.data.directories || []).map((name: string) => ({
-        name,
-        path:
-          currentPath.value === "/"
-            ? `/${name}`
-            : `${currentPath.value}/${name}`,
-      }));
-  } catch (error: any) {
-    directories.value = [];
-    directoryError.value =
-      error.response?.data?.message ||
-      error.response?.data?.error ||
-      t("backupTasks.wizard.directoryLoadFailed");
-  } finally {
-    directoryLoading.value = false;
-  }
-}
-
-function navigateDirectory(path: string) {
-  void fetchDirectories(path);
-}
-
-function navigateUp() {
-  if (!currentPath.value || currentPath.value === "/") return;
-  const normalized = currentPath.value.replace(/[\\/]+$/, "");
-  const separator = normalized.includes("\\") ? "\\" : "/";
-  const parts = normalized.split(/[\\/]+/).filter(Boolean);
-  parts.pop();
-  if (separator === "\\" && /^[A-Za-z]:$/.test(parts[0] || "")) {
-    void fetchDirectories(
-      parts.length === 1 ? `${parts[0]}\\` : parts.join("\\"),
-    );
-    return;
-  }
-  void fetchDirectories(parts.length ? `/${parts.join("/")}` : "/");
+  form.backup_paths = [...sourceProtectionPaths.value];
 }
 
 function formatBytes(bytes?: number): string {
@@ -450,6 +516,55 @@ function formatBytes(bytes?: number): string {
 function save() {
   const schedule =
     form.retention_mode === "policy" && form.schedule ? form.schedule : null;
+  const policyOverrides: Record<string, any> = {
+    file_policy: {
+      override: true,
+      ignore_patterns: [...form.exclude_patterns],
+      additional_ignore_patterns: [],
+      dot_ignore_files: [...form.dot_ignore_files],
+      one_file_system: form.one_file_system,
+      ignore_file_errors: form.ignore_file_errors,
+      ignore_dir_errors: form.ignore_dir_errors,
+    },
+  };
+
+  if (form.override_schedule || !schedule) {
+    policyOverrides.snapshot_schedule = {
+      override: true,
+      mode: form.schedule_mode,
+      interval:
+        form.schedule_mode === "interval"
+          ? `${form.interval_value}${form.interval_unit === "minutes" ? "m" : form.interval_unit === "hours" ? "h" : "d"}`
+          : "",
+      time_of_day: "",
+      cron: form.schedule_mode === "cron" ? form.cron_expression.trim() : "",
+      run_missed: true,
+    };
+  }
+
+  if (
+    form.override_retention ||
+    form.retention_mode === "custom" ||
+    !schedule
+  ) {
+    policyOverrides.retention_policy = {
+      override: true,
+      keep_latest: form.keep_latest,
+      keep_hourly: form.keep_hourly,
+      keep_daily: form.keep_daily,
+      keep_weekly: form.keep_weekly,
+      keep_monthly: form.keep_monthly,
+      keep_annual: form.keep_annual,
+    };
+  }
+
+  policyOverrides.compression_policy = {
+    override: true,
+    compression: form.compression_enabled ? form.compression_type : "none",
+    metadata_compression: form.metadata_compression,
+    max_parallel_file_reads: form.max_concurrent_files,
+    ignore_identical_snapshots: form.ignore_identical_snapshots,
+  };
 
   emit("save", {
     name: form.name.trim(),
@@ -463,10 +578,13 @@ function save() {
     include_patterns: [],
     compression_enabled: form.compression_enabled,
     compression_type: form.compression_type,
+    compression_level: form.compression_level,
+    max_concurrent_files: form.max_concurrent_files,
     encryption_enabled: form.encryption_enabled,
     schedule,
-    retention_days: form.retention_days,
-    max_snapshots: form.max_snapshots,
+    policy_overrides: policyOverrides,
+    retention_days: form.keep_daily,
+    max_snapshots: form.keep_latest,
   });
 }
 </script>
@@ -476,11 +594,9 @@ function save() {
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/50" @click="emit('close')" />
       <div
-        class="relative modal-surface rounded-2xl shadow-xl w-full max-w-5xl max-h-[92vh] flex flex-col"
-      >
+        class="relative modal-surface rounded-2xl shadow-xl w-full max-w-5xl max-h-[92vh] flex flex-col">
         <div
-          class="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0"
-        >
+          class="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
           <div>
             <h2 class="text-lg font-semibold text-foreground">
               {{ t("backupTasks.createTask") }}
@@ -507,8 +623,7 @@ function save() {
                       ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
                       : 'text-foreground-secondary hover:bg-hover',
                 ]"
-                @click="step = index + 1"
-              >
+                @click="step = index + 1">
                 <span
                   :class="[
                     'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold',
@@ -517,8 +632,7 @@ function save() {
                       : step > index + 1
                         ? 'bg-emerald-100 dark:bg-emerald-900/40'
                         : 'bg-background-secondary',
-                  ]"
-                >
+                  ]">
                   {{ index + 1 }}
                 </span>
                 <span class="text-xs font-medium whitespace-nowrap">
@@ -527,8 +641,7 @@ function save() {
               </button>
               <div
                 v-if="index < steps.length - 1"
-                class="h-px w-8 shrink-0 bg-border"
-              />
+                class="h-px w-8 shrink-0 bg-border" />
             </template>
           </div>
         </div>
@@ -543,9 +656,8 @@ function save() {
                   </span>
                   <input
                     v-model="form.name"
-                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    :placeholder="t('backupTasks.placeholders.taskName')"
-                  />
+                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    :placeholder="t('backupTasks.placeholders.taskName')" />
                 </label>
                 <label class="block">
                   <span class="text-sm font-medium text-foreground">
@@ -554,9 +666,8 @@ function save() {
                   <textarea
                     v-model="form.description"
                     rows="4"
-                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    :placeholder="t('backupTasks.placeholders.description')"
-                  />
+                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    :placeholder="t('backupTasks.placeholders.description')" />
                 </label>
                 <div>
                   <span class="text-sm font-medium text-foreground">
@@ -568,8 +679,7 @@ function save() {
                       :key="tag"
                       type="button"
                       class="inline-flex items-center gap-1 rounded-full border border-border bg-background-secondary px-2.5 py-1 text-xs text-foreground"
-                      @click="removeTag(tag)"
-                    >
+                      @click="removeTag(tag)">
                       <TagIcon class="w-3.5 h-3.5" />
                       {{ tag }}
                       <XMarkIcon class="w-3.5 h-3.5 text-foreground-muted" />
@@ -577,57 +687,49 @@ function save() {
                     <form class="flex gap-2" @submit.prevent="addTag">
                       <input
                         v-model="tagInput"
-                        class="w-32 px-3 py-1 rounded-full border border-border bg-background/50 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        :placeholder="t('backupTasks.placeholders.addTag')"
-                      />
+                        class="w-32 px-3 py-1 rounded-full border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        :placeholder="t('backupTasks.placeholders.addTag')" />
                     </form>
                   </div>
                 </div>
               </div>
               <div
-                class="rounded-xl border border-border bg-background/30 p-4 space-y-3"
-              >
+                class="rounded-xl border border-border bg-background/30 p-4 space-y-3">
                 <p class="text-sm font-semibold text-foreground">
                   {{ t("backupTasks.wizard.basicChecklist") }}
                 </p>
                 <div class="space-y-2 text-sm">
                   <div
-                    class="flex items-center gap-2 text-foreground-secondary"
-                  >
+                    class="flex items-center gap-2 text-foreground-secondary">
                     <CheckCircleIcon
                       :class="[
                         'w-5 h-5',
                         form.name.trim()
                           ? 'text-emerald-500'
                           : 'text-foreground-muted',
-                      ]"
-                    />
+                      ]" />
                     {{ t("backupTasks.wizard.nameReady") }}
                   </div>
                   <div
-                    class="flex items-center gap-2 text-foreground-secondary"
-                  >
+                    class="flex items-center gap-2 text-foreground-secondary">
                     <CheckCircleIcon
                       :class="[
                         'w-5 h-5',
                         form.description.trim()
                           ? 'text-emerald-500'
                           : 'text-foreground-muted',
-                      ]"
-                    />
+                      ]" />
                     {{ t("backupTasks.wizard.descriptionReady") }}
                   </div>
                   <div
-                    class="flex items-center gap-2 text-foreground-secondary"
-                  >
+                    class="flex items-center gap-2 text-foreground-secondary">
                     <CheckCircleIcon
                       :class="[
                         'w-5 h-5',
                         form.tags.length
                           ? 'text-emerald-500'
                           : 'text-foreground-muted',
-                      ]"
-                    />
+                      ]" />
                     {{ t("backupTasks.wizard.tagsReady") }}
                   </div>
                 </div>
@@ -651,12 +753,10 @@ function save() {
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-border bg-background/50 hover:bg-hover',
                   ]"
-                  @click="form.source_kind = kind.value"
-                >
+                  @click="form.source_kind = kind.value">
                   <component
                     :is="kind.icon"
-                    class="w-6 h-6 text-blue-500 mb-2"
-                  />
+                    class="w-6 h-6 text-blue-500 mb-2" />
                   <div class="flex items-center justify-between gap-2">
                     <p class="font-medium text-foreground">
                       {{ kind.label }}
@@ -674,18 +774,17 @@ function save() {
 
             <div class="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
               <div
-                class="rounded-xl border border-border bg-background/30 overflow-hidden"
-              >
+                class="rounded-xl border border-border bg-background/30 overflow-hidden">
                 <div class="p-3 border-b border-border">
                   <div class="relative">
                     <MagnifyingGlassIcon
-                      class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-muted"
-                    />
+                      class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-muted" />
                     <input
                       v-model="searchQuery"
                       class="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      :placeholder="t('backupTasks.placeholders.searchSource')"
-                    />
+                      :placeholder="
+                        t('backupTasks.placeholders.searchSource')
+                      " />
                   </div>
                 </div>
                 <div class="max-h-[360px] overflow-y-auto p-2 space-y-2">
@@ -699,8 +798,7 @@ function save() {
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                         : 'border-border bg-background/50 hover:bg-hover',
                     ]"
-                    @click="selectSource(source)"
-                  >
+                    @click="selectSource(source)">
                     <div class="flex items-start gap-3">
                       <FolderIcon class="w-5 h-5 text-blue-500 mt-0.5" />
                       <div class="min-w-0 flex-1">
@@ -725,14 +823,12 @@ function save() {
                           sourceNodeStatus(source) === 'online'
                             ? 'bg-emerald-500'
                             : 'bg-foreground-muted',
-                        ]"
-                      />
+                        ]" />
                     </div>
                   </button>
                   <div
                     v-if="filteredSources.length === 0"
-                    class="py-10 text-center text-sm text-foreground-secondary"
-                  >
+                    class="py-10 text-center text-sm text-foreground-secondary">
                     {{ t("backupTasks.wizard.noSources") }}
                   </div>
                 </div>
@@ -740,118 +836,145 @@ function save() {
 
               <div class="space-y-4">
                 <div
-                  class="rounded-xl border border-border bg-background/30 overflow-hidden"
-                >
-                  <div
-                    class="px-4 py-3 border-b border-border flex items-center justify-between"
-                  >
+                  class="rounded-xl border border-border bg-background/30 p-4 space-y-4">
+                  <div class="flex items-start justify-between gap-4">
                     <div>
                       <p class="text-sm font-semibold text-foreground">
-                        {{ t("backupTasks.form.sourcePaths") }}
+                        {{ t("backupTasks.sourceDetails.title") }}
                       </p>
-                      <p class="text-xs text-foreground-secondary">
-                        {{ selectedSource?.name || "-" }}
+                      <p class="mt-1 text-xs text-foreground-secondary">
+                        {{ t("backupTasks.sourceDetails.fixedScopeDesc") }}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-hover disabled:opacity-50"
-                      :disabled="!selectedSource || directoryLoading"
-                      @click="fetchDirectories(currentPath)"
-                    >
-                      <ArrowPathIcon
-                        :class="[
-                          'w-4 h-4',
-                          directoryLoading ? 'animate-spin' : '',
-                        ]"
-                      />
-                      {{ t("common.refresh") }}
-                    </button>
+                    <span
+                      v-if="selectedSource"
+                      :class="[
+                        'rounded-full px-2 py-1 text-xs font-medium',
+                        sourceNodeStatus(selectedSource) === 'online'
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+                          : 'bg-background-secondary text-foreground-secondary',
+                      ]">
+                      {{ sourceNodeStatus(selectedSource) || "-" }}
+                    </span>
                   </div>
                   <div
-                    class="px-4 py-2 border-b border-border bg-background-secondary/50 flex items-center justify-between gap-3"
-                  >
-                    <code class="text-xs text-foreground break-all">
-                      {{ currentPath || rootPath }}
-                    </code>
-                    <button
-                      type="button"
-                      class="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:text-foreground-muted"
-                      :disabled="!currentPath || currentPath === '/'"
-                      @click="navigateUp"
-                    >
-                      {{ t("repository.local.goUp") }}
-                    </button>
+                    v-if="selectedSource"
+                    class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div
+                      v-for="row in sourceDetails"
+                      :key="row.label"
+                      class="rounded-lg border border-border bg-background/50 p-3">
+                      <p class="text-xs text-foreground-secondary">
+                        {{ row.label }}
+                      </p>
+                      <p
+                        class="mt-1 text-sm font-medium text-foreground break-all">
+                        {{ row.value || "-" }}
+                      </p>
+                    </div>
                   </div>
-                  <div class="max-h-56 overflow-y-auto">
-                    <div
-                      v-if="directoryLoading"
-                      class="py-10 text-center text-sm text-foreground-secondary"
-                    >
-                      {{ t("common.loading") }}
-                    </div>
-                    <div
-                      v-else-if="directoryError"
-                      class="py-8 px-4 text-sm text-red-600 dark:text-red-400"
-                    >
-                      {{ directoryError }}
-                    </div>
-                    <div
-                      v-else-if="directories.length === 0"
-                      class="py-10 text-center text-sm text-foreground-secondary"
-                    >
-                      {{ t("backupTasks.wizard.noDirectories") }}
-                    </div>
-                    <div v-else class="divide-y divide-border">
-                      <div
-                        v-for="dir in directories"
-                        :key="dir.path"
-                        class="flex items-center gap-3 px-4 py-2 hover:bg-hover"
-                      >
-                        <input
-                          type="checkbox"
-                          class="rounded border-border"
-                          :checked="form.backup_paths.includes(dir.path)"
-                          @change="togglePath(dir.path)"
-                        />
-                        <button
-                          type="button"
-                          class="min-w-0 flex-1 flex items-center gap-2 text-left"
-                          @click="navigateDirectory(dir.path)"
-                        >
-                          <FolderIcon class="w-4 h-4 text-blue-500 shrink-0" />
-                          <span class="text-sm text-foreground truncate">
-                            {{ dir.name }}
-                          </span>
-                        </button>
-                      </div>
+                  <div
+                    v-else
+                    class="rounded-lg border border-border bg-background/50 p-4 text-sm text-foreground-secondary">
+                    {{ t("backupTasks.sourceDetails.selectHint") }}
+                  </div>
+                  <div
+                    v-if="selectedSource"
+                    class="rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-900/40 dark:bg-blue-900/20">
+                    <p
+                      class="text-xs font-medium text-blue-700 dark:text-blue-300">
+                      {{ t("backupTasks.sourceDetails.protectedScope") }}
+                    </p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      <code
+                        v-for="path in sourceProtectionPaths"
+                        :key="path"
+                        class="rounded bg-white/70 px-2 py-1 text-xs text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                        {{ path }}
+                      </code>
                     </div>
                   </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <label class="block">
-                    <span class="text-sm font-medium text-foreground">
-                      {{ t("backupTasks.wizard.selectedPaths") }}
-                    </span>
-                    <textarea
-                      v-model="includePathsText"
-                      rows="5"
-                      class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="/data&#10;/home/app"
-                    />
-                  </label>
-                  <label class="block">
-                    <span class="text-sm font-medium text-foreground">
-                      {{ t("backupTasks.form.excludePaths") }}
-                    </span>
-                    <textarea
-                      v-model="excludePatternsText"
-                      rows="5"
-                      class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="*.tmp, *.log, /temp/"
-                    />
-                  </label>
+                <div class="grid grid-cols-1 gap-4">
+                  <div
+                    class="rounded-xl border border-border bg-background/30 p-4 space-y-3">
+                    <p class="text-sm font-semibold text-foreground">
+                      {{ t("backupTasks.files.title") }}
+                    </p>
+                    <label class="block">
+                      <span
+                        class="text-xs font-medium text-foreground-secondary">
+                        {{ t("backupTasks.files.exclusionPatterns") }}
+                      </span>
+                      <textarea
+                        v-model="excludePatternsText"
+                        rows="4"
+                        class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="*.tmp&#10;node_modules/**&#10;.cache/&#10;*.log" />
+                      <p
+                        class="mt-1 text-[11px] leading-4 text-foreground-muted">
+                        {{ t("backupTasks.files.exclusionPatternsDesc") }}
+                      </p>
+                    </label>
+                    <label class="block">
+                      <span
+                        class="text-xs font-medium text-foreground-secondary">
+                        {{ t("backupTasks.files.dotIgnoreFiles") }}
+                      </span>
+                      <textarea
+                        v-model="dotIgnoreFilesText"
+                        rows="2"
+                        class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder=".kopiaignore" />
+                      <p
+                        class="mt-1 text-[11px] leading-4 text-foreground-muted">
+                        {{ t("backupTasks.files.dotIgnoreFilesDesc") }}
+                      </p>
+                    </label>
+                    <label
+                      class="flex items-start gap-2 text-sm text-foreground">
+                      <input
+                        v-model="form.one_file_system"
+                        type="checkbox"
+                        class="mt-1 rounded border-border" />
+                      <span>
+                        {{ t("backupTasks.files.oneFileSystem") }}
+                        <span
+                          class="block text-[11px] leading-4 text-foreground-muted">
+                          {{ t("backupTasks.files.oneFileSystemDesc") }}
+                        </span>
+                      </span>
+                    </label>
+                    <label
+                      class="flex items-start gap-2 text-sm text-foreground">
+                      <input
+                        v-model="form.ignore_file_errors"
+                        type="checkbox"
+                        class="mt-1 rounded border-border" />
+                      <span>
+                        {{ t("backupTasks.files.ignoreFileErrors") }}
+                        <span
+                          class="block text-[11px] leading-4 text-foreground-muted">
+                          {{ t("backupTasks.files.ignoreFileErrorsDesc") }}
+                        </span>
+                      </span>
+                    </label>
+                    <label
+                      class="flex items-start gap-2 text-sm text-foreground">
+                      <input
+                        v-model="form.ignore_dir_errors"
+                        type="checkbox"
+                        class="mt-1 rounded border-border" />
+                      <span>
+                        {{ t("backupTasks.files.ignoreDirErrors") }}
+                        <span
+                          class="block text-[11px] leading-4 text-foreground-muted">
+                          {{ t("backupTasks.files.ignoreDirErrorsDesc") }}
+                        </span>
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -873,8 +996,7 @@ function save() {
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-border bg-background/50 hover:bg-hover',
                   ]"
-                  @click="form.target_repository = repo.id"
-                >
+                  @click="form.target_repository = repo.id">
                   <div class="flex items-center justify-between gap-4">
                     <div class="flex items-center gap-3 min-w-0">
                       <CircleStackIcon class="w-6 h-6 text-blue-500 shrink-0" />
@@ -902,40 +1024,34 @@ function save() {
                     </div>
                     <CheckCircleIcon
                       v-if="form.target_repository === repo.id"
-                      class="w-5 h-5 text-blue-500 shrink-0"
-                    />
+                      class="w-5 h-5 text-blue-500 shrink-0" />
                   </div>
                 </button>
               </div>
               <div
-                class="rounded-xl border border-border bg-background/30 p-4 space-y-4"
-              >
+                class="rounded-xl border border-border bg-background/30 p-4 space-y-4">
                 <p class="text-sm font-semibold text-foreground">
                   {{ t("backupTasks.wizard.repositoryDetails") }}
                 </p>
                 <div
                   v-if="selectedRepository"
-                  class="rounded-lg border border-border bg-background/50 divide-y divide-border"
-                >
+                  class="rounded-lg border border-border bg-background/50 divide-y divide-border">
                   <div
                     v-for="row in repositoryDetails"
                     :key="row.label"
-                    class="px-3 py-2"
-                  >
+                    class="px-3 py-2">
                     <p class="text-xs text-foreground-secondary">
                       {{ row.label }}
                     </p>
                     <p
-                      class="mt-1 text-sm font-medium text-foreground break-all"
-                    >
+                      class="mt-1 text-sm font-medium text-foreground break-all">
                       {{ row.value || "-" }}
                     </p>
                   </div>
                 </div>
                 <div
                   v-else
-                  class="rounded-lg border border-border bg-background/50 p-4 text-sm text-foreground-secondary"
-                >
+                  class="rounded-lg border border-border bg-background/50 p-4 text-sm text-foreground-secondary">
                   {{ t("backupTasks.wizard.selectRepositoryHint") }}
                 </div>
                 <div>
@@ -946,49 +1062,157 @@ function save() {
                     {{ repositoryCapacity }}
                   </p>
                 </div>
-                <label class="block">
-                  <span class="text-sm font-medium text-foreground">
-                    {{ t("policies.form.compression") }}
-                  </span>
-                  <select
-                    v-model="form.compression_type"
-                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="zstd">zstd</option>
-                    <option value="gzip">gzip</option>
-                    <option value="none">{{ t("common.none") }}</option>
-                  </select>
-                </label>
                 <label class="flex items-center gap-2 text-sm text-foreground">
                   <input
                     v-model="form.encryption_enabled"
                     type="checkbox"
-                    class="rounded border-border"
-                  />
+                    class="rounded border-border" />
                   {{ t("policies.form.encryption") }}
+                </label>
+              </div>
+            </div>
+
+            <div
+              class="rounded-xl border border-border bg-background/30 p-4 space-y-3">
+              <p class="text-sm font-semibold text-foreground">
+                {{ t("backupTasks.compression.title") }}
+              </p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label class="block">
+                  <span class="text-xs text-foreground-secondary">
+                    {{ t("backupTasks.compression.algorithm") }}
+                  </span>
+                  <select
+                    v-model="form.compression_type"
+                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="zstd">zstd</option>
+                    <option value="gzip">gzip</option>
+                    <option value="none">{{ t("common.none") }}</option>
+                  </select>
+                  <p class="mt-1 text-[11px] leading-4 text-foreground-muted">
+                    {{ t("backupTasks.compression.algorithmDesc") }}
+                  </p>
+                </label>
+                <label class="block">
+                  <span class="text-xs text-foreground-secondary">
+                    {{ t("backupTasks.compression.parallelReads") }}
+                  </span>
+                  <input
+                    v-model.number="form.max_concurrent_files"
+                    type="number"
+                    min="1"
+                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <p class="mt-1 text-[11px] leading-4 text-foreground-muted">
+                    {{ t("backupTasks.compression.parallelReadsDesc") }}
+                  </p>
+                </label>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label class="flex items-start gap-2 text-sm text-foreground">
+                  <input
+                    v-model="form.metadata_compression"
+                    type="checkbox"
+                    class="mt-1 rounded border-border" />
+                  <span>
+                    {{ t("backupTasks.compression.metadata") }}
+                    <span
+                      class="block text-[11px] leading-4 text-foreground-muted">
+                      {{ t("backupTasks.compression.metadataDesc") }}
+                    </span>
+                  </span>
+                </label>
+                <label class="flex items-start gap-2 text-sm text-foreground">
+                  <input
+                    v-model="form.ignore_identical_snapshots"
+                    type="checkbox"
+                    class="mt-1 rounded border-border" />
+                  <span>
+                    {{ t("backupTasks.compression.ignoreIdentical") }}
+                    <span
+                      class="block text-[11px] leading-4 text-foreground-muted">
+                      {{ t("backupTasks.compression.ignoreIdenticalDesc") }}
+                    </span>
+                  </span>
                 </label>
               </div>
             </div>
           </div>
 
           <div v-else-if="step === 4" class="space-y-5">
+            <div
+              class="rounded-xl border border-border bg-background/30 p-4 space-y-3">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-sm font-semibold text-foreground">
+                    {{ t("backupTasks.policyOverrides.policyBaseline") }}
+                  </p>
+                  <p class="mt-1 text-xs text-foreground-secondary">
+                    {{ t("backupTasks.policyOverrides.policyBaselineDesc") }}
+                  </p>
+                </div>
+                <span
+                  class="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                  {{ policyOverrideSummary }}
+                </span>
+              </div>
+              <select
+                v-model="form.schedule"
+                class="w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                @change="
+                  form.retention_mode = form.schedule ? 'policy' : 'custom'
+                ">
+                <option value="">{{ t("backupTasks.form.noPolicy") }}</option>
+                <option
+                  v-for="policy in policies"
+                  :key="policy.id"
+                  :value="policy.id">
+                  {{ policy.name }}
+                </option>
+              </select>
+              <div
+                v-if="selectedPolicy"
+                class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-foreground-secondary">
+                <div
+                  class="rounded-lg border border-border bg-background/50 p-2">
+                  <span class="block text-foreground-muted">
+                    {{ t("backupTasks.policyOverrides.schedule") }}
+                  </span>
+                  {{ selectedPolicy.snapshot_schedule?.mode || "-" }}
+                </div>
+                <div
+                  class="rounded-lg border border-border bg-background/50 p-2">
+                  <span class="block text-foreground-muted">
+                    {{ t("backupTasks.policyOverrides.retention") }}
+                  </span>
+                  {{ selectedPolicy.retention_policy?.keep_latest || 0 }} latest
+                </div>
+              </div>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <div
-                class="rounded-xl border border-border bg-background/30 p-4 space-y-4"
-              >
+                class="rounded-xl border border-border bg-background/30 p-4 space-y-4">
                 <div class="flex items-center gap-2">
                   <ClockIcon class="w-5 h-5 text-blue-500" />
                   <p class="text-sm font-semibold text-foreground">
                     {{ t("backupTasks.form.schedule") }}
                   </p>
                 </div>
+                <label
+                  v-if="selectedPolicy"
+                  class="flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    v-model="form.override_schedule"
+                    type="checkbox"
+                    class="rounded border-border" />
+                  {{ t("backupTasks.policyOverrides.overrideSchedule") }}
+                </label>
                 <label class="flex items-center gap-2 text-sm text-foreground">
                   <input
                     v-model="form.schedule_mode"
                     type="radio"
                     value="manual"
-                    class="border-border"
-                  />
+                    class="border-border" />
                   {{ t("backupTasks.schedule.manual") }}
                 </label>
                 <label class="flex items-center gap-2 text-sm text-foreground">
@@ -996,24 +1220,20 @@ function save() {
                     v-model="form.schedule_mode"
                     type="radio"
                     value="interval"
-                    class="border-border"
-                  />
+                    class="border-border" />
                   {{ t("backupTasks.schedule.interval") }}
                 </label>
                 <div
                   v-if="form.schedule_mode === 'interval'"
-                  class="grid grid-cols-[120px_1fr] gap-3 pl-6"
-                >
+                  class="grid grid-cols-[120px_1fr] gap-3 pl-6">
                   <input
                     v-model.number="form.interval_value"
                     type="number"
                     min="1"
-                    class="px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                    class="px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   <select
                     v-model="form.interval_unit"
-                    class="px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
+                    class="px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="minutes">
                       {{ t("backupTasks.schedule.units.minutes") }}
                     </option>
@@ -1030,84 +1250,68 @@ function save() {
                     v-model="form.schedule_mode"
                     type="radio"
                     value="cron"
-                    class="border-border"
-                  />
+                    class="border-border" />
                   {{ t("backupTasks.schedule.cron") }}
                 </label>
                 <input
                   v-if="form.schedule_mode === 'cron'"
                   v-model="form.cron_expression"
                   class="ml-6 w-[calc(100%-1.5rem)] px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0 */4 * * *"
-                />
+                  placeholder="0 */4 * * *" />
               </div>
 
               <div
-                class="rounded-xl border border-border bg-background/30 p-4 space-y-4"
-              >
+                class="rounded-xl border border-border bg-background/30 p-4 space-y-4">
                 <div class="flex items-center gap-2">
                   <ShieldCheckIcon class="w-5 h-5 text-blue-500" />
                   <p class="text-sm font-semibold text-foreground">
                     {{ t("backupTasks.retention.title") }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-foreground">
-                  <input
-                    v-model="form.retention_mode"
-                    type="radio"
-                    value="policy"
-                    class="border-border"
-                  />
-                  {{ t("backupTasks.retention.policy") }}
-                </label>
-                <select
-                  v-if="form.retention_mode === 'policy'"
-                  v-model="form.schedule"
-                  class="ml-6 w-[calc(100%-1.5rem)] px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">{{ t("backupTasks.form.noPolicy") }}</option>
-                  <option
-                    v-for="policy in policies"
-                    :key="policy.id"
-                    :value="policy.id"
-                  >
-                    {{ policy.name }}
-                  </option>
-                </select>
-                <label class="flex items-center gap-2 text-sm text-foreground">
-                  <input
-                    v-model="form.retention_mode"
-                    type="radio"
-                    value="custom"
-                    class="border-border"
-                  />
-                  {{ t("backupTasks.retention.custom") }}
-                </label>
-                <div
-                  v-if="form.retention_mode === 'custom'"
-                  class="grid grid-cols-1 md:grid-cols-2 gap-3 pl-6"
-                >
-                  <label class="block">
-                    <span class="text-xs text-foreground-secondary">
-                      {{ t("backupTasks.form.maxSnapshots") }}
-                    </span>
+                <template v-if="selectedPolicy">
+                  <label
+                    class="flex items-center gap-2 text-sm text-foreground">
                     <input
-                      v-model.number="form.max_snapshots"
-                      type="number"
-                      min="1"
-                      class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                      v-model="form.retention_mode"
+                      type="radio"
+                      value="policy"
+                      class="border-border" />
+                    {{ t("backupTasks.policyOverrides.usePolicyRetention") }}
                   </label>
-                  <label class="block">
+                  <label
+                    class="flex items-center gap-2 text-sm text-foreground">
+                    <input
+                      v-model="form.retention_mode"
+                      type="radio"
+                      value="custom"
+                      class="border-border" />
+                    {{ t("backupTasks.policyOverrides.overrideRetention") }}
+                  </label>
+                </template>
+                <p v-else class="text-sm text-foreground-secondary">
+                  {{ t("backupTasks.policyOverrides.taskRetentionDesc") }}
+                </p>
+                <div
+                  v-if="form.retention_mode === 'custom' || !selectedPolicy"
+                  :class="[
+                    'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3',
+                    selectedPolicy ? 'pl-6' : '',
+                  ]">
+                  <label
+                    v-for="field in retentionFields"
+                    :key="field.key"
+                    class="block">
                     <span class="text-xs text-foreground-secondary">
-                      {{ t("backupTasks.form.retentionDays") }}
+                      {{ t(`backupTasks.retention.${field.label}`) }}
                     </span>
                     <input
-                      v-model.number="form.retention_days"
+                      v-model.number="form[field.key]"
                       type="number"
-                      min="1"
-                      class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                      min="0"
+                      class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p class="mt-1 text-[11px] leading-4 text-foreground-muted">
+                      {{ t(`backupTasks.retention.${field.label}Desc`) }}
+                    </p>
                   </label>
                 </div>
               </div>
@@ -1121,8 +1325,7 @@ function save() {
               </p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div
-                  class="rounded-lg border border-border bg-background/50 p-3"
-                >
+                  class="rounded-lg border border-border bg-background/50 p-3">
                   <p class="text-xs text-foreground-secondary">
                     {{ t("backupTasks.wizard.basic") }}
                   </p>
@@ -1134,8 +1337,7 @@ function save() {
                   </p>
                 </div>
                 <div
-                  class="rounded-lg border border-border bg-background/50 p-3"
-                >
+                  class="rounded-lg border border-border bg-background/50 p-3">
                   <p class="text-xs text-foreground-secondary">
                     {{ t("backupTasks.wizard.source") }}
                   </p>
@@ -1147,8 +1349,7 @@ function save() {
                   </p>
                 </div>
                 <div
-                  class="rounded-lg border border-border bg-background/50 p-3"
-                >
+                  class="rounded-lg border border-border bg-background/50 p-3">
                   <p class="text-xs text-foreground-secondary">
                     {{ t("backupTasks.wizard.backupRepository") }}
                   </p>
@@ -1160,8 +1361,7 @@ function save() {
                   </p>
                 </div>
                 <div
-                  class="rounded-lg border border-border bg-background/50 p-3"
-                >
+                  class="rounded-lg border border-border bg-background/50 p-3">
                   <p class="text-xs text-foreground-secondary">
                     {{ t("backupTasks.wizard.scheduleRetention") }}
                   </p>
@@ -1181,8 +1381,7 @@ function save() {
                   <span
                     v-for="path in form.backup_paths"
                     :key="path"
-                    class="px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-mono"
-                  >
+                    class="px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-mono">
                     {{ path }}
                   </span>
                 </div>
@@ -1190,8 +1389,7 @@ function save() {
             </div>
 
             <div
-              class="rounded-xl border border-border bg-background/30 p-4 flex flex-wrap gap-4 text-sm text-foreground-secondary"
-            >
+              class="rounded-xl border border-border bg-background/30 p-4 flex flex-wrap gap-4 text-sm text-foreground-secondary">
               <span class="inline-flex items-center gap-2">
                 <CheckCircleIcon class="w-5 h-5 text-emerald-500" />
                 {{ t("backupTasks.diagnostics.sourceOnline") }}
@@ -1209,36 +1407,31 @@ function save() {
         </div>
 
         <div
-          class="px-6 py-4 border-t border-border bg-card flex justify-between flex-shrink-0"
-        >
+          class="px-6 py-4 border-t border-border bg-card flex justify-between flex-shrink-0">
           <button
             class="px-4 py-2 text-sm rounded-lg border border-border text-foreground hover:bg-hover disabled:opacity-50"
             :disabled="step === 1"
-            @click="step--"
-          >
+            @click="step--">
             {{ t("common.back") }}
           </button>
           <div class="flex gap-2">
             <button
               class="px-4 py-2 text-sm rounded-lg border border-border text-foreground hover:bg-hover"
-              @click="emit('close')"
-            >
+              @click="emit('close')">
               {{ t("common.cancel") }}
             </button>
             <button
               v-if="step < 5"
               class="px-5 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
               :disabled="!canNext"
-              @click="step++"
-            >
+              @click="step++">
               {{ t("common.next") }}
             </button>
             <button
               v-else
               class="px-5 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
               :disabled="!canNext"
-              @click="save"
-            >
+              @click="save">
               {{ t("common.create") }}
             </button>
           </div>
