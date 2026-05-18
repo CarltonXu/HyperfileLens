@@ -1212,6 +1212,7 @@ export default {
       selectSnapshot: "请选择一个快照后浏览文件。",
       noSnapshotFiles: "当前快照暂未记录文件明细。",
       snapshotFilesLoadFailed: "快照文件加载失败",
+      snapshotNotBrowsable: "当前快照在 Kopia 中不可用，无法浏览文件。",
       urlStyle: "URL Style",
       useTls: "Use TLS",
       latest: "最新",
@@ -1232,6 +1233,14 @@ export default {
       syncSnapshots: "同步",
       applyRetention: "应用保留",
       runMaintenance: "维护",
+      syncSnapshotsHelp:
+        "备份完成后和周期同步任务会自动刷新快照。该手动操作用于立即通过执行 Proxy 从 Kopia 读取最新快照列表，不会删除数据。",
+      applyRetentionHelp:
+        "保留策略会由调度任务自动评估。该手动操作用于立即评估当前任务的生效策略，并删除超出策略范围的 Kopia 快照。",
+      applyRetentionConfirm:
+        "该操作会应用当前生效的保留策略，并可能从 Kopia 删除快照。确认继续？",
+      runMaintenanceHelp:
+        "快照清理后会自动运行维护。该手动操作用于需要立即执行 Kopia 仓库清理或回收空间时。",
       syncSnapshotsDispatched: "快照同步任务已下发。",
       retentionDispatched: "保留策略评估任务已下发。",
       maintenanceDispatched: "Kopia 维护任务已下发。",

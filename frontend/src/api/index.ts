@@ -405,8 +405,10 @@ export const backupTasksApi = {
   disable: (id: number | string) =>
     api.post(`/api/v1/backup-tasks/tasks/${id}/disable/`),
 
-  snapshots: (id: number | string) =>
-    api.get(`/api/v1/backup-tasks/tasks/${id}/snapshots/`),
+  snapshots: (
+    id: number | string,
+    params?: { page?: number; page_size?: number },
+  ) => api.get(`/api/v1/backup-tasks/tasks/${id}/snapshots/`, { params }),
 
   syncSnapshots: (id: number | string) =>
     api.post(`/api/v1/backup-tasks/tasks/${id}/sync-snapshots/`),

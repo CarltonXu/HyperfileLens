@@ -11,6 +11,7 @@ import uuid
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
@@ -42,6 +43,11 @@ from .services.retention import (
     dispatch_snapshot_reconciliation,
     run_retention_for_task,
 )
+
+
+class BackupTaskPagination(PageNumberPagination):
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
 
 
 def _parse_kopia_snapshot_ids(output):
@@ -95,6 +101,7 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     A backup task connects a SourceResource to a Repository.
     """
     quota_resource_type = 'backup_tasks'
+    pagination_class = BackupTaskPagination
     queryset = BackupTask.objects.select_related(
         'source_resource', 'target_repository',
         'source_resource__bound_node', 'target_repository__bound_node',
@@ -924,6 +931,7 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     
     queryset = BackupSnapshot.objects.select_related('task', 'repository')
     serializer_class = BackupSnapshotSerializer
+    pagination_class = BackupTaskPagination
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):

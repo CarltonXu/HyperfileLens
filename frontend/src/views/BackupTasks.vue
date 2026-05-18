@@ -93,9 +93,12 @@ const searchQuery = ref("");
 const detailAutoRefresh = ref(false);
 const detailRefreshInterval = ref(10);
 const detailRefreshTimer = ref<ReturnType<typeof setInterval> | null>(null);
-const collapseNoChangesHelpVisible = ref(false);
-const collapseNoChangesHelpPosition = ref({ top: 0, left: 0 });
-let collapseNoChangesHelpHideTimer: ReturnType<typeof setTimeout> | null = null;
+const snapshotHelpTooltip = ref<{
+  key: string;
+  top: number;
+  left: number;
+} | null>(null);
+let snapshotHelpTooltipHideTimer: ReturnType<typeof setTimeout> | null = null;
 const snapshotHoverTooltip = ref<{
   snapshot: any;
   top: number;
@@ -337,6 +340,55 @@ function snapshotStatusClass(snapshot: any) {
   return classes[status] || classes.available;
 }
 
+function isSnapshotBrowsable(snapshot: any) {
+  return (snapshot?.snapshot_status || "available") === "available";
+}
+
+function snapshotCardClass(snapshot: any) {
+  const status = snapshot?.snapshot_status || "available";
+  const selected = selectedSnapshot?.value?.id === snapshot?.id;
+  if (status === "available") {
+    return selected
+      ? "border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm dark:bg-emerald-950/30 dark:text-emerald-50"
+      : "border-border bg-card hover:border-emerald-400 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/20";
+  }
+  if (status === "pending_prune") {
+    return "cursor-not-allowed border-amber-300 bg-amber-50/70 text-amber-950 opacity-90 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-50";
+  }
+  if (status === "delete_failed") {
+    return "cursor-not-allowed border-red-300 bg-red-50/70 text-red-950 opacity-90 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-50";
+  }
+  return "cursor-not-allowed border-slate-300 bg-slate-100/80 text-slate-600 opacity-75 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400";
+}
+
+function snapshotTimelineClass(snapshot: any) {
+  const status = snapshot?.snapshot_status || "available";
+  const selected = selectedSnapshot?.value?.id === snapshot?.id;
+  if (status === "available") {
+    return selected
+      ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/20"
+      : "border-border hover:bg-hover";
+  }
+  if (status === "pending_prune") {
+    return "border-amber-300 bg-amber-50/70 opacity-90 dark:border-amber-900/60 dark:bg-amber-950/20";
+  }
+  if (status === "delete_failed") {
+    return "border-red-300 bg-red-50/70 opacity-90 dark:border-red-900/60 dark:bg-red-950/20";
+  }
+  return "border-slate-300 bg-slate-100/80 opacity-75 dark:border-slate-700 dark:bg-slate-900/50";
+}
+
+function snapshotTimelineDotClass(snapshot: any) {
+  const status = snapshot?.snapshot_status || "available";
+  if (selectedSnapshot?.value?.id === snapshot?.id) {
+    return "border-emerald-500 ring-4 ring-emerald-100 dark:ring-emerald-950/40";
+  }
+  if (status === "pending_prune") return "border-amber-500";
+  if (status === "delete_failed") return "border-red-500";
+  if (status !== "available") return "border-slate-400";
+  return isNoChangeSnapshotReference(snapshot) ? "border-amber-500" : "border-emerald-400";
+}
+
 type BackupTaskColumnKey =
   | "name"
   | "policy"
@@ -513,32 +565,32 @@ function stopDetailAutoRefresh() {
   }
 }
 
-function cancelCollapseNoChangesHelpHide() {
-  if (collapseNoChangesHelpHideTimer) {
-    clearTimeout(collapseNoChangesHelpHideTimer);
-    collapseNoChangesHelpHideTimer = null;
+function cancelSnapshotHelpTooltipHide() {
+  if (snapshotHelpTooltipHideTimer) {
+    clearTimeout(snapshotHelpTooltipHideTimer);
+    snapshotHelpTooltipHideTimer = null;
   }
 }
 
-function showCollapseNoChangesHelp(event: MouseEvent | FocusEvent) {
-  cancelCollapseNoChangesHelpHide();
+function showSnapshotHelpTooltip(event: MouseEvent | FocusEvent, key: string) {
+  cancelSnapshotHelpTooltipHide();
   const target = event.currentTarget as HTMLElement | null;
   if (!target) return;
   const rect = target.getBoundingClientRect();
-  collapseNoChangesHelpPosition.value = {
+  snapshotHelpTooltip.value = {
+    key,
     top: rect.bottom + 8,
     left: Math.min(
       Math.max(rect.left + rect.width / 2, 156),
       window.innerWidth - 156,
     ),
   };
-  collapseNoChangesHelpVisible.value = true;
 }
 
-function scheduleCollapseNoChangesHelpHide() {
-  cancelCollapseNoChangesHelpHide();
-  collapseNoChangesHelpHideTimer = setTimeout(() => {
-    collapseNoChangesHelpVisible.value = false;
+function scheduleSnapshotHelpTooltipHide() {
+  cancelSnapshotHelpTooltipHide();
+  snapshotHelpTooltipHideTimer = setTimeout(() => {
+    snapshotHelpTooltip.value = null;
   }, 120);
 }
 
@@ -607,7 +659,7 @@ watch(
 
 onUnmounted(() => {
   stopDetailAutoRefresh();
-  cancelCollapseNoChangesHelpHide();
+  cancelSnapshotHelpTooltipHide();
   cancelSnapshotHoverTooltipHide();
 });
 
@@ -679,8 +731,29 @@ async function loadTaskSnapshots() {
   if (!selectedTask.value) return;
   snapshotsLoading.value = true;
   try {
-    const response = await backupTasksApi.snapshots(selectedTask.value.id);
-    selectedTaskSnapshots.value = response.data.results || response.data || [];
+    const pageSize = 500;
+    let page = 1;
+    const snapshots: any[] = [];
+    while (selectedTask.value) {
+      const response = await backupTasksApi.snapshots(selectedTask.value.id, {
+        page,
+        page_size: pageSize,
+      });
+      const data = response.data;
+      const results = data.results || data || [];
+      snapshots.push(...results);
+      if (!data.next || results.length < pageSize) break;
+      page += 1;
+    }
+    selectedTaskSnapshots.value = snapshots;
+    if (
+      selectedSnapshot.value &&
+      !isSnapshotBrowsable(selectedSnapshot.value)
+    ) {
+      selectedSnapshot.value = null;
+      selectedSnapshotFiles.value = [];
+      snapshotFilesError.value = "";
+    }
     if (
       selectedSnapshot.value &&
       collapseNoChangeSnapshots.value &&
@@ -727,6 +800,7 @@ async function syncSnapshotsFromKopia() {
 
 async function evaluateRetentionNow() {
   if (!selectedTask.value) return;
+  if (!window.confirm(t("backupTasks.detail.applyRetentionConfirm"))) return;
   snapshotOperationLoading.value = true;
   try {
     await backupTasksApi.evaluateRetention(selectedTask.value.id, {
@@ -758,6 +832,10 @@ async function runKopiaMaintenanceNow() {
 
 async function loadSnapshotFiles(snapshot: any, path = "") {
   if (!snapshot?.id) return;
+  if (!isSnapshotBrowsable(snapshot)) {
+    appStore.error(t("backupTasks.detail.snapshotNotBrowsable"));
+    return;
+  }
   snapshotFilesError.value = "";
   if (!path) {
     snapshotFilesLoading.value = true;
@@ -3792,10 +3870,20 @@ onMounted(() => {
                     <button
                       type="button"
                       class="inline-flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                      @mouseenter="showCollapseNoChangesHelp"
-                      @mouseleave="scheduleCollapseNoChangesHelpHide"
-                      @focus="showCollapseNoChangesHelp"
-                      @blur="scheduleCollapseNoChangesHelpHide"
+                      @mouseenter="
+                        showSnapshotHelpTooltip(
+                          $event,
+                          'backupTasks.detail.collapseNoChangesHelp',
+                        )
+                      "
+                      @mouseleave="scheduleSnapshotHelpTooltipHide"
+                      @focus="
+                        showSnapshotHelpTooltip(
+                          $event,
+                          'backupTasks.detail.collapseNoChangesHelp',
+                        )
+                      "
+                      @blur="scheduleSnapshotHelpTooltipHide"
                       @click.stop
                     >
                       <QuestionMarkCircleIcon class="h-4 w-4" />
@@ -3813,8 +3901,22 @@ onMounted(() => {
                     >
                       <button
                         type="button"
-                        class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                        class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
                         :disabled="snapshotOperationLoading"
+                        @mouseenter="
+                          showSnapshotHelpTooltip(
+                            $event,
+                            'backupTasks.detail.syncSnapshotsHelp',
+                          )
+                        "
+                        @mouseleave="scheduleSnapshotHelpTooltipHide"
+                        @focus="
+                          showSnapshotHelpTooltip(
+                            $event,
+                            'backupTasks.detail.syncSnapshotsHelp',
+                          )
+                        "
+                        @blur="scheduleSnapshotHelpTooltipHide"
                         @click="syncSnapshotsFromKopia"
                       >
                         <ArrowPathIcon
@@ -3824,22 +3926,53 @@ onMounted(() => {
                           ]"
                         />
                         {{ t("backupTasks.detail.syncSnapshots") }}
+                        <QuestionMarkCircleIcon class="h-3.5 w-3.5 text-foreground-muted" />
                       </button>
                       <button
                         type="button"
-                        class="rounded-md px-2.5 py-1.5 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                        class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
                         :disabled="snapshotOperationLoading"
+                        @mouseenter="
+                          showSnapshotHelpTooltip(
+                            $event,
+                            'backupTasks.detail.applyRetentionHelp',
+                          )
+                        "
+                        @mouseleave="scheduleSnapshotHelpTooltipHide"
+                        @focus="
+                          showSnapshotHelpTooltip(
+                            $event,
+                            'backupTasks.detail.applyRetentionHelp',
+                          )
+                        "
+                        @blur="scheduleSnapshotHelpTooltipHide"
                         @click="evaluateRetentionNow"
                       >
                         {{ t("backupTasks.detail.applyRetention") }}
+                        <QuestionMarkCircleIcon class="h-3.5 w-3.5 text-foreground-muted" />
                       </button>
                       <button
                         type="button"
-                        class="rounded-md px-2.5 py-1.5 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                        class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
                         :disabled="snapshotOperationLoading"
+                        @mouseenter="
+                          showSnapshotHelpTooltip(
+                            $event,
+                            'backupTasks.detail.runMaintenanceHelp',
+                          )
+                        "
+                        @mouseleave="scheduleSnapshotHelpTooltipHide"
+                        @focus="
+                          showSnapshotHelpTooltip(
+                            $event,
+                            'backupTasks.detail.runMaintenanceHelp',
+                          )
+                        "
+                        @blur="scheduleSnapshotHelpTooltipHide"
                         @click="runKopiaMaintenanceNow"
                       >
                         {{ t("backupTasks.detail.runMaintenance") }}
+                        <QuestionMarkCircleIcon class="h-3.5 w-3.5 text-foreground-muted" />
                       </button>
                     </div>
                     <div
@@ -3913,6 +4046,7 @@ onMounted(() => {
                         v-for="snapshot in group.snapshots"
                         :key="snapshot.id"
                         type="button"
+                        :disabled="!isSnapshotBrowsable(snapshot)"
                         @click="loadSnapshotFiles(snapshot)"
                         @mouseenter="showSnapshotHoverTooltip(snapshot, $event)"
                         @mouseleave="scheduleSnapshotHoverTooltipHide"
@@ -3920,9 +4054,7 @@ onMounted(() => {
                         @blur="scheduleSnapshotHoverTooltipHide"
                         :class="[
                           'group relative aspect-square overflow-visible rounded-lg border p-2.5 text-left transition-all focus:outline-none focus:ring-2 focus:ring-primary',
-                          selectedSnapshot?.id === snapshot.id
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm dark:bg-emerald-950/30 dark:text-emerald-50'
-                            : 'border-border bg-card hover:border-emerald-400 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/20',
+                          snapshotCardClass(snapshot),
                         ]"
                       >
                         <span
@@ -3934,7 +4066,9 @@ onMounted(() => {
                           <span
                             :class="[
                               'inline-flex h-7 w-7 items-center justify-center rounded-md',
-                              selectedSnapshot?.id === snapshot.id
+                              !isSnapshotBrowsable(snapshot)
+                                ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                : selectedSnapshot?.id === snapshot.id
                                 ? 'bg-emerald-600 text-white'
                                 : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
                             ]"
@@ -3983,7 +4117,10 @@ onMounted(() => {
                             }}
                           </span>
                           <span
-                            v-if="selectedSnapshot?.id === snapshot.id"
+                            v-if="
+                              selectedSnapshot?.id === snapshot.id &&
+                              isSnapshotBrowsable(snapshot)
+                            "
                             class="h-2 w-2 rounded-full bg-emerald-500"
                           />
                         </div>
@@ -4001,24 +4138,19 @@ onMounted(() => {
                         <span
                           :class="[
                             'absolute -left-[19px] top-4 h-3.5 w-3.5 rounded-full border-2 bg-card',
-                            selectedSnapshot?.id === snapshot.id
-                              ? 'border-emerald-500 ring-4 ring-emerald-100 dark:ring-emerald-950/40'
-                              : isNoChangeSnapshotReference(snapshot)
-                                ? 'border-amber-500'
-                                : 'border-emerald-400',
+                            snapshotTimelineDotClass(snapshot),
                           ]"
                         />
                         <div
                           :class="[
                             'rounded-lg border bg-card transition-colors',
-                            selectedSnapshot?.id === snapshot.id
-                              ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/20'
-                              : 'border-border hover:bg-hover',
+                            snapshotTimelineClass(snapshot),
                           ]"
                         >
                           <button
                             type="button"
-                            class="w-full px-3 py-2.5 text-left focus:outline-none focus:ring-2 focus:ring-primary"
+                            class="w-full px-3 py-2.5 text-left focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed"
+                            :disabled="!isSnapshotBrowsable(snapshot)"
                             @click="loadSnapshotFiles(snapshot)"
                             @mouseenter="
                               showSnapshotHoverTooltip(snapshot, $event)
@@ -4561,16 +4693,16 @@ onMounted(() => {
     </Teleport>
     <Teleport to="body">
       <div
-        v-if="collapseNoChangesHelpVisible"
+        v-if="snapshotHelpTooltip"
         class="fixed z-[2147483647] w-72 -translate-x-1/2 rounded-lg border border-border bg-card px-3 py-2 text-left text-xs font-normal leading-5 text-foreground-secondary shadow-2xl pointer-events-auto"
         :style="{
-          top: `${collapseNoChangesHelpPosition.top}px`,
-          left: `${collapseNoChangesHelpPosition.left}px`,
+          top: `${snapshotHelpTooltip.top}px`,
+          left: `${snapshotHelpTooltip.left}px`,
         }"
-        @mouseenter="cancelCollapseNoChangesHelpHide"
-        @mouseleave="scheduleCollapseNoChangesHelpHide"
+        @mouseenter="cancelSnapshotHelpTooltipHide"
+        @mouseleave="scheduleSnapshotHelpTooltipHide"
       >
-        {{ t("backupTasks.detail.collapseNoChangesHelp") }}
+        {{ t(snapshotHelpTooltip.key) }}
       </div>
     </Teleport>
     <Teleport to="body">

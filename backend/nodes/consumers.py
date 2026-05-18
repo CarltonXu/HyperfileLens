@@ -1053,7 +1053,11 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         """Complete a task."""
         from .models import ProxyTask
         from backup_tasks.models import BackupTask, BackupSnapshot, BackupTaskRun
-        from backup_tasks.services.retention import reconcile_snapshot_result, dispatch_snapshot_reconciliation
+        from backup_tasks.services.retention import (
+            reconcile_snapshot_result,
+            dispatch_kopia_maintenance,
+            dispatch_snapshot_reconciliation,
+        )
         try:
             task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
             if cancelled:
@@ -1207,6 +1211,14 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                                 'repository', 'version', 'storage_path', 'manifest_path',
                                 'total_size', 'file_count', 'metadata',
                             ])
+                        try:
+                            dispatch_snapshot_reconciliation(backup_task)
+                        except Exception as exc:
+                            logger.exception(
+                                "Failed to dispatch snapshot reconciliation after backup %s: %s",
+                                backup_task.id,
+                                exc,
+                            )
                     else:
                         backup_task.status = BackupTask.STATUS_FAILED
                         backup_task.progress = task.progress
@@ -1239,6 +1251,14 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                         'target_repository__bound_node', 'preferred_execution_node', 'schedule',
                     ).first()
                     if backup_task:
+                        try:
+                            dispatch_kopia_maintenance(backup_task, full=False)
+                        except Exception as exc:
+                            logger.exception(
+                                "Failed to dispatch Kopia maintenance after snapshot delete for task %s: %s",
+                                backup_task.id,
+                                exc,
+                            )
                         dispatch_snapshot_reconciliation(backup_task)
                 else:
                     BackupSnapshot.objects.filter(

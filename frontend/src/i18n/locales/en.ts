@@ -1247,6 +1247,8 @@ export default {
       selectSnapshot: "Select a snapshot to browse its files.",
       noSnapshotFiles: "No file records are available for this snapshot yet.",
       snapshotFilesLoadFailed: "Failed to load snapshot files",
+      snapshotNotBrowsable:
+        "This snapshot is not available in Kopia and cannot be browsed.",
       urlStyle: "URL Style",
       useTls: "Use TLS",
       latest: "Latest",
@@ -1269,6 +1271,14 @@ export default {
       syncSnapshots: "Sync",
       applyRetention: "Apply Retention",
       runMaintenance: "Maintenance",
+      syncSnapshotsHelp:
+        "Backup completion and periodic reconciliation already sync snapshots automatically. Use this manual action to refresh immediately from Kopia through the execution proxy. It does not delete data.",
+      applyRetentionHelp:
+        "Retention is evaluated automatically by the scheduler. Use this manual action to evaluate now and delete snapshots outside the effective policy.",
+      applyRetentionConfirm:
+        "This will apply the effective retention policy and may delete snapshots from Kopia. Continue?",
+      runMaintenanceHelp:
+        "Maintenance runs automatically after pruning. Use this manual action when you need immediate Kopia repository cleanup or space reclamation.",
       syncSnapshotsDispatched: "Snapshot sync has been dispatched.",
       retentionDispatched: "Retention evaluation has been dispatched.",
       maintenanceDispatched: "Kopia maintenance has been dispatched.",
