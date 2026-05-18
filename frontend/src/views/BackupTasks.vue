@@ -49,9 +49,10 @@ import {
   ChevronRightIcon,
   ChevronDownIcon,
   PencilSquareIcon,
+  QuestionMarkCircleIcon,
 } from "@heroicons/vue/24/outline";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 
@@ -72,6 +73,11 @@ const selectedTaskSnapshots = ref<any[]>([]);
 const selectedTaskRuns = ref<any[]>([]);
 const selectedSnapshot = ref<any | null>(null);
 const selectedSnapshotFiles = ref<any[]>([]);
+const snapshotFilesError = ref("");
+const collapseNoChangeSnapshots = ref(false);
+const snapshotGroupBy = ref<"all" | "day" | "month" | "change" | "size">(
+  "all",
+);
 const expandedSnapshotPaths = ref<Set<string>>(new Set());
 const selectedSnapshotPaths = ref<Set<string>>(new Set());
 const loadingSnapshotPaths = ref<Set<string>>(new Set());
@@ -87,6 +93,16 @@ const searchQuery = ref("");
 const detailAutoRefresh = ref(false);
 const detailRefreshInterval = ref(10);
 const detailRefreshTimer = ref<ReturnType<typeof setInterval> | null>(null);
+const collapseNoChangesHelpVisible = ref(false);
+const collapseNoChangesHelpPosition = ref({ top: 0, left: 0 });
+let collapseNoChangesHelpHideTimer: ReturnType<typeof setTimeout> | null = null;
+const snapshotHoverTooltip = ref<{
+  snapshot: any;
+  top: number;
+  left: number;
+  placement: "top" | "bottom";
+} | null>(null);
+let snapshotHoverTooltipHideTimer: ReturnType<typeof setTimeout> | null = null;
 
 type EditTaskForm = {
   name: string;
@@ -96,8 +112,20 @@ type EditTaskForm = {
   execution_mode: "pinned" | "preferred" | "auto";
   preferred_execution_node: string | null;
   schedule: string | null;
+  override_schedule: boolean;
+  schedule_mode: "manual" | "interval" | "time" | "cron";
+  interval: string;
+  time_of_day: string;
+  cron_expression: string;
+  retention_mode: "policy" | "custom";
   retention_days: number;
   max_snapshots: number;
+  keep_latest: number;
+  keep_hourly: number;
+  keep_daily: number;
+  keep_weekly: number;
+  keep_monthly: number;
+  keep_annual: number;
   backup_paths_text: string;
   exclude_patterns_text: string;
   dot_ignore_files_text: string;
@@ -124,8 +152,20 @@ const editForm = ref<EditTaskForm>({
   execution_mode: "pinned",
   preferred_execution_node: null,
   schedule: null,
+  override_schedule: false,
+  schedule_mode: "manual",
+  interval: "24h",
+  time_of_day: "02:00",
+  cron_expression: "",
+  retention_mode: "custom",
   retention_days: 30,
   max_snapshots: 10,
+  keep_latest: 10,
+  keep_hourly: 0,
+  keep_daily: 30,
+  keep_weekly: 0,
+  keep_monthly: 0,
+  keep_annual: 0,
   backup_paths_text: "",
   exclude_patterns_text: "",
   dot_ignore_files_text: ".kopiaignore",
@@ -143,6 +183,15 @@ const editForm = ref<EditTaskForm>({
   bandwidth_limit_kbps: null,
   max_retries: 3,
 });
+
+const editRetentionFields = [
+  { key: "keep_latest", label: "latest" },
+  { key: "keep_hourly", label: "hourly" },
+  { key: "keep_daily", label: "daily" },
+  { key: "keep_weekly", label: "weekly" },
+  { key: "keep_monthly", label: "monthly" },
+  { key: "keep_annual", label: "annual" },
+] as const;
 
 // Pagination
 const currentPage = ref(1);
@@ -195,6 +244,65 @@ const filteredTasks = computed(() => {
   }
   return result;
 });
+
+const selectedEditPolicy = computed(() => {
+  if (!editForm.value.schedule) return null;
+  return (
+    backupPolicies.value.find(
+      (policy) => String(policy.id) === String(editForm.value.schedule),
+    ) || null
+  );
+});
+
+const editPolicyScheduleSummary = computed(() => {
+  const schedule = selectedEditPolicy.value?.snapshot_schedule || {};
+  const mode = schedule.mode || "manual";
+  if (mode === "interval") return schedule.interval || "24h";
+  if (mode === "time") return schedule.time_of_day || "02:00";
+  if (mode === "cron") return schedule.cron || "-";
+  return t("policies.scheduleModes.manual");
+});
+
+const editPolicyRetentionSummary = computed(() => {
+  const retention = selectedEditPolicy.value?.retention_policy || {};
+  if (!selectedEditPolicy.value) return "-";
+  return `L${retention.keep_latest ?? 0} H${retention.keep_hourly ?? 0} D${retention.keep_daily ?? 0} W${retention.keep_weekly ?? 0} M${retention.keep_monthly ?? 0} A${retention.keep_annual ?? 0}`;
+});
+
+function snapshotDisplayTime(snapshot: any) {
+  return snapshot?.metadata?.last_seen_at || snapshot?.created_at;
+}
+
+function isNoChangeSnapshotReference(snapshot: any) {
+  return (
+    snapshot?.metadata?.no_changes === true ||
+    snapshot?.metadata?.last_no_changes === true
+  );
+}
+
+function isLatestDisplayedSnapshot(snapshot: any) {
+  return displayedTaskSnapshots.value[0]?.id === snapshot?.id;
+}
+
+function snapshotDisplaySize(snapshot: any) {
+  return isNoChangeSnapshotReference(snapshot) ? 0 : Number(snapshot?.total_size || 0);
+}
+
+function snapshotDisplayFileCount(snapshot: any) {
+  return isNoChangeSnapshotReference(snapshot) ? 0 : Number(snapshot?.file_count || 0);
+}
+
+function snapshotReferencedId(snapshot: any) {
+  return (
+    snapshot?.metadata?.referenced_snapshot_id ||
+    snapshot?.metadata?.referenced_manifest_id ||
+    snapshot?.metadata?.referenced_storage_path ||
+    snapshot?.metadata?.root_object_id ||
+    snapshot?.storage_path ||
+    snapshot?.version ||
+    ""
+  );
+}
 
 type BackupTaskColumnKey =
   | "name"
@@ -298,6 +406,57 @@ const currentDetailTabLoading = computed(() => {
   return runsLoading.value;
 });
 
+const displayedTaskSnapshots = computed(() => {
+  if (!collapseNoChangeSnapshots.value) {
+    return selectedTaskSnapshots.value;
+  }
+  return selectedTaskSnapshots.value.filter(
+    (snapshot) => !isNoChangeSnapshotReference(snapshot),
+  );
+});
+
+const hiddenNoChangeSnapshotCount = computed(
+  () => selectedTaskSnapshots.value.length - displayedTaskSnapshots.value.length,
+);
+
+const snapshotGroupOptions = computed(() => [
+  { value: "all" as const, label: t("backupTasks.detail.groupAll") },
+  { value: "day" as const, label: t("backupTasks.detail.groupByDay") },
+  { value: "month" as const, label: t("backupTasks.detail.groupByMonth") },
+  { value: "change" as const, label: t("backupTasks.detail.groupByChange") },
+  { value: "size" as const, label: t("backupTasks.detail.groupBySize") },
+]);
+
+const groupedDisplayedTaskSnapshots = computed(() => {
+  const snapshots = displayedTaskSnapshots.value;
+  if (snapshotGroupBy.value === "all") {
+    return [
+      {
+        key: "all",
+        label: t("backupTasks.detail.allSnapshots"),
+        description: snapshotGroupDescription(snapshots),
+        snapshots,
+      },
+    ];
+  }
+
+  const groupMap = new Map<string, { label: string; snapshots: any[] }>();
+  for (const snapshot of snapshots) {
+    const group = snapshotGroupFor(snapshot, snapshotGroupBy.value);
+    if (!groupMap.has(group.key)) {
+      groupMap.set(group.key, { label: group.label, snapshots: [] });
+    }
+    groupMap.get(group.key)?.snapshots.push(snapshot);
+  }
+
+  return Array.from(groupMap.entries()).map(([key, group]) => ({
+    key,
+    label: group.label,
+    description: snapshotGroupDescription(group.snapshots),
+    snapshots: group.snapshots,
+  }));
+});
+
 // Reset page when filters change
 watch([selectedStatus, searchQuery], () => {
   currentPage.value = 1;
@@ -308,6 +467,69 @@ function stopDetailAutoRefresh() {
     clearInterval(detailRefreshTimer.value);
     detailRefreshTimer.value = null;
   }
+}
+
+function cancelCollapseNoChangesHelpHide() {
+  if (collapseNoChangesHelpHideTimer) {
+    clearTimeout(collapseNoChangesHelpHideTimer);
+    collapseNoChangesHelpHideTimer = null;
+  }
+}
+
+function showCollapseNoChangesHelp(event: MouseEvent | FocusEvent) {
+  cancelCollapseNoChangesHelpHide();
+  const target = event.currentTarget as HTMLElement | null;
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  collapseNoChangesHelpPosition.value = {
+    top: rect.bottom + 8,
+    left: Math.min(Math.max(rect.left + rect.width / 2, 156), window.innerWidth - 156),
+  };
+  collapseNoChangesHelpVisible.value = true;
+}
+
+function scheduleCollapseNoChangesHelpHide() {
+  cancelCollapseNoChangesHelpHide();
+  collapseNoChangesHelpHideTimer = setTimeout(() => {
+    collapseNoChangesHelpVisible.value = false;
+  }, 120);
+}
+
+function cancelSnapshotHoverTooltipHide() {
+  if (snapshotHoverTooltipHideTimer) {
+    clearTimeout(snapshotHoverTooltipHideTimer);
+    snapshotHoverTooltipHideTimer = null;
+  }
+}
+
+function showSnapshotHoverTooltip(snapshot: any, event: MouseEvent | FocusEvent) {
+  cancelSnapshotHoverTooltipHide();
+  const target = event.currentTarget as HTMLElement | null;
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  const tooltipWidth = 288;
+  const tooltipHeightEstimate = 220;
+  const viewportPadding = 16;
+  const left = Math.min(
+    Math.max(rect.left + rect.width / 2, viewportPadding + tooltipWidth / 2),
+    window.innerWidth - viewportPadding - tooltipWidth / 2,
+  );
+  const canShowBelow =
+    rect.bottom + 10 + tooltipHeightEstimate < window.innerHeight;
+
+  snapshotHoverTooltip.value = {
+    snapshot,
+    left,
+    top: canShowBelow ? rect.bottom + 10 : Math.max(rect.top - 10, viewportPadding),
+    placement: canShowBelow ? "bottom" : "top",
+  };
+}
+
+function scheduleSnapshotHoverTooltipHide() {
+  cancelSnapshotHoverTooltipHide();
+  snapshotHoverTooltipHideTimer = setTimeout(() => {
+    snapshotHoverTooltip.value = null;
+  }, 120);
 }
 
 function startDetailAutoRefresh() {
@@ -333,6 +555,8 @@ watch(
 
 onUnmounted(() => {
   stopDetailAutoRefresh();
+  cancelCollapseNoChangesHelpHide();
+  cancelSnapshotHoverTooltipHide();
 });
 
 async function fetchTasks() {
@@ -356,6 +580,7 @@ async function openTaskDetail(task: BackupTask) {
   selectedTaskRuns.value = [];
   selectedSnapshot.value = null;
   selectedSnapshotFiles.value = [];
+  snapshotFilesError.value = "";
   try {
     await refreshTaskOverview(false);
   } finally {
@@ -404,6 +629,15 @@ async function loadTaskSnapshots() {
   try {
     const response = await backupTasksApi.snapshots(selectedTask.value.id);
     selectedTaskSnapshots.value = response.data.results || response.data || [];
+    if (
+      selectedSnapshot.value &&
+      collapseNoChangeSnapshots.value &&
+      isNoChangeSnapshotReference(selectedSnapshot.value)
+    ) {
+      selectedSnapshot.value = null;
+      selectedSnapshotFiles.value = [];
+      snapshotFilesError.value = "";
+    }
   } catch (error) {
     console.error("Failed to fetch snapshots:", error);
   } finally {
@@ -428,6 +662,7 @@ async function loadTaskRuns() {
 
 async function loadSnapshotFiles(snapshot: any, path = "") {
   if (!snapshot?.id) return;
+  snapshotFilesError.value = "";
   if (!path) {
     snapshotFilesLoading.value = true;
   } else {
@@ -448,6 +683,19 @@ async function loadSnapshotFiles(snapshot: any, path = "") {
         ...expandedSnapshotPaths.value,
         path,
       ]);
+    }
+  } catch (error) {
+    const message = getApiErrorMessage(
+      error,
+      t("backupTasks.detail.snapshotFilesLoadFailed"),
+    );
+    appStore.error(message);
+    if (!path) {
+      snapshotFilesError.value = message;
+      selectedSnapshot.value = snapshot;
+      selectedSnapshotFiles.value = [];
+      expandedSnapshotPaths.value = new Set();
+      selectedSnapshotPaths.value = new Set();
     }
   } finally {
     if (!path) {
@@ -711,6 +959,23 @@ function repositoryForTask(task: BackupTask | null) {
 
 function fillEditForm(task: BackupTask) {
   const filePolicy = task.policy_overrides?.file_policy || {};
+  const scheduleOverride = task.policy_overrides?.snapshot_schedule || {};
+  const retentionOverride = task.policy_overrides?.retention_policy || {};
+  const hasScheduleOverride = scheduleOverride.override === true || !task.schedule;
+  const hasRetentionOverride = retentionOverride.override === true || !task.schedule;
+  const taskPolicy = task.schedule
+    ? backupPolicies.value.find(
+        (policy) => String(policy.id) === String(task.schedule),
+      )
+    : null;
+  const policySchedule = taskPolicy?.snapshot_schedule || {};
+  const policyRetention = taskPolicy?.retention_policy || {};
+  const effectiveEditSchedule = hasScheduleOverride
+    ? scheduleOverride
+    : policySchedule;
+  const effectiveEditRetention = hasRetentionOverride
+    ? retentionOverride
+    : policyRetention;
   editForm.value = {
     name: task.name || "",
     description: task.description || "",
@@ -719,8 +984,20 @@ function fillEditForm(task: BackupTask) {
     execution_mode: task.execution_mode || "pinned",
     preferred_execution_node: task.preferred_execution_node || null,
     schedule: task.schedule || null,
+    override_schedule: hasScheduleOverride,
+    schedule_mode: effectiveEditSchedule.mode || "manual",
+    interval: effectiveEditSchedule.interval || "24h",
+    time_of_day: effectiveEditSchedule.time_of_day || "02:00",
+    cron_expression: effectiveEditSchedule.cron || "",
+    retention_mode: hasRetentionOverride ? "custom" : "policy",
     retention_days: task.retention_days ?? 30,
     max_snapshots: task.max_snapshots ?? 10,
+    keep_latest: effectiveEditRetention.keep_latest ?? task.max_snapshots ?? 10,
+    keep_hourly: effectiveEditRetention.keep_hourly ?? 0,
+    keep_daily: effectiveEditRetention.keep_daily ?? task.retention_days ?? 30,
+    keep_weekly: effectiveEditRetention.keep_weekly ?? 0,
+    keep_monthly: effectiveEditRetention.keep_monthly ?? 0,
+    keep_annual: effectiveEditRetention.keep_annual ?? 0,
     backup_paths_text: listToText(task.backup_paths),
     exclude_patterns_text: listToText(task.exclude_patterns),
     dot_ignore_files_text: listToText(
@@ -768,6 +1045,23 @@ async function updateTask() {
     appStore.error(t("backupTasks.edit.requiredFields"));
     return;
   }
+  if (editForm.value.override_schedule || !editForm.value.schedule) {
+    if (editForm.value.schedule_mode === "interval" && !editForm.value.interval.trim()) {
+      appStore.error(t("policies.schedule.interval"));
+      return;
+    }
+    if (editForm.value.schedule_mode === "time" && !editForm.value.time_of_day) {
+      appStore.error(t("policies.schedule.timeOfDay"));
+      return;
+    }
+    if (
+      editForm.value.schedule_mode === "cron" &&
+      !editForm.value.cron_expression.trim()
+    ) {
+      appStore.error(t("policies.schedule.cron"));
+      return;
+    }
+  }
 
   const payload: BackupTaskUpdateData = {
     name: editForm.value.name.trim(),
@@ -782,6 +1076,41 @@ async function updateTask() {
     schedule: editForm.value.schedule || null,
     policy_overrides: {
       ...(editingTask.value.policy_overrides || {}),
+      ...((editForm.value.override_schedule || !editForm.value.schedule)
+        ? {
+            snapshot_schedule: {
+              override: true,
+              mode: editForm.value.schedule_mode,
+              interval:
+                editForm.value.schedule_mode === "interval"
+                  ? editForm.value.interval.trim()
+                  : "",
+              time_of_day:
+                editForm.value.schedule_mode === "time"
+                  ? editForm.value.time_of_day
+                  : "",
+              cron:
+                editForm.value.schedule_mode === "cron"
+                  ? editForm.value.cron_expression.trim()
+                  : "",
+              run_missed: true,
+            },
+          }
+        : { snapshot_schedule: {} }),
+      ...((editForm.value.retention_mode === "custom" ||
+      !editForm.value.schedule)
+        ? {
+            retention_policy: {
+              override: true,
+              keep_latest: Number(editForm.value.keep_latest) || 0,
+              keep_hourly: Number(editForm.value.keep_hourly) || 0,
+              keep_daily: Number(editForm.value.keep_daily) || 0,
+              keep_weekly: Number(editForm.value.keep_weekly) || 0,
+              keep_monthly: Number(editForm.value.keep_monthly) || 0,
+              keep_annual: Number(editForm.value.keep_annual) || 0,
+            },
+          }
+        : { retention_policy: {} }),
       file_policy: {
         ...((editingTask.value.policy_overrides || {}).file_policy || {}),
         override: true,
@@ -795,8 +1124,8 @@ async function updateTask() {
         ignore_dir_errors: editForm.value.ignore_dir_errors,
       },
     },
-    retention_days: Number(editForm.value.retention_days) || 30,
-    max_snapshots: Number(editForm.value.max_snapshots) || 10,
+    retention_days: Number(editForm.value.keep_daily) || 30,
+    max_snapshots: Number(editForm.value.keep_latest) || 10,
     include_patterns: [],
     exclude_patterns: textToList(editForm.value.exclude_patterns_text),
     compression_enabled: editForm.value.compression_enabled,
@@ -853,6 +1182,8 @@ function getStatusColor(status: string): string {
     pending:
       "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
     queued: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
+    dispatched:
+      "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
     running:
       "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400",
     paused:
@@ -943,17 +1274,113 @@ function getTaskPolicySummary(task: BackupTask) {
 }
 
 function formatDateTime(value?: string | null) {
-  return value ? new Date(value).toLocaleString() : "-";
+  return value ? new Date(value).toLocaleString(currentLocale()) : "-";
 }
 
 function formatCompactDateTime(value?: string | null) {
   if (!value) return "-";
-  return new Date(value).toLocaleString(undefined, {
+  return new Date(value).toLocaleString(currentLocale(), {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function currentLocale() {
+  return String(locale.value || "en");
+}
+
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function localMonthKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function formatSnapshotGroupDay(value?: string | null) {
+  if (!value) return t("backupTasks.detail.unknownTime");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return t("backupTasks.detail.unknownTime");
+  const weekday = new Intl.DateTimeFormat(currentLocale(), {
+    weekday: "short",
+  }).format(date);
+  return `${localDateKey(date)} ${weekday}`;
+}
+
+function formatSnapshotGroupMonth(value?: string | null) {
+  if (!value) return t("backupTasks.detail.unknownTime");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return t("backupTasks.detail.unknownTime");
+  return date.toLocaleDateString(currentLocale(), {
+    year: "numeric",
+    month: "long",
+  });
+}
+
+function snapshotGroupDescription(snapshots: any[]) {
+  const totalSize = snapshots.reduce(
+    (sum, snapshot) => sum + snapshotDisplaySize(snapshot),
+    0,
+  );
+  return t("backupTasks.detail.snapshotGroupSummary", {
+    count: snapshots.length,
+    size: formatBytes(totalSize),
+  });
+}
+
+function snapshotGroupFor(
+  snapshot: any,
+  mode: "day" | "month" | "change" | "size",
+) {
+  const displayTime = snapshotDisplayTime(snapshot);
+  if (mode === "day") {
+    const date = displayTime ? new Date(displayTime) : null;
+    return {
+      key: date && !Number.isNaN(date.getTime())
+        ? localDateKey(date)
+        : "unknown",
+      label: formatSnapshotGroupDay(displayTime),
+    };
+  }
+
+  if (mode === "month") {
+    const date = displayTime ? new Date(displayTime) : null;
+    return {
+      key: date && !Number.isNaN(date.getTime())
+        ? localMonthKey(date)
+        : "unknown",
+      label: formatSnapshotGroupMonth(displayTime),
+    };
+  }
+
+  if (mode === "change") {
+    const noChanges = isNoChangeSnapshotReference(snapshot);
+    return {
+      key: noChanges ? "no-changes" : "changed",
+      label: noChanges
+        ? t("backupTasks.detail.noChangeSnapshots")
+        : t("backupTasks.detail.changedSnapshots"),
+    };
+  }
+
+  const size = snapshotDisplaySize(snapshot);
+  if (size === 0) {
+    return { key: "zero", label: t("backupTasks.detail.sizeZero") };
+  }
+  if (size < 1024 * 1024 * 1024) {
+    return { key: "small", label: t("backupTasks.detail.sizeSmall") };
+  }
+  if (size < 10 * 1024 * 1024 * 1024) {
+    return { key: "medium", label: t("backupTasks.detail.sizeMedium") };
+  }
+  return { key: "large", label: t("backupTasks.detail.sizeLarge") };
 }
 
 function formatDurationSeconds(value?: number | null) {
@@ -985,7 +1412,9 @@ const selectedRepository = computed(() => {
   return repositoryForTask(selectedTask.value);
 });
 
-const syncProxies = computed(() => nodes.value.filter((node) => node.role === "sync"));
+const syncProxies = computed(() =>
+  nodes.value.filter((node) => node.role === "sync"),
+);
 
 function canUseAutoPlacementForTask(task: BackupTask | null) {
   const source = sourceForTask(task);
@@ -1787,7 +2216,7 @@ onMounted(() => {
                   <select
                     v-model="editForm.execution_mode"
                     :disabled="!canUseAutoPlacementForTask(editingTask)"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60">
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60">
                     <option value="pinned">
                       {{ t("backupTasks.executionModes.pinned") }}
                     </option>
@@ -1840,13 +2269,19 @@ onMounted(() => {
               <p class="mb-4 text-xs text-foreground-secondary">
                 {{ t("backupTasks.edit.sections.scheduleRetentionDesc") }}
               </p>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="space-y-5">
                 <div>
                   <label class="block text-sm font-medium text-foreground mb-1">
                     {{ t("backupTasks.form.policy") }}
                   </label>
                   <select
                     v-model="editForm.schedule"
+                    @change="
+                      ((editForm.retention_mode = editForm.schedule
+                        ? 'policy'
+                        : 'custom'),
+                      (editForm.override_schedule = false))
+                    "
                     class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                     <option :value="null">
                       {{ t("backupTasks.form.noPolicy") }}
@@ -1862,37 +2297,178 @@ onMounted(() => {
                     {{ t("backupTasks.edit.fieldDescriptions.policy") }}
                   </p>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-foreground mb-1">
-                    {{ t("backupTasks.form.retentionDays") }}
-                  </label>
-                  <input
-                    v-model.number="editForm.retention_days"
-                    type="number"
-                    min="1"
-                    :placeholder="
-                      t('backupTasks.edit.placeholders.retentionDays')
-                    "
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  <p class="mt-1 text-xs text-foreground-muted">
-                    {{ t("backupTasks.edit.fieldDescriptions.retentionDays") }}
-                  </p>
+
+                <div
+                  v-if="selectedEditPolicy"
+                  class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div class="rounded-lg border border-border bg-background/50 p-3 text-sm">
+                    <p class="text-xs text-foreground-muted">
+                      {{ t("backupTasks.policyOverrides.schedule") }}
+                    </p>
+                    <p class="mt-1 font-medium text-foreground">
+                      {{ editPolicyScheduleSummary }}
+                    </p>
+                  </div>
+                  <div class="rounded-lg border border-border bg-background/50 p-3 text-sm">
+                    <p class="text-xs text-foreground-muted">
+                      {{ t("backupTasks.policyOverrides.retention") }}
+                    </p>
+                    <p class="mt-1 font-medium text-foreground">
+                      {{ editPolicyRetentionSummary }}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-foreground mb-1">
-                    {{ t("backupTasks.form.maxSnapshots") }}
-                  </label>
-                  <input
-                    v-model.number="editForm.max_snapshots"
-                    type="number"
-                    min="1"
-                    :placeholder="
-                      t('backupTasks.edit.placeholders.maxSnapshots')
-                    "
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  <p class="mt-1 text-xs text-foreground-muted">
-                    {{ t("backupTasks.edit.fieldDescriptions.maxSnapshots") }}
-                  </p>
+
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div class="rounded-lg border border-border bg-background/30 p-4 space-y-4">
+                    <div class="flex items-center gap-2">
+                      <ClockIcon class="h-5 w-5 text-primary" />
+                      <p class="text-sm font-semibold text-foreground">
+                        {{ t("backupTasks.form.schedule") }}
+                      </p>
+                    </div>
+                    <template v-if="selectedEditPolicy">
+                      <label class="flex items-start gap-2 text-sm text-foreground">
+                        <input
+                          :checked="!editForm.override_schedule"
+                          type="radio"
+                          class="mt-1 border-border"
+                          @change="editForm.override_schedule = false" />
+                        <span>
+                          <span class="font-medium">
+                            {{ t("backupTasks.policyOverrides.usePolicySchedule") }}
+                          </span>
+                          <span class="mt-1 block text-xs text-foreground-muted">
+                            {{ editPolicyScheduleSummary }}
+                          </span>
+                        </span>
+                      </label>
+                      <label class="flex items-start gap-2 text-sm text-foreground">
+                        <input
+                          :checked="editForm.override_schedule"
+                          type="radio"
+                          class="mt-1 border-border"
+                          @change="editForm.override_schedule = true" />
+                        <span>
+                          <span class="font-medium">
+                            {{ t("backupTasks.policyOverrides.overrideSchedule") }}
+                          </span>
+                          <span class="mt-1 block text-xs text-foreground-muted">
+                            {{ t("backupTasks.policyOverrides.overrideScheduleDesc") }}
+                          </span>
+                        </span>
+                      </label>
+                    </template>
+
+                    <div v-if="!selectedEditPolicy || editForm.override_schedule">
+                      <label class="mb-1 block text-sm font-medium text-foreground">
+                        {{ t("policies.schedule.title") }}
+                      </label>
+                      <select
+                        v-model="editForm.schedule_mode"
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="manual">{{ t("policies.scheduleModes.manual") }}</option>
+                        <option value="interval">{{ t("policies.scheduleModes.interval") }}</option>
+                        <option value="time">{{ t("policies.scheduleModes.time") }}</option>
+                        <option value="cron">{{ t("policies.scheduleModes.cron") }}</option>
+                      </select>
+                      <p class="mt-1 text-xs text-foreground-muted">
+                        {{ t(`policies.schedule.modeDescriptions.${editForm.schedule_mode}`) }}
+                      </p>
+                    </div>
+
+                    <div
+                      v-if="(!selectedEditPolicy || editForm.override_schedule) && editForm.schedule_mode === 'interval'">
+                      <label class="block text-sm font-medium text-foreground mb-1">
+                        {{ t("policies.schedule.interval") }}
+                      </label>
+                      <input
+                        v-model="editForm.interval"
+                        placeholder="24h"
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <p class="mt-1 text-xs text-foreground-muted">
+                        {{ t("policies.schedule.intervalDesc") }}
+                      </p>
+                    </div>
+
+                    <div
+                      v-if="(!selectedEditPolicy || editForm.override_schedule) && editForm.schedule_mode === 'time'">
+                      <label class="block text-sm font-medium text-foreground mb-1">
+                        {{ t("policies.schedule.timeOfDay") }}
+                      </label>
+                      <input
+                        v-model="editForm.time_of_day"
+                        type="time"
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <p class="mt-1 text-xs text-foreground-muted">
+                        {{ t("policies.schedule.timeOfDayDesc") }}
+                      </p>
+                    </div>
+
+                    <div
+                      v-if="(!selectedEditPolicy || editForm.override_schedule) && editForm.schedule_mode === 'cron'">
+                      <label class="block text-sm font-medium text-foreground mb-1">
+                        {{ t("policies.schedule.cron") }}
+                      </label>
+                      <input
+                        v-model="editForm.cron_expression"
+                        placeholder="0 2 * * *"
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <p class="mt-1 text-xs text-foreground-muted">
+                        {{ t("policies.schedule.cronDesc") }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="rounded-lg border border-border bg-background/30 p-4 space-y-4">
+                    <div class="flex items-center gap-2">
+                      <ShieldCheckIcon class="h-5 w-5 text-primary" />
+                      <p class="text-sm font-semibold text-foreground">
+                        {{ t("backupTasks.retention.title") }}
+                      </p>
+                    </div>
+                    <template v-if="selectedEditPolicy">
+                      <label class="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          v-model="editForm.retention_mode"
+                          type="radio"
+                          value="policy"
+                          class="border-border" />
+                        {{ t("backupTasks.policyOverrides.usePolicyRetention") }}
+                      </label>
+                      <label class="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          v-model="editForm.retention_mode"
+                          type="radio"
+                          value="custom"
+                          class="border-border" />
+                        {{ t("backupTasks.policyOverrides.overrideRetention") }}
+                      </label>
+                    </template>
+                    <p v-else class="text-sm text-foreground-secondary">
+                      {{ t("backupTasks.policyOverrides.taskRetentionDesc") }}
+                    </p>
+                    <div
+                      v-if="editForm.retention_mode === 'custom' || !selectedEditPolicy"
+                      class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <label
+                        v-for="field in editRetentionFields"
+                        :key="field.key"
+                        class="block">
+                        <span class="text-xs text-foreground-secondary">
+                          {{ t(`backupTasks.retention.${field.label}`) }}
+                        </span>
+                        <input
+                          v-model.number="editForm[field.key]"
+                          type="number"
+                          min="0"
+                          class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        <p class="mt-1 text-[11px] leading-4 text-foreground-muted">
+                          {{ t(`backupTasks.retention.${field.label}Desc`) }}
+                        </p>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -2817,100 +3393,160 @@ onMounted(() => {
                 </p>
               </div>
               <template v-else>
-                <div
-                  class="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-2.5">
-                  <button
-                    v-for="(snapshot, index) in selectedTaskSnapshots"
-                    :key="snapshot.id"
-                    type="button"
-                    @click="loadSnapshotFiles(snapshot)"
-                    :class="[
-                      'group relative aspect-square rounded-lg border p-2.5 text-left transition-all focus:outline-none focus:ring-2 focus:ring-primary',
-                      selectedSnapshot?.id === snapshot.id
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm dark:bg-emerald-950/30 dark:text-emerald-50'
-                        : 'border-border bg-card hover:border-emerald-400 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/20',
-                    ]">
-                    <div class="flex items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div
+                    class="inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground shadow-sm">
+                    <button
+                      type="button"
+                      role="switch"
+                      :aria-checked="collapseNoChangeSnapshots"
+                      class="inline-flex items-center gap-2 transition-colors hover:text-primary focus:outline-none"
+                      @click="
+                        collapseNoChangeSnapshots = !collapseNoChangeSnapshots
+                      ">
                       <span
                         :class="[
-                          'inline-flex h-7 w-7 items-center justify-center rounded-md',
-                          selectedSnapshot?.id === snapshot.id
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                          'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                          collapseNoChangeSnapshots
+                            ? 'bg-primary'
+                            : 'bg-background-tertiary',
                         ]">
-                        <CircleStackIcon class="w-4 h-4" />
+                        <span
+                          :class="[
+                            'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform',
+                            collapseNoChangeSnapshots
+                              ? 'translate-x-4'
+                              : 'translate-x-0.5',
+                          ]" />
                       </span>
-                      <span
-                        v-if="index === 0"
-                        class="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-medium">
-                        {{ t("backupTasks.detail.latest") }}
-                      </span>
-                    </div>
-                    <p
-                      class="mt-2 text-xs font-medium text-foreground truncate">
-                      {{ formatCompactDateTime(snapshot.created_at) }}
-                    </p>
-                    <p
-                      class="mt-1 text-[11px] text-foreground-secondary truncate">
-                      {{ formatBytes(snapshot.total_size || 0) }}
-                    </p>
+                      <span>{{
+                        t("backupTasks.detail.collapseNoChanges")
+                      }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      @mouseenter="showCollapseNoChangesHelp"
+                      @mouseleave="scheduleCollapseNoChangesHelpHide"
+                      @focus="showCollapseNoChangesHelp"
+                      @blur="scheduleCollapseNoChangesHelpHide"
+                      @click.stop>
+                      <QuestionMarkCircleIcon class="h-4 w-4" />
+                    </button>
+                    <span
+                      v-if="hiddenNoChangeSnapshotCount > 0"
+                      class="rounded-full bg-background-secondary px-1.5 py-0.5 text-[11px] text-foreground-secondary">
+                      {{ hiddenNoChangeSnapshotCount }}
+                    </span>
+                  </div>
+                  <div
+                    class="inline-flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1 text-xs shadow-sm">
+                    <button
+                      v-for="option in snapshotGroupOptions"
+                      :key="option.value"
+                      type="button"
+                      :class="[
+                        'rounded-md px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+                        snapshotGroupBy === option.value
+                          ? 'bg-primary text-white shadow-sm'
+                          : 'text-foreground-secondary hover:bg-hover hover:text-foreground',
+                      ]"
+                      @click="snapshotGroupBy = option.value">
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+                <div
+                  v-if="displayedTaskSnapshots.length === 0"
+                  class="rounded-xl border border-dashed border-border bg-background/50 px-6 py-10 text-center text-sm text-foreground-secondary">
+                  {{ t("backupTasks.detail.noNormalSnapshots") }}
+                </div>
+                <div
+                  v-else
+                  class="space-y-4">
+                  <section
+                    v-for="group in groupedDisplayedTaskSnapshots"
+                    :key="group.key"
+                    class="space-y-2.5">
                     <div
-                      class="mt-2 flex items-center justify-between text-[11px]">
-                      <span class="text-foreground-muted">
-                        {{ snapshot.file_count || 0 }}
-                        {{ t("backupTasks.progress.files") }}
-                      </span>
-                      <span
-                        v-if="selectedSnapshot?.id === snapshot.id"
-                        class="h-2 w-2 rounded-full bg-emerald-500" />
-                    </div>
-
-                    <div
-                      class="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border border-border bg-card p-3 text-xs shadow-xl group-hover:block">
-                      <div
-                        class="flex items-center gap-2 border-b border-border pb-2">
-                        <CircleStackIcon class="w-4 h-4 text-emerald-600" />
-                        <p class="font-semibold text-foreground truncate">
-                          {{ snapshot.name || snapshot.version || snapshot.id }}
+                      v-if="snapshotGroupBy !== 'all'"
+                      class="flex items-center justify-between gap-3 border-b border-border pb-2">
+                      <div>
+                        <h4 class="text-sm font-semibold text-foreground">
+                          {{ group.label }}
+                        </h4>
+                        <p class="mt-0.5 text-xs text-foreground-secondary">
+                          {{ group.description }}
                         </p>
                       </div>
-                      <dl
-                        class="mt-2 grid grid-cols-[88px_minmax(0,1fr)] gap-x-2 gap-y-1.5">
-                        <dt class="text-foreground-muted">
-                          {{ t("backupTasks.detail.snapshotId") }}
-                        </dt>
-                        <dd class="text-foreground truncate">
-                          {{ snapshot.version || snapshot.id }}
-                        </dd>
-                        <dt class="text-foreground-muted">
-                          {{ t("common.date") }}
-                        </dt>
-                        <dd class="text-foreground">
-                          {{ formatDateTime(snapshot.created_at) }}
-                        </dd>
-                        <dt class="text-foreground-muted">
-                          {{ t("backupTasks.progress.size") }}
-                        </dt>
-                        <dd class="text-foreground">
-                          {{ formatBytes(snapshot.total_size || 0) }}
-                        </dd>
-                        <dt class="text-foreground-muted">
-                          {{ t("backupTasks.progress.files") }}
-                        </dt>
-                        <dd class="text-foreground">
-                          {{ snapshot.file_count || 0 }}
-                        </dd>
-                        <dt
-                          v-if="snapshot.expires_at"
-                          class="text-foreground-muted">
-                          {{ t("backupTasks.detail.expiresAt") }}
-                        </dt>
-                        <dd v-if="snapshot.expires_at" class="text-foreground">
-                          {{ formatDateTime(snapshot.expires_at) }}
-                        </dd>
-                      </dl>
                     </div>
-                  </button>
+                    <div
+                      class="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-2.5">
+                      <button
+                        v-for="snapshot in group.snapshots"
+                        :key="snapshot.id"
+                        type="button"
+                        @click="loadSnapshotFiles(snapshot)"
+                        @mouseenter="showSnapshotHoverTooltip(snapshot, $event)"
+                        @mouseleave="scheduleSnapshotHoverTooltipHide"
+                        @focus="showSnapshotHoverTooltip(snapshot, $event)"
+                        @blur="scheduleSnapshotHoverTooltipHide"
+                        :class="[
+                          'group relative aspect-square overflow-visible rounded-lg border p-2.5 text-left transition-all focus:outline-none focus:ring-2 focus:ring-primary',
+                          selectedSnapshot?.id === snapshot.id
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm dark:bg-emerald-950/30 dark:text-emerald-50'
+                            : 'border-border bg-card hover:border-emerald-400 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/20',
+                        ]">
+                        <span
+                          v-if="isNoChangeSnapshotReference(snapshot)"
+                          :title="t('backupTasks.detail.noChanges')"
+                          class="absolute left-2 top-2 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-card dark:ring-background" />
+                        <div class="flex items-center justify-between gap-2">
+                          <span
+                            :class="[
+                              'inline-flex h-7 w-7 items-center justify-center rounded-md',
+                              selectedSnapshot?.id === snapshot.id
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                            ]">
+                            <CircleStackIcon class="w-4 h-4" />
+                          </span>
+                          <span
+                            v-if="isLatestDisplayedSnapshot(snapshot)"
+                            class="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-medium">
+                            {{ t("backupTasks.detail.latest") }}
+                          </span>
+                        </div>
+                        <p
+                          class="mt-2 text-xs font-medium text-foreground truncate">
+                          {{
+                            formatCompactDateTime(snapshotDisplayTime(snapshot))
+                          }}
+                        </p>
+                        <p
+                          class="mt-1 text-[11px] text-foreground-secondary truncate">
+                          {{ formatBytes(snapshotDisplaySize(snapshot)) }}
+                        </p>
+                        <div
+                          class="mt-2 flex items-center justify-between text-[11px]">
+                          <span class="text-foreground-muted">
+                            {{
+                              isNoChangeSnapshotReference(snapshot)
+                                ? t("backupTasks.detail.changedFiles", {
+                                    count: 0,
+                                  })
+                                : `${snapshotDisplayFileCount(snapshot)} ${t(
+                                    "backupTasks.progress.files",
+                                  )}`
+                            }}
+                          </span>
+                          <span
+                            v-if="selectedSnapshot?.id === snapshot.id"
+                            class="h-2 w-2 rounded-full bg-emerald-500" />
+                        </div>
+                      </button>
+                    </div>
+                  </section>
                 </div>
 
                 <div
@@ -2924,7 +3560,11 @@ onMounted(() => {
                       <p class="text-xs text-foreground-secondary">
                         {{
                           selectedSnapshot
-                            ? selectedSnapshot.name || selectedSnapshot.id
+                            ? isNoChangeSnapshotReference(selectedSnapshot)
+                              ? t(
+                                  "backupTasks.detail.showingReferencedSnapshot",
+                                )
+                              : selectedSnapshot.name || selectedSnapshot.id
                             : "-"
                         }}
                       </p>
@@ -2947,6 +3587,26 @@ onMounted(() => {
                     v-else-if="!selectedSnapshot"
                     class="p-6 text-center text-foreground-secondary">
                     {{ t("backupTasks.detail.selectSnapshot") }}
+                  </div>
+                  <div
+                    v-else-if="snapshotFilesError"
+                    class="p-6 text-center">
+                    <ExclamationTriangleIcon
+                      class="mx-auto mb-3 h-8 w-8 text-warning" />
+                    <p class="text-sm font-medium text-foreground">
+                      {{ t("backupTasks.detail.snapshotFilesLoadFailed") }}
+                    </p>
+                    <p
+                      class="mx-auto mt-1 max-w-xl text-sm text-foreground-secondary">
+                      {{ snapshotFilesError }}
+                    </p>
+                    <button
+                      type="button"
+                      class="mt-4 inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
+                      @click="loadSnapshotFiles(selectedSnapshot)">
+                      <ArrowPathIcon class="h-4 w-4" />
+                      {{ t("common.retry") }}
+                    </button>
                   </div>
                   <div
                     v-else-if="selectedSnapshotFiles.length === 0"
@@ -3135,6 +3795,134 @@ onMounted(() => {
             </div>
           </div>
         </aside>
+      </div>
+    </Teleport>
+    <Teleport to="body">
+      <div
+        v-if="collapseNoChangesHelpVisible"
+        class="fixed z-[2147483647] w-72 -translate-x-1/2 rounded-lg border border-border bg-card px-3 py-2 text-left text-xs font-normal leading-5 text-foreground-secondary shadow-2xl pointer-events-auto"
+        :style="{
+          top: `${collapseNoChangesHelpPosition.top}px`,
+          left: `${collapseNoChangesHelpPosition.left}px`,
+        }"
+        @mouseenter="cancelCollapseNoChangesHelpHide"
+        @mouseleave="scheduleCollapseNoChangesHelpHide">
+        {{ t("backupTasks.detail.collapseNoChangesHelp") }}
+      </div>
+    </Teleport>
+    <Teleport to="body">
+      <div
+        v-if="snapshotHoverTooltip"
+        class="fixed z-[2147483647] w-72 -translate-x-1/2 rounded-lg border border-border bg-card p-3 text-xs shadow-2xl pointer-events-auto"
+        :class="
+          snapshotHoverTooltip.placement === 'top'
+            ? '-translate-y-full'
+            : ''
+        "
+        :style="{
+          top: `${snapshotHoverTooltip.top}px`,
+          left: `${snapshotHoverTooltip.left}px`,
+        }"
+        @mouseenter="cancelSnapshotHoverTooltipHide"
+        @mouseleave="scheduleSnapshotHoverTooltipHide">
+        <div class="flex items-center gap-2 border-b border-border pb-2">
+          <CircleStackIcon class="w-4 h-4 text-emerald-600" />
+          <p class="font-semibold text-foreground truncate">
+            {{
+              snapshotHoverTooltip.snapshot.name ||
+              snapshotHoverTooltip.snapshot.version ||
+              snapshotHoverTooltip.snapshot.id
+            }}
+          </p>
+        </div>
+        <dl
+          class="mt-2 grid grid-cols-[88px_minmax(0,1fr)] gap-x-2 gap-y-1.5">
+          <dt class="text-foreground-muted">
+            {{ t("backupTasks.detail.snapshotId") }}
+          </dt>
+          <dd class="text-foreground truncate">
+            {{
+              snapshotHoverTooltip.snapshot.version ||
+              snapshotHoverTooltip.snapshot.id
+            }}
+          </dd>
+          <dt class="text-foreground-muted">
+            {{ t("common.date") }}
+          </dt>
+          <dd class="text-foreground">
+            {{ formatDateTime(snapshotDisplayTime(snapshotHoverTooltip.snapshot)) }}
+          </dd>
+          <dt class="text-foreground-muted">
+            {{
+              isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)
+                ? t("backupTasks.detail.dataWritten")
+                : t("backupTasks.progress.size")
+            }}
+          </dt>
+          <dd class="text-foreground">
+            {{ formatBytes(snapshotDisplaySize(snapshotHoverTooltip.snapshot)) }}
+          </dd>
+          <dt class="text-foreground-muted">
+            {{ t("backupTasks.progress.files") }}
+          </dt>
+          <dd class="text-foreground">
+            {{
+              isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)
+                ? t("backupTasks.detail.changedFiles", { count: 0 })
+                : snapshotDisplayFileCount(snapshotHoverTooltip.snapshot)
+            }}
+          </dd>
+          <dt
+            v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
+            class="text-foreground-muted">
+            {{ t("common.status") }}
+          </dt>
+          <dd
+            v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
+            class="text-amber-600 dark:text-amber-300">
+            {{ t("backupTasks.detail.noChanges") }}
+          </dd>
+          <dt
+            v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
+            class="text-foreground-muted">
+            {{ t("backupTasks.detail.referencedSnapshot") }}
+          </dt>
+          <dd
+            v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
+            class="text-foreground truncate">
+            {{ snapshotReferencedId(snapshotHoverTooltip.snapshot) || "-" }}
+          </dd>
+          <dt
+            v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
+            class="text-foreground-muted">
+            {{ t("backupTasks.detail.referencedSize") }}
+          </dt>
+          <dd
+            v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
+            class="text-foreground">
+            {{ formatBytes(snapshotHoverTooltip.snapshot.total_size || 0) }}
+          </dd>
+          <dt
+            v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
+            class="text-foreground-muted">
+            {{ t("backupTasks.detail.referencedFiles") }}
+          </dt>
+          <dd
+            v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
+            class="text-foreground">
+            {{ snapshotHoverTooltip.snapshot.file_count || 0 }}
+          </dd>
+          <dt
+            v-if="snapshotHoverTooltip.snapshot.expires_at"
+            class="text-foreground-muted">
+            {{ t("backupTasks.detail.expiresAt") }}
+          </dt>
+          <dd
+            v-if="snapshotHoverTooltip.snapshot.expires_at"
+            class="text-foreground">
+            {{ formatDateTime(snapshotHoverTooltip.snapshot.expires_at) }}
+          </dd>
+        </dl>
       </div>
     </Teleport>
   </div>

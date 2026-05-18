@@ -5,7 +5,8 @@ This module provides serializers for the backup tasks API.
 """
 
 from rest_framework import serializers
-from .models import BackupTask, BackupSnapshot, BackupFile
+from django.utils import timezone
+from .models import BackupTask, BackupSnapshot, BackupFile, BackupTaskRun
 
 
 class BackupFileSerializer(serializers.ModelSerializer):
@@ -46,7 +47,7 @@ class BackupSnapshotListSerializer(serializers.ModelSerializer):
         model = BackupSnapshot
         fields = [
             'id', 'task', 'task_name', 'name', 'version', 'total_size', 'file_count',
-            'created_at', 'expires_at'
+            'storage_path', 'manifest_path', 'metadata', 'created_at', 'expires_at'
         ]
 
 
@@ -104,7 +105,7 @@ class BackupTaskSerializer(serializers.ModelSerializer):
             'compression_enabled', 'compression_type', 'encryption_enabled',
             # Scheduling
             'schedule', 'schedule_name', 'policy_overrides', 'effective_policy',
-            'next_run_time', 'last_run_time',
+            'next_run_time', 'last_run_time', 'last_run_status',
             # Status
             'status', 'status_message', 'progress', 'progress_percent', 'error_message',
             # Retention
@@ -128,7 +129,8 @@ class BackupTaskSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'started_at', 'completed_at',
             'total_files', 'backed_up_files', 'total_size', 'backed_up_size',
             'skipped_files', 'failed_files', 'bytes_per_second',
-            'retry_count', 'estimated_completion_at', 'parent_task', 'effective_policy'
+            'retry_count', 'estimated_completion_at', 'parent_task', 'effective_policy',
+            'last_run_status',
         ]
     
     def get_execution_node_name(self, obj):
@@ -163,6 +165,7 @@ class BackupTaskListSerializer(serializers.ModelSerializer):
             'target_repository_type',
             'execution_node_name',
             'task_type', 'priority', 'status', 'progress', 'is_enabled',
+            'last_run_status',
             'execution_mode', 'preferred_execution_node',
             'schedule', 'schedule_name', 'policy_overrides', 'effective_policy',
             'next_run_time', 'last_run_time',
@@ -180,6 +183,44 @@ class BackupTaskListSerializer(serializers.ModelSerializer):
 
     def get_snapshot_count(self, obj):
         return obj.snapshots.count()
+
+
+class BackupTaskRunSerializer(serializers.ModelSerializer):
+    """Serializer for business-level backup execution runs."""
+
+    task_name = serializers.CharField(source='task.name', read_only=True)
+    proxy_name = serializers.CharField(source='selected_proxy.name', read_only=True)
+    repository_name = serializers.CharField(source='repository.name', read_only=True)
+    source_resource_name = serializers.CharField(source='source_resource.name', read_only=True)
+    proxy_task_id = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
+    duration_seconds = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BackupTaskRun
+        fields = [
+            'id', 'task', 'task_name', 'name', 'proxy_task_id', 'trigger_type', 'scheduled_for',
+            'status', 'progress', 'message', 'error_message',
+            'selected_proxy', 'proxy_name', 'repository', 'repository_name',
+            'source_resource', 'source_resource_name',
+            'total_files', 'processed_files', 'total_bytes', 'processed_bytes',
+            'speed_mbps', 'eta', 'current_file', 'result', 'parameters',
+            'created_at', 'dispatched_at', 'started_at', 'completed_at',
+            'duration_seconds',
+        ]
+        read_only_fields = fields
+
+    def get_proxy_task_id(self, obj):
+        return str(obj.proxy_task_id) if obj.proxy_task_id else None
+
+    def get_name(self, obj):
+        return f"Backup Run - {obj.task.name}"
+
+    def get_duration_seconds(self, obj):
+        if not obj.started_at:
+            return None
+        end = obj.completed_at or timezone.now()
+        return (end - obj.started_at).total_seconds()
 
 
 class BackupTaskCreateSerializer(serializers.ModelSerializer):

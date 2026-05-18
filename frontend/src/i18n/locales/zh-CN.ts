@@ -69,6 +69,7 @@ export default {
     back: "返回",
     next: "下一步",
     previous: "上一步",
+    retry: "重试",
     loading: "加载中...",
     noData: "暂无数据",
     confirm: "确认",
@@ -948,6 +949,7 @@ export default {
 
     form: {
       taskName: "任务名称",
+      description: "描述",
       taskType: "备份类型",
       sourceNode: "源节点",
       targetGateway: "目标网关",
@@ -964,8 +966,10 @@ export default {
       runNow: "立即运行",
       scheduleForLater: "稍后调度",
       businessTags: "业务标签",
+      tags: "标签",
       accessMode: "接入方式",
       sourceType: "源类型",
+      compressionLevel: "压缩级别",
     },
 
     wizard: {
@@ -1114,6 +1118,7 @@ export default {
       autoUnavailable:
         "当源端或目标仓库依赖本地文件系统路径时，不能使用自动执行位置策略。",
       preferredProxy: "优先 Sync Proxy",
+      autoSelect: "执行时自动选择",
       selectPreferredProxy: "选择 Sync Proxy",
       preferredProxyDesc:
         "优先使用选中的 Sync Proxy；如果离线或负载过高，则回退到其他兼容的 Sync Proxy。",
@@ -1151,21 +1156,32 @@ export default {
     policyOverrides: {
       policyBaseline: "策略基线",
       policyBaselineDesc:
-        "绑定 Kopia 策略作为基线，只覆盖当前任务需要不同的配置。",
+        "绑定一个可复用的策略基线。HyperFileLens 使用其中的备份频率调度当前任务，并在执行时应用 Kopia 保留行为。",
       none: "未覆盖",
       schedule: "调度",
       retention: "保留",
       files: "文件规则",
       compression: "压缩",
       overrideSchedule: "覆盖当前任务的调度",
+      usePolicySchedule: "使用策略调度",
+      overrideScheduleDesc:
+        "使用当前任务自己的备份频率，而不是已选策略中的调度。",
       usePolicyRetention: "使用策略保留规则",
       overrideRetention: "覆盖当前任务的保留规则",
       taskRetentionDesc:
-        "当前未选择策略，保留规则将使用此任务中配置的数值。",
+        "当前未选择策略，调度和保留规则将使用此任务中配置的数值。",
       taskExclusions: "任务级排除规则",
       taskExclusionsDesc:
         "这些忽略规则会和已选策略合并，并在创建快照前应用。",
       overrideCompression: "覆盖压缩与性能参数",
+    },
+
+    review: {
+      basic: "基础信息",
+      source: "备份源",
+      repository: "备份仓库",
+      execution: "执行位置",
+      scheduleRetention: "调度与保留",
     },
 
     diagnostics: {
@@ -1203,9 +1219,38 @@ export default {
       fileBrowser: "文件浏览",
       selectSnapshot: "请选择一个快照后浏览文件。",
       noSnapshotFiles: "当前快照暂未记录文件明细。",
+      snapshotFilesLoadFailed: "快照文件加载失败",
       urlStyle: "URL Style",
       useTls: "Use TLS",
       latest: "最新",
+      noChanges: "无变化",
+      dataWritten: "本次写入",
+      changedFiles: "{count} 个变化文件",
+      referencedSnapshot: "引用快照",
+      referencedSize: "引用容量",
+      referencedFiles: "引用文件数",
+      showingReferencedSnapshot: "本次未检测到变化，当前展示引用快照中的文件。",
+      collapseNoChanges: "折叠无变化快照",
+      collapseNoChangesHelp:
+        "无变化快照是一次备份执行记录，它复用上一份内容未变化的 Kopia 快照；折叠只会在当前视图隐藏这些记录。",
+      snapshotDisplay: "快照展示",
+      groupAll: "全部",
+      groupByDay: "按天",
+      groupByMonth: "按月",
+      groupByChange: "按变化",
+      groupBySize: "按大小",
+      allSnapshots: "全部快照",
+      snapshotGroupSummary: "{count} 个快照 · {size}",
+      unknownTime: "未知时间",
+      changedSnapshots: "有变化快照",
+      noChangeSnapshots: "无变化快照",
+      sizeZero: "0 字节",
+      sizeSmall: "小于 1 GB",
+      sizeMedium: "1 GB - 10 GB",
+      sizeLarge: "大于 10 GB",
+      hiddenNoChanges: "已隐藏 {count} 个无变化快照。",
+      noHiddenNoChanges: "当前没有隐藏无变化快照。",
+      noNormalSnapshots: "暂无可展示的正常快照。",
       snapshotId: "快照 ID",
       expiresAt: "过期时间",
       autoRefresh: "自动刷新",
@@ -1721,8 +1766,8 @@ export default {
   // Policies
   policies: {
     title: "备份策略",
-    subtitle: "定义 Kopia 原生备份策略、调度和保留规则",
-    kopiaSubtitle: "按 Kopia 对仓库和快照路径实际生效的策略模型进行配置。",
+    subtitle: "定义可复用的备份行为、平台备份频率和 Kopia 保留规则",
+    kopiaSubtitle: "保留规则和路径行为会应用到 Kopia；备份频率由 HyperFileLens 调度器评估触发。",
 
     stats: {
       total: "策略总数",
@@ -1771,6 +1816,7 @@ export default {
 
     target: {
       title: "策略目标",
+      allSnapshots: "所有快照",
       description:
         "定义该策略应用到什么范围。范围越精确，优先级越高。",
       host: "主机",
@@ -1803,7 +1849,9 @@ export default {
 
     schedule: {
       title: "备份频率",
-      description: "定义快照应该多久执行一次。",
+      description: "定义 HyperFileLens 多久触发一次使用该策略的任务。Kopia 本身不会自动执行这个调度。",
+      owner: "调度归属",
+      platformScheduler: "由 HyperFileLens 调度器处理",
       interval: "快照间隔",
       intervalDesc:
         "按固定时间间隔重复执行快照，例如 4h 或 24h。",
@@ -1867,7 +1915,7 @@ export default {
 
     preview: {
       title: "策略预览",
-      description: "检查该策略对应的 Kopia 命令。",
+      description: "检查该策略对应的 Kopia 保留命令和平台调度频率。",
     },
 
     validation: {

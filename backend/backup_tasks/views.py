@@ -5,6 +5,7 @@ This module provides REST API views for backup task management.
 """
 
 import copy
+import re
 import time
 import uuid
 
@@ -22,7 +23,7 @@ from audit_log.services import AuditService
 from nodes.models import ProxyNode, ProxyTask
 from nodes.proxy_service import ProxyService
 from repository.models import Repository
-from .models import BackupTask, BackupSnapshot
+from .models import BackupTask, BackupSnapshot, BackupTaskRun
 from .serializers import (
     BackupTaskSerializer,
     BackupTaskListSerializer,
@@ -33,7 +34,30 @@ from .serializers import (
     BackupTaskStatisticsSerializer,
     BackupSnapshotSerializer,
     BackupSnapshotListSerializer,
+    BackupTaskRunSerializer,
 )
+from .services.execution import dispatch_backup_task, BackupTaskExecutionError
+
+
+def _parse_kopia_snapshot_ids(output):
+    """Return (root_object_id, snapshot_manifest_id) from Kopia snapshot output."""
+    if not output:
+        return '', ''
+    match = re.search(
+        r'Created snapshot with root\s+(\S+)\s+and ID\s+(\S+)',
+        str(output),
+    )
+    if not match:
+        return '', ''
+    return match.group(1).strip(), match.group(2).strip().rstrip('.')
+
+
+def _is_probably_kopia_object_id(value):
+    """Reject platform UUIDs and other values Kopia cannot use as a content object ID."""
+    if not value:
+        return False
+    value = str(value).strip()
+    return bool(re.match(r'^[A-Za-z][A-Za-z0-9]{10,}$', value))
 
 
 def _dedupe_list(values):
@@ -147,11 +171,16 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         """Create a new backup task with the current user."""
         self.check_quota_before_create()
         task = serializer.save(user=self.request.user, tenant=self.request.user.tenant)
+        task.next_run_time = task.calculate_next_run_time()
+        task.save(update_fields=['next_run_time', 'updated_at'])
         AuditService.log_backup_task_create(self.request, task, result='success')
     
     def perform_update(self, serializer):
         """Update a backup task."""
         task = serializer.save()
+        if any(field in serializer.validated_data for field in ['schedule', 'is_enabled', 'policy_overrides']):
+            task.next_run_time = task.calculate_next_run_time()
+            task.save(update_fields=['next_run_time', 'updated_at'])
         changed_fields = list(serializer.validated_data.keys())
         AuditService.log_backup_task_update(self.request, task, changed_fields=changed_fields, result='success')
     
@@ -171,151 +200,27 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         serializer = BackupTaskExecuteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        # Check if task is already running
-        if task.status == BackupTask.STATUS_RUNNING and not serializer.validated_data.get('force'):
-            return Response(
-                {'error': 'Task is already running. Use force=true to override.'},
-                status=status.HTTP_400_BAD_REQUEST
+        try:
+            run, proxy_task = dispatch_backup_task(
+                task,
+                trigger_type=BackupTaskRun.TRIGGER_MANUAL,
+                force=serializer.validated_data.get('force'),
+                task_type=serializer.validated_data.get('task_type') or task.task_type,
+                repository_password=serializer.validated_data.get('repository_password'),
             )
-        if not task.is_enabled:
-            return Response(
-                {'error': 'Task is disabled. Enable it before execution.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Check if source resource has a bound node for pinned/local execution.
-        if not task.source_resource.bound_node and task.execution_mode == BackupTask.EXECUTION_MODE_PINNED:
-            return Response(
-                {'error': 'Source resource has no bound node for execution'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        execution_node, placement_error = self._select_execution_node(task)
-        if placement_error:
-            return Response(
-                {'error': placement_error},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Reset task status if forcing
-        if serializer.validated_data.get('force'):
-            task.mark_pending()
-        
-        repository_config = self._build_repository_config(task.target_repository)
-        source_path = self._resolve_source_path(task)
-        if not source_path:
-            return Response(
-                {'error': 'Backup task has no source path to execute'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        effective_policy = self._build_effective_policy(task, source_path)
-
-        repository_password = (
-            serializer.validated_data.get('repository_password')
-            or task.target_repository.get_kopia_password()
-        )
-        if not repository_password:
-            return Response(
-                {
-                    'error': (
-                        'Repository password is not saved. '
-                        'Please save the Kopia repository password before executing backup tasks.'
-                    ),
-                    'error_code': 'REPOSITORY_PASSWORD_REQUIRED',
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        proxy_task = ProxyTask.objects.create(
-            proxy=execution_node,
-            task_type=ProxyTask.TaskType.BACKUP,
-            parameters={
-                'backup_task_id': str(task.id),
-                'backup_task_name': task.name,
-                'source_resource_id': str(task.source_resource_id),
-                'repository_id': str(task.target_repository_id),
-                'source_path': source_path,
-                'backup_paths': task.backup_paths,
-                'exclude_patterns': task.exclude_patterns,
-                'include_patterns': task.include_patterns,
-                'policy_overrides': task.policy_overrides,
-                'effective_policy': effective_policy,
-                'execution_mode': task.execution_mode,
-                'selected_execution_node_id': str(execution_node.id),
-                'selected_execution_node_name': execution_node.name,
-                'task_type': serializer.validated_data.get('task_type') or task.task_type,
-                'priority': task.priority,
-            },
-            repository_id=task.target_repository_id,
-            source_resource_id=task.source_resource_id,
-            status=ProxyTask.TaskStatus.PENDING,
-            timeout_seconds=task.checkpoint_interval_minutes * 60 if task.checkpoint_interval_minutes else 3600,
-        )
-        proxy_task.dispatch()
-
-        payload = {
-            'task_id': str(proxy_task.id),
-            'backup_task_id': str(task.id),
-            'source_resource_id': str(task.source_resource_id),
-            'repository_id': str(task.target_repository_id),
-            'source_path': source_path,
-            'backup_paths': task.backup_paths,
-            'exclude_patterns': task.exclude_patterns,
-            'include_patterns': task.include_patterns,
-            'policy_overrides': task.policy_overrides,
-            'effective_policy': effective_policy,
-            'execution_placement': {
-                'mode': task.execution_mode,
-                'selected_proxy_id': str(execution_node.id),
-                'selected_proxy_name': execution_node.name,
-                'preferred_proxy_id': str(task.preferred_execution_node_id) if task.preferred_execution_node_id else None,
-            },
-            'source_resource': self._build_source_resource_config(task.source_resource),
-            'repository': repository_config,
-            'password': repository_password,
-            'task_type': serializer.validated_data.get('task_type') or task.task_type,
-            'priority': task.priority,
-            'compression_enabled': task.compression_enabled,
-            'compression_type': task.compression_type,
-            'compression_level': task.compression_level,
-            'verify_checksum': task.verify_checksum,
-            'max_concurrent_files': task.max_concurrent_files,
-            'bandwidth_limit_kbps': task.bandwidth_limit_kbps,
-            'timestamp': timezone.now().isoformat(),
-        }
-
-        if not ProxyService.send_to_proxy(
-            str(execution_node.id),
-            {
-                'type': 'backup',
-                'id': str(proxy_task.id),
-                'timestamp': timezone.now().isoformat(),
-                'payload': payload,
-            },
-        ):
-            proxy_task.fail('Failed to send backup command to proxy')
-            return Response(
-                {'error': 'Failed to send backup command to proxy'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-        task.status = BackupTask.STATUS_RUNNING
-        task.progress = 0
-        task.status_message = 'Backup command dispatched to proxy'
-        task.error_message = ''
-        task.effective_policy = effective_policy
-        task.started_at = timezone.now()
-        task.last_run_time = timezone.now()
-        task.save(update_fields=[
-            'status', 'progress', 'status_message', 'error_message',
-            'effective_policy', 'started_at', 'last_run_time', 'updated_at'
-        ])
+        except BackupTaskExecutionError as exc:
+            error_text = str(exc)
+            payload = {'error': error_text}
+            if 'password' in error_text.lower():
+                payload['error_code'] = 'REPOSITORY_PASSWORD_REQUIRED'
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
         
         return Response({
             'message': 'Backup task started',
             'task_id': str(task.id),
             'proxy_task_id': str(proxy_task.id),
-            'execution_node': execution_node.name if execution_node else None
+            'run_id': str(run.id),
+            'execution_node': proxy_task.proxy.name if proxy_task.proxy_id else None
         })
 
     def _select_execution_node(self, task):
@@ -598,7 +503,8 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         task.status = BackupTask.STATUS_CANCELLED
         task.status_message = serializer.validated_data.get('reason', '')
         task.completed_at = timezone.now()
-        task.save(update_fields=['status', 'status_message', 'completed_at', 'updated_at'])
+        task.last_run_status = BackupTaskRun.STATUS_CANCELLED
+        task.save(update_fields=['status', 'status_message', 'last_run_status', 'completed_at', 'updated_at'])
 
         proxy_tasks = ProxyTask.objects.filter(
             parameters__backup_task_id=str(task.id),
@@ -611,6 +517,11 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         ).select_related('proxy')
         for proxy_task in proxy_tasks:
             proxy_task.cancel()
+            BackupTaskRun.objects.filter(proxy_task=proxy_task).update(
+                status=BackupTaskRun.STATUS_CANCELLED,
+                message=serializer.validated_data.get('reason', 'Task cancelled by user'),
+                completed_at=timezone.now(),
+            )
             ProxyService.send_to_proxy(
                 str(proxy_task.proxy_id),
                 {
@@ -690,7 +601,8 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         """Enable a backup task."""
         task = self.get_object()
         task.is_enabled = True
-        task.save(update_fields=['is_enabled', 'updated_at'])
+        task.next_run_time = task.calculate_next_run_time()
+        task.save(update_fields=['is_enabled', 'next_run_time', 'updated_at'])
         return Response({'message': 'Task enabled', 'task_id': str(task.id)})
 
     @action(detail=True, methods=['post'])
@@ -698,7 +610,8 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         """Disable a backup task and cancel it if it is currently running."""
         task = self.get_object()
         task.is_enabled = False
-        update_fields = ['is_enabled', 'updated_at']
+        task.next_run_time = None
+        update_fields = ['is_enabled', 'next_run_time', 'updated_at']
         if task.status == BackupTask.STATUS_RUNNING:
             task.status = BackupTask.STATUS_CANCELLED
             task.status_message = 'Task disabled by user'
@@ -711,7 +624,125 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     def snapshots(self, request, pk=None):
         """List all snapshots for a backup task."""
         task = self.get_object()
-        snapshots = BackupSnapshot.objects.filter(task=task).order_by('-created_at')
+        recent_proxy_tasks = list(ProxyTask.objects.filter(
+            task_type=ProxyTask.TaskType.BACKUP,
+            parameters__backup_task_id=str(task.id),
+            status=ProxyTask.TaskStatus.COMPLETED,
+        ).order_by('-completed_at', '-created_at')[:20])
+        for proxy_task in reversed(recent_proxy_tasks):
+            result = proxy_task.result or {}
+            output = str(result.get('output') or '')
+            parsed_root_object_id, parsed_snapshot_id = _parse_kopia_snapshot_ids(output)
+            root_object_id = (
+                result.get('root_object_id') or result.get('object_id')
+                or result.get('root_id') or result.get('root')
+                or result.get('manifest_path') or parsed_root_object_id
+            )
+            snapshot_id = (
+                result.get('snapshot_id') or result.get('manifest_id')
+                or result.get('snapshot') or result.get('id')
+                or parsed_snapshot_id
+            )
+            if not snapshot_id or not _is_probably_kopia_object_id(root_object_id):
+                continue
+            no_changes = bool(result.get('no_changes'))
+            if no_changes:
+                snapshot = BackupSnapshot.objects.filter(
+                    task=task,
+                    metadata__proxy_task_id=str(proxy_task.id),
+                ).first()
+                if not snapshot:
+                    snapshot = BackupSnapshot.objects.create(
+                        task=task,
+                        repository=task.target_repository,
+                        name=f'no-change-{timezone.now().strftime("%Y%m%d_%H%M%S")}',
+                        version=str(snapshot_id),
+                        storage_path=str(snapshot_id),
+                        manifest_path=str(root_object_id),
+                        total_size=result.get('total_size') or result.get('backed_up_size') or 0,
+                        file_count=result.get('total_files') or result.get('backed_up_files') or 0,
+                        metadata={},
+                    )
+            else:
+                snapshot = next(
+                    (
+                        item for item in BackupSnapshot.objects.filter(
+                            task=task,
+                            storage_path=str(snapshot_id),
+                        )
+                        if not (item.metadata or {}).get('no_changes')
+                    ),
+                    None,
+                )
+                if not snapshot:
+                    snapshot = BackupSnapshot.objects.create(
+                        task=task,
+                        repository=task.target_repository,
+                        name=f'snapshot-{timezone.now().strftime("%Y%m%d_%H%M%S")}',
+                        version=str(snapshot_id),
+                        storage_path=str(snapshot_id),
+                        manifest_path=str(root_object_id),
+                        total_size=result.get('total_size') or result.get('backed_up_size') or 0,
+                        file_count=result.get('total_files') or result.get('backed_up_files') or 0,
+                        metadata={},
+                    )
+            metadata = snapshot.metadata or {}
+            metadata.update({
+                'proxy_task_id': str(proxy_task.id),
+                'source_path': (proxy_task.parameters or {}).get('source_path', ''),
+                'root_object_id': str(root_object_id),
+                'snapshot_id': str(snapshot_id),
+                'referenced_snapshot_id': str(snapshot_id) if no_changes else '',
+                'kopia_output': output,
+                'no_changes': no_changes,
+                'last_no_changes': no_changes,
+                'last_seen_at': (
+                    proxy_task.completed_at or proxy_task.updated_at or timezone.now()
+                ).isoformat(),
+            })
+            snapshot.repository = task.target_repository
+            snapshot.version = str(snapshot_id)
+            snapshot.storage_path = str(snapshot_id)
+            snapshot.manifest_path = str(root_object_id)
+            snapshot.total_size = snapshot.total_size or result.get('total_size') or result.get('backed_up_size') or 0
+            snapshot.file_count = snapshot.file_count or result.get('total_files') or result.get('backed_up_files') or 0
+            snapshot.metadata = metadata
+            snapshot.save(update_fields=[
+                'repository', 'version', 'storage_path', 'manifest_path',
+                'total_size', 'file_count', 'metadata',
+            ])
+
+        for snapshot in BackupSnapshot.objects.filter(task=task, manifest_path=''):
+            parsed_object_id, parsed_snapshot_id = _parse_kopia_snapshot_ids(
+                (snapshot.metadata or {}).get('kopia_output', '')
+            )
+            if parsed_object_id:
+                snapshot.manifest_path = parsed_object_id
+                if parsed_snapshot_id and snapshot.storage_path != parsed_snapshot_id:
+                    snapshot.storage_path = parsed_snapshot_id
+                    snapshot.version = parsed_snapshot_id
+                metadata = snapshot.metadata or {}
+                metadata.update({
+                    'root_object_id': parsed_object_id,
+                    'snapshot_id': parsed_snapshot_id or snapshot.storage_path,
+                })
+                snapshot.metadata = metadata
+                snapshot.save(update_fields=[
+                    'storage_path', 'version', 'manifest_path', 'metadata',
+                ])
+
+        valid_snapshot_ids = [
+            snapshot.id
+            for snapshot in BackupSnapshot.objects.filter(task=task).only('id', 'manifest_path')
+            if _is_probably_kopia_object_id(snapshot.manifest_path)
+        ]
+        snapshots = list(BackupSnapshot.objects.filter(
+            id__in=valid_snapshot_ids,
+        ))
+        snapshots.sort(
+            key=lambda item: (item.metadata or {}).get('last_seen_at') or item.created_at.isoformat(),
+            reverse=True,
+        )
         
         # Pagination
         page = self.paginate_queryset(snapshots)
@@ -726,54 +757,17 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     def runs(self, request, pk=None):
         """List execution runs for a backup task."""
         task = self.get_object()
-        proxy_tasks = ProxyTask.objects.filter(
-            parameters__backup_task_id=str(task.id),
-            task_type=ProxyTask.TaskType.BACKUP,
-        ).select_related('proxy').order_by('-created_at')
+        runs = BackupTaskRun.objects.filter(task=task).select_related(
+            'selected_proxy', 'repository', 'source_resource', 'proxy_task'
+        ).order_by('-created_at')
 
-        def duration_seconds(proxy_task):
-            if not proxy_task.started_at:
-                return None
-            end = proxy_task.completed_at or timezone.now()
-            return (end - proxy_task.started_at).total_seconds()
-
-        def normalize(proxy_task):
-            result = proxy_task.result or {}
-            return {
-                'id': str(proxy_task.id),
-                'source': 'backup',
-                'name': f'Backup Run - {task.name}',
-                'task_type': proxy_task.task_type,
-                'status': proxy_task.status,
-                'progress': proxy_task.progress,
-                'message': proxy_task.progress_message or proxy_task.error_message or '',
-                'proxy_id': str(proxy_task.proxy_id),
-                'proxy_name': proxy_task.proxy.name if proxy_task.proxy_id else '',
-                'repository_id': str(proxy_task.repository_id) if proxy_task.repository_id else None,
-                'source_resource_id': str(proxy_task.source_resource_id) if proxy_task.source_resource_id else None,
-                'created_at': proxy_task.created_at,
-                'dispatched_at': proxy_task.dispatched_at,
-                'started_at': proxy_task.started_at,
-                'completed_at': proxy_task.completed_at,
-                'duration_seconds': duration_seconds(proxy_task),
-                'progress_message': proxy_task.progress_message,
-                'current_file': proxy_task.current_file,
-                'total_files': proxy_task.total_files or result.get('total_files') or result.get('file_count') or 0,
-                'processed_files': proxy_task.processed_files or result.get('processed_files') or 0,
-                'total_bytes': proxy_task.total_bytes or result.get('total_bytes') or result.get('total_size') or 0,
-                'processed_bytes': proxy_task.processed_bytes or result.get('processed_bytes') or result.get('processed_size') or 0,
-                'speed_mbps': proxy_task.speed_mbps,
-                'eta': proxy_task.eta,
-                'parameters': proxy_task.parameters,
-                'result': result,
-                'error_message': proxy_task.error_message,
-            }
-
-        page = self.paginate_queryset(proxy_tasks)
+        page = self.paginate_queryset(runs)
         if page is not None:
-            return self.get_paginated_response([normalize(item) for item in page])
+            serializer = BackupTaskRunSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
-        return Response([normalize(item) for item in proxy_tasks])
+        serializer = BackupTaskRunSerializer(runs, many=True)
+        return Response(serializer.data)
     
     @action(detail=True, methods=['get'])
     def detail(self, request, pk=None):
@@ -933,6 +927,42 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        object_id = (
+            snapshot.manifest_path
+            or (snapshot.metadata or {}).get('root_object_id')
+            or ''
+        )
+        if not _is_probably_kopia_object_id(object_id):
+            parsed_object_id, parsed_snapshot_id = _parse_kopia_snapshot_ids(
+                (snapshot.metadata or {}).get('kopia_output', '')
+            )
+            if parsed_object_id:
+                object_id = parsed_object_id
+                if parsed_snapshot_id and snapshot.storage_path != parsed_snapshot_id:
+                    snapshot.storage_path = parsed_snapshot_id
+                    snapshot.version = parsed_snapshot_id
+                snapshot.manifest_path = parsed_object_id
+                metadata = snapshot.metadata or {}
+                metadata.update({
+                    'root_object_id': parsed_object_id,
+                    'snapshot_id': parsed_snapshot_id or snapshot.storage_path,
+                })
+                snapshot.metadata = metadata
+                snapshot.save(update_fields=[
+                    'storage_path', 'version', 'manifest_path', 'metadata',
+                ])
+
+        if not _is_probably_kopia_object_id(object_id):
+            return Response(
+                {
+                    'error': (
+                        'Snapshot root object ID is missing or invalid. '
+                        'Please run a new backup or resync snapshots before browsing files.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         repository_password = task.target_repository.get_kopia_password()
         if not repository_password:
             return Response(
@@ -952,7 +982,7 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             task_type='list_snapshot_files',
             parameters={
                 'snapshot_id': snapshot.storage_path,
-                'object_id': snapshot.manifest_path or snapshot.storage_path,
+                'object_id': object_id,
                 'snapshot_record_id': str(snapshot.id),
                 'backup_task_id': str(task.id),
                 'repository_id': str(task.target_repository_id),
@@ -968,7 +998,7 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         payload = {
             'task_id': str(proxy_task.id),
             'snapshot_id': snapshot.storage_path,
-            'object_id': snapshot.manifest_path or snapshot.storage_path,
+            'object_id': object_id,
             'snapshot_record_id': str(snapshot.id),
             'path': path,
             'repository': BackupTaskViewSet()._build_repository_config(task.target_repository),

@@ -76,6 +76,11 @@ type BackupResult struct {
 	TaskID         string    `json:"task_id"`
 	SourcePath     string    `json:"source_path"`
 	Output         string    `json:"output"`
+	SnapshotID     string    `json:"snapshot_id,omitempty"`
+	ManifestID     string    `json:"manifest_id,omitempty"`
+	RootObjectID   string    `json:"root_object_id,omitempty"`
+	ObjectID       string    `json:"object_id,omitempty"`
+	NoChanges      bool      `json:"no_changes,omitempty"`
 	TotalFiles     int       `json:"total_files,omitempty"`
 	BackedUpFiles  int       `json:"backed_up_files,omitempty"`
 	TotalSize      int64     `json:"total_size,omitempty"`
@@ -83,6 +88,13 @@ type BackupResult struct {
 	BytesPerSecond int64     `json:"bytes_per_second,omitempty"`
 	StartedAt      time.Time `json:"started_at"`
 	FinishedAt     time.Time `json:"finished_at"`
+}
+
+type latestSnapshotInfo struct {
+	SnapshotID   string
+	RootObjectID string
+	TotalFiles   int
+	TotalSize    int64
 }
 
 // RestoreResult captures the high-level Kopia restore command result.
@@ -198,7 +210,8 @@ func (c *Client) ApplyPolicy(effectivePolicy map[string]interface{}, sourcePath,
 		appendIntFlag("--keep-annual", "keep_annual")
 	}
 
-	if schedule := nestedMap(effectivePolicy, "snapshot_schedule"); len(schedule) > 0 {
+	if boolFromAny(effectivePolicy["apply_kopia_schedule"], false) {
+		schedule := nestedMap(effectivePolicy, "snapshot_schedule")
 		mode := strings.ToLower(stringFromAny(schedule["mode"]))
 		switch mode {
 		case "manual":
@@ -338,12 +351,41 @@ func (c *Client) Backup(taskID, sourcePath, password string) (*BackupResult, err
 		"output":      string(output),
 	})
 
+	outputText := string(output)
+	rootObjectID, snapshotID := parseSnapshotObjectIDs(outputText)
+	noChanges := isNoChangeSnapshotOutput(outputText)
+	totalFiles := 0
+	totalSize := int64(0)
+	if rootObjectID == "" && noChanges {
+		latest, err := c.latestSnapshotInfo(sourcePath)
+		if err != nil {
+			logger.Warn("Failed to resolve latest snapshot after no-change backup", map[string]interface{}{
+				"task_id":     taskID,
+				"source_path": sourcePath,
+				"error":       err.Error(),
+			})
+		} else {
+			rootObjectID = latest.RootObjectID
+			snapshotID = latest.SnapshotID
+			totalFiles = latest.TotalFiles
+			totalSize = latest.TotalSize
+		}
+	}
 	return &BackupResult{
-		TaskID:     taskID,
-		SourcePath: sourcePath,
-		Output:     string(output),
-		StartedAt:  startedAt,
-		FinishedAt: time.Now(),
+		TaskID:        taskID,
+		SourcePath:    sourcePath,
+		Output:        outputText,
+		SnapshotID:    snapshotID,
+		ManifestID:    snapshotID,
+		RootObjectID:  rootObjectID,
+		ObjectID:      rootObjectID,
+		NoChanges:     noChanges,
+		TotalFiles:    totalFiles,
+		BackedUpFiles: totalFiles,
+		TotalSize:     totalSize,
+		BackedUpSize:  totalSize,
+		StartedAt:     startedAt,
+		FinishedAt:    time.Now(),
 	}, nil
 }
 
@@ -422,6 +464,27 @@ func (c *Client) BackupWithProgress(taskID, sourcePath, password string, onProgr
 	}
 
 	finalFiles, finalSize := parseFinalSnapshotStats(output)
+	rootObjectID, snapshotID := parseSnapshotObjectIDs(output)
+	noChanges := isNoChangeSnapshotOutput(output)
+	if rootObjectID == "" && noChanges {
+		latest, err := c.latestSnapshotInfo(sourcePath)
+		if err != nil {
+			logger.Warn("Failed to resolve latest snapshot after no-change backup", map[string]interface{}{
+				"task_id":     taskID,
+				"source_path": sourcePath,
+				"error":       err.Error(),
+			})
+		} else {
+			rootObjectID = latest.RootObjectID
+			snapshotID = latest.SnapshotID
+			if finalFiles == 0 {
+				finalFiles = latest.TotalFiles
+			}
+			if finalSize == 0 {
+				finalSize = latest.TotalSize
+			}
+		}
+	}
 	if finalFiles > 0 {
 		progressState.ProcessedFiles = finalFiles
 		progressState.TotalFiles = finalFiles
@@ -445,6 +508,11 @@ func (c *Client) BackupWithProgress(taskID, sourcePath, password string, onProgr
 		TaskID:         taskID,
 		SourcePath:     sourcePath,
 		Output:         output,
+		SnapshotID:     snapshotID,
+		ManifestID:     snapshotID,
+		RootObjectID:   rootObjectID,
+		ObjectID:       rootObjectID,
+		NoChanges:      noChanges,
 		TotalFiles:     progressState.TotalFiles,
 		BackedUpFiles:  progressState.ProcessedFiles,
 		TotalSize:      progressState.TotalBytes,
@@ -527,6 +595,41 @@ func (c *Client) ListSnapshots(password string) (interface{}, error) {
 	})
 
 	return string(output), nil
+}
+
+func (c *Client) latestSnapshotInfo(sourcePath string) (*latestSnapshotInfo, error) {
+	args := []string{"snapshot", "list", "--json"}
+	if strings.TrimSpace(sourcePath) != "" {
+		args = append(args, sourcePath)
+	}
+	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list latest snapshot: %w, output: %s", err, string(output))
+	}
+
+	var raw []map[string]interface{}
+	if err := json.Unmarshal(output, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse latest snapshot list: %w", err)
+	}
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("no snapshots found for source path %q", sourcePath)
+	}
+
+	latest := raw[0]
+	for _, item := range raw[1:] {
+		if stringFromAny(item["startTime"]) > stringFromAny(latest["startTime"]) {
+			latest = item
+		}
+	}
+
+	rootEntry := nestedMap(latest, "rootEntry")
+	stats := nestedMap(latest, "stats")
+	return &latestSnapshotInfo{
+		SnapshotID:   stringFromAny(latest["id"]),
+		RootObjectID: stringFromAny(rootEntry["obj"]),
+		TotalFiles:   int(int64FromAny(stats["fileCount"])),
+		TotalSize:    int64FromAny(stats["totalSize"]),
+	}, nil
 }
 
 // ListSnapshotFiles lists files inside a Kopia snapshot root object on demand.
@@ -647,6 +750,18 @@ func parseFinalSnapshotStats(output string) (int, int64) {
 	last := matches[len(matches)-1]
 	files, _ := strconv.Atoi(last[1])
 	return files, parseHumanBytes(last[2], last[3])
+}
+
+func parseSnapshotObjectIDs(output string) (string, string) {
+	match := regexp.MustCompile(`Created snapshot with root\s+(\S+)\s+and ID\s+(\S+)`).FindStringSubmatch(output)
+	if len(match) == 3 {
+		return strings.TrimSpace(match[1]), strings.Trim(strings.TrimSpace(match[2]), ".")
+	}
+	return "", ""
+}
+
+func isNoChangeSnapshotOutput(output string) bool {
+	return strings.Contains(output, "Not saving snapshot because no files have been changed")
 }
 
 func parseHumanBytes(value, unit string) int64 {

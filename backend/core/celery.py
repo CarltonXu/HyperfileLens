@@ -23,6 +23,13 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 # This discovers tasks.py files in every app listed in INSTALLED_APPS.
 app.autodiscover_tasks()
 
+# Celery autodiscovery only imports each app's tasks.py. Backup scheduling lives
+# in periodic_tasks.py so it must be imported explicitly for workers to register
+# the task name emitted by django-celery-beat.
+app.conf.imports = tuple(app.conf.imports or ()) + (
+    'backup_tasks.periodic_tasks',
+)
+
 # Configure periodic tasks (Celery Beat)
 # These tasks will be registered with django_celery_beat
 # via the register_periodic_tasks management command.
@@ -39,12 +46,16 @@ app.conf.beat_schedule = {
         'task': 'alerts.tasks.evaluate_alert_policies',
         'schedule': 60.0,  # Every 60 seconds
     },
+    'schedule-backup-tasks': {
+        'task': 'backup_tasks.periodic_tasks.schedule_backup_tasks',
+        'schedule': 60.0,  # Every 60 seconds
+    },
     'check-node-health': {
         'task': 'nodes.tasks.check_all_nodes_health',
         'schedule': crontab(minute='*/5'),  # Every 5 minutes
     },
     'cleanup-old-backups': {
-        'task': 'backup_tasks.tasks.cleanup_old_backups',
+        'task': 'backup_tasks.tasks.cleanup_old_snapshots',
         'schedule': crontab(hour=3, minute=0),  # Daily at 3 AM
     },
     'sync-repository-stats': {

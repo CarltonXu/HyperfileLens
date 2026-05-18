@@ -196,7 +196,7 @@ const policyColumns = computed(() => [
   },
   {
     key: "schedule" as const,
-    label: t("policies.form.schedule"),
+    label: t("policies.schedule.title"),
     min: 180,
     max: 300,
   },
@@ -235,8 +235,7 @@ const policyTable = useResizableSortableTable<BackupPolicy, PolicyColumnKey>({
     if (key === "name") return `${policy.name} ${policy.description || ""}`;
     if (key === "target")
       return `${getScopeLabel(policy.policy_scope)} ${getPolicyTarget(policy)}`;
-    if (key === "schedule")
-      return `${getScheduleLabel(policy)} ${formatDate(policy.next_run_time)}`;
+    if (key === "schedule") return getScheduleLabel(policy);
     if (key === "retention") return formatRetention(policy);
     if (key === "status")
       return policy.is_active ? t("common.enabled") : t("common.disabled");
@@ -264,6 +263,13 @@ const retentionPreview = computed(() => {
   ].join(" / ");
 });
 
+const schedulePreview = computed(() => {
+  if (form.value.schedule_mode === "interval") return form.value.interval || "24h";
+  if (form.value.schedule_mode === "time") return form.value.time_of_day || "02:00";
+  if (form.value.schedule_mode === "cron") return form.value.cron || "-";
+  return t("policies.scheduleModes.manual");
+});
+
 const policyPreviewCommand = computed(() => {
   const target = buildKopiaTargetFromForm();
   const lines = [
@@ -275,13 +281,6 @@ const policyPreviewCommand = computed(() => {
     `  --keep-monthly ${form.value.keep_monthly}`,
     `  --keep-annual ${form.value.keep_annual}`,
   ];
-  if (form.value.schedule_mode === "interval") {
-    lines.push(`  --snapshot-interval ${form.value.interval}`);
-  } else if (form.value.schedule_mode === "time") {
-    lines.push(`  --snapshot-time ${form.value.time_of_day}`);
-  } else if (form.value.schedule_mode === "cron") {
-    lines.push(`  --snapshot-time-crontab "${form.value.cron || "* * * * *"}"`);
-  }
   return lines.join("\n");
 });
 
@@ -523,6 +522,7 @@ function formatRetention(policy: BackupPolicy) {
 
 function getPolicyTarget(policy: BackupPolicy | null) {
   if (!policy) return "-";
+  if (policy.policy_scope === "global") return t("policies.target.allSnapshots");
   return policy.policy_target?.kopia_target || "-";
 }
 
@@ -540,19 +540,15 @@ function getPolicyPreviewCommand(policy: BackupPolicy | null) {
     `  --keep-annual ${retention.keep_annual}`,
   ];
   if (schedule.mode === "interval") {
-    lines.push(`  --snapshot-interval ${schedule.interval || "24h"}`);
+    lines.push(`# HyperFileLens scheduler interval: ${schedule.interval || "24h"}`);
   } else if (schedule.mode === "time") {
-    lines.push(`  --snapshot-time ${schedule.time_of_day || "02:00"}`);
+    lines.push(`# HyperFileLens scheduler time: ${schedule.time_of_day || "02:00"}`);
   } else if (schedule.mode === "cron") {
-    lines.push(`  --snapshot-time-crontab "${schedule.cron || "* * * * *"}"`);
+    lines.push(`# HyperFileLens scheduler cron: ${schedule.cron || "* * * * *"}`);
   } else {
-    lines.push("  --manual");
+    lines.push("# HyperFileLens scheduler: manual");
   }
   return lines.join("\n");
-}
-
-function formatDate(value?: string | null) {
-  return value ? new Date(value).toLocaleString() : "-";
 }
 
 onMounted(fetchPolicies);
@@ -704,7 +700,7 @@ onMounted(fetchPolicies);
                 </span>
                 <p
                   class="mt-1 max-w-[240px] truncate text-xs text-foreground-secondary">
-                  {{ policy.policy_target?.kopia_target || "-" }}
+                  {{ getPolicyTarget(policy) }}
                 </p>
               </td>
               <td
@@ -715,8 +711,7 @@ onMounted(fetchPolicies);
                   {{ getScheduleLabel(policy) }}
                 </div>
                 <p class="mt-1 text-xs text-foreground-muted">
-                  {{ t("policies.form.nextRun") }}:
-                  {{ formatDate(policy.next_run_time) }}
+                  {{ t("policies.schedule.platformScheduler") }}
                 </p>
               </td>
               <td class="px-4 py-4" :style="policyTable.columnStyle('retention')">
@@ -921,10 +916,10 @@ onMounted(fetchPolicies);
                   </div>
                   <div>
                     <dt class="text-xs text-foreground-muted">
-                      {{ t("policies.form.nextRun") }}
+                      {{ t("policies.schedule.owner") }}
                     </dt>
                     <dd class="mt-1 text-foreground-secondary">
-                      {{ formatDate(selectedPolicy.next_run_time) }}
+                      {{ t("policies.schedule.platformScheduler") }}
                     </dd>
                   </div>
                 </dl>
@@ -1339,6 +1334,15 @@ onMounted(fetchPolicies);
                   </p>
                   <p class="mt-1 break-all font-mono text-foreground">
                     {{ buildKopiaTargetFromForm() }}
+                  </p>
+                </div>
+                <div class="rounded-lg border border-border bg-card p-3">
+                  <p class="text-xs text-foreground-muted">
+                    {{ t("policies.schedule.title") }}
+                  </p>
+                  <p class="mt-1 text-foreground">{{ schedulePreview }}</p>
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{ t("policies.schedule.platformScheduler") }}
                   </p>
                 </div>
                 <div class="rounded-lg border border-border bg-card p-3">

@@ -12,7 +12,6 @@ import {
   MagnifyingGlassIcon,
   ServerIcon,
   ShieldCheckIcon,
-  TagIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
 import type { BackupTaskCreateData } from "@/types/backup";
@@ -35,7 +34,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 type SourceKind = "local" | "nas" | "s3";
-type ScheduleMode = "manual" | "interval" | "cron";
+type ScheduleMode = "manual" | "interval" | "time" | "cron";
 type RetentionMode = "policy" | "custom";
 type RetentionFieldKey =
   | "keep_latest"
@@ -47,12 +46,10 @@ type RetentionFieldKey =
 
 const step = ref(1);
 const searchQuery = ref("");
-const tagInput = ref("");
 
 const form = reactive({
   name: "",
   description: "",
-  tags: [] as string[],
   source_kind: "local" as SourceKind,
   source_resource: "",
   target_repository: "",
@@ -63,6 +60,8 @@ const form = reactive({
   task_type: "incremental" as "full" | "incremental" | "differential",
   priority: "normal" as "low" | "normal" | "high",
   schedule_mode: "manual" as ScheduleMode,
+  interval: "4h",
+  time_of_day: "02:00",
   interval_value: 4,
   interval_unit: "hours" as "minutes" | "hours" | "days",
   cron_expression: "",
@@ -179,7 +178,9 @@ const syncProxies = computed(() =>
 );
 
 const onlineSyncProxies = computed(() =>
-  syncProxies.value.filter((node) => node.status === "online" || node.is_online),
+  syncProxies.value.filter(
+    (node) => node.status === "online" || node.is_online,
+  ),
 );
 
 const autoPlacementAvailable = computed(() => {
@@ -434,13 +435,32 @@ const repositoryCapacity = computed(() => {
 
 const scheduleSummary = computed(() => {
   if (form.schedule_mode === "manual") return t("backupTasks.schedule.manual");
+  if (form.schedule_mode === "interval") {
+    return form.interval || "24h";
+  }
+  if (form.schedule_mode === "time") {
+    return form.time_of_day || "02:00";
+  }
   if (form.schedule_mode === "cron") {
     return form.cron_expression || t("backupTasks.schedule.cron");
   }
-  return t("backupTasks.schedule.intervalSummary", {
-    value: form.interval_value,
-    unit: t(`backupTasks.schedule.units.${form.interval_unit}`),
-  });
+  return "-";
+});
+
+const policyScheduleSummary = computed(() => {
+  const schedule = selectedPolicy.value?.snapshot_schedule || {};
+  const mode = schedule.mode || "manual";
+  if (mode === "interval") return schedule.interval || "24h";
+  if (mode === "time") return schedule.time_of_day || "02:00";
+  if (mode === "cron") return schedule.cron || "-";
+  return t("policies.scheduleModes.manual");
+});
+
+const effectiveScheduleSummary = computed(() => {
+  if (selectedPolicy.value && !form.override_schedule) {
+    return `${t("backupTasks.policyOverrides.usePolicySchedule")}: ${policyScheduleSummary.value}`;
+  }
+  return scheduleSummary.value;
 });
 
 const retentionSummary = computed(() => {
@@ -452,6 +472,84 @@ const retentionSummary = computed(() => {
     days: form.keep_daily,
   });
 });
+
+const effectiveRetentionSummary = computed(() => {
+  if (selectedPolicy.value && form.retention_mode === "policy") {
+    const retention = selectedPolicy.value.retention_policy || {};
+    return `${t("backupTasks.policyOverrides.usePolicyRetention")}: latest ${retention.keep_latest ?? 0} / daily ${retention.keep_daily ?? 0}`;
+  }
+  return retentionSummary.value;
+});
+
+const reviewSections = computed(() => [
+  {
+    title: t("backupTasks.review.basic"),
+    rows: [
+      [t("backupTasks.form.taskName"), form.name || "-"],
+      [t("backupTasks.form.description"), form.description || "-"],
+      [t("backupTasks.form.taskType"), form.task_type],
+      [t("backupTasks.form.priority"), form.priority],
+    ],
+  },
+  {
+    title: t("backupTasks.review.source"),
+    rows: [
+      [t("common.name"), selectedSource.value?.name || "-"],
+      ...sourceDetails.value.map((row) => [row.label, row.value]),
+      [t("backupTasks.wizard.selectedPaths"), form.backup_paths.join("; ") || "-"],
+    ],
+  },
+  {
+    title: t("backupTasks.review.repository"),
+    rows: [
+      [t("common.name"), selectedRepository.value?.name || "-"],
+      ...repositoryDetails.value.map((row) => [row.label, row.value]),
+      [t("backupTasks.sourceDetails.capacity"), repositoryCapacity.value],
+    ],
+  },
+  {
+    title: t("backupTasks.review.execution"),
+    rows: [
+      [t("backupTasks.execution.title"), t(`backupTasks.executionModes.${form.execution_mode}`)],
+      [
+        t("backupTasks.execution.preferredProxy"),
+        form.execution_mode === "preferred"
+          ? syncProxies.value.find((node) => node.id === form.preferred_execution_node)?.name || "-"
+          : form.execution_mode === "auto"
+            ? t("backupTasks.execution.autoSelect")
+            : sourceNodeName(selectedSource.value) || selectedRepository.value?.bound_node_name || "-",
+      ],
+    ],
+  },
+  {
+    title: t("backupTasks.review.scheduleRetention"),
+    rows: [
+      [t("backupTasks.policyOverrides.policyBaseline"), selectedPolicy.value?.name || t("backupTasks.form.noPolicy")],
+      [t("backupTasks.form.schedule"), effectiveScheduleSummary.value],
+      [t("backupTasks.retention.title"), effectiveRetentionSummary.value],
+    ],
+  },
+  {
+    title: t("backupTasks.files.title"),
+    rows: [
+      [t("backupTasks.files.exclusionPatterns"), form.exclude_patterns.join("; ") || "-"],
+      [t("backupTasks.files.dotIgnoreFiles"), form.dot_ignore_files.join("; ") || "-"],
+      [t("backupTasks.files.oneFileSystem"), form.one_file_system ? t("common.yes") : t("common.no")],
+      [t("backupTasks.files.ignoreFileErrors"), form.ignore_file_errors ? t("common.yes") : t("common.no")],
+      [t("backupTasks.files.ignoreDirErrors"), form.ignore_dir_errors ? t("common.yes") : t("common.no")],
+    ],
+  },
+  {
+    title: t("backupTasks.compression.title"),
+    rows: [
+      [t("backupTasks.compression.algorithm"), form.compression_enabled ? form.compression_type : "none"],
+      [t("backupTasks.compression.parallelReads"), String(form.max_concurrent_files)],
+      [t("backupTasks.form.compressionLevel"), String(form.compression_level)],
+      [t("backupTasks.compression.metadata"), form.metadata_compression ? t("common.yes") : t("common.no")],
+      [t("backupTasks.compression.ignoreIdentical"), form.ignore_identical_snapshots ? t("common.yes") : t("common.no")],
+    ],
+  },
+]);
 
 const policyOverrideSummary = computed(() => {
   const values = [];
@@ -491,6 +589,12 @@ const canNext = computed(() => {
     return true;
   }
   if (step.value === 5) {
+    if (form.schedule_mode === "interval" && !form.interval.trim()) {
+      return false;
+    }
+    if (form.schedule_mode === "time" && !form.time_of_day.trim()) {
+      return false;
+    }
     if (form.schedule_mode === "cron" && !form.cron_expression.trim()) {
       return false;
     }
@@ -551,17 +655,6 @@ function maskValue(value?: string) {
   return `${value.slice(0, 4)}****${value.slice(-4)}`;
 }
 
-function addTag() {
-  const value = tagInput.value.trim();
-  if (!value || form.tags.includes(value)) return;
-  form.tags.push(value);
-  tagInput.value = "";
-}
-
-function removeTag(tag: string) {
-  form.tags = form.tags.filter((item) => item !== tag);
-}
-
 function selectSource(source: SourceResource) {
   form.source_resource = source.id;
   form.backup_paths = [...sourceProtectionPaths.value];
@@ -598,11 +691,8 @@ function save() {
     policyOverrides.snapshot_schedule = {
       override: true,
       mode: form.schedule_mode,
-      interval:
-        form.schedule_mode === "interval"
-          ? `${form.interval_value}${form.interval_unit === "minutes" ? "m" : form.interval_unit === "hours" ? "h" : "d"}`
-          : "",
-      time_of_day: "",
+      interval: form.schedule_mode === "interval" ? form.interval.trim() : "",
+      time_of_day: form.schedule_mode === "time" ? form.time_of_day : "",
       cron: form.schedule_mode === "cron" ? form.cron_expression.trim() : "",
       run_missed: true,
     };
@@ -639,7 +729,9 @@ function save() {
     target_repository: form.target_repository,
     execution_mode: form.execution_mode,
     preferred_execution_node:
-      form.execution_mode === "preferred" ? form.preferred_execution_node : null,
+      form.execution_mode === "preferred"
+        ? form.preferred_execution_node
+        : null,
     task_type: form.task_type,
     priority: form.priority,
     backup_paths: [...form.backup_paths],
@@ -681,22 +773,24 @@ function save() {
           </button>
         </div>
 
-        <div class="px-4 py-3 sm:px-6 sm:py-4 border-b border-border flex-shrink-0">
-          <div class="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[repeat(6,minmax(0,1fr))] lg:gap-0">
+        <div
+          class="px-4 py-3 sm:px-6 sm:py-4 border-b border-border flex-shrink-0">
+          <div
+            class="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-[repeat(6,minmax(0,1fr))] lg:gap-x-0">
             <template v-for="(item, index) in steps" :key="item">
               <div class="relative min-w-0">
                 <div
                   v-if="index > 0"
                   :class="[
-                    'absolute left-0 top-1/2 hidden h-px w-3 -translate-y-1/2 lg:block',
-                    step > index
+                    'absolute left-0 top-5 hidden h-0.5 w-[calc(50%-18px)] lg:block',
+                    step >= index + 1
                       ? 'bg-emerald-400 dark:bg-emerald-500'
                       : 'bg-border',
                   ]" />
                 <div
                   v-if="index < steps.length - 1"
                   :class="[
-                    'absolute right-0 top-1/2 hidden h-px w-3 -translate-y-1/2 lg:block',
+                    'absolute right-0 top-5 hidden h-0.5 w-[calc(50%-18px)] lg:block',
                     step > index + 1
                       ? 'bg-emerald-400 dark:bg-emerald-500'
                       : 'bg-border',
@@ -704,26 +798,26 @@ function save() {
                 <button
                   type="button"
                   :class="[
-                    'relative z-10 mx-0 flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors lg:mx-3',
+                    'relative z-10 flex w-full min-w-0 flex-col items-center gap-2 rounded-lg px-2 py-1.5 text-center transition-colors hover:bg-hover',
                     step === index + 1
-                      ? 'bg-blue-600 text-white shadow-sm'
+                      ? 'text-blue-700 dark:text-blue-300'
                       : step > index + 1
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
-                        : 'bg-background text-foreground-secondary hover:bg-hover',
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : 'text-foreground-secondary',
                   ]"
                   @click="step = index + 1">
                   <span
                     :class="[
-                      'w-6 h-6 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold',
+                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold shadow-sm transition-colors',
                       step === index + 1
-                        ? 'bg-white/20'
+                        ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
                         : step > index + 1
-                          ? 'bg-emerald-100 dark:bg-emerald-900/40'
-                          : 'bg-background-secondary',
+                          ? 'border-emerald-500 bg-emerald-500 text-white'
+                          : 'border-border bg-background text-foreground-muted',
                     ]">
                     {{ index + 1 }}
                   </span>
-                  <span class="min-w-0 truncate text-xs font-medium">
+                  <span class="min-w-0 max-w-full truncate text-xs font-medium">
                     {{ item }}
                   </span>
                 </button>
@@ -732,9 +826,11 @@ function save() {
           </div>
         </div>
 
-        <div class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+        <div
+          class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           <div v-if="step === 1" class="min-w-0 space-y-5">
-            <div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div
+              class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div class="min-w-0 space-y-4">
                 <label class="block">
                   <span class="text-sm font-medium text-foreground">
@@ -755,29 +851,6 @@ function save() {
                     class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     :placeholder="t('backupTasks.placeholders.description')" />
                 </label>
-                <div>
-                  <span class="text-sm font-medium text-foreground">
-                    {{ t("backupTasks.form.businessTags") }}
-                  </span>
-                  <div class="mt-2 flex flex-wrap gap-2">
-                    <button
-                      v-for="tag in form.tags"
-                      :key="tag"
-                      type="button"
-                      class="inline-flex items-center gap-1 rounded-full border border-border bg-background-secondary px-2.5 py-1 text-xs text-foreground"
-                      @click="removeTag(tag)">
-                      <TagIcon class="w-3.5 h-3.5" />
-                      {{ tag }}
-                      <XMarkIcon class="w-3.5 h-3.5 text-foreground-muted" />
-                    </button>
-                    <form class="flex gap-2" @submit.prevent="addTag">
-                      <input
-                        v-model="tagInput"
-                        class="w-32 px-3 py-1 rounded-full border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        :placeholder="t('backupTasks.placeholders.addTag')" />
-                    </form>
-                  </div>
-                </div>
               </div>
               <div
                 class="rounded-xl border border-border bg-background/30 p-4 space-y-3">
@@ -806,17 +879,6 @@ function save() {
                           : 'text-foreground-muted',
                       ]" />
                     {{ t("backupTasks.wizard.descriptionReady") }}
-                  </div>
-                  <div
-                    class="flex items-center gap-2 text-foreground-secondary">
-                    <CheckCircleIcon
-                      :class="[
-                        'w-5 h-5',
-                        form.tags.length
-                          ? 'text-emerald-500'
-                          : 'text-foreground-muted',
-                      ]" />
-                    {{ t("backupTasks.wizard.tagsReady") }}
                   </div>
                 </div>
               </div>
@@ -858,7 +920,8 @@ function save() {
               </div>
             </div>
 
-            <div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+            <div
+              class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
               <div
                 class="rounded-xl border border-border bg-background/30 overflow-hidden">
                 <div class="p-3 border-b border-border">
@@ -1067,7 +1130,8 @@ function save() {
           </div>
 
           <div v-else-if="step === 3" class="min-w-0 space-y-5">
-            <div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div
+              class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
               <div class="min-w-0 space-y-3">
                 <p class="text-sm font-semibold text-foreground">
                   {{ t("backupTasks.wizard.backupRepository") }}
@@ -1170,7 +1234,7 @@ function save() {
                   </span>
                   <select
                     v-model="form.compression_type"
-                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="zstd">zstd</option>
                     <option value="gzip">gzip</option>
                     <option value="none">{{ t("common.none") }}</option>
@@ -1187,7 +1251,7 @@ function save() {
                     v-model.number="form.max_concurrent_files"
                     type="number"
                     min="1"
-                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   <p class="mt-1 text-[11px] leading-4 text-foreground-muted">
                     {{ t("backupTasks.compression.parallelReadsDesc") }}
                   </p>
@@ -1249,9 +1313,9 @@ function save() {
                   ]"
                   @click="
                     !mode.disabled &&
-                      ((form.execution_mode = mode.value as any),
-                      mode.value !== 'preferred' &&
-                        (form.preferred_execution_node = ''))
+                    ((form.execution_mode = mode.value as any),
+                    mode.value !== 'preferred' &&
+                      (form.preferred_execution_node = ''))
                   ">
                   <p class="text-sm font-medium text-foreground">
                     {{ mode.label }}
@@ -1272,7 +1336,7 @@ function save() {
                 </span>
                 <select
                   v-model="form.preferred_execution_node"
-                  class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">
                     {{ t("backupTasks.execution.selectPreferredProxy") }}
                   </option>
@@ -1316,9 +1380,10 @@ function save() {
               </div>
               <select
                 v-model="form.schedule"
-                class="w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 @change="
-                  form.retention_mode = form.schedule ? 'policy' : 'custom'
+                  ((form.retention_mode = form.schedule ? 'policy' : 'custom'),
+                  (form.override_schedule = false))
                 ">
                 <option value="">{{ t("backupTasks.form.noPolicy") }}</option>
                 <option
@@ -1357,66 +1422,113 @@ function save() {
                     {{ t("backupTasks.form.schedule") }}
                   </p>
                 </div>
-                <label
-                  v-if="selectedPolicy"
-                  class="flex items-center gap-2 text-sm text-foreground">
-                  <input
-                    v-model="form.override_schedule"
-                    type="checkbox"
-                    class="rounded border-border" />
-                  {{ t("backupTasks.policyOverrides.overrideSchedule") }}
-                </label>
-                <label class="flex items-center gap-2 text-sm text-foreground">
-                  <input
-                    v-model="form.schedule_mode"
-                    type="radio"
-                    value="manual"
-                    class="border-border" />
-                  {{ t("backupTasks.schedule.manual") }}
-                </label>
-                <label class="flex items-center gap-2 text-sm text-foreground">
-                  <input
-                    v-model="form.schedule_mode"
-                    type="radio"
-                    value="interval"
-                    class="border-border" />
-                  {{ t("backupTasks.schedule.interval") }}
-                </label>
-                <div
-                  v-if="form.schedule_mode === 'interval'"
-                  class="grid min-w-0 grid-cols-[minmax(88px,120px)_minmax(0,1fr)] gap-3 pl-6">
-                  <input
-                    v-model.number="form.interval_value"
-                    type="number"
-                    min="1"
-                    class="px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <template v-if="selectedPolicy">
+                  <label class="flex items-start gap-2 text-sm text-foreground">
+                    <input
+                      :checked="!form.override_schedule"
+                      type="radio"
+                      class="mt-1 border-border"
+                      @change="form.override_schedule = false" />
+                    <span>
+                      <span class="font-medium">
+                        {{ t("backupTasks.policyOverrides.usePolicySchedule") }}
+                      </span>
+                      <span class="mt-1 block text-xs text-foreground-muted">
+                        {{ policyScheduleSummary }}
+                      </span>
+                    </span>
+                  </label>
+                  <label class="flex items-start gap-2 text-sm text-foreground">
+                    <input
+                      :checked="form.override_schedule"
+                      type="radio"
+                      class="mt-1 border-border"
+                      @change="form.override_schedule = true" />
+                    <span>
+                      <span class="font-medium">
+                        {{ t("backupTasks.policyOverrides.overrideSchedule") }}
+                      </span>
+                      <span class="mt-1 block text-xs text-foreground-muted">
+                        {{ t("backupTasks.policyOverrides.overrideScheduleDesc") }}
+                      </span>
+                    </span>
+                  </label>
+                </template>
+
+                <div v-if="!selectedPolicy || form.override_schedule">
+                  <label class="mb-1 block text-sm font-medium text-foreground">
+                    {{ t("policies.schedule.title") }}
+                  </label>
                   <select
-                    v-model="form.interval_unit"
-                    class="px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="minutes">
-                      {{ t("backupTasks.schedule.units.minutes") }}
+                    v-model="form.schedule_mode"
+                    class="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="manual">
+                      {{ t("policies.scheduleModes.manual") }}
                     </option>
-                    <option value="hours">
-                      {{ t("backupTasks.schedule.units.hours") }}
+                    <option value="interval">
+                      {{ t("policies.scheduleModes.interval") }}
                     </option>
-                    <option value="days">
-                      {{ t("backupTasks.schedule.units.days") }}
+                    <option value="time">
+                      {{ t("policies.scheduleModes.time") }}
+                    </option>
+                    <option value="cron">
+                      {{ t("policies.scheduleModes.cron") }}
                     </option>
                   </select>
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{
+                      t(
+                        `policies.schedule.modeDescriptions.${form.schedule_mode}`,
+                      )
+                    }}
+                  </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-foreground">
+
+                <div
+                  v-if="(!selectedPolicy || form.override_schedule) && form.schedule_mode === 'interval'"
+                  class="space-y-1">
+                  <label class="block text-sm font-medium text-foreground">
+                    {{ t("policies.schedule.interval") }}
+                  </label>
                   <input
-                    v-model="form.schedule_mode"
-                    type="radio"
-                    value="cron"
-                    class="border-border" />
-                  {{ t("backupTasks.schedule.cron") }}
-                </label>
-                <input
-                  v-if="form.schedule_mode === 'cron'"
-                  v-model="form.cron_expression"
-                  class="ml-6 w-[calc(100%-1.5rem)] px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0 */4 * * *" />
+                    v-model="form.interval"
+                    type="text"
+                    placeholder="24h"
+                    class="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <p class="text-xs text-foreground-muted">
+                    {{ t("policies.schedule.intervalDesc") }}
+                  </p>
+                </div>
+
+                <div
+                  v-if="(!selectedPolicy || form.override_schedule) && form.schedule_mode === 'time'"
+                  class="space-y-1">
+                  <label class="block text-sm font-medium text-foreground">
+                    {{ t("policies.schedule.timeOfDay") }}
+                  </label>
+                  <input
+                    v-model="form.time_of_day"
+                    type="time"
+                    class="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <p class="text-xs text-foreground-muted">
+                    {{ t("policies.schedule.timeOfDayDesc") }}
+                  </p>
+                </div>
+
+                <div
+                  v-if="(!selectedPolicy || form.override_schedule) && form.schedule_mode === 'cron'"
+                  class="space-y-1">
+                  <label class="block text-sm font-medium text-foreground">
+                    {{ t("policies.schedule.cron") }}
+                  </label>
+                  <input
+                    v-model="form.cron_expression"
+                    class="w-full rounded-lg border border-border bg-background/50 px-3 py-2 font-mono text-sm text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0 2 * * *" />
+                  <p class="text-xs text-foreground-muted">
+                    {{ t("policies.schedule.cronDesc") }}
+                  </p>
+                </div>
               </div>
 
               <div
@@ -1467,7 +1579,7 @@ function save() {
                       v-model.number="form[field.key]"
                       type="number"
                       min="0"
-                      class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <p class="mt-1 text-[11px] leading-4 text-foreground-muted">
                       {{ t(`backupTasks.retention.${field.label}Desc`) }}
                     </p>
@@ -1478,92 +1590,30 @@ function save() {
           </div>
 
           <div v-else class="min-w-0 space-y-5">
-            <div class="min-w-0 rounded-xl border border-border bg-background/30 p-5">
+            <div
+              class="min-w-0 rounded-xl border border-border bg-background/30 p-5">
               <p class="text-sm font-semibold text-foreground mb-4">
                 {{ t("backupTasks.wizard.reviewTitle") }}
               </p>
-              <div class="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
+              <div class="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
                 <div
+                  v-for="section in reviewSections"
+                  :key="section.title"
                   class="rounded-lg border border-border bg-background/50 p-3">
-                  <p class="text-xs text-foreground-secondary">
-                    {{ t("backupTasks.wizard.basic") }}
+                  <p class="text-sm font-semibold text-foreground">
+                    {{ section.title }}
                   </p>
-                  <p class="mt-1 font-medium text-foreground">
-                    {{ form.name }}
-                  </p>
-                  <p class="mt-1 text-xs text-foreground-muted">
-                    {{ form.tags.join(", ") || "-" }}
-                  </p>
-                </div>
-                <div
-                  class="rounded-lg border border-border bg-background/50 p-3">
-                  <p class="text-xs text-foreground-secondary">
-                    {{ t("backupTasks.wizard.source") }}
-                  </p>
-                  <p class="mt-1 font-medium text-foreground">
-                    {{ selectedSource?.name || "-" }}
-                  </p>
-                  <p class="mt-1 text-xs text-foreground-muted">
-                    {{ sourceNodeName(selectedSource) || "-" }}
-                  </p>
-                </div>
-                <div
-                  class="rounded-lg border border-border bg-background/50 p-3">
-                  <p class="text-xs text-foreground-secondary">
-                    {{ t("backupTasks.wizard.backupRepository") }}
-                  </p>
-                  <p class="mt-1 font-medium text-foreground">
-                    {{ selectedRepository?.name || "-" }}
-                  </p>
-                  <p class="mt-1 text-xs text-foreground-muted">
-                    {{ repositoryCapacity }}
-                  </p>
-                </div>
-                <div
-                  class="rounded-lg border border-border bg-background/50 p-3">
-                  <p class="text-xs text-foreground-secondary">
-                    {{ t("backupTasks.wizard.scheduleRetention") }}
-                  </p>
-                  <p class="mt-1 font-medium text-foreground">
-                    {{ scheduleSummary }}
-                  </p>
-                  <p class="mt-1 text-xs text-foreground-muted">
-                    {{ retentionSummary }}
-                  </p>
-                </div>
-                <div
-                  class="rounded-lg border border-border bg-background/50 p-3">
-                  <p class="text-xs text-foreground-secondary">
-                    {{ t("backupTasks.execution.title") }}
-                  </p>
-                  <p class="mt-1 font-medium text-foreground">
-                    {{ t(`backupTasks.executionModes.${form.execution_mode}`) }}
-                  </p>
-                  <p class="mt-1 text-xs text-foreground-muted">
-                    {{
-                      form.execution_mode === "preferred"
-                        ? syncProxies.find(
-                            (node) =>
-                              node.id === form.preferred_execution_node,
-                          )?.name || "-"
-                        : t("backupTasks.execution.onlineSyncProxyCount", {
-                            count: onlineSyncProxies.length,
-                          })
-                    }}
-                  </p>
-                </div>
-              </div>
-              <div class="mt-4">
-                <p class="text-sm font-medium text-foreground mb-2">
-                  {{ t("backupTasks.wizard.selectedPaths") }}
-                </p>
-                <div class="flex flex-wrap gap-2">
-                  <span
-                    v-for="path in form.backup_paths"
-                    :key="path"
-                    class="px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-mono">
-                    {{ path }}
-                  </span>
+                  <dl class="mt-3 space-y-2">
+                    <div
+                      v-for="row in section.rows"
+                      :key="`${section.title}-${row[0]}`"
+                      class="grid grid-cols-[120px_minmax(0,1fr)] gap-3 text-xs">
+                      <dt class="text-foreground-muted">{{ row[0] }}</dt>
+                      <dd class="min-w-0 break-words text-foreground">
+                        {{ row[1] }}
+                      </dd>
+                    </div>
+                  </dl>
                 </div>
               </div>
             </div>

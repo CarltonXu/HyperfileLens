@@ -40,6 +40,7 @@ export interface BackupTask {
   effective_policy?: Record<string, any>;
   next_run_time?: string | null;
   last_run_time?: string | null;
+  last_run_status?: string;
   retention_days?: number;
   max_snapshots?: number;
   status_message?: string;

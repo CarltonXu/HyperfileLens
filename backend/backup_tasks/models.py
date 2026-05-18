@@ -8,6 +8,7 @@ This module defines the data models for backup task management:
 """
 
 import uuid
+from datetime import timedelta
 from django.db import models
 from django.utils import timezone
 from accounts.models import User
@@ -299,6 +300,11 @@ class BackupTask(models.Model):
         related_name='child_tasks',
         help_text="Parent task for retry or derived backup executions"
     )
+    last_run_status = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Status of the latest execution run"
+    )
     
     class Meta:
         db_table = 'backup_tasks'
@@ -403,6 +409,191 @@ class BackupTask(models.Model):
         self.progress = 0
         self.error_message = ''
         self.save(update_fields=['status', 'progress', 'error_message', 'updated_at'])
+
+    def calculate_next_run_time(self, base_time=None):
+        """Calculate the next platform-scheduled run time from the bound policy."""
+        if not self.is_enabled:
+            return None
+
+        policy = self.schedule
+        overrides = self.policy_overrides or {}
+        override_schedule = overrides.get('snapshot_schedule') or {}
+        if override_schedule.get('override') is True:
+            schedule = override_schedule
+        else:
+            schedule = (policy.snapshot_schedule or {}) if policy else override_schedule
+        mode = (schedule.get('mode') or 'manual').lower()
+        if mode == 'manual':
+            return None
+
+        now = base_time or timezone.now()
+
+        if mode == 'interval':
+            interval = str(schedule.get('interval') or '').strip()
+            seconds = _parse_duration_seconds(interval)
+            if seconds <= 0:
+                return None
+            anchor = self.last_run_time or self.next_run_time or now
+            next_run = anchor + timedelta(seconds=seconds)
+            while next_run <= now:
+                next_run += timedelta(seconds=seconds)
+            return next_run
+
+        if mode in ('time', 'time_of_day'):
+            time_of_day = str(schedule.get('time_of_day') or '').strip()
+            return _next_time_of_day(time_of_day, now)
+
+        if mode == 'cron':
+            cron = str(schedule.get('cron') or '').strip()
+            if not cron:
+                return None
+            try:
+                from croniter import croniter
+                return croniter(cron, now).get_next(timezone.datetime)
+            except Exception:
+                return None
+
+        return None
+
+
+def _parse_duration_seconds(value):
+    if not value:
+        return 0
+    text = str(value).strip().lower()
+    try:
+        return int(float(text))
+    except ValueError:
+        pass
+    units = {
+        's': 1,
+        'm': 60,
+        'h': 3600,
+        'd': 86400,
+    }
+    unit = text[-1:]
+    if unit not in units:
+        return 0
+    try:
+        return int(float(text[:-1]) * units[unit])
+    except ValueError:
+        return 0
+
+
+def _next_time_of_day(value, now):
+    if not value:
+        return None
+    parts = value.split(':')
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1]) if len(parts) > 1 else 0
+    except (TypeError, ValueError):
+        return None
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        return None
+    next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if next_run <= now:
+        next_run += timedelta(days=1)
+    return next_run
+
+
+class BackupTaskRun(models.Model):
+    """Business-level execution record for one backup task run."""
+
+    TRIGGER_MANUAL = 'manual'
+    TRIGGER_SCHEDULED = 'scheduled'
+    TRIGGER_RETRY = 'retry'
+
+    TRIGGER_CHOICES = [
+        (TRIGGER_MANUAL, 'Manual'),
+        (TRIGGER_SCHEDULED, 'Scheduled'),
+        (TRIGGER_RETRY, 'Retry'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_DISPATCHED = 'dispatched'
+    STATUS_RUNNING = 'running'
+    STATUS_COMPLETED = 'completed'
+    STATUS_FAILED = 'failed'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_TIMEOUT = 'timeout'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_DISPATCHED, 'Dispatched'),
+        (STATUS_RUNNING, 'Running'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_CANCELLED, 'Cancelled'),
+        (STATUS_TIMEOUT, 'Timeout'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(
+        BackupTask,
+        on_delete=models.CASCADE,
+        related_name='runs',
+        help_text="Backup task definition for this run"
+    )
+    proxy_task = models.OneToOneField(
+        'nodes.ProxyTask',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='backup_run',
+        help_text="Low-level proxy task for this run"
+    )
+    trigger_type = models.CharField(max_length=20, choices=TRIGGER_CHOICES, default=TRIGGER_MANUAL)
+    scheduled_for = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    progress = models.IntegerField(default=0)
+    message = models.TextField(blank=True)
+    error_message = models.TextField(blank=True)
+    selected_proxy = models.ForeignKey(
+        'nodes.ProxyNode',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='backup_runs',
+    )
+    repository = models.ForeignKey(
+        'repository.Repository',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='backup_runs',
+    )
+    source_resource = models.ForeignKey(
+        'source_resources.SourceResource',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='backup_runs',
+    )
+    total_files = models.IntegerField(default=0)
+    processed_files = models.IntegerField(default=0)
+    total_bytes = models.BigIntegerField(default=0)
+    processed_bytes = models.BigIntegerField(default=0)
+    speed_mbps = models.FloatField(default=0.0)
+    eta = models.CharField(max_length=64, blank=True, null=True)
+    current_file = models.CharField(max_length=512, blank=True, null=True)
+    result = models.JSONField(default=dict, blank=True)
+    parameters = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'backup_task_runs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['task', '-created_at']),
+            models.Index(fields=['status']),
+            models.Index(fields=['trigger_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.task.name} run ({self.status})"
 
 
 class BackupSnapshot(models.Model):

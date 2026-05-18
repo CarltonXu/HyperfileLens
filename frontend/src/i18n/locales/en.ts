@@ -69,6 +69,7 @@ export default {
     back: "Back",
     next: "Next",
     previous: "Previous",
+    retry: "Retry",
     loading: "Loading...",
     noData: "No data available",
     confirm: "Confirm",
@@ -971,6 +972,7 @@ export default {
 
     form: {
       taskName: "Task Name",
+      description: "Description",
       taskType: "Backup Type",
       sourceNode: "Source Node",
       targetGateway: "Target Gateway",
@@ -988,8 +990,10 @@ export default {
       runNow: "Run Now",
       scheduleForLater: "Schedule for Later",
       businessTags: "Business Tags",
+      tags: "Tags",
       accessMode: "Access Mode",
       sourceType: "Source Type",
+      compressionLevel: "Compression Level",
     },
 
     wizard: {
@@ -1141,6 +1145,7 @@ export default {
       autoUnavailable:
         "Automatic placement is unavailable when the source or repository depends on a local filesystem path.",
       preferredProxy: "Preferred Sync Proxy",
+      autoSelect: "Auto select at execution time",
       selectPreferredProxy: "Select a Sync Proxy",
       preferredProxyDesc:
         "The preferred proxy is used first. If it is offline or overloaded, another compatible Sync Proxy will be selected.",
@@ -1178,21 +1183,32 @@ export default {
     policyOverrides: {
       policyBaseline: "Policy Baseline",
       policyBaselineDesc:
-        "Bind a Kopia policy as the baseline, then override only the task-specific parts that need to be different.",
+        "Bind a reusable policy baseline. HyperFileLens uses its frequency to schedule this task and applies its Kopia retention behavior during execution.",
       none: "No overrides",
       schedule: "Schedule",
       retention: "Retention",
       files: "Files",
       compression: "Compression",
       overrideSchedule: "Override schedule for this task",
+      usePolicySchedule: "Use policy schedule",
+      overrideScheduleDesc:
+        "Use a task-specific frequency instead of the selected policy schedule.",
       usePolicyRetention: "Use policy retention",
       overrideRetention: "Override retention for this task",
       taskRetentionDesc:
-        "No policy is selected. Retention will use the values configured on this task.",
+        "No policy is selected. Schedule and retention will use the values configured on this task.",
       taskExclusions: "Task-specific exclusions",
       taskExclusionsDesc:
         "These ignore patterns are merged with the selected policy and applied before the snapshot.",
       overrideCompression: "Override compression and performance",
+    },
+
+    review: {
+      basic: "Basic Information",
+      source: "Backup Source",
+      repository: "Backup Repository",
+      execution: "Execution Placement",
+      scheduleRetention: "Schedule & Retention",
     },
 
     diagnostics: {
@@ -1230,9 +1246,39 @@ export default {
       fileBrowser: "File Browser",
       selectSnapshot: "Select a snapshot to browse its files.",
       noSnapshotFiles: "No file records are available for this snapshot yet.",
+      snapshotFilesLoadFailed: "Failed to load snapshot files",
       urlStyle: "URL Style",
       useTls: "Use TLS",
       latest: "Latest",
+      noChanges: "No changes",
+      dataWritten: "Data written",
+      changedFiles: "{count} changed files",
+      referencedSnapshot: "Referenced snapshot",
+      referencedSize: "Referenced size",
+      referencedFiles: "Referenced files",
+      showingReferencedSnapshot:
+        "No changes detected; showing files from the referenced snapshot.",
+      collapseNoChanges: "Fold no-change snapshots",
+      collapseNoChangesHelp:
+        "No-change snapshots are execution records that reuse the previous unchanged Kopia snapshot; folding hides them from this view only.",
+      snapshotDisplay: "Snapshot display",
+      groupAll: "All",
+      groupByDay: "Day",
+      groupByMonth: "Month",
+      groupByChange: "Change",
+      groupBySize: "Size",
+      allSnapshots: "All snapshots",
+      snapshotGroupSummary: "{count} snapshots · {size}",
+      unknownTime: "Unknown time",
+      changedSnapshots: "Changed snapshots",
+      noChangeSnapshots: "No-change snapshots",
+      sizeZero: "Zero bytes",
+      sizeSmall: "Under 1 GB",
+      sizeMedium: "1 GB - 10 GB",
+      sizeLarge: "Over 10 GB",
+      hiddenNoChanges: "{count} no-change snapshots hidden.",
+      noHiddenNoChanges: "No no-change snapshots are hidden.",
+      noNormalSnapshots: "No normal snapshots to display.",
       snapshotId: "Snapshot ID",
       expiresAt: "Expires At",
       autoRefresh: "Auto refresh",
@@ -1786,9 +1832,9 @@ export default {
   // Policies
   policies: {
     title: "Backup Policies",
-    subtitle: "Define Kopia-native backup policy, schedule, and retention rules",
+    subtitle: "Define reusable backup behavior, platform frequency, and Kopia retention rules",
     kopiaSubtitle:
-      "Configure the same policy model Kopia applies to repositories and snapshot paths.",
+      "Retention and path behavior are applied to Kopia. Backup frequency is evaluated by the HyperFileLens scheduler.",
 
     stats: {
       total: "Total Policies",
@@ -1837,6 +1883,7 @@ export default {
 
     target: {
       title: "Policy Target",
+      allSnapshots: "All snapshots",
       description:
         "Define where this policy applies. Narrower targets override broader targets.",
       host: "Host",
@@ -1869,7 +1916,10 @@ export default {
 
     schedule: {
       title: "Backup Frequency",
-      description: "Define how often snapshots should be taken.",
+      description:
+        "Define how often HyperFileLens should trigger tasks that use this policy. Kopia does not run this schedule by itself.",
+      owner: "Schedule Owner",
+      platformScheduler: "Handled by HyperFileLens scheduler",
       interval: "Snapshot Interval",
       intervalDesc:
         "Take snapshots repeatedly after this duration, for example 4h or 24h.",
@@ -1933,7 +1983,8 @@ export default {
 
     preview: {
       title: "Policy Preview",
-      description: "Review the Kopia command that this policy represents.",
+      description:
+        "Review the Kopia retention command and the platform scheduling frequency.",
     },
 
     validation: {
