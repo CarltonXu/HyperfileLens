@@ -303,6 +303,7 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 	taskID := getString(msg.Payload, "task_id", msg.ID)
 	sourcePath := getString(msg.Payload, "source_path", "")
 	repoConfig := getMap(msg.Payload, "repository")
+	sourceConfig := getMap(msg.Payload, "source_resource")
 	effectivePolicy := getMap(msg.Payload, "effective_policy")
 	password := getString(msg.Payload, "password", "")
 
@@ -317,6 +318,39 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 		logger.Error("source_path is required", nil)
 		d.sendError(msg.ID, taskID, "source_path is required")
 		return
+	}
+
+	var mountedSourcePath string
+	var tempSourceMountPath string
+	defer func() {
+		if mountedSourcePath != "" {
+			if err := d.mountMgr.Unmount(mountedSourcePath); err != nil {
+				logger.Warn("Failed to unmount temporary source path", map[string]interface{}{
+					"mount_path": mountedSourcePath,
+					"error":      err.Error(),
+				})
+			}
+		}
+		if tempSourceMountPath != "" {
+			if err := os.RemoveAll(tempSourceMountPath); err != nil {
+				logger.Warn("Failed to remove temporary source mount path", map[string]interface{}{
+					"mount_path": tempSourceMountPath,
+					"error":      err.Error(),
+				})
+			}
+		}
+	}()
+
+	if len(sourceConfig) > 0 {
+		adjustedSourcePath, mountedPath, tempPath, err := d.prepareBackupSource(taskID, sourcePath, sourceConfig)
+		if err != nil {
+			logger.Error("Failed to prepare backup source", map[string]interface{}{"error": err.Error()})
+			d.sendError(msg.ID, taskID, err.Error())
+			return
+		}
+		sourcePath = adjustedSourcePath
+		mountedSourcePath = mountedPath
+		tempSourceMountPath = tempPath
 	}
 
 	// Initialize task status
@@ -406,6 +440,67 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 	}
 
 	logger.Debug("Backup task end", nil)
+}
+
+func (d *Dispatcher) prepareBackupSource(taskID, sourcePath string, sourceConfig map[string]interface{}) (string, string, string, error) {
+	sourceType := getString(sourceConfig, "type", getString(sourceConfig, "resource_type", ""))
+	switch sourceType {
+	case "", "local":
+		return sourcePath, "", "", nil
+	case "nas", "nfs", "cifs":
+		if !d.config.IsSyncProxy() {
+			return "", "", "", fmt.Errorf("network source backup requires a Sync Proxy")
+		}
+		server := getString(sourceConfig, "server", "")
+		remotePath := getString(sourceConfig, "export_path", getString(sourceConfig, "share", ""))
+		mountType := getString(sourceConfig, "mount_type", "nfs")
+		mountOptions := getString(sourceConfig, "mount_options", "")
+		username := getString(sourceConfig, "username", "")
+		password := getString(sourceConfig, "password", "")
+		if server == "" || remotePath == "" {
+			return "", "", "", fmt.Errorf("network source server and path are required")
+		}
+		tempDir, err := os.MkdirTemp("", "hyperfilelens-source-"+safeTaskPrefix(taskID)+"-")
+		if err != nil {
+			return "", "", "", fmt.Errorf("failed to create source mount directory: %w", err)
+		}
+		if mountType == "smb" || mountType == "cifs" {
+			err = d.mountMgr.MountSMB(server, remotePath, tempDir, username, password, mountOptions)
+		} else {
+			err = d.mountMgr.MountNFS(server, remotePath, tempDir, mountOptions)
+		}
+		if err != nil {
+			os.RemoveAll(tempDir)
+			return "", "", "", fmt.Errorf("failed to mount network source: %w", err)
+		}
+		return resolveMountedSourcePath(sourcePath, tempDir, remotePath, getString(sourceConfig, "mount_point", "")), tempDir, tempDir, nil
+	case "s3":
+		return "", "", "", fmt.Errorf("S3 object storage as backup source is not yet supported by this proxy backup executor")
+	default:
+		return sourcePath, "", "", nil
+	}
+}
+
+func resolveMountedSourcePath(sourcePath, mountPath, remotePath, configuredMountPoint string) string {
+	candidates := []string{remotePath, configuredMountPoint}
+	cleanSource := filepath.Clean(sourcePath)
+	if sourcePath == "" || sourcePath == "/" || sourcePath == "." {
+		return mountPath
+	}
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		cleanCandidate := filepath.Clean(candidate)
+		if cleanSource == cleanCandidate {
+			return mountPath
+		}
+		if strings.HasPrefix(cleanSource, cleanCandidate+string(os.PathSeparator)) {
+			relative := strings.TrimPrefix(cleanSource, cleanCandidate)
+			return filepath.Join(mountPath, strings.TrimLeft(relative, `/\`))
+		}
+	}
+	return filepath.Join(mountPath, strings.TrimLeft(sourcePath, `/\`))
 }
 
 // executeRestore executes a restore task

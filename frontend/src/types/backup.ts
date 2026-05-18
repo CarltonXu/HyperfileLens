@@ -7,6 +7,7 @@ export type BackupStatus =
   | "cancelled"
   | "paused";
 export type BackupPriority = "low" | "normal" | "high";
+export type BackupExecutionMode = "pinned" | "preferred" | "auto";
 
 export interface BackupTask {
   id: string;
@@ -23,6 +24,8 @@ export interface BackupTask {
   task_type: BackupType;
   priority: BackupPriority;
   is_enabled?: boolean;
+  execution_mode?: BackupExecutionMode;
+  preferred_execution_node?: string | null;
   status: BackupStatus;
   progress?: number;
   progress_percent?: number;
@@ -72,6 +75,8 @@ export interface BackupTaskCreateData {
   target_repository: string;
   task_type: BackupType;
   priority?: BackupPriority;
+  execution_mode?: BackupExecutionMode;
+  preferred_execution_node?: string | null;
   backup_paths: string[];
   exclude_patterns?: string[];
   include_patterns?: string[];
@@ -101,6 +106,8 @@ export interface BackupTaskUpdateData {
   max_snapshots?: number;
   priority?: BackupPriority;
   is_enabled?: boolean;
+  execution_mode?: BackupExecutionMode;
+  preferred_execution_node?: string | null;
   bandwidth_limit_kbps?: number | null;
   enable_checkpoint?: boolean;
   checkpoint_interval_minutes?: number;

@@ -99,7 +99,8 @@ class BackupTaskSerializer(serializers.ModelSerializer):
             'target_repository', 'target_repository_name', 'target_repository_type',
             'execution_node_name',
             # Task configuration
-            'task_type', 'priority', 'is_enabled', 'backup_paths', 'exclude_patterns', 'include_patterns',
+            'task_type', 'priority', 'is_enabled', 'execution_mode', 'preferred_execution_node',
+            'backup_paths', 'exclude_patterns', 'include_patterns',
             'compression_enabled', 'compression_type', 'encryption_enabled',
             # Scheduling
             'schedule', 'schedule_name', 'policy_overrides', 'effective_policy',
@@ -162,6 +163,7 @@ class BackupTaskListSerializer(serializers.ModelSerializer):
             'target_repository_type',
             'execution_node_name',
             'task_type', 'priority', 'status', 'progress', 'is_enabled',
+            'execution_mode', 'preferred_execution_node',
             'schedule', 'schedule_name', 'policy_overrides', 'effective_policy',
             'next_run_time', 'last_run_time',
             'created_at', 'started_at', 'completed_at',
@@ -188,7 +190,8 @@ class BackupTaskCreateSerializer(serializers.ModelSerializer):
         fields = [
             'name', 'description',
             'source_resource', 'target_repository',
-            'task_type', 'priority', 'backup_paths', 'exclude_patterns', 'include_patterns',
+            'task_type', 'priority', 'execution_mode', 'preferred_execution_node',
+            'backup_paths', 'exclude_patterns', 'include_patterns',
             'compression_enabled', 'compression_type', 'encryption_enabled',
             'schedule', 'policy_overrides', 'retention_days', 'max_snapshots', 'is_enabled',
             'bandwidth_limit_kbps', 'enable_checkpoint', 'checkpoint_interval_minutes',
@@ -221,6 +224,21 @@ class BackupTaskCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'target_repository': 'Target repository must have a bound node'
                 })
+
+            execution_mode = attrs.get('execution_mode') or BackupTask.EXECUTION_MODE_PINNED
+            if execution_mode == BackupTask.EXECUTION_MODE_AUTO:
+                if source.resource_type == 'local':
+                    raise serializers.ValidationError({
+                        'execution_mode': 'Auto Select Proxy is not available for local filesystem sources'
+                    })
+                if target.repo_type == 'local':
+                    raise serializers.ValidationError({
+                        'execution_mode': 'Auto Select Proxy is not available for local filesystem repositories'
+                    })
+            if execution_mode == BackupTask.EXECUTION_MODE_PREFERRED and not attrs.get('preferred_execution_node'):
+                raise serializers.ValidationError({
+                    'preferred_execution_node': 'Preferred execution proxy is required for preferred fallback mode'
+                })
         
         # Check schedule is active if provided
         schedule = attrs.get('schedule')
@@ -242,6 +260,7 @@ class BackupTaskUpdateSerializer(serializers.ModelSerializer):
             'backup_paths', 'exclude_patterns', 'include_patterns',
             'compression_enabled', 'compression_type', 'encryption_enabled',
             'schedule', 'policy_overrides', 'retention_days', 'max_snapshots', 'priority', 'is_enabled',
+            'execution_mode', 'preferred_execution_node',
             'bandwidth_limit_kbps', 'enable_checkpoint', 'checkpoint_interval_minutes',
             'compression_level', 'max_concurrent_files', 'verify_checksum',
             'max_retries'
@@ -252,6 +271,34 @@ class BackupTaskUpdateSerializer(serializers.ModelSerializer):
         if not value or not isinstance(value, list):
             raise serializers.ValidationError("Backup paths must be a non-empty list")
         return value
+
+    def validate(self, attrs):
+        instance = self.instance
+        source = instance.source_resource if instance else None
+        target = instance.target_repository if instance else None
+        execution_mode = attrs.get(
+            'execution_mode',
+            instance.execution_mode if instance else BackupTask.EXECUTION_MODE_PINNED,
+        )
+        if source and target and execution_mode == BackupTask.EXECUTION_MODE_AUTO:
+            if source.resource_type == 'local':
+                raise serializers.ValidationError({
+                    'execution_mode': 'Auto Select Proxy is not available for local filesystem sources'
+                })
+            if target.repo_type == 'local':
+                raise serializers.ValidationError({
+                    'execution_mode': 'Auto Select Proxy is not available for local filesystem repositories'
+                })
+        if execution_mode == BackupTask.EXECUTION_MODE_PREFERRED:
+            preferred = attrs.get(
+                'preferred_execution_node',
+                instance.preferred_execution_node if instance else None,
+            )
+            if not preferred:
+                raise serializers.ValidationError({
+                    'preferred_execution_node': 'Preferred execution proxy is required for preferred fallback mode'
+                })
+        return attrs
 
 
 class BackupTaskExecuteSerializer(serializers.Serializer):

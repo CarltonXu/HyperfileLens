@@ -38,13 +38,6 @@ export const useAppStore = defineStore('app', () => {
 
     toasts.value.push(newToast)
 
-    // Auto remove after duration
-    if (newToast.duration && newToast.duration > 0) {
-      setTimeout(() => {
-        removeToast(id)
-      }, newToast.duration)
-    }
-
     return id
   }
 

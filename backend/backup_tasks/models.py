@@ -59,6 +59,16 @@ class BackupTask(models.Model):
         (PRIORITY_NORMAL, 'Normal'),
         (PRIORITY_HIGH, 'High'),
     ]
+
+    EXECUTION_MODE_PINNED = 'pinned'
+    EXECUTION_MODE_PREFERRED = 'preferred'
+    EXECUTION_MODE_AUTO = 'auto'
+
+    EXECUTION_MODE_CHOICES = [
+        (EXECUTION_MODE_PINNED, 'Pinned Proxy'),
+        (EXECUTION_MODE_PREFERRED, 'Preferred Proxy with Fallback'),
+        (EXECUTION_MODE_AUTO, 'Auto Select Proxy'),
+    ]
     
     # Fields
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -97,6 +107,20 @@ class BackupTask(models.Model):
     is_enabled = models.BooleanField(
         default=True,
         help_text="Whether this backup task is enabled for manual or scheduled execution"
+    )
+    execution_mode = models.CharField(
+        max_length=20,
+        choices=EXECUTION_MODE_CHOICES,
+        default=EXECUTION_MODE_PINNED,
+        help_text="How the execution proxy is selected for this task"
+    )
+    preferred_execution_node = models.ForeignKey(
+        'nodes.ProxyNode',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='preferred_backup_tasks',
+        help_text="Preferred execution proxy used when execution mode allows fallback"
     )
     
     # Backup paths - relative to source resource mount point
@@ -292,8 +316,13 @@ class BackupTask(models.Model):
     @property
     def execution_node(self):
         """Get the node that executes this backup task."""
-        # The node that executes the backup is the one bound to the source resource
-        return self.source_resource.bound_node
+        if self.preferred_execution_node_id:
+            return self.preferred_execution_node
+        if self.source_resource_id and self.source_resource.bound_node_id:
+            return self.source_resource.bound_node
+        if self.target_repository_id and self.target_repository.bound_node_id:
+            return self.target_repository.bound_node
+        return None
     
     @property
     def duration(self):

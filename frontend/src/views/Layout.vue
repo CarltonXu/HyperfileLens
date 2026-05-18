@@ -707,6 +707,17 @@ onUnmounted(() => {
         isCollapsed ? 'w-16' : 'w-64',
       ]"
     >
+      <button
+        type="button"
+        :title="isCollapsed ? t('common.expand') : t('common.collapse')"
+        :aria-label="isCollapsed ? t('common.expand') : t('common.collapse')"
+        class="absolute -right-3 top-1/2 z-50 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground-muted shadow-sm transition-all hover:border-blue-300 hover:bg-hover hover:text-blue-600 dark:hover:border-blue-700 dark:hover:text-blue-400"
+        @click="toggleSidebar"
+      >
+        <ChevronLeftIcon v-if="!isCollapsed" class="h-4 w-4" />
+        <ChevronRightIcon v-else class="h-4 w-4" />
+      </button>
+
       <!-- Logo -->
       <div
         class="flex items-center justify-center h-16 px-4 border-b border-border"
@@ -1092,21 +1103,6 @@ onUnmounted(() => {
         </div>
       </Transition>
 
-      <!-- Collapse Button at Bottom -->
-      <div
-        class="absolute bottom-0 left-0 right-0 p-3 border-t border-border surface-card"
-      >
-        <button
-          @click="toggleSidebar"
-          class="w-full flex items-center justify-center gap-2 p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
-        >
-          <ChevronLeftIcon v-if="!isCollapsed" class="w-5 h-5" />
-          <ChevronRightIcon v-else class="w-5 h-5" />
-          <span v-if="!isCollapsed" class="text-sm">{{
-            $t("common.collapse")
-          }}</span>
-        </button>
-      </div>
     </aside>
 
     <!-- Main Content -->

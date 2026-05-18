@@ -970,7 +970,7 @@ export default {
       content: "内容",
       repository: "仓库",
       storage: "存储仓库",
-      backupRepository: "Backup Repository",
+      backupRepository: "备份仓库",
       policy: "策略",
       scheduleRetention: "调度保留",
       review: "确认预览",
@@ -1022,6 +1022,7 @@ export default {
       region: "Region",
       prefix: "Prefix",
       accessKey: "Access Key",
+      secretKey: "Secret Key",
       mountPoint: "挂载点",
       mountOptions: "挂载参数",
       username: "用户名",
@@ -1099,6 +1100,31 @@ export default {
       ignoreDirErrors: "忽略目录错误",
       ignoreDirErrorsDesc:
         "当目录无法列出或遍历时继续创建快照。",
+    },
+
+    execution: {
+      title: "执行位置策略",
+      description:
+        "选择任务固定在绑定代理执行，还是在可用的 Sync Proxy 池中自动选择执行节点。",
+      autoUnavailable:
+        "当源端或目标仓库依赖本地文件系统路径时，不能使用自动执行位置策略。",
+      preferredProxy: "优先 Sync Proxy",
+      selectPreferredProxy: "选择 Sync Proxy",
+      preferredProxyDesc:
+        "优先使用选中的 Sync Proxy；如果离线或负载过高，则回退到其他兼容的 Sync Proxy。",
+      onlineSyncProxyCount: "当前有 {count} 个在线 Sync Proxy 可用",
+    },
+
+    executionModes: {
+      pinned: "固定代理",
+      pinnedDesc:
+        "使用源端或仓库绑定的代理执行。适用于本地文件系统等不能迁移的任务。",
+      preferred: "优先代理并回退",
+      preferredDesc:
+        "优先使用指定 Sync Proxy，无法执行时自动回退到其他兼容代理。",
+      auto: "自动选择代理",
+      autoDesc:
+        "执行时从兼容的 Sync Proxy 池中选择一个可用代理。",
     },
 
     compression: {
@@ -1187,7 +1213,7 @@ export default {
         "如果需要更换源端资源或仓库，请创建新的备份任务，避免历史快照关联关系混乱。",
       onePerLine: "每行填写一个路径或规则。",
       bandwidthLimit: "带宽限制 (KB/s)",
-      requiredFields: "任务名称和至少一个源路径不能为空。",
+      requiredFields: "任务名称不能为空。",
       runningReadonly: "运行中的备份任务不能编辑。",
       updateSuccess: "备份任务更新成功",
       sections: {
@@ -1199,7 +1225,7 @@ export default {
         scheduleRetentionDesc:
           "选择策略基线，并配置后续运行使用的任务级保留限制。",
         pathsDesc:
-          "查看保护路径并配置包含或排除规则。每行填写一个值。",
+          "配置文件包含、排除和错误处理规则。源路径固定显示在绑定源端信息中。",
         securityDesc:
           "调整加密、校验、压缩、断点续传、吞吐和重试行为。",
       },
@@ -1245,6 +1271,8 @@ export default {
       viewDetails: "查看详情",
       start: "启动",
       runNow: "立即运行",
+      runStarted: "备份任务已提交执行。",
+      runFailed: "备份任务启动失败。",
       enable: "启用任务",
       disable: "停用任务",
       pause: "暂停",

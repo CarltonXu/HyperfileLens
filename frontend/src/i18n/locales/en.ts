@@ -1049,6 +1049,7 @@ export default {
       region: "Region",
       prefix: "Prefix",
       accessKey: "Access Key",
+      secretKey: "Secret Key",
       mountPoint: "Mount Point",
       mountOptions: "Mount Options",
       username: "Username",
@@ -1126,6 +1127,31 @@ export default {
       ignoreDirErrors: "Ignore directory errors",
       ignoreDirErrorsDesc:
         "Continue the snapshot when a directory cannot be listed or traversed.",
+    },
+
+    execution: {
+      title: "Execution Placement",
+      description:
+        "Choose whether this task runs on a fixed proxy or can be placed on an available Sync Proxy.",
+      autoUnavailable:
+        "Automatic placement is unavailable when the source or repository depends on a local filesystem path.",
+      preferredProxy: "Preferred Sync Proxy",
+      selectPreferredProxy: "Select a Sync Proxy",
+      preferredProxyDesc:
+        "The preferred proxy is used first. If it is offline or overloaded, another compatible Sync Proxy will be selected.",
+      onlineSyncProxyCount: "{count} online Sync Proxy available",
+    },
+
+    executionModes: {
+      pinned: "Pinned Proxy",
+      pinnedDesc:
+        "Run on the proxy bound to the source or repository. Use this for local filesystem workloads.",
+      preferred: "Preferred with Fallback",
+      preferredDesc:
+        "Try a selected Sync Proxy first, then fall back to another available compatible proxy.",
+      auto: "Auto Select Proxy",
+      autoDesc:
+        "Select an available Sync Proxy from the compatible pool at execution time.",
     },
 
     compression: {
@@ -1215,7 +1241,7 @@ export default {
         "To change the source resource or repository, create a new backup task so historical snapshots remain traceable.",
       onePerLine: "Enter one path or pattern per line.",
       bandwidthLimit: "Bandwidth Limit (KB/s)",
-      requiredFields: "Task name and at least one source path are required.",
+      requiredFields: "Task name is required.",
       runningReadonly: "Running backup tasks cannot be edited.",
       updateSuccess: "Backup task updated successfully",
       sections: {
@@ -1227,7 +1253,7 @@ export default {
         scheduleRetentionDesc:
           "Choose the baseline policy and task-level retention limits used for future runs.",
         pathsDesc:
-          "Review protected paths and configure include or exclude patterns. Use one value per line.",
+          "Configure file include, exclusion, and error handling rules. Source paths are fixed in the bound source information.",
         securityDesc:
           "Tune encryption, verification, compression, checkpointing, throughput, and retry behavior.",
       },
@@ -1292,6 +1318,8 @@ export default {
       viewDetails: "View Details",
       start: "Start",
       runNow: "Run Now",
+      runStarted: "Backup task has been submitted for execution.",
+      runFailed: "Failed to start backup task.",
       enable: "Enable Task",
       disable: "Disable Task",
       pause: "Pause",

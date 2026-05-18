@@ -19,7 +19,7 @@ from django.db.models import Sum, Count
 from core.permissions import IsAdminOrOperator
 from licenses.quota import QuotaCheckMixin
 from audit_log.services import AuditService
-from nodes.models import ProxyTask
+from nodes.models import ProxyNode, ProxyTask
 from nodes.proxy_service import ProxyService
 from repository.models import Repository
 from .models import BackupTask, BackupSnapshot
@@ -69,7 +69,7 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
     queryset = BackupTask.objects.select_related(
         'source_resource', 'target_repository',
         'source_resource__bound_node', 'target_repository__bound_node',
-        'user', 'schedule'
+        'preferred_execution_node', 'user', 'schedule'
     ).prefetch_related('snapshots')
     
     permission_classes = [IsAuthenticated]
@@ -94,7 +94,7 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         queryset = BackupTask.objects.select_related(
             'source_resource', 'target_repository',
             'source_resource__bound_node', 'target_repository__bound_node',
-            'user', 'schedule', 'tenant'
+            'preferred_execution_node', 'user', 'schedule', 'tenant'
         ).prefetch_related('snapshots')
         
         # Permission-based filtering by tenant
@@ -183,18 +183,17 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if source resource has a bound node
-        if not task.source_resource.bound_node:
+        # Check if source resource has a bound node for pinned/local execution.
+        if not task.source_resource.bound_node and task.execution_mode == BackupTask.EXECUTION_MODE_PINNED:
             return Response(
                 {'error': 'Source resource has no bound node for execution'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        execution_node = task.execution_node
-        is_online, error_msg = ProxyService.check_proxy_connectivity(str(execution_node.id))
-        if not is_online:
+        execution_node, placement_error = self._select_execution_node(task)
+        if placement_error:
             return Response(
-                {'error': f'Execution proxy is not reachable: {error_msg}'},
+                {'error': placement_error},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -241,6 +240,9 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
                 'include_patterns': task.include_patterns,
                 'policy_overrides': task.policy_overrides,
                 'effective_policy': effective_policy,
+                'execution_mode': task.execution_mode,
+                'selected_execution_node_id': str(execution_node.id),
+                'selected_execution_node_name': execution_node.name,
                 'task_type': serializer.validated_data.get('task_type') or task.task_type,
                 'priority': task.priority,
             },
@@ -262,6 +264,13 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             'include_patterns': task.include_patterns,
             'policy_overrides': task.policy_overrides,
             'effective_policy': effective_policy,
+            'execution_placement': {
+                'mode': task.execution_mode,
+                'selected_proxy_id': str(execution_node.id),
+                'selected_proxy_name': execution_node.name,
+                'preferred_proxy_id': str(task.preferred_execution_node_id) if task.preferred_execution_node_id else None,
+            },
+            'source_resource': self._build_source_resource_config(task.source_resource),
             'repository': repository_config,
             'password': repository_password,
             'task_type': serializer.validated_data.get('task_type') or task.task_type,
@@ -306,8 +315,121 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             'message': 'Backup task started',
             'task_id': str(task.id),
             'proxy_task_id': str(proxy_task.id),
-            'execution_node': task.execution_node.name if task.execution_node else None
+            'execution_node': execution_node.name if execution_node else None
         })
+
+    def _select_execution_node(self, task):
+        """Select the proxy that should execute this backup task."""
+        source = task.source_resource
+        repo = task.target_repository
+        mode = task.execution_mode or BackupTask.EXECUTION_MODE_PINNED
+
+        def online_error(proxy):
+            if not proxy:
+                return 'No execution proxy is configured for this task'
+            is_online, error_msg = ProxyService.check_proxy_connectivity(str(proxy.id))
+            if not is_online:
+                return f"Execution proxy is not reachable: {error_msg}"
+            return ''
+
+        def is_network_source():
+            return source and source.resource_type in (
+                source.TYPE_NAS,
+                source.TYPE_NFS,
+                source.TYPE_CIFS,
+                source.TYPE_S3,
+            )
+
+        def is_network_repository():
+            return repo and repo.repo_type in (
+                Repository.TYPE_NAS,
+                Repository.TYPE_NFS,
+                Repository.TYPE_S3,
+                Repository.TYPE_AZURE,
+                Repository.TYPE_GCS,
+            )
+
+        if not source:
+            return None, 'Backup task has no source resource'
+        if not repo:
+            return None, 'Backup task has no target repository'
+
+        if source.resource_type == source.TYPE_LOCAL:
+            proxy = source.bound_node
+            error = online_error(proxy)
+            return (None, error) if error else (proxy, '')
+
+        if repo.repo_type == Repository.TYPE_LOCAL:
+            proxy = repo.bound_node
+            error = online_error(proxy)
+            return (None, error) if error else (proxy, '')
+
+        if mode == BackupTask.EXECUTION_MODE_PINNED:
+            proxy = source.bound_node or repo.bound_node
+            error = online_error(proxy)
+            return (None, error) if error else (proxy, '')
+
+        if not (is_network_source() and is_network_repository()):
+            return None, 'Auto proxy selection requires network-accessible source and repository resources'
+
+        if mode == BackupTask.EXECUTION_MODE_PREFERRED and task.preferred_execution_node_id:
+            preferred = task.preferred_execution_node
+            if preferred.role == ProxyNode.Role.SYNC and preferred.active_tasks < preferred.max_concurrent_tasks:
+                if not online_error(preferred):
+                    return preferred, ''
+
+        candidates = ProxyNode.objects.filter(
+            role=ProxyNode.Role.SYNC,
+            status=ProxyNode.NodeStatus.ONLINE,
+        )
+        if task.tenant_id:
+            candidates = candidates.filter(tenant_id=task.tenant_id)
+        candidates = candidates.order_by('active_tasks', '-health_score', 'name')
+        for proxy in candidates:
+            if proxy.active_tasks < proxy.max_concurrent_tasks:
+                return proxy, ''
+
+        return None, 'No available Sync Proxy found for automatic execution. Please start a Sync Proxy or reduce running tasks.'
+
+    def _build_source_resource_config(self, source):
+        """Build source resource payload for proxy-side dynamic access."""
+        if not source:
+            return {}
+        config = source.config or {}
+        credentials = source.credentials or {}
+        payload = {
+            'id': str(source.id),
+            'name': source.name,
+            'type': source.resource_type,
+            'resource_type': source.resource_type,
+            'mount_point': source.mount_point or source.get_effective_mount_point(),
+            'config': config,
+            'credentials': credentials,
+        }
+        if source.resource_type in (source.TYPE_NAS, source.TYPE_NFS, source.TYPE_CIFS):
+            payload.update({
+                'server': config.get('server', ''),
+                'export_path': config.get('export_path') or config.get('share') or '',
+                'share': config.get('share') or config.get('export_path') or '',
+                'mount_type': config.get('mount_type') or config.get('protocol') or ('cifs' if source.resource_type == source.TYPE_CIFS else 'nfs'),
+                'mount_options': config.get('mount_options', ''),
+                'username': credentials.get('username') or config.get('username', ''),
+                'password': credentials.get('password') or config.get('password', ''),
+            })
+        elif source.resource_type == source.TYPE_S3:
+            payload.update({
+                'endpoint': config.get('endpoint', ''),
+                'bucket': config.get('bucket', ''),
+                'region': config.get('region', 'us-east-1'),
+                'prefix': config.get('prefix', ''),
+                'access_key': credentials.get('access_key') or config.get('access_key', ''),
+                'secret_key': credentials.get('secret_key') or config.get('secret_key', ''),
+                'use_tls': config.get('use_tls', True),
+                'url_style': config.get('url_style', 'virtual'),
+            })
+        elif source.resource_type == source.TYPE_LOCAL:
+            payload['path'] = config.get('root_path') or config.get('path') or ''
+        return payload
 
     def _resolve_source_path(self, task):
         """Return the first executable source path for the current proxy implementation."""

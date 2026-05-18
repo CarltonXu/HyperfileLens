@@ -26,6 +26,9 @@ const isPaused = ref(false);
 const isLeaving = ref(false);
 let animationFrame: number | null = null;
 let timeoutId: ReturnType<typeof setTimeout> | null = null;
+let startedAt = 0;
+let pausedAt = 0;
+let remainingMs = 0;
 
 // Icon based on type
 const iconComponent = computed(() => {
@@ -88,24 +91,44 @@ const styles = computed(() => {
   return styleMap[props.type];
 });
 
+const stopTimer = () => {
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    timeoutId = null;
+  }
+};
+
+const stopProgress = () => {
+  if (animationFrame) {
+    cancelAnimationFrame(animationFrame);
+    animationFrame = null;
+  }
+};
+
+const startAutoClose = () => {
+  if (!props.duration || props.duration <= 0) return;
+  remainingMs = remainingMs || props.duration;
+  startedAt = Date.now();
+  stopTimer();
+  timeoutId = setTimeout(close, remainingMs);
+};
+
 // Progress bar animation
 const startProgress = () => {
   if (!props.duration || props.duration <= 0) return;
-
-  const startTime = Date.now();
   const duration = props.duration;
-
+  stopProgress();
   const updateProgress = () => {
     if (isPaused.value) {
       animationFrame = requestAnimationFrame(updateProgress);
       return;
     }
 
-    const elapsed = Date.now() - startTime;
-    const remaining = Math.max(0, 100 - (elapsed / duration) * 100);
-    progress.value = remaining;
+    const elapsed = Date.now() - startedAt;
+    const currentRemaining = Math.max(0, remainingMs - elapsed);
+    progress.value = (currentRemaining / duration) * 100;
 
-    if (remaining > 0) {
+    if (currentRemaining > 0) {
       animationFrame = requestAnimationFrame(updateProgress);
     }
   };
@@ -114,19 +137,19 @@ const startProgress = () => {
 };
 
 onMounted(() => {
+  remainingMs = props.duration || 0;
+  startAutoClose();
   startProgress();
 });
 
 onUnmounted(() => {
-  if (animationFrame) {
-    cancelAnimationFrame(animationFrame);
-  }
-  if (timeoutId) {
-    clearTimeout(timeoutId);
-  }
+  stopProgress();
+  stopTimer();
 });
 
 const close = () => {
+  stopProgress();
+  stopTimer();
   isLeaving.value = true;
   // Small delay for animation
   timeoutId = setTimeout(() => {
@@ -135,11 +158,17 @@ const close = () => {
 };
 
 const pauseProgress = () => {
+  if (!props.duration || props.duration <= 0 || isPaused.value) return;
   isPaused.value = true;
+  pausedAt = Date.now();
+  remainingMs = Math.max(0, remainingMs - (pausedAt - startedAt));
+  stopTimer();
 };
 
 const resumeProgress = () => {
+  if (!props.duration || props.duration <= 0 || !isPaused.value) return;
   isPaused.value = false;
+  startAutoClose();
 };
 </script>
 
@@ -150,7 +179,7 @@ const resumeProgress = () => {
       styles.bg,
       styles.border,
       styles.glow,
-      'min-w-[340px] max-w-[440px]',
+      'min-w-[340px] max-w-[560px]',
       'pointer-events-auto',
       'transform transition-all duration-200 ease-out',
       isLeaving
@@ -167,12 +196,15 @@ const resumeProgress = () => {
 
       <!-- Content -->
       <div class="flex-1 min-w-0">
-        <p :class="['text-sm font-semibold truncate', styles.title]">
+        <p :class="['text-sm font-semibold leading-5 break-words', styles.title]">
           {{ title }}
         </p>
         <p
           v-if="message"
-          :class="['mt-0.5 text-sm opacity-80 line-clamp-2', styles.message]">
+          :class="[
+            'mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-5 opacity-90',
+            styles.message,
+          ]">
           {{ message }}
         </p>
       </div>
@@ -205,12 +237,3 @@ const resumeProgress = () => {
     </div>
   </div>
 </template>
-
-<style scoped>
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-</style>

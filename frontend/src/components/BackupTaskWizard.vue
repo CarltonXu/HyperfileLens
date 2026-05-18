@@ -18,11 +18,13 @@ import {
 import type { BackupTaskCreateData } from "@/types/backup";
 import type { Repository } from "@/types/repository";
 import type { SourceResource } from "@/types/sourceResource";
+import type { ProxyNode } from "@/types/proxy";
 
 const props = defineProps<{
   sources: SourceResource[];
   repositories: Repository[];
   policies: Array<Record<string, any>>;
+  nodes: ProxyNode[];
 }>();
 
 const emit = defineEmits<{
@@ -54,6 +56,8 @@ const form = reactive({
   source_kind: "local" as SourceKind,
   source_resource: "",
   target_repository: "",
+  execution_mode: "pinned" as "pinned" | "preferred" | "auto",
+  preferred_execution_node: "" as string,
   backup_paths: [] as string[],
   exclude_patterns: [] as string[],
   task_type: "incremental" as "full" | "incremental" | "differential",
@@ -91,6 +95,7 @@ const steps = computed(() => [
   t("backupTasks.wizard.basic"),
   t("backupTasks.wizard.source"),
   t("backupTasks.wizard.backupRepository"),
+  t("backupTasks.execution.title"),
   t("backupTasks.wizard.scheduleRetention"),
   t("backupTasks.wizard.review"),
 ]);
@@ -168,6 +173,44 @@ const selectedSource = computed(() =>
 const selectedRepository = computed(() =>
   props.repositories.find((repo) => repo.id === form.target_repository),
 );
+
+const syncProxies = computed(() =>
+  props.nodes.filter((node) => node.role === "sync"),
+);
+
+const onlineSyncProxies = computed(() =>
+  syncProxies.value.filter((node) => node.status === "online" || node.is_online),
+);
+
+const autoPlacementAvailable = computed(() => {
+  const source = selectedSource.value;
+  const repo = selectedRepository.value;
+  if (!source || !repo) return false;
+  if (source.resource_type === "local") return false;
+  if (repo.repo_type === "local") return false;
+  return true;
+});
+
+const placementModeOptions = computed(() => [
+  {
+    value: "pinned",
+    label: t("backupTasks.executionModes.pinned"),
+    description: t("backupTasks.executionModes.pinnedDesc"),
+    disabled: false,
+  },
+  {
+    value: "preferred",
+    label: t("backupTasks.executionModes.preferred"),
+    description: t("backupTasks.executionModes.preferredDesc"),
+    disabled: !autoPlacementAvailable.value,
+  },
+  {
+    value: "auto",
+    label: t("backupTasks.executionModes.auto"),
+    description: t("backupTasks.executionModes.autoDesc"),
+    disabled: !autoPlacementAvailable.value,
+  },
+]);
 
 const selectedPolicy = computed(() =>
   props.policies.find((policy) => policy.id === form.schedule),
@@ -437,8 +480,17 @@ const canNext = computed(() => {
   if (step.value === 2) {
     return !!form.source_resource && form.backup_paths.length > 0;
   }
-  if (step.value === 3) return !!form.target_repository;
+  if (step.value === 3) {
+    return !!form.target_repository;
+  }
   if (step.value === 4) {
+    if (!form.target_repository) return false;
+    if (form.execution_mode === "preferred") {
+      return !!form.preferred_execution_node;
+    }
+    return true;
+  }
+  if (step.value === 5) {
     if (form.schedule_mode === "cron" && !form.cron_expression.trim()) {
       return false;
     }
@@ -460,6 +512,20 @@ watch(
   () => form.source_resource,
   () => {
     form.backup_paths = [...sourceProtectionPaths.value];
+    if (!autoPlacementAvailable.value) {
+      form.execution_mode = "pinned";
+      form.preferred_execution_node = "";
+    }
+  },
+);
+
+watch(
+  () => form.target_repository,
+  () => {
+    if (!autoPlacementAvailable.value) {
+      form.execution_mode = "pinned";
+      form.preferred_execution_node = "";
+    }
   },
 );
 
@@ -571,6 +637,9 @@ function save() {
     description: form.description,
     source_resource: form.source_resource,
     target_repository: form.target_repository,
+    execution_mode: form.execution_mode,
+    preferred_execution_node:
+      form.execution_mode === "preferred" ? form.preferred_execution_node : null,
     task_type: form.task_type,
     priority: form.priority,
     backup_paths: [...form.backup_paths],
@@ -591,65 +660,82 @@ function save() {
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       <div class="absolute inset-0 bg-black/50" @click="emit('close')" />
       <div
-        class="relative modal-surface rounded-2xl shadow-xl w-full max-w-5xl max-h-[92vh] flex flex-col">
+        class="relative modal-surface w-full max-w-6xl max-h-[92vh] min-w-0 overflow-hidden rounded-2xl shadow-xl flex flex-col">
         <div
-          class="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
-          <div>
+          class="px-4 py-4 sm:px-6 border-b border-border flex items-center justify-between gap-4 flex-shrink-0">
+          <div class="min-w-0">
             <h2 class="text-lg font-semibold text-foreground">
               {{ t("backupTasks.createTask") }}
             </h2>
-            <p class="mt-1 text-sm text-foreground-secondary">
+            <p class="mt-1 text-sm text-foreground-secondary truncate">
               {{ t("backupTasks.wizard.subtitle") }}
             </p>
           </div>
-          <button class="p-1 rounded-lg hover:bg-hover" @click="emit('close')">
+          <button
+            class="shrink-0 p-1 rounded-lg hover:bg-hover"
+            @click="emit('close')">
             <XMarkIcon class="w-5 h-5 text-foreground-muted" />
           </button>
         </div>
 
-        <div class="px-6 py-4 border-b border-border flex-shrink-0">
-          <div class="flex items-center gap-2 overflow-x-auto">
+        <div class="px-4 py-3 sm:px-6 sm:py-4 border-b border-border flex-shrink-0">
+          <div class="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[repeat(6,minmax(0,1fr))] lg:gap-0">
             <template v-for="(item, index) in steps" :key="item">
-              <button
-                type="button"
-                :class="[
-                  'flex items-center gap-2 shrink-0 rounded-lg px-2 py-1.5 transition-colors',
-                  step === index + 1
-                    ? 'bg-blue-600 text-white'
-                    : step > index + 1
-                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
-                      : 'text-foreground-secondary hover:bg-hover',
-                ]"
-                @click="step = index + 1">
-                <span
+              <div class="relative min-w-0">
+                <div
+                  v-if="index > 0"
                   :class="[
-                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold',
+                    'absolute left-0 top-1/2 hidden h-px w-3 -translate-y-1/2 lg:block',
+                    step > index
+                      ? 'bg-emerald-400 dark:bg-emerald-500'
+                      : 'bg-border',
+                  ]" />
+                <div
+                  v-if="index < steps.length - 1"
+                  :class="[
+                    'absolute right-0 top-1/2 hidden h-px w-3 -translate-y-1/2 lg:block',
+                    step > index + 1
+                      ? 'bg-emerald-400 dark:bg-emerald-500'
+                      : 'bg-border',
+                  ]" />
+                <button
+                  type="button"
+                  :class="[
+                    'relative z-10 mx-0 flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors lg:mx-3',
                     step === index + 1
-                      ? 'bg-white/20'
+                      ? 'bg-blue-600 text-white shadow-sm'
                       : step > index + 1
-                        ? 'bg-emerald-100 dark:bg-emerald-900/40'
-                        : 'bg-background-secondary',
-                  ]">
-                  {{ index + 1 }}
-                </span>
-                <span class="text-xs font-medium whitespace-nowrap">
-                  {{ item }}
-                </span>
-              </button>
-              <div
-                v-if="index < steps.length - 1"
-                class="h-px w-8 shrink-0 bg-border" />
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+                        : 'bg-background text-foreground-secondary hover:bg-hover',
+                  ]"
+                  @click="step = index + 1">
+                  <span
+                    :class="[
+                      'w-6 h-6 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold',
+                      step === index + 1
+                        ? 'bg-white/20'
+                        : step > index + 1
+                          ? 'bg-emerald-100 dark:bg-emerald-900/40'
+                          : 'bg-background-secondary',
+                    ]">
+                    {{ index + 1 }}
+                  </span>
+                  <span class="min-w-0 truncate text-xs font-medium">
+                    {{ item }}
+                  </span>
+                </button>
+              </div>
             </template>
           </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-6">
-          <div v-if="step === 1" class="space-y-5">
-            <div class="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
-              <div class="space-y-4">
+        <div class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+          <div v-if="step === 1" class="min-w-0 space-y-5">
+            <div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div class="min-w-0 space-y-4">
                 <label class="block">
                   <span class="text-sm font-medium text-foreground">
                     {{ t("backupTasks.form.taskName") }} *
@@ -737,7 +823,7 @@ function save() {
             </div>
           </div>
 
-          <div v-else-if="step === 2" class="space-y-5">
+          <div v-else-if="step === 2" class="min-w-0 space-y-5">
             <div class="rounded-xl border border-border bg-background/30 p-4">
               <p class="text-sm font-semibold text-foreground mb-3">
                 {{ t("backupTasks.form.sourceType") }}
@@ -772,7 +858,7 @@ function save() {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
+            <div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
               <div
                 class="rounded-xl border border-border bg-background/30 overflow-hidden">
                 <div class="p-3 border-b border-border">
@@ -980,9 +1066,9 @@ function save() {
             </div>
           </div>
 
-          <div v-else-if="step === 3" class="space-y-5">
-            <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
-              <div class="space-y-3">
+          <div v-else-if="step === 3" class="min-w-0 space-y-5">
+            <div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+              <div class="min-w-0 space-y-3">
                 <p class="text-sm font-semibold text-foreground">
                   {{ t("backupTasks.wizard.backupRepository") }}
                 </p>
@@ -997,7 +1083,7 @@ function save() {
                       : 'border-border bg-background/50 hover:bg-hover',
                   ]"
                   @click="form.target_repository = repo.id">
-                  <div class="flex items-center justify-between gap-4">
+                  <div class="flex min-w-0 items-center justify-between gap-4">
                     <div class="flex items-center gap-3 min-w-0">
                       <CircleStackIcon class="w-6 h-6 text-blue-500 shrink-0" />
                       <div class="min-w-0">
@@ -1029,7 +1115,7 @@ function save() {
                 </button>
               </div>
               <div
-                class="rounded-xl border border-border bg-background/30 p-4 space-y-4">
+                class="min-w-0 rounded-xl border border-border bg-background/30 p-4 space-y-4">
                 <p class="text-sm font-semibold text-foreground">
                   {{ t("backupTasks.wizard.repositoryDetails") }}
                 </p>
@@ -1138,11 +1224,84 @@ function save() {
             </div>
           </div>
 
-          <div v-else-if="step === 4" class="space-y-5">
+          <div v-else-if="step === 4" class="min-w-0 space-y-5">
             <div
-              class="rounded-xl border border-border bg-background/30 p-4 space-y-3">
+              class="min-w-0 rounded-xl border border-border bg-background/30 p-5 space-y-5">
+              <div>
+                <p class="text-sm font-semibold text-foreground">
+                  {{ t("backupTasks.execution.title") }}
+                </p>
+                <p class="mt-1 text-xs text-foreground-secondary">
+                  {{ t("backupTasks.execution.description") }}
+                </p>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <button
+                  v-for="mode in placementModeOptions"
+                  :key="mode.value"
+                  type="button"
+                  :disabled="mode.disabled"
+                  :class="[
+                    'rounded-xl border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                    form.execution_mode === mode.value
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-border bg-background/50 hover:bg-hover',
+                  ]"
+                  @click="
+                    !mode.disabled &&
+                      ((form.execution_mode = mode.value as any),
+                      mode.value !== 'preferred' &&
+                        (form.preferred_execution_node = ''))
+                  ">
+                  <p class="text-sm font-medium text-foreground">
+                    {{ mode.label }}
+                  </p>
+                  <p class="mt-1 text-xs leading-5 text-foreground-secondary">
+                    {{ mode.description }}
+                  </p>
+                </button>
+              </div>
+              <div
+                v-if="!autoPlacementAvailable"
+                class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                {{ t("backupTasks.execution.autoUnavailable") }}
+              </div>
+              <label v-if="form.execution_mode === 'preferred'" class="block">
+                <span class="text-xs font-medium text-foreground-secondary">
+                  {{ t("backupTasks.execution.preferredProxy") }}
+                </span>
+                <select
+                  v-model="form.preferred_execution_node"
+                  class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">
+                    {{ t("backupTasks.execution.selectPreferredProxy") }}
+                  </option>
+                  <option
+                    v-for="node in syncProxies"
+                    :key="node.id"
+                    :value="node.id">
+                    {{ node.name }} · {{ node.status }}
+                  </option>
+                </select>
+                <p class="mt-1 text-[11px] leading-4 text-foreground-muted">
+                  {{ t("backupTasks.execution.preferredProxyDesc") }}
+                </p>
+              </label>
+              <p class="text-xs text-foreground-secondary">
+                {{
+                  t("backupTasks.execution.onlineSyncProxyCount", {
+                    count: onlineSyncProxies.length,
+                  })
+                }}
+              </p>
+            </div>
+          </div>
+
+          <div v-else-if="step === 5" class="min-w-0 space-y-5">
+            <div
+              class="min-w-0 rounded-xl border border-border bg-background/30 p-4 space-y-3">
               <div class="flex items-start justify-between gap-4">
-                <div>
+                <div class="min-w-0">
                   <p class="text-sm font-semibold text-foreground">
                     {{ t("backupTasks.policyOverrides.policyBaseline") }}
                   </p>
@@ -1189,9 +1348,9 @@ function save() {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
               <div
-                class="rounded-xl border border-border bg-background/30 p-4 space-y-4">
+                class="min-w-0 rounded-xl border border-border bg-background/30 p-4 space-y-4">
                 <div class="flex items-center gap-2">
                   <ClockIcon class="w-5 h-5 text-blue-500" />
                   <p class="text-sm font-semibold text-foreground">
@@ -1225,7 +1384,7 @@ function save() {
                 </label>
                 <div
                   v-if="form.schedule_mode === 'interval'"
-                  class="grid grid-cols-[120px_1fr] gap-3 pl-6">
+                  class="grid min-w-0 grid-cols-[minmax(88px,120px)_minmax(0,1fr)] gap-3 pl-6">
                   <input
                     v-model.number="form.interval_value"
                     type="number"
@@ -1261,7 +1420,7 @@ function save() {
               </div>
 
               <div
-                class="rounded-xl border border-border bg-background/30 p-4 space-y-4">
+                class="min-w-0 rounded-xl border border-border bg-background/30 p-4 space-y-4">
                 <div class="flex items-center gap-2">
                   <ShieldCheckIcon class="w-5 h-5 text-blue-500" />
                   <p class="text-sm font-semibold text-foreground">
@@ -1318,12 +1477,12 @@ function save() {
             </div>
           </div>
 
-          <div v-else class="space-y-5">
-            <div class="rounded-xl border border-border bg-background/30 p-5">
+          <div v-else class="min-w-0 space-y-5">
+            <div class="min-w-0 rounded-xl border border-border bg-background/30 p-5">
               <p class="text-sm font-semibold text-foreground mb-4">
                 {{ t("backupTasks.wizard.reviewTitle") }}
               </p>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
                 <div
                   class="rounded-lg border border-border bg-background/50 p-3">
                   <p class="text-xs text-foreground-secondary">
@@ -1370,6 +1529,27 @@ function save() {
                   </p>
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{ retentionSummary }}
+                  </p>
+                </div>
+                <div
+                  class="rounded-lg border border-border bg-background/50 p-3">
+                  <p class="text-xs text-foreground-secondary">
+                    {{ t("backupTasks.execution.title") }}
+                  </p>
+                  <p class="mt-1 font-medium text-foreground">
+                    {{ t(`backupTasks.executionModes.${form.execution_mode}`) }}
+                  </p>
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{
+                      form.execution_mode === "preferred"
+                        ? syncProxies.find(
+                            (node) =>
+                              node.id === form.preferred_execution_node,
+                          )?.name || "-"
+                        : t("backupTasks.execution.onlineSyncProxyCount", {
+                            count: onlineSyncProxies.length,
+                          })
+                    }}
                   </p>
                 </div>
               </div>
@@ -1421,7 +1601,7 @@ function save() {
               {{ t("common.cancel") }}
             </button>
             <button
-              v-if="step < 5"
+              v-if="step < 6"
               class="px-5 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
               :disabled="!canNext"
               @click="step++">
