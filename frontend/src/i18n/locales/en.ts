@@ -161,6 +161,11 @@ export default {
   favorites: {
     add: "Add to favorites",
     remove: "Remove from favorites",
+    more: "More",
+    quickAccess: "Quick Access",
+    quickAccessHint: "Fast access to frequently used pages",
+    dragGroup: "Drag to reorder groups",
+    emptyTitle: "No quick access yet",
     emptyHint: "Star your favorite pages for quick access",
     limitReached: "Favorites limit reached",
     limitHint:

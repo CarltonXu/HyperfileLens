@@ -11,33 +11,11 @@ export interface FavoriteItem {
 
 const STORAGE_KEY = 'hyperfilelens_favorites'
 
-// Calculate max favorites based on screen width
-// Each favorite item is approximately 120px wide (icon + text + padding)
-// Reserve space for: sidebar toggle (60px) + user menu (200px) + padding (100px)
-const getMaxFavoritesByScreen = (): number => {
-  if (typeof window === 'undefined') return 8
-  
-  const availableWidth = window.innerWidth - 360 // Sidebar + user menu + padding
-  const itemWidth = 120 // Approximate width per item
-  
-  // Calculate max items, minimum 4, maximum 12
-  const calculated = Math.floor(availableWidth / itemWidth)
-  return Math.min(Math.max(calculated, 4), 12)
-}
-
 export const useFavoritesStore = defineStore('favorites', () => {
   const favorites = ref<FavoriteItem[]>([])
-  const maxFavorites = ref(getMaxFavoritesByScreen())
 
-  // Update max favorites on window resize
-  if (typeof window !== 'undefined') {
-    window.addEventListener('resize', () => {
-      maxFavorites.value = getMaxFavoritesByScreen()
-    })
-  }
-
-  // Check if can add more favorites
-  const canAddFavorite = computed(() => favorites.value.length < maxFavorites.value)
+  const maxFavorites = computed(() => Number.POSITIVE_INFINITY)
+  const canAddFavorite = computed(() => true)
 
   // Initialize from localStorage
   const loadFavorites = () => {
@@ -60,16 +38,12 @@ export const useFavoritesStore = defineStore('favorites', () => {
     }
   }
 
-  // Add favorite - returns true if successful, false if limit reached
+  // Add favorite - returns true if successful
   const addFavorite = (item: FavoriteItem): boolean => {
     if (favorites.value.some(f => f.id === item.id)) {
       return true // Already exists, consider it success
     }
-    
-    if (!canAddFavorite.value) {
-      return false // Limit reached
-    }
-    
+
     favorites.value.push(item)
     saveFavorites()
     return true

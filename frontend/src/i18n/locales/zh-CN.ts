@@ -160,6 +160,11 @@ export default {
   favorites: {
     add: "添加到收藏夹",
     remove: "从收藏夹移除",
+    more: "更多",
+    quickAccess: "快捷入口",
+    quickAccessHint: "常用页面快速访问",
+    dragGroup: "拖动调整分类顺序",
+    emptyTitle: "暂无快捷入口",
     emptyHint: "收藏常用页面以便快速访问",
     limitReached: "收藏数量已达上限",
     limitHint: "最多可收藏 {max} 个页面，请先移除部分收藏再添加新收藏。",
