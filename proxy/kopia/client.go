@@ -576,11 +576,20 @@ func (c *Client) Restore(taskID, snapshotID, targetPath, password string, overwr
 
 // ListSnapshots lists available Kopia snapshots as raw JSON-compatible output.
 func (c *Client) ListSnapshots(password string) (interface{}, error) {
+	return c.ListSnapshotsForSource(password, "")
+}
+
+func (c *Client) ListSnapshotsForSource(password, sourcePath string) (interface{}, error) {
 	logger.Debug("Starting Kopia snapshot list", map[string]interface{}{
-		"password": "[REDACTED]",
+		"password":    "[REDACTED]",
+		"source_path": sourcePath,
 	})
 
-	output, err := exec.CommandContext(context.Background(), c.binaryPath, "snapshot", "list", "--json").CombinedOutput()
+	args := []string{"snapshot", "list", "--json"}
+	if strings.TrimSpace(sourcePath) != "" {
+		args = append(args, sourcePath)
+	}
+	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
 	if err != nil {
 		logger.Error("Failed to list snapshots", map[string]interface{}{
 			"error":  err.Error(),
@@ -594,6 +603,55 @@ func (c *Client) ListSnapshots(password string) (interface{}, error) {
 		"password":      "[REDACTED]",
 	})
 
+	return string(output), nil
+}
+
+func (c *Client) DeleteSnapshots(snapshotIDs []string, password string) (string, error) {
+	if len(snapshotIDs) == 0 {
+		return "", fmt.Errorf("snapshot IDs are required")
+	}
+	args := []string{"snapshot", "delete", "--delete", "--password", password}
+	args = append(args, snapshotIDs...)
+	logger.Debug("Executing kopia snapshot delete", map[string]interface{}{
+		"count": len(snapshotIDs),
+		"args":  sanitizeArgs(args),
+	})
+	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
+	if err != nil {
+		return string(output), fmt.Errorf("failed to delete snapshots: %w, output: %s", err, string(output))
+	}
+	return string(output), nil
+}
+
+func (c *Client) RunMaintenance(full bool, password string) (string, error) {
+	args := []string{"maintenance", "run", "--password", password}
+	if full {
+		args = append(args, "--full")
+	}
+	logger.Debug("Executing kopia maintenance", map[string]interface{}{
+		"full": full,
+		"args": sanitizeArgs(args),
+	})
+	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
+	if err != nil {
+		return string(output), fmt.Errorf("failed to run maintenance: %w, output: %s", err, string(output))
+	}
+	return string(output), nil
+}
+
+func (c *Client) ShowPolicy(target, password string) (string, error) {
+	args := []string{"policy", "show", "--json", "--password", password}
+	if strings.TrimSpace(target) != "" {
+		args = append(args, strings.TrimSpace(target))
+	}
+	logger.Debug("Executing kopia policy show", map[string]interface{}{
+		"target": target,
+		"args":   sanitizeArgs(args),
+	})
+	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
+	if err != nil {
+		return string(output), fmt.Errorf("failed to show policy: %w, output: %s", err, string(output))
+	}
 	return string(output), nil
 }
 

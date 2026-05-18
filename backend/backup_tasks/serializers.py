@@ -34,7 +34,9 @@ class BackupSnapshotSerializer(serializers.ModelSerializer):
             'id', 'task', 'task_name', 'name', 'description', 'version',
             'parent_snapshot', 'repository', 'repository_name', 'storage_path',
             'manifest_path', 'total_size', 'file_count',
-            'created_at', 'expires_at', 'checksum', 'metadata', 'files'
+            'created_at', 'expires_at', 'checksum', 'metadata',
+            'snapshot_status', 'retention_reasons', 'last_synced_at',
+            'missing_count', 'pruned_at', 'files'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -47,7 +49,9 @@ class BackupSnapshotListSerializer(serializers.ModelSerializer):
         model = BackupSnapshot
         fields = [
             'id', 'task', 'task_name', 'name', 'version', 'total_size', 'file_count',
-            'storage_path', 'manifest_path', 'metadata', 'created_at', 'expires_at'
+            'storage_path', 'manifest_path', 'metadata', 'snapshot_status',
+            'retention_reasons', 'last_synced_at', 'missing_count', 'pruned_at',
+            'created_at', 'expires_at'
         ]
 
 

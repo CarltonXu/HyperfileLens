@@ -117,24 +117,50 @@ def execute_restore_task(self, snapshot_id: str, target_path: str, file_patterns
 
 
 @shared_task
-def cleanup_old_snapshots():
-    """
-    Periodic task to clean up expired snapshots.
-    
-    This runs daily and removes snapshots that have passed their expiration date.
-    """
-    from .models import BackupSnapshot
-    
-    now = timezone.now()
-    expired_snapshots = BackupSnapshot.objects.filter(expires_at__lt=now)
-    
-    count = expired_snapshots.count()
-    if count > 0:
-        # Delete expired snapshots
-        expired_snapshots.delete()
-        logger.info(f"Cleaned up {count} expired snapshots")
-    
-    return {'deleted': count}
+def reconcile_backup_snapshots():
+    """Dispatch snapshot reconciliation for enabled backup tasks."""
+    from .models import BackupTask
+    from .services.retention import dispatch_snapshot_reconciliation
+
+    dispatched = 0
+    skipped = 0
+    for task in BackupTask.objects.filter(is_enabled=True).select_related(
+        'source_resource', 'target_repository', 'source_resource__bound_node',
+        'target_repository__bound_node', 'preferred_execution_node', 'schedule',
+    )[:100]:
+        proxy_task, error = dispatch_snapshot_reconciliation(task)
+        if proxy_task and not error:
+            dispatched += 1
+        else:
+            skipped += 1
+            logger.warning("Skipped snapshot reconciliation for task %s: %s", task.id, error)
+    return {'dispatched': dispatched, 'skipped': skipped}
+
+
+@shared_task
+def evaluate_backup_retention():
+    """Evaluate platform retention and dispatch Kopia pruning for due tasks."""
+    from .models import BackupTask
+    from .services.retention import run_retention_for_task
+
+    evaluated = 0
+    pending_prune = 0
+    errors = 0
+    for task in BackupTask.objects.filter(is_enabled=True).select_related(
+        'source_resource', 'target_repository', 'source_resource__bound_node',
+        'target_repository__bound_node', 'preferred_execution_node', 'schedule',
+    )[:100]:
+        try:
+            result = run_retention_for_task(task, delete=True)
+            evaluated += 1
+            pending_prune += result.get('pending_prune', 0)
+            if result.get('error'):
+                errors += 1
+                logger.warning("Retention prune dispatch failed for task %s: %s", task.id, result['error'])
+        except Exception as exc:
+            errors += 1
+            logger.exception("Retention evaluation failed for task %s: %s", task.id, exc)
+    return {'evaluated': evaluated, 'pending_prune': pending_prune, 'errors': errors}
 
 
 @shared_task

@@ -21,20 +21,11 @@ def register_periodic_tasks(registry):
     
     # Import tasks from apps
     try:
-        from backup_tasks.tasks import cleanup_old_snapshots
         from nodes.tasks import check_node_heartbeat
         from repository.tasks import sync_repository_stats
         from ai_query.tasks import cleanup_old_queries
     except ImportError as e:
         logger.warning(f"Some periodic task modules could not be imported: {e}")
-    
-    # Register backup task cleanup
-    # Runs daily at midnight
-    registry.register_cron_task(
-        name='cleanup-old-snapshots',
-        task='backup_tasks.tasks.cleanup_old_snapshots',
-        schedule={'type': 'crontab', 'minute': 0, 'hour': 0},
-    )
     
     # Register node heartbeat check
     # Runs every 5 minutes

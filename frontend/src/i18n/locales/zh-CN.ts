@@ -916,8 +916,7 @@ export default {
       snapshotsDesc:
         "当前备份任务成功完成后，快照会显示在这里。之后可以选择某个快照浏览其中的文件。",
       runsTitle: "暂无任务执行记录",
-      runsDesc:
-        "当任务被手动启动或由调度触发后，执行历史会显示在这里。",
+      runsDesc: "当任务被手动启动或由调度触发后，执行历史会显示在这里。",
     },
 
     policySummary: {
@@ -939,6 +938,7 @@ export default {
 
     status: {
       pending: "待处理",
+      dispatched: "已派发",
       queued: "排队中",
       running: "运行中",
       paused: "已暂停",
@@ -1104,11 +1104,9 @@ export default {
       oneFileSystemDesc:
         "阻止 Kopia 跨越文件系统边界，适合避免备份源目录内挂载的网络盘或其他分区。",
       ignoreFileErrors: "忽略文件错误",
-      ignoreFileErrorsDesc:
-        "当单个文件无法读取时继续创建快照。",
+      ignoreFileErrorsDesc: "当单个文件无法读取时继续创建快照。",
       ignoreDirErrors: "忽略目录错误",
-      ignoreDirErrorsDesc:
-        "当目录无法列出或遍历时继续创建快照。",
+      ignoreDirErrorsDesc: "当目录无法列出或遍历时继续创建快照。",
     },
 
     execution: {
@@ -1133,24 +1131,19 @@ export default {
       preferredDesc:
         "优先使用指定 Sync Proxy，无法执行时自动回退到其他兼容代理。",
       auto: "自动选择代理",
-      autoDesc:
-        "执行时从兼容的 Sync Proxy 池中选择一个可用代理。",
+      autoDesc: "执行时从兼容的 Sync Proxy 池中选择一个可用代理。",
     },
 
     compression: {
       title: "压缩与性能",
       algorithm: "算法",
-      algorithmDesc:
-        "用于文件内容的压缩算法，选择 none 表示不压缩。",
+      algorithmDesc: "用于文件内容的压缩算法，选择 none 表示不压缩。",
       parallelReads: "并行读取文件数",
-      parallelReadsDesc:
-        "创建快照时 Kopia 可并行读取的最大文件数量。",
+      parallelReadsDesc: "创建快照时 Kopia 可并行读取的最大文件数量。",
       metadata: "压缩元数据",
-      metadataDesc:
-        "压缩仓库元数据以减少存储占用。",
+      metadataDesc: "压缩仓库元数据以减少存储占用。",
       ignoreIdentical: "忽略相同快照",
-      ignoreIdenticalDesc:
-        "当源端内容未变化时跳过保存新的相同快照。",
+      ignoreIdenticalDesc: "当源端内容未变化时跳过保存新的相同快照。",
     },
 
     policyOverrides: {
@@ -1171,8 +1164,7 @@ export default {
       taskRetentionDesc:
         "当前未选择策略，调度和保留规则将使用此任务中配置的数值。",
       taskExclusions: "任务级排除规则",
-      taskExclusionsDesc:
-        "这些忽略规则会和已选策略合并，并在创建快照前应用。",
+      taskExclusionsDesc: "这些忽略规则会和已选策略合并，并在创建快照前应用。",
       overrideCompression: "覆盖压缩与性能参数",
     },
 
@@ -1234,6 +1226,23 @@ export default {
       collapseNoChangesHelp:
         "无变化快照是一次备份执行记录，它复用上一份内容未变化的 Kopia 快照；折叠只会在当前视图隐藏这些记录。",
       snapshotDisplay: "快照展示",
+      gridView: "网格",
+      timelineView: "时间线",
+      timelineFileBrowserHint: "当前展示该时间线快照中的文件目录。",
+      syncSnapshots: "同步",
+      applyRetention: "应用保留",
+      runMaintenance: "维护",
+      syncSnapshotsDispatched: "快照同步任务已下发。",
+      retentionDispatched: "保留策略评估任务已下发。",
+      maintenanceDispatched: "Kopia 维护任务已下发。",
+      kopiaState: "Kopia 状态",
+      snapshotStatuses: {
+        available: "可用",
+        pending_prune: "待清理",
+        pruned: "已清理",
+        missing: "暂缺",
+        delete_failed: "清理失败",
+      },
       groupAll: "全部",
       groupByDay: "按天",
       groupByMonth: "按月",
@@ -1270,14 +1279,12 @@ export default {
         readonly: "绑定源端与仓库",
         readonlyDesc:
           "已有任务固定源端资源和目标仓库，以保持快照链路和历史记录可追踪。",
-        basicDesc:
-          "更新展示名称、优先级、描述，以及任务是否允许执行。",
+        basicDesc: "更新展示名称、优先级、描述，以及任务是否允许执行。",
         scheduleRetentionDesc:
           "选择策略基线，并配置后续运行使用的任务级保留限制。",
         pathsDesc:
           "配置文件包含、排除和错误处理规则。源路径固定显示在绑定源端信息中。",
-        securityDesc:
-          "调整加密、校验、压缩、断点续传、吞吐和重试行为。",
+        securityDesc: "调整加密、校验、压缩、断点续传、吞吐和重试行为。",
       },
       placeholders: {
         name: "例如：财务服务器每日增量备份",
@@ -1767,7 +1774,8 @@ export default {
   policies: {
     title: "备份策略",
     subtitle: "定义可复用的备份行为、平台备份频率和 Kopia 保留规则",
-    kopiaSubtitle: "保留规则和路径行为会应用到 Kopia；备份频率由 HyperFileLens 调度器评估触发。",
+    kopiaSubtitle:
+      "保留规则和路径行为会应用到 Kopia；备份频率由 HyperFileLens 调度器评估触发。",
 
     stats: {
       total: "策略总数",
@@ -1799,26 +1807,21 @@ export default {
     },
 
     basic: {
-      description:
-        "为策略命名，并定义它代表的默认备份行为。",
+      description: "为策略命名，并定义它代表的默认备份行为。",
       namePlaceholder: "例如：生产 Linux 每日备份策略",
-      nameDesc:
-        "建议包含业务、环境和备份意图，便于后续选择和维护。",
+      nameDesc: "建议包含业务、环境和备份意图，便于后续选择和维护。",
       backupTypeDesc:
         "选择该策略代表的备份方式。常规 Kopia 快照建议使用增量备份。",
       descriptionPlaceholder:
         "描述该策略的适用场景，例如保护对象、调度意图或合规说明。",
-      descriptionDesc:
-        "可选说明可以帮助运维人员理解策略用途和适用范围。",
-      enabledDesc:
-        "禁用后策略仍会保留，但不应再用于新的计划备份任务。",
+      descriptionDesc: "可选说明可以帮助运维人员理解策略用途和适用范围。",
+      enabledDesc: "禁用后策略仍会保留，但不应再用于新的计划备份任务。",
     },
 
     target: {
       title: "策略目标",
       allSnapshots: "所有快照",
-      description:
-        "定义该策略应用到什么范围。范围越精确，优先级越高。",
+      description: "定义该策略应用到什么范围。范围越精确，优先级越高。",
       host: "主机",
       hostDesc: "将该策略应用到指定主机产生的快照。",
       user: "用户",
@@ -1849,18 +1852,16 @@ export default {
 
     schedule: {
       title: "备份频率",
-      description: "定义 HyperFileLens 多久触发一次使用该策略的任务。Kopia 本身不会自动执行这个调度。",
+      description:
+        "定义 HyperFileLens 多久触发一次使用该策略的任务。Kopia 本身不会自动执行这个调度。",
       owner: "调度归属",
       platformScheduler: "由 HyperFileLens 调度器处理",
       interval: "快照间隔",
-      intervalDesc:
-        "按固定时间间隔重复执行快照，例如 4h 或 24h。",
+      intervalDesc: "按固定时间间隔重复执行快照，例如 4h 或 24h。",
       timeOfDay: "每日时间",
-      timeOfDayDesc:
-        "使用基于时间的调度时，在本地时间的这个时刻执行快照。",
+      timeOfDayDesc: "使用基于时间的调度时，在本地时间的这个时刻执行快照。",
       cron: "Cron 表达式",
-      cronDesc:
-        "使用 crontab 表达式配置高级调度，例如 0 2 * * *。",
+      cronDesc: "使用 crontab 表达式配置高级调度，例如 0 2 * * *。",
       runMissed: "补跑错过的快照",
       runMissedDesc:
         "如果系统离线或调度器未运行，恢复后自动补跑错过的计划快照。",
@@ -1928,8 +1929,7 @@ export default {
     },
 
     details: {
-      subtitle:
-        "查看策略范围、备份频率、保留规则以及对应的 Kopia 命令预览。",
+      subtitle: "查看策略范围、备份频率、保留规则以及对应的 Kopia 命令预览。",
     },
 
     empty: {

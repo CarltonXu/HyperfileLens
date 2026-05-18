@@ -919,11 +919,19 @@ class ProxyConsumer(AsyncWebsocketConsumer):
 
         result = []
         for task in tasks:
+            parameters = task['parameters'] or {}
+            payload = {
+                **parameters,
+                'task_id': str(task['id']),
+                'task_type': task['task_type'],
+                'timeout_seconds': task['timeout_seconds'],
+            }
             result.append({
                 'task_id': str(task['id']),
                 'task_type': task['task_type'],
-                'parameters': task['parameters'],
-                'timeout_seconds': task['timeout_seconds']
+                'parameters': parameters,
+                'timeout_seconds': task['timeout_seconds'],
+                **payload,
             })
         return result
 
@@ -1045,6 +1053,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         """Complete a task."""
         from .models import ProxyTask
         from backup_tasks.models import BackupTask, BackupSnapshot, BackupTaskRun
+        from backup_tasks.services.retention import reconcile_snapshot_result, dispatch_snapshot_reconciliation
         try:
             task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
             if cancelled:
@@ -1211,6 +1220,41 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                         ])
                 except BackupTask.DoesNotExist:
                     pass
+            elif backup_task_id and task.task_type == ProxyTask.TaskType.SNAPSHOT_LIST and success:
+                summary = reconcile_snapshot_result(task, result or {})
+                task.result = {**(task.result or {}), 'reconcile_summary': summary}
+                task.save(update_fields=['result'])
+            elif backup_task_id and task.task_type == ProxyTask.TaskType.SNAPSHOT_DELETE:
+                snapshot_ids = (task.parameters or {}).get('snapshot_ids') or []
+                if success:
+                    BackupSnapshot.objects.filter(
+                        task_id=backup_task_id,
+                        storage_path__in=snapshot_ids,
+                    ).update(
+                        snapshot_status=BackupSnapshot.STATUS_MISSING,
+                        last_synced_at=timezone.now(),
+                    )
+                    backup_task = BackupTask.objects.filter(id=backup_task_id).select_related(
+                        'source_resource', 'target_repository', 'source_resource__bound_node',
+                        'target_repository__bound_node', 'preferred_execution_node', 'schedule',
+                    ).first()
+                    if backup_task:
+                        dispatch_snapshot_reconciliation(backup_task)
+                else:
+                    BackupSnapshot.objects.filter(
+                        task_id=backup_task_id,
+                        storage_path__in=snapshot_ids,
+                    ).update(
+                        snapshot_status=BackupSnapshot.STATUS_DELETE_FAILED,
+                        last_synced_at=timezone.now(),
+                    )
+            elif backup_task_id and task.task_type == ProxyTask.TaskType.KOPIA_MAINTENANCE and success:
+                backup_task = BackupTask.objects.filter(id=backup_task_id).select_related(
+                    'source_resource', 'target_repository', 'source_resource__bound_node',
+                    'target_repository__bound_node', 'preferred_execution_node', 'schedule',
+                ).first()
+                if backup_task:
+                    dispatch_snapshot_reconciliation(backup_task)
         except ProxyTask.DoesNotExist:
             pass
 

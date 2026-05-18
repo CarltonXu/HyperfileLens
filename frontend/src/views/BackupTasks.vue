@@ -75,15 +75,15 @@ const selectedSnapshot = ref<any | null>(null);
 const selectedSnapshotFiles = ref<any[]>([]);
 const snapshotFilesError = ref("");
 const collapseNoChangeSnapshots = ref(false);
-const snapshotGroupBy = ref<"all" | "day" | "month" | "change" | "size">(
-  "all",
-);
+const snapshotGroupBy = ref<"all" | "day" | "month" | "change" | "size">("all");
+const snapshotViewMode = ref<"grid" | "timeline">("grid");
 const expandedSnapshotPaths = ref<Set<string>>(new Set());
 const selectedSnapshotPaths = ref<Set<string>>(new Set());
 const loadingSnapshotPaths = ref<Set<string>>(new Set());
 const snapshotsLoading = ref(false);
 const runsLoading = ref(false);
 const snapshotFilesLoading = ref(false);
+const snapshotOperationLoading = ref(false);
 const detailLoading = ref(false);
 const detailRefreshing = ref(false);
 const editLoading = ref(false);
@@ -270,7 +270,15 @@ const editPolicyRetentionSummary = computed(() => {
 });
 
 function snapshotDisplayTime(snapshot: any) {
-  return snapshot?.metadata?.last_seen_at || snapshot?.created_at;
+  return (
+    snapshot?.metadata?.snapshot_time ||
+    snapshot?.metadata?.kopia_start_time ||
+    snapshot?.metadata?.kopia_snapshot?.startTime ||
+    snapshot?.metadata?.kopia_end_time ||
+    snapshot?.metadata?.kopia_snapshot?.endTime ||
+    snapshot?.created_at ||
+    snapshot?.metadata?.last_seen_at
+  );
 }
 
 function isNoChangeSnapshotReference(snapshot: any) {
@@ -285,11 +293,15 @@ function isLatestDisplayedSnapshot(snapshot: any) {
 }
 
 function snapshotDisplaySize(snapshot: any) {
-  return isNoChangeSnapshotReference(snapshot) ? 0 : Number(snapshot?.total_size || 0);
+  return isNoChangeSnapshotReference(snapshot)
+    ? 0
+    : Number(snapshot?.total_size || 0);
 }
 
 function snapshotDisplayFileCount(snapshot: any) {
-  return isNoChangeSnapshotReference(snapshot) ? 0 : Number(snapshot?.file_count || 0);
+  return isNoChangeSnapshotReference(snapshot)
+    ? 0
+    : Number(snapshot?.file_count || 0);
 }
 
 function snapshotReferencedId(snapshot: any) {
@@ -302,6 +314,27 @@ function snapshotReferencedId(snapshot: any) {
     snapshot?.version ||
     ""
   );
+}
+
+function snapshotStatusLabel(snapshot: any) {
+  const status = snapshot?.snapshot_status || "available";
+  return t(`backupTasks.detail.snapshotStatuses.${status}`);
+}
+
+function snapshotStatusClass(snapshot: any) {
+  const status = snapshot?.snapshot_status || "available";
+  const classes: Record<string, string> = {
+    available:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+    pending_prune:
+      "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+    missing:
+      "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    pruned: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    delete_failed:
+      "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300",
+  };
+  return classes[status] || classes.available;
 }
 
 type BackupTaskColumnKey =
@@ -407,16 +440,22 @@ const currentDetailTabLoading = computed(() => {
 });
 
 const displayedTaskSnapshots = computed(() => {
+  const snapshots = [...selectedTaskSnapshots.value].sort(
+    (a, b) =>
+      new Date(snapshotDisplayTime(b) || 0).getTime() -
+      new Date(snapshotDisplayTime(a) || 0).getTime(),
+  );
   if (!collapseNoChangeSnapshots.value) {
-    return selectedTaskSnapshots.value;
+    return snapshots;
   }
-  return selectedTaskSnapshots.value.filter(
+  return snapshots.filter(
     (snapshot) => !isNoChangeSnapshotReference(snapshot),
   );
 });
 
 const hiddenNoChangeSnapshotCount = computed(
-  () => selectedTaskSnapshots.value.length - displayedTaskSnapshots.value.length,
+  () =>
+    selectedTaskSnapshots.value.length - displayedTaskSnapshots.value.length,
 );
 
 const snapshotGroupOptions = computed(() => [
@@ -425,6 +464,11 @@ const snapshotGroupOptions = computed(() => [
   { value: "month" as const, label: t("backupTasks.detail.groupByMonth") },
   { value: "change" as const, label: t("backupTasks.detail.groupByChange") },
   { value: "size" as const, label: t("backupTasks.detail.groupBySize") },
+]);
+
+const snapshotViewModeOptions = computed(() => [
+  { value: "grid" as const, label: t("backupTasks.detail.gridView") },
+  { value: "timeline" as const, label: t("backupTasks.detail.timelineView") },
 ]);
 
 const groupedDisplayedTaskSnapshots = computed(() => {
@@ -483,7 +527,10 @@ function showCollapseNoChangesHelp(event: MouseEvent | FocusEvent) {
   const rect = target.getBoundingClientRect();
   collapseNoChangesHelpPosition.value = {
     top: rect.bottom + 8,
-    left: Math.min(Math.max(rect.left + rect.width / 2, 156), window.innerWidth - 156),
+    left: Math.min(
+      Math.max(rect.left + rect.width / 2, 156),
+      window.innerWidth - 156,
+    ),
   };
   collapseNoChangesHelpVisible.value = true;
 }
@@ -502,7 +549,10 @@ function cancelSnapshotHoverTooltipHide() {
   }
 }
 
-function showSnapshotHoverTooltip(snapshot: any, event: MouseEvent | FocusEvent) {
+function showSnapshotHoverTooltip(
+  snapshot: any,
+  event: MouseEvent | FocusEvent,
+) {
   cancelSnapshotHoverTooltipHide();
   const target = event.currentTarget as HTMLElement | null;
   if (!target) return;
@@ -520,7 +570,9 @@ function showSnapshotHoverTooltip(snapshot: any, event: MouseEvent | FocusEvent)
   snapshotHoverTooltip.value = {
     snapshot,
     left,
-    top: canShowBelow ? rect.bottom + 10 : Math.max(rect.top - 10, viewportPadding),
+    top: canShowBelow
+      ? rect.bottom + 10
+      : Math.max(rect.top - 10, viewportPadding),
     placement: canShowBelow ? "bottom" : "top",
   };
 }
@@ -657,6 +709,50 @@ async function loadTaskRuns() {
     console.error("Failed to fetch task runs:", error);
   } finally {
     runsLoading.value = false;
+  }
+}
+
+async function syncSnapshotsFromKopia() {
+  if (!selectedTask.value) return;
+  snapshotOperationLoading.value = true;
+  try {
+    await backupTasksApi.syncSnapshots(selectedTask.value.id);
+    appStore.success(t("backupTasks.detail.syncSnapshotsDispatched"));
+  } catch (error) {
+    appStore.error(getApiErrorMessage(error, t("common.updateFailed")));
+  } finally {
+    snapshotOperationLoading.value = false;
+  }
+}
+
+async function evaluateRetentionNow() {
+  if (!selectedTask.value) return;
+  snapshotOperationLoading.value = true;
+  try {
+    await backupTasksApi.evaluateRetention(selectedTask.value.id, {
+      delete: true,
+    });
+    appStore.success(t("backupTasks.detail.retentionDispatched"));
+    await loadTaskSnapshots();
+  } catch (error) {
+    appStore.error(getApiErrorMessage(error, t("common.updateFailed")));
+  } finally {
+    snapshotOperationLoading.value = false;
+  }
+}
+
+async function runKopiaMaintenanceNow() {
+  if (!selectedTask.value) return;
+  snapshotOperationLoading.value = true;
+  try {
+    await backupTasksApi.runMaintenance(selectedTask.value.id, {
+      full: true,
+    });
+    appStore.success(t("backupTasks.detail.maintenanceDispatched"));
+  } catch (error) {
+    appStore.error(getApiErrorMessage(error, t("common.updateFailed")));
+  } finally {
+    snapshotOperationLoading.value = false;
   }
 }
 
@@ -961,8 +1057,10 @@ function fillEditForm(task: BackupTask) {
   const filePolicy = task.policy_overrides?.file_policy || {};
   const scheduleOverride = task.policy_overrides?.snapshot_schedule || {};
   const retentionOverride = task.policy_overrides?.retention_policy || {};
-  const hasScheduleOverride = scheduleOverride.override === true || !task.schedule;
-  const hasRetentionOverride = retentionOverride.override === true || !task.schedule;
+  const hasScheduleOverride =
+    scheduleOverride.override === true || !task.schedule;
+  const hasRetentionOverride =
+    retentionOverride.override === true || !task.schedule;
   const taskPolicy = task.schedule
     ? backupPolicies.value.find(
         (policy) => String(policy.id) === String(task.schedule),
@@ -1046,11 +1144,17 @@ async function updateTask() {
     return;
   }
   if (editForm.value.override_schedule || !editForm.value.schedule) {
-    if (editForm.value.schedule_mode === "interval" && !editForm.value.interval.trim()) {
+    if (
+      editForm.value.schedule_mode === "interval" &&
+      !editForm.value.interval.trim()
+    ) {
       appStore.error(t("policies.schedule.interval"));
       return;
     }
-    if (editForm.value.schedule_mode === "time" && !editForm.value.time_of_day) {
+    if (
+      editForm.value.schedule_mode === "time" &&
+      !editForm.value.time_of_day
+    ) {
       appStore.error(t("policies.schedule.timeOfDay"));
       return;
     }
@@ -1076,7 +1180,7 @@ async function updateTask() {
     schedule: editForm.value.schedule || null,
     policy_overrides: {
       ...(editingTask.value.policy_overrides || {}),
-      ...((editForm.value.override_schedule || !editForm.value.schedule)
+      ...(editForm.value.override_schedule || !editForm.value.schedule
         ? {
             snapshot_schedule: {
               override: true,
@@ -1097,8 +1201,7 @@ async function updateTask() {
             },
           }
         : { snapshot_schedule: {} }),
-      ...((editForm.value.retention_mode === "custom" ||
-      !editForm.value.schedule)
+      ...(editForm.value.retention_mode === "custom" || !editForm.value.schedule
         ? {
             retention_policy: {
               override: true,
@@ -1343,9 +1446,8 @@ function snapshotGroupFor(
   if (mode === "day") {
     const date = displayTime ? new Date(displayTime) : null;
     return {
-      key: date && !Number.isNaN(date.getTime())
-        ? localDateKey(date)
-        : "unknown",
+      key:
+        date && !Number.isNaN(date.getTime()) ? localDateKey(date) : "unknown",
       label: formatSnapshotGroupDay(displayTime),
     };
   }
@@ -1353,9 +1455,8 @@ function snapshotGroupFor(
   if (mode === "month") {
     const date = displayTime ? new Date(displayTime) : null;
     return {
-      key: date && !Number.isNaN(date.getTime())
-        ? localMonthKey(date)
-        : "unknown",
+      key:
+        date && !Number.isNaN(date.getTime()) ? localMonthKey(date) : "unknown",
       label: formatSnapshotGroupMonth(displayTime),
     };
   }
@@ -1552,7 +1653,8 @@ onMounted(() => {
       </div>
       <button
         @click="showCreateModal = true"
-        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg">
+        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+      >
         <PlusIcon class="w-4 h-4" />
         {{ t("backupTasks.createTask") }}
       </button>
@@ -1605,16 +1707,19 @@ onMounted(() => {
       <div class="flex flex-wrap items-center gap-3">
         <div class="relative flex-1 min-w-[200px]">
           <MagnifyingGlassIcon
-            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+          />
           <input
             v-model="searchQuery"
             type="text"
             :placeholder="t('common.search')"
-            class="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            class="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
         </div>
         <select
           v-model="selectedStatus"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          class="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
           <option value="all">
             {{ t("common.status") }}: {{ t("common.all") }}
           </option>
@@ -1627,7 +1732,8 @@ onMounted(() => {
         </select>
         <button
           @click="fetchTasks"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover">
+          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
+        >
           <ArrowPathIcon class="w-4 h-4" />
           {{ t("common.refresh") }}
         </button>
@@ -1637,14 +1743,17 @@ onMounted(() => {
     <!-- Tasks List -->
     <div v-if="isLoading" class="flex items-center justify-center py-12">
       <div
-        class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"
+      />
     </div>
 
     <div
       v-else-if="filteredTasks.length === 0"
-      class="bg-card rounded-xl border border-border p-12 text-center">
+      class="bg-card rounded-xl border border-border p-12 text-center"
+    >
       <div
-        class="w-16 h-16 bg-background-tertiary rounded-full flex items-center justify-center mx-auto mb-4">
+        class="w-16 h-16 bg-background-tertiary rounded-full flex items-center justify-center mx-auto mb-4"
+      >
         <CloudArrowUpIcon class="w-8 h-8 text-slate-400" />
       </div>
       <h3 class="text-lg font-medium text-foreground mb-1">
@@ -1659,12 +1768,14 @@ onMounted(() => {
       <div class="overflow-x-auto">
         <table
           class="w-full table-fixed"
-          :style="{ minWidth: backupTaskTable.tableMinWidth.value }">
+          :style="{ minWidth: backupTaskTable.tableMinWidth.value }"
+        >
           <colgroup>
             <col
               v-for="column in backupTaskColumns"
               :key="column.key"
-              :style="backupTaskTable.columnStyle(column.key)" />
+              :style="backupTaskTable.columnStyle(column.key)"
+            />
           </colgroup>
           <thead class="bg-background-secondary border-b border-border">
             <tr>
@@ -1693,17 +1804,20 @@ onMounted(() => {
                   backupTaskTable.resetColumnWidth(
                     $event as BackupTaskColumnKey,
                   )
-                " />
+                "
+              />
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
             <tr
               v-for="task in paginatedTasks"
               :key="task.id"
-              class="hover:bg-hover transition-colors">
+              class="hover:bg-hover transition-colors"
+            >
               <td
                 class="px-4 py-4"
-                :style="backupTaskTable.columnStyle('name')">
+                :style="backupTaskTable.columnStyle('name')"
+              >
                 <div class="flex items-center gap-3">
                   <div
                     :class="[
@@ -1715,7 +1829,8 @@ onMounted(() => {
                           : task.status === 'failed'
                             ? 'bg-red-100'
                             : 'bg-slate-100',
-                    ]">
+                    ]"
+                  >
                     <CloudArrowUpIcon
                       :class="[
                         'w-5 h-5',
@@ -1726,7 +1841,8 @@ onMounted(() => {
                             : task.status === 'failed'
                               ? 'text-red-600'
                               : 'text-slate-400',
-                      ]" />
+                      ]"
+                    />
                   </div>
                   <div>
                     <div class="flex items-center gap-2">
@@ -1741,11 +1857,13 @@ onMounted(() => {
                           task.is_enabled === false
                             ? t('backupTasks.disabled')
                             : t('backupTasks.enabled')
-                        " />
+                        "
+                      />
                       <button
                         type="button"
                         class="text-left text-sm font-medium text-foreground hover:text-primary"
-                        @click="openTaskDetail(task)">
+                        @click="openTaskDetail(task)"
+                      >
                         {{ task.name }}
                       </button>
                     </div>
@@ -1759,18 +1877,21 @@ onMounted(() => {
               </td>
               <td
                 class="px-4 py-4"
-                :style="backupTaskTable.columnStyle('policy')">
+                :style="backupTaskTable.columnStyle('policy')"
+              >
                 <p class="text-sm font-medium text-foreground">
                   {{ task.schedule_name || t("backupTasks.form.noPolicy") }}
                 </p>
                 <p
-                  class="mt-1 max-w-[260px] truncate text-xs text-foreground-muted">
+                  class="mt-1 max-w-[260px] truncate text-xs text-foreground-muted"
+                >
                   {{ getTaskPolicySummary(task) }}
                 </p>
               </td>
               <td
                 class="px-4 py-4"
-                :style="backupTaskTable.columnStyle('source')">
+                :style="backupTaskTable.columnStyle('source')"
+              >
                 <p class="text-sm text-foreground">
                   {{ task.source_resource_name || "-" }}
                 </p>
@@ -1780,7 +1901,8 @@ onMounted(() => {
               </td>
               <td
                 class="px-4 py-4"
-                :style="backupTaskTable.columnStyle('repository')">
+                :style="backupTaskTable.columnStyle('repository')"
+              >
                 <p class="text-sm text-foreground">
                   {{ task.target_repository_name || "-" }}
                 </p>
@@ -1790,37 +1912,44 @@ onMounted(() => {
               </td>
               <td
                 class="px-4 py-4"
-                :style="backupTaskTable.columnStyle('status')">
+                :style="backupTaskTable.columnStyle('status')"
+              >
                 <span
                   :class="[
                     'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium',
                     getStatusColor(task.status),
-                  ]">
+                  ]"
+                >
                   <component
                     :is="getStatusIcon(task.status)"
-                    class="w-3.5 h-3.5" />
+                    class="w-3.5 h-3.5"
+                  />
                   {{ t(`backupTasks.status.${task.status}`) }}
                 </span>
               </td>
               <td
                 class="px-4 py-4 text-sm text-foreground-secondary"
-                :style="backupTaskTable.columnStyle('last_backup')">
+                :style="backupTaskTable.columnStyle('last_backup')"
+              >
                 {{ formatDateTime(task.last_run_time || task.completed_at) }}
               </td>
               <td
                 class="px-4 py-4 text-sm text-foreground-secondary"
-                :style="backupTaskTable.columnStyle('next_backup')">
+                :style="backupTaskTable.columnStyle('next_backup')"
+              >
                 {{ formatDateTime(task.next_run_time) }}
               </td>
               <td
                 class="px-4 py-4 text-right"
-                :style="backupTaskTable.columnStyle('actions')">
+                :style="backupTaskTable.columnStyle('actions')"
+              >
                 <div class="flex items-center justify-end gap-2">
                   <button
                     v-if="canRunTask(task)"
                     @click="executeTask(task)"
                     class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                    :title="t('backupTasks.actions.runNow')">
+                    :title="t('backupTasks.actions.runNow')"
+                  >
                     <PlayIcon class="w-4 h-4" />
                   </button>
                   <button
@@ -1835,33 +1964,38 @@ onMounted(() => {
                       task.is_enabled === false
                         ? t('backupTasks.actions.enable')
                         : t('backupTasks.actions.disable')
-                    ">
+                    "
+                  >
                     <PowerIcon class="w-4 h-4" />
                   </button>
                   <button
                     v-if="task.status === 'running'"
                     @click="cancelTask(task)"
                     class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    :title="t('backupTasks.actions.cancel')">
+                    :title="t('backupTasks.actions.cancel')"
+                  >
                     <StopIcon class="w-4 h-4" />
                   </button>
                   <button
                     @click="openTaskDetail(task)"
                     class="p-1.5 text-slate-500 hover:bg-background-tertiary rounded-lg transition-colors"
-                    :title="t('common.details')">
+                    :title="t('common.details')"
+                  >
                     <EyeIcon class="w-4 h-4" />
                   </button>
                   <button
                     :disabled="task.status === 'running'"
                     @click="openEditTask(task)"
                     class="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    :title="t('backupTasks.edit.title')">
+                    :title="t('backupTasks.edit.title')"
+                  >
                     <PencilSquareIcon class="w-4 h-4" />
                   </button>
                   <button
                     @click="deleteTask(task)"
                     class="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    :title="t('backupTasks.actions.delete')">
+                    :title="t('backupTasks.actions.delete')"
+                  >
                     <TrashIcon class="w-4 h-4" />
                   </button>
                 </div>
@@ -1875,7 +2009,8 @@ onMounted(() => {
       <Pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
-        :total-items="filteredTasks.length" />
+        :total-items="filteredTasks.length"
+      />
     </div>
 
     <BackupTaskWizard
@@ -1885,26 +2020,32 @@ onMounted(() => {
       :policies="backupPolicies"
       :nodes="nodes"
       @close="showCreateModal = false"
-      @save="createTaskFromWizard" />
+      @save="createTaskFromWizard"
+    />
 
     <!-- Legacy Create Modal -->
     <Teleport to="body">
       <div
         v-if="false && showCreateModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
         <div
           class="absolute inset-0 bg-black/50"
-          @click="showCreateModal = false" />
+          @click="showCreateModal = false"
+        />
         <div
-          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        >
           <div
-            class="sticky top-0 modal-surface px-6 py-4 border-b border-border flex items-center justify-between">
+            class="sticky top-0 modal-surface px-6 py-4 border-b border-border flex items-center justify-between"
+          >
             <h2 class="text-lg font-semibold text-foreground">
               {{ t("backupTasks.createTask") }}
             </h2>
             <button
               @click="showCreateModal = false"
-              class="p-1 hover:bg-background-tertiary rounded-lg">
+              class="p-1 hover:bg-background-tertiary rounded-lg"
+            >
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
           </div>
@@ -1917,7 +2058,8 @@ onMounted(() => {
               <input
                 v-model="newTask.name"
                 type="text"
-                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
@@ -1927,12 +2069,14 @@ onMounted(() => {
                 >
                 <select
                   v-model="newTask.source_resource"
-                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
                   <option :value="0">Select</option>
                   <option
                     v-for="source in sourceResources"
                     :key="source.id"
-                    :value="source.id">
+                    :value="source.id"
+                  >
                     {{ source.name }}
                   </option>
                 </select>
@@ -1944,12 +2088,14 @@ onMounted(() => {
                 >
                 <select
                   v-model="newTask.target_repository"
-                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
                   <option :value="0">Select</option>
                   <option
                     v-for="repo in repositories"
                     :key="repo.id"
-                    :value="repo.id">
+                    :value="repo.id"
+                  >
                     {{ repo.name }}
                   </option>
                 </select>
@@ -1962,7 +2108,8 @@ onMounted(() => {
               >
               <select
                 v-model="newTask.task_type"
-                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
                 <option value="full">{{ t("backupTasks.types.full") }}</option>
                 <option value="incremental">
                   {{ t("backupTasks.types.incremental") }}
@@ -1971,15 +2118,18 @@ onMounted(() => {
             </div>
           </div>
           <div
-            class="sticky bottom-0 modal-surface px-6 py-4 border-t border-border flex justify-end gap-3">
+            class="sticky bottom-0 modal-surface px-6 py-4 border-t border-border flex justify-end gap-3"
+          >
             <button
               @click="showCreateModal = false"
-              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover">
+              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
+            >
               {{ t("common.cancel") }}
             </button>
             <button
               @click="createTask"
-              class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+              class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+            >
               {{ t("common.create") }}
             </button>
           </div>
@@ -1991,15 +2141,19 @@ onMounted(() => {
     <Teleport to="body">
       <div
         v-if="showEditModal && editingTask"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
         <div
           class="absolute inset-0 bg-black/50"
-          @click="showEditModal = false" />
+          @click="showEditModal = false"
+        />
         <form
           class="relative modal-surface w-full max-w-5xl max-h-[90vh] rounded-xl shadow-xl border border-border overflow-hidden flex flex-col"
-          @submit.prevent="updateTask">
+          @submit.prevent="updateTask"
+        >
           <div
-            class="px-6 py-4 border-b border-border flex items-start justify-between gap-4">
+            class="px-6 py-4 border-b border-border flex items-start justify-between gap-4"
+          >
             <div>
               <h2 class="text-lg font-semibold text-foreground">
                 {{ t("backupTasks.edit.title") }}
@@ -2011,20 +2165,23 @@ onMounted(() => {
             <button
               type="button"
               @click="showEditModal = false"
-              class="p-2 hover:bg-background-tertiary rounded-lg">
+              class="p-2 hover:bg-background-tertiary rounded-lg"
+            >
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
           </div>
 
           <div
             v-if="editLoading"
-            class="p-10 text-center text-foreground-secondary">
+            class="p-10 text-center text-foreground-secondary"
+          >
             {{ t("common.loading") }}
           </div>
 
           <div v-else class="p-6 overflow-y-auto space-y-5">
             <div
-              class="rounded-lg border border-border bg-background-secondary p-4">
+              class="rounded-lg border border-border bg-background-secondary p-4"
+            >
               <div class="mb-4 flex items-center gap-2">
                 <CloudArrowUpIcon class="h-5 w-5 text-primary" />
                 <h3 class="font-semibold text-foreground">
@@ -2057,28 +2214,33 @@ onMounted(() => {
                         sourceForTask(editingTask),
                       )"
                       :key="label"
-                      class="rounded-md border border-border bg-background/60 p-2">
+                      class="rounded-md border border-border bg-background/60 p-2"
+                    >
                       <p class="text-xs text-foreground-secondary">
                         {{ label }}
                       </p>
                       <p
-                        class="mt-0.5 break-all text-sm font-medium text-foreground">
+                        class="mt-0.5 break-all text-sm font-medium text-foreground"
+                      >
                         {{ value }}
                       </p>
                     </div>
                   </div>
                   <div
-                    class="mt-3 rounded-md border border-border bg-background/60 p-2">
+                    class="mt-3 rounded-md border border-border bg-background/60 p-2"
+                  >
                     <p class="text-xs text-foreground-secondary">
                       {{ t("backupTasks.form.sourcePaths") }}
                     </p>
                     <div
                       v-if="editingTask.backup_paths?.length"
-                      class="mt-1 space-y-1.5">
+                      class="mt-1 space-y-1.5"
+                    >
                       <p
                         v-for="(path, index) in editingTask.backup_paths"
                         :key="index"
-                        class="rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs text-foreground">
+                        class="rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs text-foreground"
+                      >
                         {{ path }}
                       </p>
                     </div>
@@ -2107,12 +2269,14 @@ onMounted(() => {
                         repositoryForTask(editingTask),
                       )"
                       :key="label"
-                      class="rounded-md border border-border bg-background/60 p-2">
+                      class="rounded-md border border-border bg-background/60 p-2"
+                    >
                       <p class="text-xs text-foreground-secondary">
                         {{ label }}
                       </p>
                       <p
-                        class="mt-0.5 break-all text-sm font-medium text-foreground">
+                        class="mt-0.5 break-all text-sm font-medium text-foreground"
+                      >
                         {{ value }}
                       </p>
                     </div>
@@ -2144,7 +2308,8 @@ onMounted(() => {
                     type="text"
                     :placeholder="t('backupTasks.edit.placeholders.name')"
                     class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    required />
+                    required
+                  />
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{ t("backupTasks.edit.fieldDescriptions.name") }}
                   </p>
@@ -2155,7 +2320,8 @@ onMounted(() => {
                   </label>
                   <select
                     v-model="editForm.priority"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
                     <option value="low">Low</option>
                     <option value="normal">Normal</option>
                     <option value="high">High</option>
@@ -2174,23 +2340,27 @@ onMounted(() => {
                     :placeholder="
                       t('backupTasks.edit.placeholders.description')
                     "
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{ t("backupTasks.edit.fieldDescriptions.description") }}
                   </p>
                 </div>
                 <label
-                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground md:col-span-2">
+                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground md:col-span-2"
+                >
                   <input
                     v-model="editForm.is_enabled"
                     type="checkbox"
-                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
                   <span>
                     <span class="font-medium">{{
                       t("backupTasks.enabled")
                     }}</span>
                     <span
-                      class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      class="mt-1 block text-xs leading-5 text-foreground-muted"
+                    >
                       {{ t("backupTasks.edit.fieldDescriptions.enabled") }}
                     </span>
                   </span>
@@ -2216,7 +2386,8 @@ onMounted(() => {
                   <select
                     v-model="editForm.execution_mode"
                     :disabled="!canUseAutoPlacementForTask(editingTask)"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60">
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
                     <option value="pinned">
                       {{ t("backupTasks.executionModes.pinned") }}
                     </option>
@@ -2241,14 +2412,16 @@ onMounted(() => {
                   </label>
                   <select
                     v-model="editForm.preferred_execution_node"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
                     <option :value="null">
                       {{ t("backupTasks.execution.selectPreferredProxy") }}
                     </option>
                     <option
                       v-for="node in syncProxies"
                       :key="node.id"
-                      :value="node.id">
+                      :value="node.id"
+                    >
                       {{ node.name }} · {{ node.status }}
                     </option>
                   </select>
@@ -2282,14 +2455,16 @@ onMounted(() => {
                         : 'custom'),
                       (editForm.override_schedule = false))
                     "
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
                     <option :value="null">
                       {{ t("backupTasks.form.noPolicy") }}
                     </option>
                     <option
                       v-for="policy in backupPolicies"
                       :key="policy.id"
-                      :value="policy.id">
+                      :value="policy.id"
+                    >
                       {{ policy.name }}
                     </option>
                   </select>
@@ -2300,8 +2475,11 @@ onMounted(() => {
 
                 <div
                   v-if="selectedEditPolicy"
-                  class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div class="rounded-lg border border-border bg-background/50 p-3 text-sm">
+                  class="grid grid-cols-1 gap-3 md:grid-cols-2"
+                >
+                  <div
+                    class="rounded-lg border border-border bg-background/50 p-3 text-sm"
+                  >
                     <p class="text-xs text-foreground-muted">
                       {{ t("backupTasks.policyOverrides.schedule") }}
                     </p>
@@ -2309,7 +2487,9 @@ onMounted(() => {
                       {{ editPolicyScheduleSummary }}
                     </p>
                   </div>
-                  <div class="rounded-lg border border-border bg-background/50 p-3 text-sm">
+                  <div
+                    class="rounded-lg border border-border bg-background/50 p-3 text-sm"
+                  >
                     <p class="text-xs text-foreground-muted">
                       {{ t("backupTasks.policyOverrides.retention") }}
                     </p>
@@ -2320,7 +2500,9 @@ onMounted(() => {
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <div class="rounded-lg border border-border bg-background/30 p-4 space-y-4">
+                  <div
+                    class="rounded-lg border border-border bg-background/30 p-4 space-y-4"
+                  >
                     <div class="flex items-center gap-2">
                       <ClockIcon class="h-5 w-5 text-primary" />
                       <p class="text-sm font-semibold text-foreground">
@@ -2328,99 +2510,157 @@ onMounted(() => {
                       </p>
                     </div>
                     <template v-if="selectedEditPolicy">
-                      <label class="flex items-start gap-2 text-sm text-foreground">
+                      <label
+                        class="flex items-start gap-2 text-sm text-foreground"
+                      >
                         <input
                           :checked="!editForm.override_schedule"
                           type="radio"
                           class="mt-1 border-border"
-                          @change="editForm.override_schedule = false" />
+                          @change="editForm.override_schedule = false"
+                        />
                         <span>
                           <span class="font-medium">
-                            {{ t("backupTasks.policyOverrides.usePolicySchedule") }}
+                            {{
+                              t("backupTasks.policyOverrides.usePolicySchedule")
+                            }}
                           </span>
-                          <span class="mt-1 block text-xs text-foreground-muted">
+                          <span
+                            class="mt-1 block text-xs text-foreground-muted"
+                          >
                             {{ editPolicyScheduleSummary }}
                           </span>
                         </span>
                       </label>
-                      <label class="flex items-start gap-2 text-sm text-foreground">
+                      <label
+                        class="flex items-start gap-2 text-sm text-foreground"
+                      >
                         <input
                           :checked="editForm.override_schedule"
                           type="radio"
                           class="mt-1 border-border"
-                          @change="editForm.override_schedule = true" />
+                          @change="editForm.override_schedule = true"
+                        />
                         <span>
                           <span class="font-medium">
-                            {{ t("backupTasks.policyOverrides.overrideSchedule") }}
+                            {{
+                              t("backupTasks.policyOverrides.overrideSchedule")
+                            }}
                           </span>
-                          <span class="mt-1 block text-xs text-foreground-muted">
-                            {{ t("backupTasks.policyOverrides.overrideScheduleDesc") }}
+                          <span
+                            class="mt-1 block text-xs text-foreground-muted"
+                          >
+                            {{
+                              t(
+                                "backupTasks.policyOverrides.overrideScheduleDesc",
+                              )
+                            }}
                           </span>
                         </span>
                       </label>
                     </template>
 
-                    <div v-if="!selectedEditPolicy || editForm.override_schedule">
-                      <label class="mb-1 block text-sm font-medium text-foreground">
+                    <div
+                      v-if="!selectedEditPolicy || editForm.override_schedule"
+                    >
+                      <label
+                        class="mb-1 block text-sm font-medium text-foreground"
+                      >
                         {{ t("policies.schedule.title") }}
                       </label>
                       <select
                         v-model="editForm.schedule_mode"
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="manual">{{ t("policies.scheduleModes.manual") }}</option>
-                        <option value="interval">{{ t("policies.scheduleModes.interval") }}</option>
-                        <option value="time">{{ t("policies.scheduleModes.time") }}</option>
-                        <option value="cron">{{ t("policies.scheduleModes.cron") }}</option>
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="manual">
+                          {{ t("policies.scheduleModes.manual") }}
+                        </option>
+                        <option value="interval">
+                          {{ t("policies.scheduleModes.interval") }}
+                        </option>
+                        <option value="time">
+                          {{ t("policies.scheduleModes.time") }}
+                        </option>
+                        <option value="cron">
+                          {{ t("policies.scheduleModes.cron") }}
+                        </option>
                       </select>
                       <p class="mt-1 text-xs text-foreground-muted">
-                        {{ t(`policies.schedule.modeDescriptions.${editForm.schedule_mode}`) }}
+                        {{
+                          t(
+                            `policies.schedule.modeDescriptions.${editForm.schedule_mode}`,
+                          )
+                        }}
                       </p>
                     </div>
 
                     <div
-                      v-if="(!selectedEditPolicy || editForm.override_schedule) && editForm.schedule_mode === 'interval'">
-                      <label class="block text-sm font-medium text-foreground mb-1">
+                      v-if="
+                        (!selectedEditPolicy || editForm.override_schedule) &&
+                        editForm.schedule_mode === 'interval'
+                      "
+                    >
+                      <label
+                        class="block text-sm font-medium text-foreground mb-1"
+                      >
                         {{ t("policies.schedule.interval") }}
                       </label>
                       <input
                         v-model="editForm.interval"
                         placeholder="24h"
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
                       <p class="mt-1 text-xs text-foreground-muted">
                         {{ t("policies.schedule.intervalDesc") }}
                       </p>
                     </div>
 
                     <div
-                      v-if="(!selectedEditPolicy || editForm.override_schedule) && editForm.schedule_mode === 'time'">
-                      <label class="block text-sm font-medium text-foreground mb-1">
+                      v-if="
+                        (!selectedEditPolicy || editForm.override_schedule) &&
+                        editForm.schedule_mode === 'time'
+                      "
+                    >
+                      <label
+                        class="block text-sm font-medium text-foreground mb-1"
+                      >
                         {{ t("policies.schedule.timeOfDay") }}
                       </label>
                       <input
                         v-model="editForm.time_of_day"
                         type="time"
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
                       <p class="mt-1 text-xs text-foreground-muted">
                         {{ t("policies.schedule.timeOfDayDesc") }}
                       </p>
                     </div>
 
                     <div
-                      v-if="(!selectedEditPolicy || editForm.override_schedule) && editForm.schedule_mode === 'cron'">
-                      <label class="block text-sm font-medium text-foreground mb-1">
+                      v-if="
+                        (!selectedEditPolicy || editForm.override_schedule) &&
+                        editForm.schedule_mode === 'cron'
+                      "
+                    >
+                      <label
+                        class="block text-sm font-medium text-foreground mb-1"
+                      >
                         {{ t("policies.schedule.cron") }}
                       </label>
                       <input
                         v-model="editForm.cron_expression"
                         placeholder="0 2 * * *"
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
                       <p class="mt-1 text-xs text-foreground-muted">
                         {{ t("policies.schedule.cronDesc") }}
                       </p>
                     </div>
                   </div>
 
-                  <div class="rounded-lg border border-border bg-background/30 p-4 space-y-4">
+                  <div
+                    class="rounded-lg border border-border bg-background/30 p-4 space-y-4"
+                  >
                     <div class="flex items-center gap-2">
                       <ShieldCheckIcon class="h-5 w-5 text-primary" />
                       <p class="text-sm font-semibold text-foreground">
@@ -2428,20 +2668,28 @@ onMounted(() => {
                       </p>
                     </div>
                     <template v-if="selectedEditPolicy">
-                      <label class="flex items-center gap-2 text-sm text-foreground">
+                      <label
+                        class="flex items-center gap-2 text-sm text-foreground"
+                      >
                         <input
                           v-model="editForm.retention_mode"
                           type="radio"
                           value="policy"
-                          class="border-border" />
-                        {{ t("backupTasks.policyOverrides.usePolicyRetention") }}
+                          class="border-border"
+                        />
+                        {{
+                          t("backupTasks.policyOverrides.usePolicyRetention")
+                        }}
                       </label>
-                      <label class="flex items-center gap-2 text-sm text-foreground">
+                      <label
+                        class="flex items-center gap-2 text-sm text-foreground"
+                      >
                         <input
                           v-model="editForm.retention_mode"
                           type="radio"
                           value="custom"
-                          class="border-border" />
+                          class="border-border"
+                        />
                         {{ t("backupTasks.policyOverrides.overrideRetention") }}
                       </label>
                     </template>
@@ -2449,12 +2697,17 @@ onMounted(() => {
                       {{ t("backupTasks.policyOverrides.taskRetentionDesc") }}
                     </p>
                     <div
-                      v-if="editForm.retention_mode === 'custom' || !selectedEditPolicy"
-                      class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      v-if="
+                        editForm.retention_mode === 'custom' ||
+                        !selectedEditPolicy
+                      "
+                      class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+                    >
                       <label
                         v-for="field in editRetentionFields"
                         :key="field.key"
-                        class="block">
+                        class="block"
+                      >
                         <span class="text-xs text-foreground-secondary">
                           {{ t(`backupTasks.retention.${field.label}`) }}
                         </span>
@@ -2462,8 +2715,11 @@ onMounted(() => {
                           v-model.number="editForm[field.key]"
                           type="number"
                           min="0"
-                          class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                        <p class="mt-1 text-[11px] leading-4 text-foreground-muted">
+                          class="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <p
+                          class="mt-1 text-[11px] leading-4 text-foreground-muted"
+                        >
                           {{ t(`backupTasks.retention.${field.label}Desc`) }}
                         </p>
                       </label>
@@ -2494,7 +2750,8 @@ onMounted(() => {
                     :placeholder="
                       t('backupTasks.edit.placeholders.excludePatterns')
                     "
-                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{
                       t("backupTasks.edit.fieldDescriptions.excludePatterns")
@@ -2509,56 +2766,66 @@ onMounted(() => {
                     v-model="editForm.dot_ignore_files_text"
                     rows="4"
                     placeholder=".kopiaignore"
-                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    class="w-full font-mono text-sm px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{ t("backupTasks.files.dotIgnoreFilesDesc") }}
                   </p>
                 </div>
                 <div class="space-y-3">
                   <label
-                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
+                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground"
+                  >
                     <input
                       v-model="editForm.one_file_system"
                       type="checkbox"
-                      class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                      class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    />
                     <span>
                       <span class="font-medium">
                         {{ t("backupTasks.files.oneFileSystem") }}
                       </span>
                       <span
-                        class="mt-1 block text-xs leading-5 text-foreground-muted">
+                        class="mt-1 block text-xs leading-5 text-foreground-muted"
+                      >
                         {{ t("backupTasks.files.oneFileSystemDesc") }}
                       </span>
                     </span>
                   </label>
                   <label
-                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
+                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground"
+                  >
                     <input
                       v-model="editForm.ignore_file_errors"
                       type="checkbox"
-                      class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                      class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    />
                     <span>
                       <span class="font-medium">
                         {{ t("backupTasks.files.ignoreFileErrors") }}
                       </span>
                       <span
-                        class="mt-1 block text-xs leading-5 text-foreground-muted">
+                        class="mt-1 block text-xs leading-5 text-foreground-muted"
+                      >
                         {{ t("backupTasks.files.ignoreFileErrorsDesc") }}
                       </span>
                     </span>
                   </label>
                   <label
-                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
+                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground"
+                  >
                     <input
                       v-model="editForm.ignore_dir_errors"
                       type="checkbox"
-                      class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                      class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    />
                     <span>
                       <span class="font-medium">
                         {{ t("backupTasks.files.ignoreDirErrors") }}
                       </span>
                       <span
-                        class="mt-1 block text-xs leading-5 text-foreground-muted">
+                        class="mt-1 block text-xs leading-5 text-foreground-muted"
+                      >
                         {{ t("backupTasks.files.ignoreDirErrorsDesc") }}
                       </span>
                     </span>
@@ -2582,65 +2849,77 @@ onMounted(() => {
               </p>
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <label
-                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
+                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground"
+                >
                   <input
                     v-model="editForm.encryption_enabled"
                     type="checkbox"
-                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
                   <span>
                     <span class="font-medium">{{
                       t("backupTasks.detail.encryption")
                     }}</span>
                     <span
-                      class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      class="mt-1 block text-xs leading-5 text-foreground-muted"
+                    >
                       {{ t("backupTasks.edit.fieldDescriptions.encryption") }}
                     </span>
                   </span>
                 </label>
                 <label
-                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
+                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground"
+                >
                   <input
                     v-model="editForm.verify_checksum"
                     type="checkbox"
-                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
                   <span>
                     <span class="font-medium">{{
                       t("backupTasks.detail.checksum")
                     }}</span>
                     <span
-                      class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      class="mt-1 block text-xs leading-5 text-foreground-muted"
+                    >
                       {{ t("backupTasks.edit.fieldDescriptions.checksum") }}
                     </span>
                   </span>
                 </label>
                 <label
-                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
+                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground"
+                >
                   <input
                     v-model="editForm.compression_enabled"
                     type="checkbox"
-                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
                   <span>
                     <span class="font-medium">{{
                       t("backupTasks.detail.compression")
                     }}</span>
                     <span
-                      class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      class="mt-1 block text-xs leading-5 text-foreground-muted"
+                    >
                       {{ t("backupTasks.edit.fieldDescriptions.compression") }}
                     </span>
                   </span>
                 </label>
                 <label
-                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
+                  class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground"
+                >
                   <input
                     v-model="editForm.enable_checkpoint"
                     type="checkbox"
-                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                    class="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
                   <span>
                     <span class="font-medium">{{
                       t("backupTasks.detail.checkpoint")
                     }}</span>
                     <span
-                      class="mt-1 block text-xs leading-5 text-foreground-muted">
+                      class="mt-1 block text-xs leading-5 text-foreground-muted"
+                    >
                       {{ t("backupTasks.edit.fieldDescriptions.checkpoint") }}
                     </span>
                   </span>
@@ -2652,7 +2931,8 @@ onMounted(() => {
                   <select
                     v-model="editForm.compression_type"
                     :disabled="!editForm.compression_enabled"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50">
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  >
                     <option value="zstd">zstd</option>
                     <option value="gzip">gzip</option>
                     <option value="none">{{ t("common.none") }}</option>
@@ -2676,7 +2956,8 @@ onMounted(() => {
                     :placeholder="
                       t('backupTasks.edit.placeholders.compressionLevel')
                     "
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50" />
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  />
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{
                       t("backupTasks.edit.fieldDescriptions.compressionLevel")
@@ -2695,7 +2976,8 @@ onMounted(() => {
                     :placeholder="
                       t('backupTasks.edit.placeholders.checkpointInterval')
                     "
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50" />
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  />
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{
                       t("backupTasks.edit.fieldDescriptions.checkpointInterval")
@@ -2713,7 +2995,8 @@ onMounted(() => {
                     :placeholder="
                       t('backupTasks.edit.placeholders.concurrency')
                     "
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{ t("backupTasks.edit.fieldDescriptions.concurrency") }}
                   </p>
@@ -2729,7 +3012,8 @@ onMounted(() => {
                     :placeholder="
                       t('backupTasks.edit.placeholders.bandwidthLimit')
                     "
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{ t("backupTasks.edit.fieldDescriptions.bandwidthLimit") }}
                   </p>
@@ -2743,7 +3027,8 @@ onMounted(() => {
                     type="number"
                     min="0"
                     :placeholder="t('backupTasks.edit.placeholders.maxRetries')"
-                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    class="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                   <p class="mt-1 text-xs text-foreground-muted">
                     {{ t("backupTasks.edit.fieldDescriptions.maxRetries") }}
                   </p>
@@ -2753,17 +3038,20 @@ onMounted(() => {
           </div>
 
           <div
-            class="px-6 py-4 border-t border-border flex items-center justify-end gap-3">
+            class="px-6 py-4 border-t border-border flex items-center justify-end gap-3"
+          >
             <button
               type="button"
               @click="showEditModal = false"
-              class="px-4 py-2 text-sm font-medium text-foreground-secondary border border-border rounded-lg hover:bg-hover">
+              class="px-4 py-2 text-sm font-medium text-foreground-secondary border border-border rounded-lg hover:bg-hover"
+            >
               {{ t("common.cancel") }}
             </button>
             <button
               type="submit"
               :disabled="editSaving || editLoading"
-              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
+              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <ArrowPathIcon v-if="editSaving" class="w-4 h-4 animate-spin" />
               <PencilSquareIcon v-else class="w-4 h-4" />
               {{ editSaving ? t("common.saving") : t("common.save") }}
@@ -2777,14 +3065,18 @@ onMounted(() => {
     <Teleport to="body">
       <div
         v-if="showDetailModal && selectedTask"
-        class="fixed inset-0 z-50 flex justify-end">
+        class="fixed inset-0 z-50 flex justify-end"
+      >
         <div
           class="absolute inset-0 bg-black/50"
-          @click="showDetailModal = false" />
+          @click="showDetailModal = false"
+        />
         <aside
-          class="relative drawer-panel h-full w-full lg:w-[60vw] max-w-none border-l border-border overflow-y-auto">
+          class="relative drawer-panel h-full w-full lg:w-[60vw] max-w-none border-l border-border overflow-y-auto"
+        >
           <div
-            class="sticky top-0 z-10 modal-surface px-6 py-4 border-b border-border flex items-start justify-between gap-4">
+            class="sticky top-0 z-10 modal-surface px-6 py-4 border-b border-border flex items-start justify-between gap-4"
+          >
             <div>
               <h2 class="text-lg font-semibold text-foreground">
                 {{ selectedTask.name }}
@@ -2796,17 +3088,20 @@ onMounted(() => {
             </div>
             <button
               @click="showDetailModal = false"
-              class="p-2 hover:bg-background-tertiary rounded-lg">
+              class="p-2 hover:bg-background-tertiary rounded-lg"
+            >
               <XCircleIcon class="w-5 h-5 text-slate-400" />
             </button>
           </div>
 
           <div
-            class="px-6 py-3 border-b border-border flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+            class="px-6 py-3 border-b border-border flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3"
+          >
             <div class="flex flex-wrap items-center gap-2">
               <div
                 class="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-background-secondary p-1"
-                role="tablist">
+                role="tablist"
+              >
                 <button
                   v-for="tab in ['overview', 'snapshots', 'tasks']"
                   :key="tab"
@@ -2819,39 +3114,46 @@ onMounted(() => {
                     detailTab === tab
                       ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                       : 'border-transparent text-foreground-secondary hover:border-border hover:bg-card hover:text-foreground',
-                  ]">
+                  ]"
+                >
                   {{ t(`backupTasks.tabs.${tab}`) }}
                 </button>
               </div>
 
               <div
-                class="flex flex-wrap items-center gap-2 pl-0 xl:pl-3 xl:border-l xl:border-border">
+                class="flex flex-wrap items-center gap-2 pl-0 xl:pl-3 xl:border-l xl:border-border"
+              >
                 <button
                   type="button"
                   :disabled="currentDetailTabLoading"
                   @click="refreshCurrentDetailTab()"
-                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed">
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <ArrowPathIcon
                     :class="[
                       'w-3.5 h-3.5',
                       currentDetailTabLoading ? 'animate-spin' : '',
-                    ]" />
+                    ]"
+                  />
                   {{ t("common.refresh") }}
                 </button>
 
                 <label
-                  class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover">
+                  class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover"
+                >
                   <input
                     v-model="detailAutoRefresh"
                     type="checkbox"
-                    class="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary" />
+                    class="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary"
+                  />
                   {{ t("backupTasks.detail.autoRefresh") }}
                 </label>
 
                 <select
                   v-model.number="detailRefreshInterval"
                   :disabled="!detailAutoRefresh"
-                  class="px-2.5 py-1.5 rounded-lg border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50">
+                  class="px-2.5 py-1.5 rounded-lg border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                >
                   <option :value="5">5s</option>
                   <option :value="10">10s</option>
                   <option :value="30">30s</option>
@@ -2865,10 +3167,12 @@ onMounted(() => {
                 :class="[
                   'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium',
                   getStatusColor(selectedTask.status),
-                ]">
+                ]"
+              >
                 <component
                   :is="getStatusIcon(selectedTask.status)"
-                  class="w-3.5 h-3.5" />
+                  class="w-3.5 h-3.5"
+                />
                 {{ t(`backupTasks.status.${selectedTask.status}`) }}
               </span>
               <span
@@ -2877,14 +3181,16 @@ onMounted(() => {
                   selectedTask.is_enabled === false
                     ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                     : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-                ]">
+                ]"
+              >
                 <span
                   :class="[
                     'h-2 w-2 rounded-full',
                     selectedTask.is_enabled === false
                       ? 'bg-red-500'
                       : 'bg-emerald-500',
-                  ]" />
+                  ]"
+                />
                 {{
                   selectedTask.is_enabled === false
                     ? t("backupTasks.disabled")
@@ -2894,13 +3200,15 @@ onMounted(() => {
               <button
                 v-if="canRunTask(selectedTask)"
                 @click="executeTask(selectedTask)"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700">
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
+              >
                 <PlayIcon class="w-3.5 h-3.5" />
                 {{ t("backupTasks.actions.runNow") }}
               </button>
               <button
                 @click="toggleTaskEnabled(selectedTask)"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover">
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover"
+              >
                 <PowerIcon class="w-3.5 h-3.5" />
                 {{
                   selectedTask.is_enabled === false
@@ -2914,16 +3222,19 @@ onMounted(() => {
           <div class="p-6">
             <div
               v-if="detailLoading"
-              class="py-10 text-center text-foreground-secondary">
+              class="py-10 text-center text-foreground-secondary"
+            >
               {{ t("common.loading") }}
             </div>
 
             <div v-else-if="detailTab === 'overview'" class="space-y-5">
               <section
-                class="rounded-xl border border-border bg-card p-4 shadow-sm">
+                class="rounded-xl border border-border bg-card p-4 shadow-sm"
+              >
                 <div class="mb-4 flex items-start gap-3">
                   <span
-                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
+                  >
                     <ListBulletIcon class="h-5 w-5" />
                   </span>
                   <div>
@@ -2937,7 +3248,8 @@ onMounted(() => {
                 </div>
                 <dl class="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3 md:col-span-3">
+                    class="rounded-lg border border-border bg-background/50 p-3 md:col-span-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("common.description") }}
                     </dt>
@@ -2946,7 +3258,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.form.taskType") }}
                     </dt>
@@ -2959,7 +3272,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.form.priority") }}
                     </dt>
@@ -2968,7 +3282,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.detail.createdUpdated") }}
                     </dt>
@@ -2982,10 +3297,12 @@ onMounted(() => {
 
               <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <section
-                  class="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  class="rounded-xl border border-border bg-card p-4 shadow-sm"
+                >
                   <div class="mb-4 flex items-start gap-3">
                     <span
-                      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                    >
                       <FolderIcon class="h-5 w-5" />
                     </span>
                     <div>
@@ -3001,32 +3318,38 @@ onMounted(() => {
                     <div
                       v-for="[label, value] in sourceDetailRows(selectedSource)"
                       :key="label"
-                      class="rounded-lg border border-border bg-background/50 p-3">
+                      class="rounded-lg border border-border bg-background/50 p-3"
+                    >
                       <p class="text-xs font-medium text-foreground-secondary">
                         {{ label }}
                       </p>
                       <p
-                        class="mt-1 break-all text-sm font-medium text-foreground">
+                        class="mt-1 break-all text-sm font-medium text-foreground"
+                      >
                         {{ value }}
                       </p>
                     </div>
                   </div>
                   <div
-                    class="mt-4 rounded-lg border border-border bg-background/50 p-3">
+                    class="mt-4 rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <p
-                      class="mb-2 text-xs font-medium text-foreground-secondary">
+                      class="mb-2 text-xs font-medium text-foreground-secondary"
+                    >
                       {{ t("backupTasks.form.sourcePaths") }}
                     </p>
                     <div class="space-y-1.5">
                       <p
                         v-for="(path, i) in selectedTask.backup_paths || []"
                         :key="i"
-                        class="rounded-md border border-border bg-background-secondary px-2.5 py-1.5 font-mono text-xs text-foreground">
+                        class="rounded-md border border-border bg-background-secondary px-2.5 py-1.5 font-mono text-xs text-foreground"
+                      >
                         {{ path }}
                       </p>
                       <p
                         v-if="!selectedTask.backup_paths?.length"
-                        class="text-sm text-foreground-muted">
+                        class="text-sm text-foreground-muted"
+                      >
                         -
                       </p>
                     </div>
@@ -3034,10 +3357,12 @@ onMounted(() => {
                 </section>
 
                 <section
-                  class="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  class="rounded-xl border border-border bg-card p-4 shadow-sm"
+                >
                   <div class="mb-4 flex items-start gap-3">
                     <span
-                      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-300"
+                    >
                       <ServerStackIcon class="h-5 w-5" />
                     </span>
                     <div>
@@ -3055,12 +3380,14 @@ onMounted(() => {
                         selectedRepository,
                       )"
                       :key="label"
-                      class="rounded-lg border border-border bg-background/50 p-3">
+                      class="rounded-lg border border-border bg-background/50 p-3"
+                    >
                       <p class="text-xs font-medium text-foreground-secondary">
                         {{ label }}
                       </p>
                       <p
-                        class="mt-1 break-all text-sm font-medium text-foreground">
+                        class="mt-1 break-all text-sm font-medium text-foreground"
+                      >
                         {{ value }}
                       </p>
                     </div>
@@ -3069,10 +3396,12 @@ onMounted(() => {
               </div>
 
               <section
-                class="rounded-xl border border-border bg-card p-4 shadow-sm">
+                class="rounded-xl border border-border bg-card p-4 shadow-sm"
+              >
                 <div class="mb-4 flex items-start gap-3">
                   <span
-                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-300">
+                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-300"
+                  >
                     <FolderIcon class="h-5 w-5" />
                   </span>
                   <div>
@@ -3086,9 +3415,11 @@ onMounted(() => {
                 </div>
                 <div class="grid grid-cols-1 gap-4">
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <p
-                      class="mb-2 text-xs font-medium text-foreground-secondary">
+                      class="mb-2 text-xs font-medium text-foreground-secondary"
+                    >
                       {{ t("backupTasks.files.exclusionPatterns") }}
                     </p>
                     <div class="flex flex-wrap gap-2">
@@ -3096,12 +3427,14 @@ onMounted(() => {
                         v-for="(pattern, i) in selectedTask.exclude_patterns ||
                         []"
                         :key="i"
-                        class="rounded-md border border-border bg-background-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                        class="rounded-md border border-border bg-background-secondary px-2.5 py-1 text-xs font-medium text-foreground"
+                      >
                         {{ pattern }}
                       </span>
                       <span
                         v-if="!selectedTask.exclude_patterns?.length"
-                        class="text-sm text-foreground-muted">
+                        class="text-sm text-foreground-muted"
+                      >
                         -
                       </span>
                     </div>
@@ -3110,10 +3443,12 @@ onMounted(() => {
               </section>
 
               <section
-                class="rounded-xl border border-border bg-card p-4 shadow-sm">
+                class="rounded-xl border border-border bg-card p-4 shadow-sm"
+              >
                 <div class="mb-4 flex items-start gap-3">
                   <span
-                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-300"
+                  >
                     <ClockIcon class="h-5 w-5" />
                   </span>
                   <div>
@@ -3130,7 +3465,8 @@ onMounted(() => {
                 </div>
                 <dl class="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.form.policy") }}
                     </dt>
@@ -3142,7 +3478,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.nextBackup") }}
                     </dt>
@@ -3151,7 +3488,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.lastBackup") }}
                     </dt>
@@ -3165,7 +3503,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.form.retentionDays") }}
                     </dt>
@@ -3174,7 +3513,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.form.maxSnapshots") }}
                     </dt>
@@ -3183,7 +3523,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.detail.retries") }}
                     </dt>
@@ -3196,10 +3537,12 @@ onMounted(() => {
               </section>
 
               <section
-                class="rounded-xl border border-border bg-card p-4 shadow-sm">
+                class="rounded-xl border border-border bg-card p-4 shadow-sm"
+              >
                 <div class="mb-4 flex items-start gap-3">
                   <span
-                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                  >
                     <ShieldCheckIcon class="h-5 w-5" />
                   </span>
                   <div>
@@ -3217,7 +3560,8 @@ onMounted(() => {
                 </div>
                 <dl class="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.detail.encryption") }}
                     </dt>
@@ -3230,7 +3574,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.detail.checksum") }}
                     </dt>
@@ -3243,7 +3588,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.detail.compression") }}
                     </dt>
@@ -3256,7 +3602,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.detail.compressionLevel") }}
                     </dt>
@@ -3265,7 +3612,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.detail.checkpoint") }}
                     </dt>
@@ -3278,7 +3626,8 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <dt class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.detail.concurrency") }}
                     </dt>
@@ -3290,10 +3639,12 @@ onMounted(() => {
               </section>
 
               <section
-                class="rounded-xl border border-border bg-card p-4 shadow-sm">
+                class="rounded-xl border border-border bg-card p-4 shadow-sm"
+              >
                 <div class="mb-4 flex items-start gap-3">
                   <span
-                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
+                  >
                     <BoltIcon class="h-5 w-5" />
                   </span>
                   <div>
@@ -3306,7 +3657,8 @@ onMounted(() => {
                   </div>
                 </div>
                 <div
-                  class="mb-4 rounded-lg border border-border bg-background/50 p-3">
+                  class="mb-4 rounded-lg border border-border bg-background/50 p-3"
+                >
                   <div class="mb-2 flex items-center justify-between text-xs">
                     <span class="font-medium text-foreground-secondary">
                       {{ t("backupTasks.progress.progress") }}
@@ -3316,7 +3668,8 @@ onMounted(() => {
                     </span>
                   </div>
                   <div
-                    class="h-2 overflow-hidden rounded-full bg-background-secondary">
+                    class="h-2 overflow-hidden rounded-full bg-background-secondary"
+                  >
                     <div
                       class="h-full rounded-full bg-primary transition-all"
                       :style="{
@@ -3324,12 +3677,14 @@ onMounted(() => {
                           Math.max(selectedTask.progress || 0, 0),
                           100,
                         )}%`,
-                      }"></div>
+                      }"
+                    ></div>
                   </div>
                 </div>
                 <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <p class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.progress.files") }}
                     </p>
@@ -3339,7 +3694,8 @@ onMounted(() => {
                     </p>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <p class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.progress.size") }}
                     </p>
@@ -3349,7 +3705,8 @@ onMounted(() => {
                     </p>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <p class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.progress.speed") }}
                     </p>
@@ -3358,7 +3715,8 @@ onMounted(() => {
                     </p>
                   </div>
                   <div
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <p class="text-xs font-medium text-foreground-secondary">
                       {{ t("backupTasks.detail.retries") }}
                     </p>
@@ -3374,28 +3732,33 @@ onMounted(() => {
             <div v-else-if="detailTab === 'snapshots'" class="space-y-4">
               <div
                 v-if="snapshotsLoading"
-                class="py-10 text-center text-foreground-secondary">
+                class="py-10 text-center text-foreground-secondary"
+              >
                 {{ t("common.loading") }}
               </div>
               <div
                 v-else-if="selectedTaskSnapshots.length === 0"
-                class="rounded-xl border border-dashed border-border bg-background/50 px-6 py-12 text-center">
+                class="rounded-xl border border-dashed border-border bg-background/50 px-6 py-12 text-center"
+              >
                 <div
-                  class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300"
+                >
                   <CircleStackIcon class="h-7 w-7" />
                 </div>
                 <h3 class="mt-4 text-sm font-semibold text-foreground">
                   {{ t("backupTasks.emptyStates.snapshotsTitle") }}
                 </h3>
                 <p
-                  class="mx-auto mt-2 max-w-md text-sm leading-6 text-foreground-secondary">
+                  class="mx-auto mt-2 max-w-md text-sm leading-6 text-foreground-secondary"
+                >
                   {{ t("backupTasks.emptyStates.snapshotsDesc") }}
                 </p>
               </div>
               <template v-else>
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <div
-                    class="inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground shadow-sm">
+                    class="inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground shadow-sm"
+                  >
                     <button
                       type="button"
                       role="switch"
@@ -3403,21 +3766,24 @@ onMounted(() => {
                       class="inline-flex items-center gap-2 transition-colors hover:text-primary focus:outline-none"
                       @click="
                         collapseNoChangeSnapshots = !collapseNoChangeSnapshots
-                      ">
+                      "
+                    >
                       <span
                         :class="[
                           'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
                           collapseNoChangeSnapshots
                             ? 'bg-primary'
                             : 'bg-background-tertiary',
-                        ]">
+                        ]"
+                      >
                         <span
                           :class="[
                             'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform',
                             collapseNoChangeSnapshots
                               ? 'translate-x-4'
                               : 'translate-x-0.5',
-                          ]" />
+                          ]"
+                        />
                       </span>
                       <span>{{
                         t("backupTasks.detail.collapseNoChanges")
@@ -3430,47 +3796,106 @@ onMounted(() => {
                       @mouseleave="scheduleCollapseNoChangesHelpHide"
                       @focus="showCollapseNoChangesHelp"
                       @blur="scheduleCollapseNoChangesHelpHide"
-                      @click.stop>
+                      @click.stop
+                    >
                       <QuestionMarkCircleIcon class="h-4 w-4" />
                     </button>
                     <span
                       v-if="hiddenNoChangeSnapshotCount > 0"
-                      class="rounded-full bg-background-secondary px-1.5 py-0.5 text-[11px] text-foreground-secondary">
+                      class="rounded-full bg-background-secondary px-1.5 py-0.5 text-[11px] text-foreground-secondary"
+                    >
                       {{ hiddenNoChangeSnapshotCount }}
                     </span>
                   </div>
-                  <div
-                    class="inline-flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1 text-xs shadow-sm">
-                    <button
-                      v-for="option in snapshotGroupOptions"
-                      :key="option.value"
-                      type="button"
-                      :class="[
-                        'rounded-md px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
-                        snapshotGroupBy === option.value
-                          ? 'bg-primary text-white shadow-sm'
-                          : 'text-foreground-secondary hover:bg-hover hover:text-foreground',
-                      ]"
-                      @click="snapshotGroupBy = option.value">
-                      {{ option.label }}
-                    </button>
+                  <div class="flex flex-wrap items-center justify-end gap-2">
+                    <div
+                      class="inline-flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1 text-xs shadow-sm"
+                    >
+                      <button
+                        type="button"
+                        class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                        :disabled="snapshotOperationLoading"
+                        @click="syncSnapshotsFromKopia"
+                      >
+                        <ArrowPathIcon
+                          :class="[
+                            'h-3.5 w-3.5',
+                            snapshotOperationLoading ? 'animate-spin' : '',
+                          ]"
+                        />
+                        {{ t("backupTasks.detail.syncSnapshots") }}
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded-md px-2.5 py-1.5 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                        :disabled="snapshotOperationLoading"
+                        @click="evaluateRetentionNow"
+                      >
+                        {{ t("backupTasks.detail.applyRetention") }}
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded-md px-2.5 py-1.5 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                        :disabled="snapshotOperationLoading"
+                        @click="runKopiaMaintenanceNow"
+                      >
+                        {{ t("backupTasks.detail.runMaintenance") }}
+                      </button>
+                    </div>
+                    <div
+                      class="inline-flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1 text-xs shadow-sm"
+                    >
+                      <button
+                        v-for="option in snapshotViewModeOptions"
+                        :key="option.value"
+                        type="button"
+                        :class="[
+                          'rounded-md px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+                          snapshotViewMode === option.value
+                            ? 'bg-primary text-white shadow-sm'
+                            : 'text-foreground-secondary hover:bg-hover hover:text-foreground',
+                        ]"
+                        @click="snapshotViewMode = option.value"
+                      >
+                        {{ option.label }}
+                      </button>
+                    </div>
+                    <div
+                      class="inline-flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1 text-xs shadow-sm"
+                    >
+                      <button
+                        v-for="option in snapshotGroupOptions"
+                        :key="option.value"
+                        type="button"
+                        :class="[
+                          'rounded-md px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+                          snapshotGroupBy === option.value
+                            ? 'bg-primary text-white shadow-sm'
+                            : 'text-foreground-secondary hover:bg-hover hover:text-foreground',
+                        ]"
+                        @click="snapshotGroupBy = option.value"
+                      >
+                        {{ option.label }}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div
                   v-if="displayedTaskSnapshots.length === 0"
-                  class="rounded-xl border border-dashed border-border bg-background/50 px-6 py-10 text-center text-sm text-foreground-secondary">
+                  class="rounded-xl border border-dashed border-border bg-background/50 px-6 py-10 text-center text-sm text-foreground-secondary"
+                >
                   {{ t("backupTasks.detail.noNormalSnapshots") }}
                 </div>
-                <div
-                  v-else
-                  class="space-y-4">
+                <div v-else class="space-y-4">
                   <section
                     v-for="group in groupedDisplayedTaskSnapshots"
                     :key="group.key"
-                    class="space-y-2.5">
+                    class="space-y-2.5"
+                  >
                     <div
                       v-if="snapshotGroupBy !== 'all'"
-                      class="flex items-center justify-between gap-3 border-b border-border pb-2">
+                      class="flex items-center justify-between gap-3 border-b border-border pb-2"
+                    >
                       <div>
                         <h4 class="text-sm font-semibold text-foreground">
                           {{ group.label }}
@@ -3481,7 +3906,9 @@ onMounted(() => {
                       </div>
                     </div>
                     <div
-                      class="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-2.5">
+                      v-if="snapshotViewMode === 'grid'"
+                      class="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-2.5"
+                    >
                       <button
                         v-for="snapshot in group.snapshots"
                         :key="snapshot.id"
@@ -3496,11 +3923,13 @@ onMounted(() => {
                           selectedSnapshot?.id === snapshot.id
                             ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm dark:bg-emerald-950/30 dark:text-emerald-50'
                             : 'border-border bg-card hover:border-emerald-400 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/20',
-                        ]">
+                        ]"
+                      >
                         <span
                           v-if="isNoChangeSnapshotReference(snapshot)"
                           :title="t('backupTasks.detail.noChanges')"
-                          class="absolute left-2 top-2 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-card dark:ring-background" />
+                          class="absolute left-2 top-2 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-card dark:ring-background"
+                        />
                         <div class="flex items-center justify-between gap-2">
                           <span
                             :class="[
@@ -3508,27 +3937,40 @@ onMounted(() => {
                               selectedSnapshot?.id === snapshot.id
                                 ? 'bg-emerald-600 text-white'
                                 : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-                            ]">
+                            ]"
+                          >
                             <CircleStackIcon class="w-4 h-4" />
                           </span>
                           <span
                             v-if="isLatestDisplayedSnapshot(snapshot)"
-                            class="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-medium">
+                            class="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-medium"
+                          >
                             {{ t("backupTasks.detail.latest") }}
                           </span>
                         </div>
                         <p
-                          class="mt-2 text-xs font-medium text-foreground truncate">
+                          class="mt-2 text-xs font-medium text-foreground truncate"
+                        >
                           {{
                             formatCompactDateTime(snapshotDisplayTime(snapshot))
                           }}
                         </p>
                         <p
-                          class="mt-1 text-[11px] text-foreground-secondary truncate">
+                          class="mt-1 text-[11px] text-foreground-secondary truncate"
+                        >
                           {{ formatBytes(snapshotDisplaySize(snapshot)) }}
                         </p>
+                        <span
+                          :class="[
+                            'mt-1 inline-flex max-w-full rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                            snapshotStatusClass(snapshot),
+                          ]"
+                        >
+                          {{ snapshotStatusLabel(snapshot) }}
+                        </span>
                         <div
-                          class="mt-2 flex items-center justify-between text-[11px]">
+                          class="mt-2 flex items-center justify-between text-[11px]"
+                        >
                           <span class="text-foreground-muted">
                             {{
                               isNoChangeSnapshotReference(snapshot)
@@ -3542,17 +3984,307 @@ onMounted(() => {
                           </span>
                           <span
                             v-if="selectedSnapshot?.id === snapshot.id"
-                            class="h-2 w-2 rounded-full bg-emerald-500" />
+                            class="h-2 w-2 rounded-full bg-emerald-500"
+                          />
                         </div>
                       </button>
+                    </div>
+                    <div v-else class="relative space-y-2 pl-6">
+                      <div
+                        class="absolute bottom-3 left-[11px] top-3 w-px bg-border"
+                      />
+                      <div
+                        v-for="snapshot in group.snapshots"
+                        :key="snapshot.id"
+                        class="relative"
+                      >
+                        <span
+                          :class="[
+                            'absolute -left-[19px] top-4 h-3.5 w-3.5 rounded-full border-2 bg-card',
+                            selectedSnapshot?.id === snapshot.id
+                              ? 'border-emerald-500 ring-4 ring-emerald-100 dark:ring-emerald-950/40'
+                              : isNoChangeSnapshotReference(snapshot)
+                                ? 'border-amber-500'
+                                : 'border-emerald-400',
+                          ]"
+                        />
+                        <div
+                          :class="[
+                            'rounded-lg border bg-card transition-colors',
+                            selectedSnapshot?.id === snapshot.id
+                              ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/20'
+                              : 'border-border hover:bg-hover',
+                          ]"
+                        >
+                          <button
+                            type="button"
+                            class="w-full px-3 py-2.5 text-left focus:outline-none focus:ring-2 focus:ring-primary"
+                            @click="loadSnapshotFiles(snapshot)"
+                            @mouseenter="
+                              showSnapshotHoverTooltip(snapshot, $event)
+                            "
+                            @mouseleave="scheduleSnapshotHoverTooltipHide"
+                            @focus="showSnapshotHoverTooltip(snapshot, $event)"
+                            @blur="scheduleSnapshotHoverTooltipHide"
+                          >
+                            <div
+                              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+                            >
+                              <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                  <span
+                                    class="text-sm font-semibold text-foreground"
+                                  >
+                                    {{
+                                      formatDateTime(
+                                        snapshotDisplayTime(snapshot),
+                                      )
+                                    }}
+                                  </span>
+                                  <span
+                                    v-if="isLatestDisplayedSnapshot(snapshot)"
+                                    class="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-medium text-white"
+                                  >
+                                    {{ t("backupTasks.detail.latest") }}
+                                  </span>
+                                  <span
+                                    v-if="isNoChangeSnapshotReference(snapshot)"
+                                    class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                                  >
+                                    {{ t("backupTasks.detail.noChanges") }}
+                                  </span>
+                                  <span
+                                    :class="[
+                                      'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                                      snapshotStatusClass(snapshot),
+                                    ]"
+                                  >
+                                    {{ snapshotStatusLabel(snapshot) }}
+                                  </span>
+                                </div>
+                                <p
+                                  class="mt-1 truncate text-xs text-foreground-secondary"
+                                >
+                                  {{
+                                    snapshot.name ||
+                                    snapshot.version ||
+                                    snapshot.id
+                                  }}
+                                </p>
+                              </div>
+                              <div
+                                class="grid grid-cols-3 gap-2 text-right text-xs sm:min-w-[240px]"
+                              >
+                                <div>
+                                  <p class="text-foreground-muted">
+                                    {{ t("backupTasks.progress.size") }}
+                                  </p>
+                                  <p class="font-medium text-foreground">
+                                    {{
+                                      formatBytes(snapshotDisplaySize(snapshot))
+                                    }}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p class="text-foreground-muted">
+                                    {{ t("backupTasks.progress.files") }}
+                                  </p>
+                                  <p class="font-medium text-foreground">
+                                    {{
+                                      isNoChangeSnapshotReference(snapshot)
+                                        ? 0
+                                        : snapshotDisplayFileCount(snapshot)
+                                    }}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p class="text-foreground-muted">
+                                    {{ t("common.status") }}
+                                  </p>
+                                  <p class="font-medium text-foreground">
+                                    {{
+                                      isNoChangeSnapshotReference(snapshot)
+                                        ? t("backupTasks.detail.noChanges")
+                                        : t(
+                                            "backupTasks.detail.changedSnapshots",
+                                          )
+                                    }}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                          <div
+                            v-if="selectedSnapshot?.id === snapshot.id"
+                            class="border-t border-border bg-background/50"
+                          >
+                            <div
+                              class="px-3 py-2 text-xs text-foreground-secondary"
+                            >
+                              {{
+                                isNoChangeSnapshotReference(selectedSnapshot)
+                                  ? t(
+                                      "backupTasks.detail.showingReferencedSnapshot",
+                                    )
+                                  : t(
+                                      "backupTasks.detail.timelineFileBrowserHint",
+                                    )
+                              }}
+                            </div>
+                            <div
+                              class="grid grid-cols-[minmax(0,1fr)_120px] gap-4 border-y border-border bg-background-secondary px-3 py-2 text-xs font-medium text-foreground-secondary"
+                            >
+                              <span>{{ t("common.name") }}</span>
+                              <span class="text-right">{{
+                                t("backupTasks.progress.size")
+                              }}</span>
+                            </div>
+                            <div
+                              v-if="snapshotFilesLoading"
+                              class="p-5 text-center text-foreground-secondary"
+                            >
+                              {{ t("common.loading") }}
+                            </div>
+                            <div
+                              v-else-if="snapshotFilesError"
+                              class="p-5 text-center"
+                            >
+                              <ExclamationTriangleIcon
+                                class="mx-auto mb-3 h-8 w-8 text-warning"
+                              />
+                              <p class="text-sm font-medium text-foreground">
+                                {{
+                                  t(
+                                    "backupTasks.detail.snapshotFilesLoadFailed",
+                                  )
+                                }}
+                              </p>
+                              <p
+                                class="mx-auto mt-1 max-w-xl text-sm text-foreground-secondary"
+                              >
+                                {{ snapshotFilesError }}
+                              </p>
+                              <button
+                                type="button"
+                                class="mt-4 inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
+                                @click="loadSnapshotFiles(selectedSnapshot)"
+                              >
+                                <ArrowPathIcon class="h-4 w-4" />
+                                {{ t("common.retry") }}
+                              </button>
+                            </div>
+                            <div
+                              v-else-if="selectedSnapshotFiles.length === 0"
+                              class="p-5 text-center text-foreground-secondary"
+                            >
+                              {{ t("backupTasks.detail.noSnapshotFiles") }}
+                            </div>
+                            <div v-else class="py-1">
+                              <div
+                                v-for="file in visibleSnapshotFiles()"
+                                :key="file.relative_path || file.id"
+                                class="group grid grid-cols-[minmax(0,1fr)_120px] gap-4 px-3 py-1.5 hover:bg-hover"
+                              >
+                                <div
+                                  class="flex min-w-0 items-center gap-1.5"
+                                  :style="{
+                                    paddingLeft: `${(file.depth || 0) * 20}px`,
+                                  }"
+                                >
+                                  <button
+                                    type="button"
+                                    class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-background-tertiary"
+                                    :class="
+                                      file.is_dir ? 'visible' : 'invisible'
+                                    "
+                                    @click="toggleSnapshotDirectory(file)"
+                                  >
+                                    <ChevronDownIcon
+                                      v-if="
+                                        file.is_dir &&
+                                        expandedSnapshotPaths.has(
+                                          file.relative_path,
+                                        )
+                                      "
+                                      class="h-4 w-4 text-foreground-muted"
+                                    />
+                                    <ChevronRightIcon
+                                      v-else
+                                      class="h-4 w-4 text-foreground-muted"
+                                    />
+                                  </button>
+                                  <ArrowPathIcon
+                                    v-if="
+                                      loadingSnapshotPaths.has(
+                                        file.relative_path,
+                                      )
+                                    "
+                                    class="h-4 w-4 shrink-0 animate-spin text-primary"
+                                  />
+                                  <input
+                                    type="checkbox"
+                                    class="h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-primary"
+                                    :checked="
+                                      selectedSnapshotPaths.has(
+                                        file.relative_path,
+                                      )
+                                    "
+                                    @change="toggleSnapshotPathSelection(file)"
+                                  />
+                                  <FolderIcon
+                                    v-if="file.is_dir"
+                                    class="h-4 w-4 shrink-0 text-amber-500"
+                                  />
+                                  <DocumentIcon
+                                    v-else
+                                    class="h-4 w-4 shrink-0 text-foreground-muted"
+                                  />
+                                  <div
+                                    class="flex min-w-0 items-baseline gap-2"
+                                  >
+                                    <button
+                                      type="button"
+                                      class="truncate text-left text-sm text-foreground hover:text-primary"
+                                      @click="
+                                        file.is_dir
+                                          ? toggleSnapshotDirectory(file)
+                                          : undefined
+                                      "
+                                    >
+                                      {{ file.file_name || file.relative_path }}
+                                    </button>
+                                    <span
+                                      class="hidden truncate text-xs text-foreground-muted xl:inline"
+                                    >
+                                      {{ file.relative_path }}
+                                    </span>
+                                  </div>
+                                </div>
+                                <span
+                                  class="text-right text-sm tabular-nums text-foreground-secondary"
+                                >
+                                  {{
+                                    file.is_dir
+                                      ? "-"
+                                      : formatBytes(file.size || 0)
+                                  }}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </section>
                 </div>
 
                 <div
-                  class="rounded-lg border border-border bg-card overflow-hidden">
+                  v-if="snapshotViewMode === 'grid'"
+                  class="rounded-lg border border-border bg-card overflow-hidden"
+                >
                   <div
-                    class="px-4 py-3 border-b border-border flex items-center justify-between">
+                    class="px-4 py-3 border-b border-border flex items-center justify-between"
+                  >
                     <div>
                       <h3 class="font-semibold text-foreground">
                         {{ t("backupTasks.detail.fileBrowser") }}
@@ -3572,7 +4304,8 @@ onMounted(() => {
                   </div>
                   <div
                     v-if="selectedSnapshot"
-                    class="grid grid-cols-[minmax(0,1fr)_120px] gap-4 px-4 py-2 border-b border-border bg-background-secondary text-xs font-medium text-foreground-secondary">
+                    class="grid grid-cols-[minmax(0,1fr)_120px] gap-4 px-4 py-2 border-b border-border bg-background-secondary text-xs font-medium text-foreground-secondary"
+                  >
                     <span>{{ t("common.name") }}</span>
                     <span class="text-right">{{
                       t("backupTasks.progress.size")
@@ -3580,78 +4313,91 @@ onMounted(() => {
                   </div>
                   <div
                     v-if="snapshotFilesLoading"
-                    class="p-6 text-center text-foreground-secondary">
+                    class="p-6 text-center text-foreground-secondary"
+                  >
                     {{ t("common.loading") }}
                   </div>
                   <div
                     v-else-if="!selectedSnapshot"
-                    class="p-6 text-center text-foreground-secondary">
+                    class="p-6 text-center text-foreground-secondary"
+                  >
                     {{ t("backupTasks.detail.selectSnapshot") }}
                   </div>
-                  <div
-                    v-else-if="snapshotFilesError"
-                    class="p-6 text-center">
+                  <div v-else-if="snapshotFilesError" class="p-6 text-center">
                     <ExclamationTriangleIcon
-                      class="mx-auto mb-3 h-8 w-8 text-warning" />
+                      class="mx-auto mb-3 h-8 w-8 text-warning"
+                    />
                     <p class="text-sm font-medium text-foreground">
                       {{ t("backupTasks.detail.snapshotFilesLoadFailed") }}
                     </p>
                     <p
-                      class="mx-auto mt-1 max-w-xl text-sm text-foreground-secondary">
+                      class="mx-auto mt-1 max-w-xl text-sm text-foreground-secondary"
+                    >
                       {{ snapshotFilesError }}
                     </p>
                     <button
                       type="button"
                       class="mt-4 inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
-                      @click="loadSnapshotFiles(selectedSnapshot)">
+                      @click="loadSnapshotFiles(selectedSnapshot)"
+                    >
                       <ArrowPathIcon class="h-4 w-4" />
                       {{ t("common.retry") }}
                     </button>
                   </div>
                   <div
                     v-else-if="selectedSnapshotFiles.length === 0"
-                    class="p-6 text-center text-foreground-secondary">
+                    class="p-6 text-center text-foreground-secondary"
+                  >
                     {{ t("backupTasks.detail.noSnapshotFiles") }}
                   </div>
                   <div v-else class="py-1">
                     <div
                       v-for="file in visibleSnapshotFiles()"
                       :key="file.relative_path || file.id"
-                      class="group grid grid-cols-[minmax(0,1fr)_120px] gap-4 px-4 py-1.5 hover:bg-hover">
+                      class="group grid grid-cols-[minmax(0,1fr)_120px] gap-4 px-4 py-1.5 hover:bg-hover"
+                    >
                       <div
                         class="flex items-center gap-1.5 min-w-0"
-                        :style="{ paddingLeft: `${(file.depth || 0) * 20}px` }">
+                        :style="{ paddingLeft: `${(file.depth || 0) * 20}px` }"
+                      >
                         <button
                           type="button"
                           class="w-5 h-5 inline-flex items-center justify-center rounded hover:bg-background-tertiary shrink-0"
                           :class="file.is_dir ? 'visible' : 'invisible'"
-                          @click="toggleSnapshotDirectory(file)">
+                          @click="toggleSnapshotDirectory(file)"
+                        >
                           <ChevronDownIcon
                             v-if="
                               file.is_dir &&
                               expandedSnapshotPaths.has(file.relative_path)
                             "
-                            class="w-4 h-4 text-foreground-muted" />
+                            class="w-4 h-4 text-foreground-muted"
+                          />
                           <ChevronRightIcon
                             v-else
-                            class="w-4 h-4 text-foreground-muted" />
+                            class="w-4 h-4 text-foreground-muted"
+                          />
                         </button>
                         <ArrowPathIcon
                           v-if="loadingSnapshotPaths.has(file.relative_path)"
-                          class="w-4 h-4 animate-spin text-primary shrink-0" />
+                          class="w-4 h-4 animate-spin text-primary shrink-0"
+                        />
                         <input
                           type="checkbox"
                           class="h-4 w-4 rounded border-border text-primary focus:ring-primary shrink-0"
                           :checked="
                             selectedSnapshotPaths.has(file.relative_path)
                           "
-                          @change="toggleSnapshotPathSelection(file)" />
+                          @change="toggleSnapshotPathSelection(file)"
+                        />
                         <FolderIcon
                           v-if="file.is_dir"
-                          class="w-4 h-4 text-amber-500 shrink-0" />
+                          class="w-4 h-4 text-amber-500 shrink-0"
+                        />
                         <DocumentIcon
                           v-else
-                          class="w-4 h-4 text-foreground-muted shrink-0" />
+                          class="w-4 h-4 text-foreground-muted shrink-0"
+                        />
                         <div class="min-w-0 flex items-baseline gap-2">
                           <button
                             type="button"
@@ -3660,17 +4406,20 @@ onMounted(() => {
                               file.is_dir
                                 ? toggleSnapshotDirectory(file)
                                 : undefined
-                            ">
+                            "
+                          >
                             {{ file.file_name || file.relative_path }}
                           </button>
                           <span
-                            class="text-xs text-foreground-muted truncate hidden xl:inline">
+                            class="text-xs text-foreground-muted truncate hidden xl:inline"
+                          >
                             {{ file.relative_path }}
                           </span>
                         </div>
                       </div>
                       <span
-                        class="text-sm text-foreground-secondary text-right tabular-nums">
+                        class="text-sm text-foreground-secondary text-right tabular-nums"
+                      >
                         {{ file.is_dir ? "-" : formatBytes(file.size || 0) }}
                       </span>
                     </div>
@@ -3682,21 +4431,25 @@ onMounted(() => {
             <div v-else class="space-y-3">
               <div
                 v-if="runsLoading"
-                class="py-10 text-center text-foreground-secondary">
+                class="py-10 text-center text-foreground-secondary"
+              >
                 {{ t("common.loading") }}
               </div>
               <div
                 v-else-if="selectedTaskRuns.length === 0"
-                class="rounded-xl border border-dashed border-border bg-background/50 px-6 py-12 text-center">
+                class="rounded-xl border border-dashed border-border bg-background/50 px-6 py-12 text-center"
+              >
                 <div
-                  class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-300">
+                  class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-300"
+                >
                   <ListBulletIcon class="h-7 w-7" />
                 </div>
                 <h3 class="mt-4 text-sm font-semibold text-foreground">
                   {{ t("backupTasks.emptyStates.runsTitle") }}
                 </h3>
                 <p
-                  class="mx-auto mt-2 max-w-md text-sm leading-6 text-foreground-secondary">
+                  class="mx-auto mt-2 max-w-md text-sm leading-6 text-foreground-secondary"
+                >
                   {{ t("backupTasks.emptyStates.runsDesc") }}
                 </p>
               </div>
@@ -3704,21 +4457,25 @@ onMounted(() => {
                 <div
                   v-for="run in selectedTaskRuns"
                   :key="run.id"
-                  class="rounded-lg border border-border bg-card px-3 py-2.5 hover:bg-hover transition-colors">
+                  class="rounded-lg border border-border bg-card px-3 py-2.5 hover:bg-hover transition-colors"
+                >
                   <div class="flex flex-col gap-2">
                     <div class="flex items-start justify-between gap-3">
                       <div class="flex min-w-0 items-start gap-2.5">
                         <span
-                          class="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background-secondary text-foreground-muted">
+                          class="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background-secondary text-foreground-muted"
+                        >
                           <ListBulletIcon class="w-4 h-4" />
                         </span>
                         <div class="min-w-0">
                           <p
-                            class="truncate text-sm font-medium text-foreground">
+                            class="truncate text-sm font-medium text-foreground"
+                          >
                             {{ run.name }}
                           </p>
                           <p
-                            class="mt-0.5 truncate text-xs text-foreground-secondary">
+                            class="mt-0.5 truncate text-xs text-foreground-secondary"
+                          >
                             {{ formatDateTime(run.created_at) }}
                             <span v-if="run.proxy_name">
                               · {{ run.proxy_name }}</span
@@ -3726,7 +4483,8 @@ onMounted(() => {
                           </p>
                           <p
                             v-if="run.message || run.error_message"
-                            class="mt-1 truncate text-xs text-foreground-secondary">
+                            class="mt-1 truncate text-xs text-foreground-secondary"
+                          >
                             {{ run.message || run.error_message }}
                           </p>
                         </div>
@@ -3735,13 +4493,15 @@ onMounted(() => {
                         :class="[
                           'inline-flex shrink-0 items-center px-2 py-0.5 rounded-full text-[11px] font-medium',
                           getStatusColor(run.status),
-                        ]">
+                        ]"
+                      >
                         {{ t(`backupTasks.status.${run.status}`) }}
                       </span>
                     </div>
 
                     <div
-                      class="grid grid-cols-2 gap-2 text-xs md:grid-cols-[90px_110px_1fr_100px]">
+                      class="grid grid-cols-2 gap-2 text-xs md:grid-cols-[90px_110px_1fr_100px]"
+                    >
                       <div>
                         <p class="text-[11px] text-foreground-muted">
                           {{ t("backupTasks.progress.progress") }}
@@ -3782,12 +4542,14 @@ onMounted(() => {
                     </div>
 
                     <div
-                      class="h-1.5 rounded-full bg-background-tertiary overflow-hidden">
+                      class="h-1.5 rounded-full bg-background-tertiary overflow-hidden"
+                    >
                       <div
                         class="h-full bg-primary transition-all"
                         :style="{
                           width: `${Math.min(run.progress || 0, 100)}%`,
-                        }" />
+                        }"
+                      />
                     </div>
                   </div>
                 </div>
@@ -3806,7 +4568,8 @@ onMounted(() => {
           left: `${collapseNoChangesHelpPosition.left}px`,
         }"
         @mouseenter="cancelCollapseNoChangesHelpHide"
-        @mouseleave="scheduleCollapseNoChangesHelpHide">
+        @mouseleave="scheduleCollapseNoChangesHelpHide"
+      >
         {{ t("backupTasks.detail.collapseNoChangesHelp") }}
       </div>
     </Teleport>
@@ -3815,16 +4578,15 @@ onMounted(() => {
         v-if="snapshotHoverTooltip"
         class="fixed z-[2147483647] w-72 -translate-x-1/2 rounded-lg border border-border bg-card p-3 text-xs shadow-2xl pointer-events-auto"
         :class="
-          snapshotHoverTooltip.placement === 'top'
-            ? '-translate-y-full'
-            : ''
+          snapshotHoverTooltip.placement === 'top' ? '-translate-y-full' : ''
         "
         :style="{
           top: `${snapshotHoverTooltip.top}px`,
           left: `${snapshotHoverTooltip.left}px`,
         }"
         @mouseenter="cancelSnapshotHoverTooltipHide"
-        @mouseleave="scheduleSnapshotHoverTooltipHide">
+        @mouseleave="scheduleSnapshotHoverTooltipHide"
+      >
         <div class="flex items-center gap-2 border-b border-border pb-2">
           <CircleStackIcon class="w-4 h-4 text-emerald-600" />
           <p class="font-semibold text-foreground truncate">
@@ -3835,8 +4597,7 @@ onMounted(() => {
             }}
           </p>
         </div>
-        <dl
-          class="mt-2 grid grid-cols-[88px_minmax(0,1fr)] gap-x-2 gap-y-1.5">
+        <dl class="mt-2 grid grid-cols-[88px_minmax(0,1fr)] gap-x-2 gap-y-1.5">
           <dt class="text-foreground-muted">
             {{ t("backupTasks.detail.snapshotId") }}
           </dt>
@@ -3850,7 +4611,9 @@ onMounted(() => {
             {{ t("common.date") }}
           </dt>
           <dd class="text-foreground">
-            {{ formatDateTime(snapshotDisplayTime(snapshotHoverTooltip.snapshot)) }}
+            {{
+              formatDateTime(snapshotDisplayTime(snapshotHoverTooltip.snapshot))
+            }}
           </dd>
           <dt class="text-foreground-muted">
             {{
@@ -3860,7 +4623,9 @@ onMounted(() => {
             }}
           </dt>
           <dd class="text-foreground">
-            {{ formatBytes(snapshotDisplaySize(snapshotHoverTooltip.snapshot)) }}
+            {{
+              formatBytes(snapshotDisplaySize(snapshotHoverTooltip.snapshot))
+            }}
           </dd>
           <dt class="text-foreground-muted">
             {{ t("backupTasks.progress.files") }}
@@ -3872,54 +4637,77 @@ onMounted(() => {
                 : snapshotDisplayFileCount(snapshotHoverTooltip.snapshot)
             }}
           </dd>
+          <dt class="text-foreground-muted">
+            {{ t("backupTasks.detail.kopiaState") }}
+          </dt>
+          <dd>
+            <span
+              :class="[
+                'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                snapshotStatusClass(snapshotHoverTooltip.snapshot),
+              ]"
+            >
+              {{ snapshotStatusLabel(snapshotHoverTooltip.snapshot) }}
+            </span>
+          </dd>
           <dt
             v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
-            class="text-foreground-muted">
+            class="text-foreground-muted"
+          >
             {{ t("common.status") }}
           </dt>
           <dd
             v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
-            class="text-amber-600 dark:text-amber-300">
+            class="text-amber-600 dark:text-amber-300"
+          >
             {{ t("backupTasks.detail.noChanges") }}
           </dd>
           <dt
             v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
-            class="text-foreground-muted">
+            class="text-foreground-muted"
+          >
             {{ t("backupTasks.detail.referencedSnapshot") }}
           </dt>
           <dd
             v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
-            class="text-foreground truncate">
+            class="text-foreground truncate"
+          >
             {{ snapshotReferencedId(snapshotHoverTooltip.snapshot) || "-" }}
           </dd>
           <dt
             v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
-            class="text-foreground-muted">
+            class="text-foreground-muted"
+          >
             {{ t("backupTasks.detail.referencedSize") }}
           </dt>
           <dd
             v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
-            class="text-foreground">
+            class="text-foreground"
+          >
             {{ formatBytes(snapshotHoverTooltip.snapshot.total_size || 0) }}
           </dd>
           <dt
             v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
-            class="text-foreground-muted">
+            class="text-foreground-muted"
+          >
             {{ t("backupTasks.detail.referencedFiles") }}
           </dt>
           <dd
             v-if="isNoChangeSnapshotReference(snapshotHoverTooltip.snapshot)"
-            class="text-foreground">
+            class="text-foreground"
+          >
             {{ snapshotHoverTooltip.snapshot.file_count || 0 }}
           </dd>
           <dt
             v-if="snapshotHoverTooltip.snapshot.expires_at"
-            class="text-foreground-muted">
+            class="text-foreground-muted"
+          >
             {{ t("backupTasks.detail.expiresAt") }}
           </dt>
           <dd
             v-if="snapshotHoverTooltip.snapshot.expires_at"
-            class="text-foreground">
+            class="text-foreground"
+          >
             {{ formatDateTime(snapshotHoverTooltip.snapshot.expires_at) }}
           </dd>
         </dl>

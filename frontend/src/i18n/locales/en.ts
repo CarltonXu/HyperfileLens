@@ -962,6 +962,7 @@ export default {
 
     status: {
       pending: "Pending",
+      dispatched: "Dispatched",
       queued: "Queued",
       running: "Running",
       paused: "Paused",
@@ -1173,8 +1174,7 @@ export default {
       parallelReadsDesc:
         "Maximum number of files Kopia can read in parallel during snapshot creation.",
       metadata: "Compress metadata",
-      metadataDesc:
-        "Compress repository metadata to reduce storage usage.",
+      metadataDesc: "Compress repository metadata to reduce storage usage.",
       ignoreIdentical: "Ignore identical snapshots",
       ignoreIdenticalDesc:
         "Skip saving a new snapshot when the selected source has not changed.",
@@ -1262,6 +1262,24 @@ export default {
       collapseNoChangesHelp:
         "No-change snapshots are execution records that reuse the previous unchanged Kopia snapshot; folding hides them from this view only.",
       snapshotDisplay: "Snapshot display",
+      gridView: "Grid",
+      timelineView: "Timeline",
+      timelineFileBrowserHint:
+        "Browsing files from the selected snapshot in this timeline entry.",
+      syncSnapshots: "Sync",
+      applyRetention: "Apply Retention",
+      runMaintenance: "Maintenance",
+      syncSnapshotsDispatched: "Snapshot sync has been dispatched.",
+      retentionDispatched: "Retention evaluation has been dispatched.",
+      maintenanceDispatched: "Kopia maintenance has been dispatched.",
+      kopiaState: "Kopia State",
+      snapshotStatuses: {
+        available: "Available",
+        pending_prune: "Pending prune",
+        pruned: "Pruned",
+        missing: "Missing",
+        delete_failed: "Delete failed",
+      },
       groupAll: "All",
       groupByDay: "Day",
       groupByMonth: "Month",
@@ -1334,16 +1352,14 @@ export default {
           "Select a reusable policy baseline, or leave empty to use task-specific settings.",
         retentionDays:
           "Maximum age in days for retained snapshots when task settings are used.",
-        maxSnapshots:
-          "Maximum number of snapshots to keep for this task.",
+        maxSnapshots: "Maximum number of snapshots to keep for this task.",
         sourcePaths:
           "Protected paths are resolved on the bound source resource or proxy.",
         includePatterns:
           "Only matching files are included when include patterns are provided.",
         excludePatterns:
           "Matching files or directories are skipped during backup.",
-        encryption:
-          "Keep repository data encrypted during backup storage.",
+        encryption: "Keep repository data encrypted during backup storage.",
         checksum:
           "Verify checksums to detect data corruption during processing.",
         compression:
@@ -1356,12 +1372,10 @@ export default {
           "Higher levels may save more space but can increase CPU usage.",
         checkpointInterval:
           "How often checkpoint state is recorded, in minutes.",
-        concurrency:
-          "Maximum number of files read concurrently during backup.",
+        concurrency: "Maximum number of files read concurrently during backup.",
         bandwidthLimit:
           "Optional network throughput limit in KB/s. Leave empty for no limit.",
-        maxRetries:
-          "Number of automatic retry attempts after a failed run.",
+        maxRetries: "Number of automatic retry attempts after a failed run.",
       },
     },
 
@@ -1832,7 +1846,8 @@ export default {
   // Policies
   policies: {
     title: "Backup Policies",
-    subtitle: "Define reusable backup behavior, platform frequency, and Kopia retention rules",
+    subtitle:
+      "Define reusable backup behavior, platform frequency, and Kopia retention rules",
     kopiaSubtitle:
       "Retention and path behavior are applied to Kopia. Backup frequency is evaluated by the HyperFileLens scheduler.",
 
@@ -1889,7 +1904,8 @@ export default {
       host: "Host",
       hostDesc: "Apply this policy to snapshots from a specific host.",
       user: "User",
-      userDesc: "Apply this policy to snapshots owned by a specific user on the host.",
+      userDesc:
+        "Apply this policy to snapshots owned by a specific user on the host.",
       path: "Path",
       pathDesc: "Apply this policy only to a specific source path.",
       scopeDescriptions: {
@@ -1933,7 +1949,8 @@ export default {
       runMissedDesc:
         "If the system was offline or the scheduler was not running, run missed scheduled snapshots when it becomes available again.",
       modeDescriptions: {
-        manual: "Snapshots only run when a user or system explicitly starts the task.",
+        manual:
+          "Snapshots only run when a user or system explicitly starts the task.",
         interval: "Snapshots run repeatedly at a fixed interval.",
         time: "Snapshots run once per day at a selected time.",
         cron: "Snapshots follow a custom cron expression.",
@@ -1951,7 +1968,8 @@ export default {
     retention: {
       title: "Retention",
       kopiaRetention: "Kopia Retention",
-      description: "Define how many snapshots to keep. Leave empty to keep all.",
+      description:
+        "Define how many snapshots to keep. Leave empty to keep all.",
       keep_latest: "Keep last N snapshots",
       keep_latest_desc: "Keep the N most recent snapshots.",
       keep_hourly: "Keep hourly",

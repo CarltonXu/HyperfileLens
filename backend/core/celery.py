@@ -50,13 +50,17 @@ app.conf.beat_schedule = {
         'task': 'backup_tasks.periodic_tasks.schedule_backup_tasks',
         'schedule': 60.0,  # Every 60 seconds
     },
+    'reconcile-backup-snapshots': {
+        'task': 'backup_tasks.tasks.reconcile_backup_snapshots',
+        'schedule': crontab(minute='*/30'),  # Every 30 minutes
+    },
+    'evaluate-backup-retention': {
+        'task': 'backup_tasks.tasks.evaluate_backup_retention',
+        'schedule': crontab(hour=4, minute=0),  # Daily at 4 AM
+    },
     'check-node-health': {
         'task': 'nodes.tasks.check_all_nodes_health',
         'schedule': crontab(minute='*/5'),  # Every 5 minutes
-    },
-    'cleanup-old-backups': {
-        'task': 'backup_tasks.tasks.cleanup_old_snapshots',
-        'schedule': crontab(hour=3, minute=0),  # Daily at 3 AM
     },
     'sync-repository-stats': {
         'task': 'repository.tasks.sync_repository_stats',

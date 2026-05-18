@@ -154,8 +154,14 @@ func (d *Dispatcher) HandleMessage(msg ws.Message) {
 		go d.executeRestore(msg)
 	case message.MsgTypeMount:
 		go d.executeMount(msg)
-	case message.MsgTypeListSnapshots:
+	case message.MsgTypeListSnapshots, "snapshot_list":
 		go d.listSnapshots(msg)
+	case message.MsgTypeDeleteSnapshots, "snapshot_delete":
+		go d.deleteSnapshots(msg)
+	case message.MsgTypeRunMaintenance, "kopia_maintenance":
+		go d.runMaintenance(msg)
+	case message.MsgTypePolicyShow:
+		go d.showPolicy(msg)
 	case message.MsgTypeCancel:
 		go d.cancelTask(msg)
 	case message.MsgTypeTestStorage:
@@ -642,17 +648,27 @@ func (d *Dispatcher) executeMount(msg ws.Message) {
 
 // listSnapshots lists available snapshots
 func (d *Dispatcher) listSnapshots(msg ws.Message) {
+	taskID := getString(msg.Payload, "task_id", msg.ID)
 	password := getString(msg.Payload, "password", "")
+	repoConfig := getMap(msg.Payload, "repository")
+	sourcePath := getString(msg.Payload, "source_path", "")
 
 	logger.Debug("Snapshot list start", nil)
 	logger.Debug("Listing Kopia snapshots...", nil)
+	d.sendTaskStart(msg.ID, taskID, message.MsgTypeListSnapshots)
+	if len(repoConfig) > 0 {
+		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+			d.sendTaskFailed(msg.ID, taskID, err.Error())
+			return
+		}
+	}
 
-	snapshots, err := d.kopia.ListSnapshots(password)
+	snapshots, err := d.kopia.ListSnapshotsForSource(password, sourcePath)
 	if err != nil {
 		logger.Error("Failed to list snapshots", map[string]interface{}{
 			"error": err.Error(),
 		})
-		d.sendError(msg.ID, "", err.Error())
+		d.sendTaskFailed(msg.ID, taskID, err.Error())
 		logger.Debug("Snapshot list failed", nil)
 		return
 	}
@@ -668,14 +684,131 @@ func (d *Dispatcher) listSnapshots(msg ws.Message) {
 	})
 
 	d.wsClient.Send(ws.Message{
-		Type: "snapshot_list",
+		Type: message.MsgTypeTaskComplete,
 		ID:   msg.ID,
 		Payload: map[string]interface{}{
-			"snapshots": snapshots,
+			"task_id":   taskID,
+			"task_type": message.MsgTypeListSnapshots,
+			"success":   true,
+			"result": map[string]interface{}{
+				"snapshots":   snapshots,
+				"source_path": sourcePath,
+			},
+			"timestamp": time.Now(),
 		},
 	})
 
 	logger.Debug("Snapshot list end", nil)
+}
+
+func (d *Dispatcher) deleteSnapshots(msg ws.Message) {
+	taskID := getString(msg.Payload, "task_id", msg.ID)
+	password := getString(msg.Payload, "password", "")
+	repoConfig := getMap(msg.Payload, "repository")
+	snapshotIDs := getStringSlice(msg.Payload, "snapshot_ids")
+
+	logger.Debug("Snapshot delete start", map[string]interface{}{
+		"task_id": taskID,
+		"count":   len(snapshotIDs),
+	})
+	d.sendTaskStart(msg.ID, taskID, message.MsgTypeDeleteSnapshots)
+	if len(repoConfig) > 0 {
+		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+			d.sendTaskFailed(msg.ID, taskID, err.Error())
+			return
+		}
+	}
+	if len(snapshotIDs) == 0 {
+		d.sendTaskFailed(msg.ID, taskID, "snapshot_ids is required")
+		return
+	}
+	output, err := d.kopia.DeleteSnapshots(snapshotIDs, password)
+	if err != nil {
+		d.sendTaskFailed(msg.ID, taskID, err.Error())
+		return
+	}
+	d.wsClient.Send(ws.Message{
+		Type: message.MsgTypeTaskComplete,
+		ID:   msg.ID,
+		Payload: map[string]interface{}{
+			"task_id":   taskID,
+			"task_type": message.MsgTypeDeleteSnapshots,
+			"success":   true,
+			"result": map[string]interface{}{
+				"snapshot_ids": snapshotIDs,
+				"output":       output,
+			},
+			"timestamp": time.Now(),
+		},
+	})
+}
+
+func (d *Dispatcher) runMaintenance(msg ws.Message) {
+	taskID := getString(msg.Payload, "task_id", msg.ID)
+	password := getString(msg.Payload, "password", "")
+	repoConfig := getMap(msg.Payload, "repository")
+	full := getBool(msg.Payload, "full", true)
+
+	d.sendTaskStart(msg.ID, taskID, message.MsgTypeRunMaintenance)
+	if len(repoConfig) > 0 {
+		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+			d.sendTaskFailed(msg.ID, taskID, err.Error())
+			return
+		}
+	}
+	output, err := d.kopia.RunMaintenance(full, password)
+	if err != nil {
+		d.sendTaskFailed(msg.ID, taskID, err.Error())
+		return
+	}
+	d.wsClient.Send(ws.Message{
+		Type: message.MsgTypeTaskComplete,
+		ID:   msg.ID,
+		Payload: map[string]interface{}{
+			"task_id":   taskID,
+			"task_type": message.MsgTypeRunMaintenance,
+			"success":   true,
+			"result": map[string]interface{}{
+				"output": output,
+				"full":   full,
+			},
+			"timestamp": time.Now(),
+		},
+	})
+}
+
+func (d *Dispatcher) showPolicy(msg ws.Message) {
+	taskID := getString(msg.Payload, "task_id", msg.ID)
+	password := getString(msg.Payload, "password", "")
+	repoConfig := getMap(msg.Payload, "repository")
+	target := getString(msg.Payload, "target", "")
+
+	d.sendTaskStart(msg.ID, taskID, message.MsgTypePolicyShow)
+	if len(repoConfig) > 0 {
+		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+			d.sendTaskFailed(msg.ID, taskID, err.Error())
+			return
+		}
+	}
+	output, err := d.kopia.ShowPolicy(target, password)
+	if err != nil {
+		d.sendTaskFailed(msg.ID, taskID, err.Error())
+		return
+	}
+	d.wsClient.Send(ws.Message{
+		Type: message.MsgTypeTaskComplete,
+		ID:   msg.ID,
+		Payload: map[string]interface{}{
+			"task_id":   taskID,
+			"task_type": message.MsgTypePolicyShow,
+			"success":   true,
+			"result": map[string]interface{}{
+				"policy": output,
+				"target": target,
+			},
+			"timestamp": time.Now(),
+		},
+	})
 }
 
 func (d *Dispatcher) listSnapshotFiles(msg ws.Message) {
@@ -960,6 +1093,24 @@ func getBool(m map[string]interface{}, key string, def bool) bool {
 		}
 	}
 	return def
+}
+
+func getStringSlice(m map[string]interface{}, key string) []string {
+	if v, ok := m[key]; ok {
+		switch items := v.(type) {
+		case []string:
+			return items
+		case []interface{}:
+			result := make([]string, 0, len(items))
+			for _, item := range items {
+				if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+					result = append(result, strings.TrimSpace(s))
+				}
+			}
+			return result
+		}
+	}
+	return nil
 }
 
 func getMap(m map[string]interface{}, key string) map[string]interface{} {

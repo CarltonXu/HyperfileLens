@@ -600,6 +600,20 @@ class BackupSnapshot(models.Model):
     """
     Represents a point-in-time snapshot of backed up data.
     """
+
+    STATUS_AVAILABLE = 'available'
+    STATUS_PENDING_PRUNE = 'pending_prune'
+    STATUS_PRUNED = 'pruned'
+    STATUS_MISSING = 'missing'
+    STATUS_DELETE_FAILED = 'delete_failed'
+
+    STATUS_CHOICES = [
+        (STATUS_AVAILABLE, 'Available'),
+        (STATUS_PENDING_PRUNE, 'Pending Prune'),
+        (STATUS_PRUNED, 'Pruned'),
+        (STATUS_MISSING, 'Missing'),
+        (STATUS_DELETE_FAILED, 'Delete Failed'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     task = models.ForeignKey(
@@ -670,6 +684,31 @@ class BackupSnapshot(models.Model):
         blank=True,
         help_text="Additional metadata"
     )
+    snapshot_status = models.CharField(
+        max_length=24,
+        choices=STATUS_CHOICES,
+        default=STATUS_AVAILABLE,
+        help_text="Platform-observed availability state reconciled from Kopia"
+    )
+    retention_reasons = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Retention reasons observed from Kopia or calculated by platform"
+    )
+    last_synced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last time this snapshot was reconciled with Kopia"
+    )
+    missing_count = models.IntegerField(
+        default=0,
+        help_text="Consecutive reconciliation cycles where Kopia did not return this snapshot"
+    )
+    pruned_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When Kopia deletion was confirmed by reconciliation"
+    )
     
     class Meta:
         db_table = 'backup_snapshots'
@@ -677,6 +716,8 @@ class BackupSnapshot(models.Model):
         indexes = [
             models.Index(fields=['task', '-created_at']),
             models.Index(fields=['expires_at']),
+            models.Index(fields=['snapshot_status']),
+            models.Index(fields=['last_synced_at']),
         ]
     
     def __str__(self):

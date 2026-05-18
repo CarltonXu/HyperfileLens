@@ -37,6 +37,11 @@ from .serializers import (
     BackupTaskRunSerializer,
 )
 from .services.execution import dispatch_backup_task, BackupTaskExecutionError
+from .services.retention import (
+    dispatch_kopia_maintenance,
+    dispatch_snapshot_reconciliation,
+    run_retention_for_task,
+)
 
 
 def _parse_kopia_snapshot_ids(output):
@@ -753,6 +758,45 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         serializer = BackupSnapshotListSerializer(snapshots, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['post'], url_path='sync-snapshots')
+    def sync_snapshots(self, request, pk=None):
+        """Reconcile platform snapshot records from Kopia via the execution proxy."""
+        task = self.get_object()
+        proxy_task, error = dispatch_snapshot_reconciliation(task)
+        if error:
+            return Response(
+                {'error': error, 'task_id': str(proxy_task.id) if proxy_task else ''},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response({
+            'message': 'Snapshot reconciliation dispatched',
+            'proxy_task_id': str(proxy_task.id),
+        })
+
+    @action(detail=True, methods=['post'], url_path='evaluate-retention')
+    def evaluate_retention(self, request, pk=None):
+        """Evaluate platform retention and optionally dispatch Kopia pruning."""
+        task = self.get_object()
+        delete = request.data.get('delete', True)
+        result = run_retention_for_task(task, delete=bool(delete))
+        status_code = status.HTTP_400_BAD_REQUEST if result.get('error') else status.HTTP_200_OK
+        return Response(result, status=status_code)
+
+    @action(detail=True, methods=['post'], url_path='run-maintenance')
+    def run_maintenance(self, request, pk=None):
+        """Run Kopia maintenance on the task repository through the execution proxy."""
+        task = self.get_object()
+        proxy_task, error = dispatch_kopia_maintenance(task, full=bool(request.data.get('full', True)))
+        if error:
+            return Response(
+                {'error': error, 'task_id': str(proxy_task.id) if proxy_task else ''},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response({
+            'message': 'Kopia maintenance dispatched',
+            'proxy_task_id': str(proxy_task.id),
+        })
+
     @action(detail=True, methods=['get'])
     def runs(self, request, pk=None):
         """List execution runs for a backup task."""
@@ -920,6 +964,15 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         snapshot = self.get_object()
         path = (request.query_params.get('path') or '').strip('/')
         task = snapshot.task
+        if snapshot.snapshot_status in [
+            BackupSnapshot.STATUS_MISSING,
+            BackupSnapshot.STATUS_PRUNED,
+            BackupSnapshot.STATUS_DELETE_FAILED,
+        ]:
+            return Response(
+                {'error': 'Snapshot is not available in Kopia. Run snapshot sync to refresh its status.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         proxy = task.execution_node
         if not proxy:
             return Response(

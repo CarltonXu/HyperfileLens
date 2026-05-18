@@ -408,6 +408,18 @@ export const backupTasksApi = {
   snapshots: (id: number | string) =>
     api.get(`/api/v1/backup-tasks/tasks/${id}/snapshots/`),
 
+  syncSnapshots: (id: number | string) =>
+    api.post(`/api/v1/backup-tasks/tasks/${id}/sync-snapshots/`),
+
+  evaluateRetention: (id: number | string, data?: { delete?: boolean }) =>
+    api.post(
+      `/api/v1/backup-tasks/tasks/${id}/evaluate-retention/`,
+      data || {},
+    ),
+
+  runMaintenance: (id: number | string, data?: { full?: boolean }) =>
+    api.post(`/api/v1/backup-tasks/tasks/${id}/run-maintenance/`, data || {}),
+
   runs: (id: number | string, params?: { page?: number; page_size?: number }) =>
     api.get(`/api/v1/backup-tasks/tasks/${id}/runs/`, { params }),
 
