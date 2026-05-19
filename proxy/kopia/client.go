@@ -1,6 +1,7 @@
 package kopia
 
 import (
+	"archive/zip"
 	"bufio"
 	"context"
 	"crypto/sha256"
@@ -29,6 +30,7 @@ type Client struct {
 	cachePath   string
 	rateLimiter *traffic.RateLimiter
 	mu          sync.Mutex
+	taskCancels map[string]context.CancelFunc
 	compression CompressionConfig
 }
 
@@ -99,12 +101,33 @@ type latestSnapshotInfo struct {
 
 // RestoreResult captures the high-level Kopia restore command result.
 type RestoreResult struct {
-	TaskID     string    `json:"task_id"`
-	SnapshotID string    `json:"snapshot_id"`
-	TargetPath string    `json:"target_path"`
-	Output     string    `json:"output"`
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at"`
+	TaskID         string    `json:"task_id"`
+	SnapshotID     string    `json:"snapshot_id"`
+	TargetPath     string    `json:"target_path"`
+	Output         string    `json:"output"`
+	RestoredPaths  []string  `json:"restored_paths,omitempty"`
+	RestoredFiles  int       `json:"restored_files,omitempty"`
+	TotalFiles     int       `json:"total_files,omitempty"`
+	RestoredSize   int64     `json:"restored_size,omitempty"`
+	TotalSize      int64     `json:"total_size,omitempty"`
+	SpeedMBps      float64   `json:"speed_mbps,omitempty"`
+	DirectoryCount int       `json:"directory_count,omitempty"`
+	SymlinkCount   int       `json:"symlink_count,omitempty"`
+	StartedAt      time.Time `json:"started_at"`
+	FinishedAt     time.Time `json:"finished_at"`
+}
+
+type ExportResult struct {
+	TaskID        string    `json:"task_id"`
+	SnapshotID    string    `json:"snapshot_id"`
+	PackagePath   string    `json:"package_path"`
+	PackageName   string    `json:"file_name"`
+	PackageSize   int64     `json:"package_size"`
+	Checksum      string    `json:"checksum"`
+	SelectedPaths []string  `json:"selected_paths"`
+	Output        string    `json:"output,omitempty"`
+	StartedAt     time.Time `json:"started_at"`
+	FinishedAt    time.Time `json:"finished_at"`
 }
 
 // CreateRepoResult captures repository initialization metadata.
@@ -130,9 +153,10 @@ func NewClient(binaryPath string, paths ...string) *Client {
 	}
 
 	return &Client{
-		binaryPath: binaryPath,
-		indexPath:  indexPath,
-		cachePath:  cachePath,
+		binaryPath:  binaryPath,
+		indexPath:   indexPath,
+		cachePath:   cachePath,
+		taskCancels: make(map[string]context.CancelFunc),
 		compression: CompressionConfig{
 			Enabled:   false,
 			Level:     6,
@@ -526,6 +550,8 @@ func (c *Client) BackupWithProgress(taskID, sourcePath, password string, onProgr
 // Restore restores a Kopia snapshot to a target path.
 func (c *Client) Restore(taskID, snapshotID, targetPath, password string, overwrite bool) (*RestoreResult, error) {
 	startedAt := time.Now()
+	ctx, done := c.registerTaskContext(taskID)
+	defer done()
 	logger.Debug("Starting Kopia restore", map[string]interface{}{
 		"task_id":     taskID,
 		"snapshot_id": snapshotID,
@@ -535,8 +561,11 @@ func (c *Client) Restore(taskID, snapshotID, targetPath, password string, overwr
 	})
 
 	args := []string{"snapshot", "restore", snapshotID, targetPath}
-	if overwrite {
-		args = append(args, "--overwrite")
+	if password != "" {
+		args = append(args, "--password", password)
+	}
+	if !overwrite {
+		args = append(args, "--skip-existing")
 	}
 
 	logger.Debug("Executing kopia snapshot restore", map[string]interface{}{
@@ -545,7 +574,7 @@ func (c *Client) Restore(taskID, snapshotID, targetPath, password string, overwr
 		"overwrite":   overwrite,
 	})
 
-	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
+	output, err := exec.CommandContext(ctx, c.binaryPath, args...).CombinedOutput()
 	if err != nil {
 		logger.Error("Kopia restore failed", map[string]interface{}{
 			"task_id":     taskID,
@@ -564,14 +593,216 @@ func (c *Client) Restore(taskID, snapshotID, targetPath, password string, overwr
 		"output":      string(output),
 	})
 
+	stats := parseRestoreStats(string(output))
 	return &RestoreResult{
-		TaskID:     taskID,
-		SnapshotID: snapshotID,
-		TargetPath: targetPath,
-		Output:     string(output),
-		StartedAt:  startedAt,
-		FinishedAt: time.Now(),
+		TaskID:         taskID,
+		SnapshotID:     snapshotID,
+		TargetPath:     targetPath,
+		Output:         string(output),
+		RestoredFiles:  stats.RestoredFiles,
+		TotalFiles:     stats.RestoredFiles,
+		RestoredSize:   stats.RestoredSize,
+		TotalSize:      stats.RestoredSize,
+		SpeedMBps:      stats.SpeedMBps,
+		DirectoryCount: stats.DirectoryCount,
+		SymlinkCount:   stats.SymlinkCount,
+		StartedAt:      startedAt,
+		FinishedAt:     time.Now(),
 	}, nil
+}
+
+// RestoreSelected restores selected files or directories from a Kopia root object.
+func (c *Client) RestoreSelected(taskID, objectID, targetPath, password string, overwrite bool, restorePaths []string) (*RestoreResult, error) {
+	startedAt := time.Now()
+	ctx, done := c.registerTaskContext(taskID)
+	defer done()
+	outputs := make([]string, 0, len(restorePaths))
+	restored := make([]string, 0, len(restorePaths))
+
+	for _, restorePath := range restorePaths {
+		cleanPath := strings.Trim(strings.TrimSpace(restorePath), "/")
+		if cleanPath == "" {
+			continue
+		}
+		source := strings.TrimRight(objectID, "/") + "/" + cleanPath
+		destination := filepath.Join(targetPath, filepath.FromSlash(cleanPath))
+		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+			return nil, fmt.Errorf("failed to prepare restore target %s: %w", destination, err)
+		}
+
+		args := []string{"restore", source, destination}
+		if password != "" {
+			args = append(args, "--password", password)
+		}
+		if !overwrite {
+			args = append(args, "--skip-existing")
+		}
+
+		logger.Debug("Executing kopia selected path restore", map[string]interface{}{
+			"task_id":      taskID,
+			"source":       source,
+			"target_path":  destination,
+			"restore_path": cleanPath,
+			"overwrite":    overwrite,
+		})
+
+		output, err := exec.CommandContext(ctx, c.binaryPath, args...).CombinedOutput()
+		outputs = append(outputs, string(output))
+		if err != nil {
+			logger.Error("Kopia selected path restore failed", map[string]interface{}{
+				"task_id":      taskID,
+				"source":       source,
+				"target_path":  destination,
+				"restore_path": cleanPath,
+				"error":        err.Error(),
+				"output":       string(output),
+			})
+			return nil, fmt.Errorf("kopia restore failed for %s: %w, output: %s", cleanPath, err, string(output))
+		}
+		restored = append(restored, cleanPath)
+	}
+
+	combinedOutput := strings.Join(outputs, "\n")
+	stats := parseRestoreStats(combinedOutput)
+	restoredFiles := stats.RestoredFiles
+	if restoredFiles == 0 {
+		restoredFiles = len(restored)
+	}
+	return &RestoreResult{
+		TaskID:         taskID,
+		SnapshotID:     objectID,
+		TargetPath:     targetPath,
+		Output:         combinedOutput,
+		RestoredPaths:  restored,
+		RestoredFiles:  restoredFiles,
+		TotalFiles:     restoredFiles,
+		RestoredSize:   stats.RestoredSize,
+		TotalSize:      stats.RestoredSize,
+		SpeedMBps:      stats.SpeedMBps,
+		DirectoryCount: stats.DirectoryCount,
+		SymlinkCount:   stats.SymlinkCount,
+		StartedAt:      startedAt,
+		FinishedAt:     time.Now(),
+	}, nil
+}
+
+func (c *Client) ExportSelected(taskID, objectID, stagingRoot, password string, selectedPaths []string) (*ExportResult, error) {
+	startedAt := time.Now()
+	ctx, done := c.registerTaskContext(taskID)
+	defer done()
+
+	exportDir := filepath.Join(stagingRoot, taskID, "data")
+	if err := os.RemoveAll(filepath.Join(stagingRoot, taskID)); err != nil {
+		return nil, fmt.Errorf("failed to clean export staging directory: %w", err)
+	}
+	if err := os.MkdirAll(exportDir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create export staging directory: %w", err)
+	}
+
+	outputs := make([]string, 0, len(selectedPaths))
+	cleanPaths := make([]string, 0, len(selectedPaths))
+	for _, selectedPath := range selectedPaths {
+		cleanPath := strings.Trim(strings.TrimSpace(selectedPath), "/")
+		if cleanPath == "" {
+			continue
+		}
+		source := strings.TrimRight(objectID, "/") + "/" + cleanPath
+		destination := filepath.Join(exportDir, filepath.FromSlash(cleanPath))
+		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+			return nil, fmt.Errorf("failed to prepare export target %s: %w", destination, err)
+		}
+		args := []string{"restore", source, destination}
+		if password != "" {
+			args = append(args, "--password", password)
+		}
+		output, err := exec.CommandContext(ctx, c.binaryPath, args...).CombinedOutput()
+		outputs = append(outputs, string(output))
+		if err != nil {
+			return nil, fmt.Errorf("kopia export restore failed for %s: %w, output: %s", cleanPath, err, string(output))
+		}
+		cleanPaths = append(cleanPaths, cleanPath)
+	}
+
+	if len(cleanPaths) == 0 {
+		return nil, fmt.Errorf("no selected paths to export")
+	}
+
+	packageName := fmt.Sprintf("recovery-export-%s.zip", taskID)
+	packagePath := filepath.Join(stagingRoot, taskID, packageName)
+	if err := zipDirectory(exportDir, packagePath); err != nil {
+		return nil, err
+	}
+	checksum, size, err := fileChecksumAndSize(packagePath)
+	if err != nil {
+		return nil, err
+	}
+	return &ExportResult{
+		TaskID:        taskID,
+		SnapshotID:    objectID,
+		PackagePath:   packagePath,
+		PackageName:   packageName,
+		PackageSize:   size,
+		Checksum:      checksum,
+		SelectedPaths: cleanPaths,
+		Output:        strings.Join(outputs, "\n"),
+		StartedAt:     startedAt,
+		FinishedAt:    time.Now(),
+	}, nil
+}
+
+func zipDirectory(sourceDir, packagePath string) error {
+	zipFile, err := os.Create(packagePath)
+	if err != nil {
+		return fmt.Errorf("failed to create zip package: %w", err)
+	}
+	defer zipFile.Close()
+
+	writer := zip.NewWriter(zipFile)
+	defer writer.Close()
+
+	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+		header.Name = filepath.ToSlash(relPath)
+		header.Method = zip.Deflate
+		entry, err := writer.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		_, err = io.Copy(entry, file)
+		return err
+	})
+}
+
+func fileChecksumAndSize(path string) (string, int64, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to open package for checksum: %w", err)
+	}
+	defer file.Close()
+	hash := sha256.New()
+	size, err := io.Copy(hash, file)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to calculate package checksum: %w", err)
+	}
+	return hex.EncodeToString(hash.Sum(nil)), size, nil
 }
 
 // ListSnapshots lists available Kopia snapshots as raw JSON-compatible output.
@@ -810,6 +1041,40 @@ func parseFinalSnapshotStats(output string) (int, int64) {
 	return files, parseHumanBytes(last[2], last[3])
 }
 
+type restoreStats struct {
+	RestoredFiles  int
+	DirectoryCount int
+	SymlinkCount   int
+	RestoredSize   int64
+	SpeedMBps      float64
+}
+
+func parseRestoreStats(output string) restoreStats {
+	stats := restoreStats{}
+	restored := regexp.MustCompile(`Restored\s+(\d+)\s+files?,\s+(\d+)\s+directories\s+and\s+(\d+)\s+symbolic links\s+\(([\d.]+)\s*([KMGT]?B)\)`).FindAllStringSubmatch(output, -1)
+	if len(restored) > 0 {
+		for _, match := range restored {
+			files, _ := strconv.Atoi(match[1])
+			dirs, _ := strconv.Atoi(match[2])
+			symlinks, _ := strconv.Atoi(match[3])
+			stats.RestoredFiles += files
+			stats.DirectoryCount += dirs
+			stats.SymlinkCount += symlinks
+			stats.RestoredSize += parseHumanBytes(match[4], match[5])
+		}
+	}
+	progress := regexp.MustCompile(`Processed\s+\d+\s+\(([\d.]+)\s*([KMGT]?B)\)\s+of\s+\d+\s+\(([\d.]+)\s*([KMGT]?B)\)\s+([\d.]+)\s*([KMGT]?B)/s`).FindAllStringSubmatch(output, -1)
+	if len(progress) > 0 {
+		last := progress[len(progress)-1]
+		if stats.RestoredSize == 0 {
+			stats.RestoredSize = parseHumanBytes(last[1], last[2])
+		}
+		speedBytes := parseHumanBytes(last[5], last[6])
+		stats.SpeedMBps = float64(speedBytes) / 1024 / 1024
+	}
+	return stats
+}
+
 func parseSnapshotObjectIDs(output string) (string, string) {
 	match := regexp.MustCompile(`Created snapshot with root\s+(\S+)\s+and ID\s+(\S+)`).FindStringSubmatch(output)
 	if len(match) == 3 {
@@ -1045,8 +1310,31 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// Cancel is a placeholder for task cancellation. Kopia commands are currently run synchronously.
-func (c *Client) Cancel(taskID string) {}
+func (c *Client) registerTaskContext(taskID string) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	c.mu.Lock()
+	if c.taskCancels == nil {
+		c.taskCancels = make(map[string]context.CancelFunc)
+	}
+	c.taskCancels[taskID] = cancel
+	c.mu.Unlock()
+	return ctx, func() {
+		c.mu.Lock()
+		delete(c.taskCancels, taskID)
+		c.mu.Unlock()
+		cancel()
+	}
+}
+
+// Cancel requests cancellation for a running Kopia command.
+func (c *Client) Cancel(taskID string) {
+	c.mu.Lock()
+	cancel := c.taskCancels[taskID]
+	c.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
 
 // SetCompression configures compression settings
 func (c *Client) SetCompression(enabled bool, level int, algorithm string) {

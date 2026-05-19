@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
   backupTasksApi,
   nodesApi,
   policiesApi,
+  recoveryExportsApi,
   repositoriesApi,
   sourceResourcesApi,
 } from "@/api";
@@ -53,6 +55,7 @@ import {
 } from "@heroicons/vue/24/outline";
 
 const { t, locale } = useI18n();
+const router = useRouter();
 const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 
@@ -76,7 +79,7 @@ const selectedSnapshotFiles = ref<any[]>([]);
 const snapshotFilesError = ref("");
 const collapseNoChangeSnapshots = ref(false);
 const snapshotGroupBy = ref<"all" | "day" | "month" | "change" | "size">("all");
-const snapshotViewMode = ref<"grid" | "timeline">("grid");
+const snapshotViewMode = ref<"grid" | "timeline" | "blocks">("grid");
 const expandedSnapshotPaths = ref<Set<string>>(new Set());
 const selectedSnapshotPaths = ref<Set<string>>(new Set());
 const loadingSnapshotPaths = ref<Set<string>>(new Set());
@@ -199,10 +202,17 @@ const editRetentionFields = [
 // Pagination
 const currentPage = ref(1);
 const pageSize = ref(getPageSize("backup-tasks"));
+const snapshotCurrentPage = ref(1);
+const snapshotPageSize = ref(getPageSize("backup-task-snapshots") || 50);
 const PAGE_STORAGE_KEY = "backup-tasks";
+const SNAPSHOT_PAGE_STORAGE_KEY = "backup-task-snapshots";
 
 watch(pageSize, (newSize) => {
   setPageSize(newSize, PAGE_STORAGE_KEY);
+});
+
+watch(snapshotPageSize, (newSize) => {
+  setPageSize(newSize, SNAPSHOT_PAGE_STORAGE_KEY);
 });
 
 const newTask = ref<BackupTaskCreateData>({
@@ -389,6 +399,40 @@ function snapshotTimelineDotClass(snapshot: any) {
   return isNoChangeSnapshotReference(snapshot) ? "border-amber-500" : "border-emerald-400";
 }
 
+function snapshotBlockClass(snapshot: any) {
+  const status = snapshot?.snapshot_status || "available";
+  const selected = selectedSnapshot?.value?.id === snapshot?.id;
+  const selectedRing =
+    "ring-2 ring-offset-1 ring-slate-900/60 dark:ring-slate-100/80 dark:ring-offset-background";
+
+  if (status === "available") {
+    if (isNoChangeSnapshotReference(snapshot)) {
+      return selected
+        ? `bg-sky-400 hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400 ${selectedRing}`
+        : "bg-sky-300 hover:bg-sky-400 dark:bg-sky-600 dark:hover:bg-sky-500";
+    }
+    return selected
+      ? `bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400 ${selectedRing}`
+      : "bg-emerald-400 hover:bg-emerald-500 dark:bg-emerald-600 dark:hover:bg-emerald-500";
+  }
+
+  if (status === "pending_prune") {
+    return selected
+      ? `bg-amber-400 dark:bg-amber-500 ${selectedRing}`
+      : "bg-amber-300 hover:bg-amber-400 dark:bg-amber-600 dark:hover:bg-amber-500";
+  }
+
+  if (status === "delete_failed") {
+    return selected
+      ? `bg-red-500 dark:bg-red-500 ${selectedRing}`
+      : "bg-red-400 hover:bg-red-500 dark:bg-red-700 dark:hover:bg-red-600";
+  }
+
+  return selected
+    ? `bg-slate-500 dark:bg-slate-400 ${selectedRing}`
+    : "bg-slate-300 hover:bg-slate-400 dark:bg-slate-700 dark:hover:bg-slate-600";
+}
+
 type BackupTaskColumnKey =
   | "name"
   | "policy"
@@ -510,6 +554,12 @@ const hiddenNoChangeSnapshotCount = computed(
     selectedTaskSnapshots.value.length - displayedTaskSnapshots.value.length,
 );
 
+const paginatedDisplayedTaskSnapshots = computed(() => {
+  const start = (snapshotCurrentPage.value - 1) * snapshotPageSize.value;
+  const end = start + snapshotPageSize.value;
+  return displayedTaskSnapshots.value.slice(start, end);
+});
+
 const snapshotGroupOptions = computed(() => [
   { value: "all" as const, label: t("backupTasks.detail.groupAll") },
   { value: "day" as const, label: t("backupTasks.detail.groupByDay") },
@@ -521,10 +571,11 @@ const snapshotGroupOptions = computed(() => [
 const snapshotViewModeOptions = computed(() => [
   { value: "grid" as const, label: t("backupTasks.detail.gridView") },
   { value: "timeline" as const, label: t("backupTasks.detail.timelineView") },
+  { value: "blocks" as const, label: t("backupTasks.detail.blocksView") },
 ]);
 
 const groupedDisplayedTaskSnapshots = computed(() => {
-  const snapshots = displayedTaskSnapshots.value;
+  const snapshots = paginatedDisplayedTaskSnapshots.value;
   if (snapshotGroupBy.value === "all") {
     return [
       {
@@ -556,6 +607,23 @@ const groupedDisplayedTaskSnapshots = computed(() => {
 // Reset page when filters change
 watch([selectedStatus, searchQuery], () => {
   currentPage.value = 1;
+});
+
+watch(
+  [collapseNoChangeSnapshots, snapshotGroupBy, snapshotViewMode],
+  () => {
+    snapshotCurrentPage.value = 1;
+  },
+);
+
+watch(displayedTaskSnapshots, (snapshots) => {
+  const totalPages = Math.max(
+    1,
+    Math.ceil(snapshots.length / snapshotPageSize.value),
+  );
+  if (snapshotCurrentPage.value > totalPages) {
+    snapshotCurrentPage.value = totalPages;
+  }
 });
 
 function stopDetailAutoRefresh() {
@@ -746,6 +814,7 @@ async function loadTaskSnapshots() {
       page += 1;
     }
     selectedTaskSnapshots.value = snapshots;
+    snapshotCurrentPage.value = 1;
     if (
       selectedSnapshot.value &&
       !isSnapshotBrowsable(selectedSnapshot.value)
@@ -974,6 +1043,28 @@ function toggleSnapshotPathSelection(file: any) {
     next.add(path);
   }
   selectedSnapshotPaths.value = next;
+}
+
+async function exportSelectedSnapshotPaths() {
+  if (!selectedSnapshot.value || selectedSnapshotPaths.value.size === 0) {
+    appStore.warning(t("recoveryExports.selectRequired"));
+    return;
+  }
+  const paths = Array.from(selectedSnapshotPaths.value);
+  try {
+    await recoveryExportsApi.create({
+      name: `Export ${formatCompactDateTime(snapshotDisplayTime(selectedSnapshot.value))}`,
+      snapshot_id: selectedSnapshot.value.id,
+      selected_paths: paths,
+      package_format: "zip",
+      expires_in_hours: 24,
+    });
+    appStore.success(t("recoveryExports.created"));
+    selectedSnapshotPaths.value = new Set();
+    router.push("/recovery-exports");
+  } catch (error) {
+    appStore.error(getApiErrorMessage(error, t("recoveryExports.createFailed")));
+  }
 }
 
 async function fetchStats() {
@@ -4126,7 +4217,10 @@ onMounted(() => {
                         </div>
                       </button>
                     </div>
-                    <div v-else class="relative space-y-2 pl-6">
+                    <div
+                      v-else-if="snapshotViewMode === 'timeline'"
+                      class="relative space-y-2 pl-6"
+                    >
                       <div
                         class="absolute bottom-3 left-[11px] top-3 w-px bg-border"
                       />
@@ -4407,8 +4501,66 @@ onMounted(() => {
                         </div>
                       </div>
                     </div>
+                    <div
+                      v-else-if="snapshotViewMode === 'blocks'"
+                      class="rounded-lg border border-border bg-card p-3"
+                    >
+                      <div
+                        class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-foreground-secondary"
+                      >
+                        <span class="inline-flex items-center gap-1.5">
+                          <span class="h-2.5 w-2.5 rounded-[3px] bg-emerald-400 dark:bg-emerald-600" />
+                          {{ t("backupTasks.detail.changedSnapshots") }}
+                        </span>
+                        <span class="inline-flex items-center gap-1.5">
+                          <span class="h-2.5 w-2.5 rounded-[3px] bg-sky-300 dark:bg-sky-600" />
+                          {{ t("backupTasks.detail.noChangeSnapshots") }}
+                        </span>
+                        <span class="inline-flex items-center gap-1.5">
+                          <span class="h-2.5 w-2.5 rounded-[3px] bg-amber-300 dark:bg-amber-600" />
+                          {{ t("backupTasks.detail.snapshotStatuses.pending_prune") }}
+                        </span>
+                        <span class="inline-flex items-center gap-1.5">
+                          <span class="h-2.5 w-2.5 rounded-[3px] bg-slate-300 dark:bg-slate-700" />
+                          {{ t("backupTasks.detail.snapshotStatuses.pruned") }}
+                        </span>
+                        <span class="inline-flex items-center gap-1.5">
+                          <span class="h-2.5 w-2.5 rounded-[3px] bg-red-400 dark:bg-red-700" />
+                          {{ t("backupTasks.detail.snapshotStatuses.delete_failed") }}
+                        </span>
+                      </div>
+                      <div class="flex flex-wrap content-start gap-1.5">
+                        <button
+                          v-for="snapshot in group.snapshots"
+                          :key="snapshot.id"
+                          type="button"
+                          :disabled="!isSnapshotBrowsable(snapshot)"
+                          @click="loadSnapshotFiles(snapshot)"
+                          @mouseenter="showSnapshotHoverTooltip(snapshot, $event)"
+                          @mouseleave="scheduleSnapshotHoverTooltipHide"
+                          @focus="showSnapshotHoverTooltip(snapshot, $event)"
+                          @blur="scheduleSnapshotHoverTooltipHide"
+                          :class="[
+                            'relative h-[18px] w-[18px] rounded-[4px] shadow-sm transition-transform duration-150 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1',
+                            'disabled:cursor-not-allowed disabled:opacity-45',
+                            selectedSnapshot?.id === snapshot.id
+                              ? 'z-10 scale-110'
+                              : 'hover:z-10 hover:scale-125',
+                            snapshotBlockClass(snapshot),
+                          ]"
+                          :aria-label="`${formatDateTime(snapshotDisplayTime(snapshot))} · ${snapshotStatusLabel(snapshot)}`"
+                          :title="formatDateTime(snapshotDisplayTime(snapshot))"
+                        />
+                      </div>
+                    </div>
                   </section>
-                </div>
+                  <div class="overflow-hidden rounded-lg border border-border bg-card">
+                    <Pagination
+                      v-model:current-page="snapshotCurrentPage"
+                      v-model:page-size="snapshotPageSize"
+                      :total-items="displayedTaskSnapshots.length"
+                    />
+                  </div>
 
                 <div
                   v-if="snapshotViewMode === 'grid'"
@@ -4442,6 +4594,30 @@ onMounted(() => {
                     <span class="text-right">{{
                       t("backupTasks.progress.size")
                     }}</span>
+                  </div>
+                  <div
+                    v-if="selectedSnapshot && selectedSnapshotPaths.size > 0"
+                    class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-2 text-sm"
+                  >
+                    <span class="text-foreground-secondary">
+                      {{ t("recoveryExports.selectedForExport", { count: selectedSnapshotPaths.size }) }}
+                    </span>
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        class="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-hover"
+                        @click="selectedSnapshotPaths = new Set()"
+                      >
+                        {{ t("common.clear") }}
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+                        @click="exportSelectedSnapshotPaths"
+                      >
+                        {{ t("recoveryExports.exportDownload") }}
+                      </button>
+                    </div>
                   </div>
                   <div
                     v-if="snapshotFilesLoading"
@@ -4556,6 +4732,7 @@ onMounted(() => {
                       </span>
                     </div>
                   </div>
+                </div>
                 </div>
               </template>
             </div>

@@ -6,6 +6,7 @@ export default {
     proxies: "Proxies",
     backupTasks: "Backup Tasks",
     recoveryTasks: "Recovery Tasks",
+    recoveryExports: "Recovery Exports",
     repository: "Backup Repository",
     sourceResources: "Source Resources",
     policies: "Policies",
@@ -72,6 +73,7 @@ export default {
     retry: "Retry",
     loading: "Loading...",
     noData: "No data available",
+    select: "Select",
     confirm: "Confirm",
     yes: "Yes",
     no: "No",
@@ -137,6 +139,7 @@ export default {
     results: "results",
     rowsPerPage: "Rows per page",
     apply: "Apply",
+    clear: "Clear",
     // Welcome messages
     welcomeBack: "Welcome back",
     goodMorning: "Good morning",
@@ -1266,6 +1269,7 @@ export default {
       snapshotDisplay: "Snapshot display",
       gridView: "Grid",
       timelineView: "Timeline",
+      blocksView: "Blocks",
       timelineFileBrowserHint:
         "Browsing files from the selected snapshot in this timeline entry.",
       syncSnapshots: "Sync",
@@ -1420,12 +1424,15 @@ export default {
     createTask: "Create Recovery Task",
 
     types: {
+      original: "Original Location",
       original_location: "Original Location",
       new_location: "New Location",
+      export: "Export",
     },
 
     status: {
       pending: "Pending",
+      dispatched: "Dispatched",
       queued: "Queued",
       running: "Running",
       paused: "Paused",
@@ -1438,27 +1445,131 @@ export default {
       targetNode: "Target Node",
       repository: "Repository",
       snapshot: "Snapshot",
+      snapshotPlaceholder: "Select an available snapshot",
+      snapshotSearchPlaceholder: "Search snapshot name, path, ID, or time",
       type: "Recovery Type",
       targetPath: "Target Path",
+      targetPathPlaceholder: "/restore/path",
+      targetPathHelp:
+        "The proxy will restore the selected snapshot to this path. Use an empty test directory when validating a restore plan.",
       filePatterns: "File Patterns",
       priority: "Priority",
+      namePlaceholder: "Production database restore",
+      descriptionPlaceholder:
+        "Describe why this restore is needed, who requested it, or the validation target.",
+      conflictPolicy: "Conflict Policy",
+      conflictHelp:
+        "Choose how the proxy handles files that already exist in the target path.",
+    },
+
+    sections: {
+      source: "Recovery Point",
+      sourceHelp:
+        "Choose the repository and snapshot that will be used as the restore source.",
+      target: "Restore Target",
+      targetHelp:
+        "Select the proxy that can reach the restore destination and define the restore path.",
+      options: "Restore Options",
+      optionsHelp:
+        "Control overwrite behavior and execution priority before dispatching the task.",
+    },
+
+    wizard: {
+      basic: "Basic Info",
+      basicHelp:
+        "Name the restore operation so it can be audited and found later.",
+      recoveryPoint: "Recovery Point",
+      recoveryPointHelp:
+        "Select the repository and point-in-time snapshot to restore from.",
+      scope: "Restore Scope",
+      scopeHelp:
+        "Choose whether this operation restores the entire snapshot or a smaller file set.",
+      target: "Restore Target",
+      targetHelp:
+        "Select the execution proxy and destination path for restored data.",
+      review: "Review",
+      reviewHelp:
+        "Confirm conflict handling, priority, source, and target before creating the task.",
+    },
+
+    scope: {
+      title: "Restore Scope",
+      entire: "Entire snapshot",
+      entireHelp: "Restore all data from this recovery point.",
+      selected: "Selected files or folders",
+      selectedHelp:
+        "Browse this snapshot and select the exact files or folders to restore.",
+      fileTreeTitle: "Snapshot File Browser",
+      fileTreeHelp:
+        "Expand folders on demand. Selected paths will be restored under the target path while preserving their relative structure.",
+      selectedCount: "selected",
+      noFilesTitle: "No files loaded",
+      noFilesDescription:
+        "Load the snapshot file tree, then select files or folders for granular restore.",
+      loadFiles: "Load Files",
+    },
+
+    conflict: {
+      skip: "Skip existing files",
+      overwrite: "Overwrite existing files",
+      rename: "Restore with new names",
+    },
+
+    review: {
+      title: "Recovery Review",
+      sourcePath: "Source Path",
+      knownSelection: "Known Selection",
+    },
+
+    tabs: {
+      overview: "Overview",
+      runs: "Runs",
+    },
+
+    runs: {
+      title: "Execution Runs",
+      description:
+        "Each restore execution is recorded separately for troubleshooting and audit.",
+      emptyTitle: "No recovery runs yet",
+      emptyDescription: "Run this recovery task to create the first execution record.",
+    },
+
+    messages: {
+      dispatched: "Recovery task dispatched to proxy",
+      executeFailed: "Failed to execute recovery task",
+      cancelled: "Recovery task cancelled",
+      paused: "Recovery task paused",
+      pauseFailed: "Failed to pause recovery task",
+      fetchRunsFailed: "Failed to load recovery runs",
+      snapshotFilesLoadFailed: "Failed to load snapshot files",
     },
 
     progress: {
       progress: "Progress",
       files: "files",
       size: "Size",
+      speed: "Speed",
+      success: "Success",
+      failed: "Failed",
     },
 
     actions: {
       start: "Start",
+      pause: "Pause",
       cancel: "Cancel",
+      copy: "Copy",
       viewDetails: "View Details",
     },
 
     empty: {
       title: "No recovery tasks",
       description: "Create your first recovery task to restore your data",
+      selectRepositoryTitle: "Select a repository first",
+      selectRepositoryDescription:
+        "Available snapshots will be shown here after a repository is selected.",
+      noSnapshotsTitle: "No snapshots found",
+      noSnapshotsDescription:
+        "Try another repository or adjust your snapshot search.",
     },
   },
 
@@ -2944,6 +3055,36 @@ export default {
     mountStatus: "Mount Status",
     mountDetailsNote:
       "Mount details will be available when the gateway is active.",
+  },
+
+  recoveryExports: {
+    subtitle: "Export selected files or folders from backup snapshots and download them as packages.",
+    searchPlaceholder: "Search exports, snapshots, repositories",
+    export: "Export",
+    snapshot: "Snapshot",
+    package: "Package",
+    selectedItems: "{count} selected",
+    expires: "expires",
+    noExportsTitle: "No recovery exports yet",
+    noExportsDesc: "Select files or folders in a snapshot file browser to create a downloadable export.",
+    created: "Recovery export has been created.",
+    createFailed: "Failed to create recovery export",
+    cancelled: "Export cancelled",
+    cancelFailed: "Failed to cancel export",
+    selectRequired: "Select at least one file or folder to export.",
+    exportDownload: "Export download",
+    selectedForExport: "{count} selected for export",
+    statuses: {
+      all: "All statuses",
+      pending: "Pending",
+      dispatched: "Dispatched",
+      running: "Running",
+      packaging: "Packaging",
+      ready: "Ready",
+      failed: "Failed",
+      cancelled: "Cancelled",
+      expired: "Expired",
+    },
   },
 
   alertsCenter: {

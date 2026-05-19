@@ -51,6 +51,7 @@ const (
 	MsgTypeInitRepository    = "init_repository"
 	MsgTypeListDirectory     = "list_directory"
 	MsgTypeListSnapshotFiles = "list_snapshot_files"
+	MsgTypeSnapshotExport    = "snapshot_export"
 
 	// ==================== Task Status (Proxy -> Backend) ====================
 	// Unified task status messages

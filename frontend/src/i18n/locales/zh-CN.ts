@@ -6,6 +6,7 @@ export default {
     proxies: "代理管理",
     backupTasks: "备份任务",
     recoveryTasks: "恢复任务",
+    recoveryExports: "恢复导出",
     repository: "备份仓库",
     sourceResources: "源端资源",
     policies: "备份策略",
@@ -72,6 +73,7 @@ export default {
     retry: "重试",
     loading: "加载中...",
     noData: "暂无数据",
+    select: "选择",
     confirm: "确认",
     yes: "是",
     no: "否",
@@ -136,6 +138,7 @@ export default {
     results: "条结果",
     rowsPerPage: "每页行数",
     apply: "应用",
+    clear: "清空",
     // 欢迎消息
     welcomeBack: "欢迎回来",
     goodMorning: "早上好",
@@ -1229,6 +1232,7 @@ export default {
       snapshotDisplay: "快照展示",
       gridView: "网格",
       timelineView: "时间线",
+      blocksView: "方块",
       timelineFileBrowserHint: "当前展示该时间线快照中的文件目录。",
       syncSnapshots: "同步",
       applyRetention: "应用保留",
@@ -1363,12 +1367,15 @@ export default {
     createTask: "创建恢复任务",
 
     types: {
+      original: "原位置",
       original_location: "原位置",
       new_location: "新位置",
+      export: "导出",
     },
 
     status: {
       pending: "待处理",
+      dispatched: "已下发",
       queued: "排队中",
       running: "运行中",
       paused: "已暂停",
@@ -1381,27 +1388,116 @@ export default {
       targetNode: "目标节点",
       repository: "存储仓库",
       snapshot: "快照",
+      snapshotPlaceholder: "选择一个可用快照",
+      snapshotSearchPlaceholder: "搜索快照名称、路径、ID 或时间",
       type: "恢复类型",
       targetPath: "目标路径",
+      targetPathPlaceholder: "/restore/path",
+      targetPathHelp:
+        "Proxy 会将选中的快照恢复到该路径。验证恢复计划时建议使用空目录。",
       filePatterns: "文件模式",
       priority: "优先级",
+      namePlaceholder: "生产数据库恢复",
+      descriptionPlaceholder: "说明恢复原因、申请人、验证目标或恢复窗口。",
+      conflictPolicy: "冲突策略",
+      conflictHelp: "选择目标路径中已存在同名文件时的处理方式。",
+    },
+
+    sections: {
+      source: "恢复点",
+      sourceHelp: "选择作为恢复来源的仓库和快照。",
+      target: "恢复目标",
+      targetHelp: "选择能够访问恢复目标路径的 Proxy，并定义恢复目录。",
+      options: "恢复选项",
+      optionsHelp: "在下发任务前确认覆盖策略和执行优先级。",
+    },
+
+    wizard: {
+      basic: "基本信息",
+      basicHelp: "为本次恢复操作命名，便于后续审计和检索。",
+      recoveryPoint: "恢复点",
+      recoveryPointHelp: "选择恢复来源仓库和指定时间点的快照。",
+      scope: "恢复范围",
+      scopeHelp: "选择恢复整个快照，或后续启用文件级恢复时选择部分文件。",
+      target: "恢复目标",
+      targetHelp: "选择执行恢复的 Proxy，并定义恢复数据写入路径。",
+      review: "确认预览",
+      reviewHelp: "创建任务前确认冲突策略、优先级、恢复源和恢复目标。",
+    },
+
+    scope: {
+      title: "恢复范围",
+      entire: "整个快照",
+      entireHelp: "恢复该恢复点中的全部数据。",
+      selected: "指定文件或目录",
+      selectedHelp: "浏览该快照，并选择需要恢复的具体文件或目录。",
+      fileTreeTitle: "快照文件浏览",
+      fileTreeHelp:
+        "目录按需展开。选中的路径会按相对目录结构恢复到目标路径下。",
+      selectedCount: "已选择",
+      noFilesTitle: "尚未加载文件",
+      noFilesDescription: "加载快照目录树后，选择需要文件级恢复的文件或目录。",
+      loadFiles: "加载文件",
+    },
+
+    conflict: {
+      skip: "跳过已存在文件",
+      overwrite: "覆盖已存在文件",
+      rename: "重命名恢复",
+    },
+
+    review: {
+      title: "恢复预览",
+      sourcePath: "源路径",
+      knownSelection: "已知选择",
+    },
+
+    tabs: {
+      overview: "概览",
+      runs: "执行记录",
+    },
+
+    runs: {
+      title: "执行记录",
+      description: "每一次恢复执行都会独立记录，用于排障和审计。",
+      emptyTitle: "暂无执行记录",
+      emptyDescription: "执行该恢复任务后，这里会展示每次恢复运行记录。",
+    },
+
+    messages: {
+      dispatched: "恢复任务已下发到 Proxy",
+      executeFailed: "恢复任务执行失败",
+      cancelled: "恢复任务已取消",
+      paused: "恢复任务已暂停",
+      pauseFailed: "暂停恢复任务失败",
+      fetchRunsFailed: "加载恢复执行记录失败",
+      snapshotFilesLoadFailed: "加载快照文件失败",
     },
 
     progress: {
       progress: "进度",
       files: "个文件",
       size: "大小",
+      speed: "速度",
+      success: "成功",
+      failed: "失败",
     },
 
     actions: {
       start: "启动",
+      pause: "暂停",
       cancel: "取消",
+      copy: "复制",
       viewDetails: "查看详情",
     },
 
     empty: {
       title: "暂无恢复任务",
       description: "创建您的第一个恢复任务以恢复数据",
+      selectRepositoryTitle: "请先选择仓库",
+      selectRepositoryDescription: "选择仓库后，这里会展示可用快照。",
+      noSnapshotsTitle: "未找到快照",
+      noSnapshotsDescription: "请尝试选择其他仓库，或调整快照搜索条件。",
     },
   },
 
@@ -2838,6 +2934,36 @@ export default {
     // Mounts
     mountStatus: "挂载状态",
     mountDetailsNote: "网关激活后可查看挂载详情。",
+  },
+
+  recoveryExports: {
+    subtitle: "从备份快照中导出选定文件或目录，并生成可下载压缩包。",
+    searchPlaceholder: "搜索导出任务、快照、仓库",
+    export: "导出任务",
+    snapshot: "快照",
+    package: "压缩包",
+    selectedItems: "{count} 个已选择",
+    expires: "过期时间",
+    noExportsTitle: "暂无恢复导出",
+    noExportsDesc: "在快照文件浏览器中选择文件或目录后，可以创建下载导出任务。",
+    created: "恢复导出任务已创建。",
+    createFailed: "创建恢复导出失败",
+    cancelled: "导出任务已取消",
+    cancelFailed: "取消导出任务失败",
+    selectRequired: "请至少选择一个文件或目录进行导出。",
+    exportDownload: "导出下载",
+    selectedForExport: "已选择 {count} 项用于导出",
+    statuses: {
+      all: "全部状态",
+      pending: "等待中",
+      dispatched: "已下发",
+      running: "运行中",
+      packaging: "打包中",
+      ready: "可下载",
+      failed: "失败",
+      cancelled: "已取消",
+      expired: "已过期",
+    },
   },
 
   alertsCenter: {

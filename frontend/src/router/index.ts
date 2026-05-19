@@ -12,6 +12,7 @@ const Proxies = () => import("@/views/Proxies.vue");
 const ProxyDetail = () => import("@/views/ProxyDetail.vue");
 const BackupTasks = () => import("@/views/BackupTasks.vue");
 const RecoveryTasks = () => import("@/views/RecoveryTasks.vue");
+const RecoveryExports = () => import("@/views/RecoveryExports.vue");
 const Repository = () => import("@/views/Repository.vue");
 const SourceResources = () => import("@/views/SourceResources.vue");
 const Policies = () => import("@/views/Policies.vue");
@@ -115,6 +116,12 @@ const routes: RouteRecordRaw[] = [
         name: "RecoveryTasks",
         component: RecoveryTasks,
         meta: { title: "Recovery Tasks" },
+      },
+      {
+        path: "recovery-exports",
+        name: "RecoveryExports",
+        component: RecoveryExports,
+        meta: { title: "Recovery Exports" },
       },
       {
         path: "repository",

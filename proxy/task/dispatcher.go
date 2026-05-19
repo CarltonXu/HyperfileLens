@@ -1,8 +1,12 @@
 package task
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -23,10 +27,11 @@ import (
 
 // Type constants for task types (using message package constants)
 const (
-	TypeBackup  = message.TypeBackup
-	TypeRestore = message.TypeRestore
-	TypeMount   = message.TypeMount
-	TypeList    = message.TypeList
+	TypeBackup         = message.TypeBackup
+	TypeRestore        = message.TypeRestore
+	TypeMount          = message.TypeMount
+	TypeList           = message.TypeList
+	TypeSnapshotExport = "snapshot_export"
 )
 
 // Status constants (using message package constants)
@@ -173,6 +178,8 @@ func (d *Dispatcher) HandleMessage(msg ws.Message) {
 		go d.executeListDirectory(msg)
 	case message.MsgTypeListSnapshotFiles:
 		go d.listSnapshotFiles(msg)
+	case message.MsgTypeSnapshotExport:
+		go d.executeSnapshotExport(msg)
 
 	// Control messages
 	case message.MsgTypePing:
@@ -513,23 +520,34 @@ func resolveMountedSourcePath(sourcePath, mountPath, remotePath, configuredMount
 func (d *Dispatcher) executeRestore(msg ws.Message) {
 	taskID := getString(msg.Payload, "task_id", msg.ID)
 	snapshotID := getString(msg.Payload, "snapshot_id", "")
+	objectID := getString(msg.Payload, "object_id", "")
 	targetPath := getString(msg.Payload, "target_path", "")
 	repoConfig := getMap(msg.Payload, "repository")
 	password := getString(msg.Payload, "password", "")
 	overwrite := getBool(msg.Payload, "overwrite", false)
+	restoreScope := getString(msg.Payload, "restore_scope", "entire_snapshot")
+	restorePaths := getStringSlice(msg.Payload, "restore_paths")
 
 	logger.Debug("Restore task start", map[string]interface{}{
-		"task_id":     taskID,
-		"snapshot_id": snapshotID,
-		"target_path": targetPath,
-		"repo_config": repoConfig,
-		"password":    "[REDACTED]",
-		"overwrite":   overwrite,
+		"task_id":       taskID,
+		"snapshot_id":   snapshotID,
+		"object_id":     objectID,
+		"target_path":   targetPath,
+		"repo_config":   repoConfig,
+		"password":      "[REDACTED]",
+		"overwrite":     overwrite,
+		"restore_scope": restoreScope,
+		"restore_paths": restorePaths,
 	})
 
 	if snapshotID == "" || targetPath == "" {
 		logger.Error("snapshot_id and target_path are required", nil)
 		d.sendError(msg.ID, taskID, "snapshot_id and target_path are required")
+		return
+	}
+	if restoreScope == "selected_paths" && (objectID == "" || len(restorePaths) == 0) {
+		logger.Error("object_id and restore_paths are required for selected path restore", nil)
+		d.sendError(msg.ID, taskID, "object_id and restore_paths are required for selected path restore")
 		return
 	}
 
@@ -544,6 +562,7 @@ func (d *Dispatcher) executeRestore(msg ws.Message) {
 	d.setTask(status)
 
 	d.sendTaskStart(msg.ID, taskID, TypeRestore)
+	d.sendTaskProgress(msg.ID, taskID, TypeRestore, 5, "Connecting repository")
 
 	// Connect to repository
 	if len(repoConfig) > 0 {
@@ -558,10 +577,18 @@ func (d *Dispatcher) executeRestore(msg ws.Message) {
 		}
 		logger.Debug("Repository connected successfully", nil)
 	}
+	d.sendTaskProgress(msg.ID, taskID, TypeRestore, 20, "Repository connected")
 
 	// Execute restore
 	logger.Debug("Starting Kopia restore...", nil)
-	result, err := d.kopia.Restore(taskID, snapshotID, targetPath, password, overwrite)
+	d.sendTaskProgress(msg.ID, taskID, TypeRestore, 30, "Restoring snapshot")
+	var result *kopia.RestoreResult
+	var err error
+	if restoreScope == "selected_paths" {
+		result, err = d.kopia.RestoreSelected(taskID, objectID, targetPath, password, overwrite, restorePaths)
+	} else {
+		result, err = d.kopia.Restore(taskID, snapshotID, targetPath, password, overwrite)
+	}
 
 	if err != nil {
 		logger.Error("Restore failed", map[string]interface{}{
@@ -573,11 +600,117 @@ func (d *Dispatcher) executeRestore(msg ws.Message) {
 		logger.Debug("Restore completed successfully", map[string]interface{}{
 			"result": result,
 		})
+		d.sendTaskProgress(msg.ID, taskID, TypeRestore, 100, "Restore completed")
 		d.completeTask(taskID, "Restore completed")
 		d.sendTaskCompleted(msg.ID, taskID, result)
 	}
 
 	logger.Debug("Restore task end", nil)
+}
+
+func (d *Dispatcher) executeSnapshotExport(msg ws.Message) {
+	taskID := getString(msg.Payload, "task_id", msg.ID)
+	exportID := getString(msg.Payload, "recovery_export_id", "")
+	objectID := getString(msg.Payload, "object_id", "")
+	repoConfig := getMap(msg.Payload, "repository")
+	password := getString(msg.Payload, "password", "")
+	selectedPaths := getStringSlice(msg.Payload, "selected_paths")
+	uploadURL := getString(msg.Payload, "upload_url", "")
+
+	if taskID == "" || exportID == "" || objectID == "" || len(selectedPaths) == 0 {
+		d.sendTaskFailed(msg.ID, taskID, "task_id, recovery_export_id, object_id and selected_paths are required")
+		return
+	}
+
+	status := &Status{
+		TaskID:    taskID,
+		Type:      TypeSnapshotExport,
+		Status:    StatusRunning,
+		Progress:  0,
+		Message:   "Starting snapshot export",
+		StartTime: time.Now(),
+	}
+	d.setTask(status)
+	d.sendTaskStart(msg.ID, taskID, TypeSnapshotExport)
+	d.sendTaskProgress(msg.ID, taskID, TypeSnapshotExport, 5, "Connecting repository")
+
+	if len(repoConfig) > 0 {
+		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+			d.failTask(taskID, err.Error())
+			d.sendTaskFailed(msg.ID, taskID, err.Error())
+			return
+		}
+	}
+
+	d.sendTaskProgress(msg.ID, taskID, TypeSnapshotExport, 25, "Restoring selected paths")
+	stagingRoot := d.config.Storage.TempDirectory
+	if stagingRoot == "" {
+		stagingRoot = "/tmp/hyperfilelens"
+	}
+	result, err := d.kopia.ExportSelected(taskID, objectID, stagingRoot, password, selectedPaths)
+	if err != nil {
+		d.failTask(taskID, err.Error())
+		d.sendTaskFailed(msg.ID, taskID, err.Error())
+		return
+	}
+
+	d.sendTaskProgress(msg.ID, taskID, TypeSnapshotExport, 85, "Uploading export package")
+	if err := d.uploadExportPackage(uploadURL, result.PackagePath, result.PackageName, result.Checksum); err != nil {
+		d.failTask(taskID, err.Error())
+		d.sendTaskFailed(msg.ID, taskID, err.Error())
+		return
+	}
+
+	d.sendTaskProgress(msg.ID, taskID, TypeSnapshotExport, 100, "Export package ready")
+	d.completeTask(taskID, "Export package ready")
+	d.sendTaskCompleted(msg.ID, taskID, result)
+}
+
+func (d *Dispatcher) uploadExportPackage(uploadURL, packagePath, packageName, checksum string) error {
+	if uploadURL == "" {
+		return fmt.Errorf("upload_url is required")
+	}
+	if strings.HasPrefix(uploadURL, "/") {
+		uploadURL = strings.TrimRight(d.config.Server.URL, "/") + uploadURL
+	}
+	file, err := os.Open(packagePath)
+	if err != nil {
+		return fmt.Errorf("failed to open export package: %w", err)
+	}
+	defer file.Close()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", packageName)
+	if err != nil {
+		return fmt.Errorf("failed to prepare upload form: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return fmt.Errorf("failed to read export package: %w", err)
+	}
+	_ = writer.WriteField("checksum", checksum)
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("failed to finalize upload form: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", uploadURL, &body)
+	if err != nil {
+		return fmt.Errorf("failed to create upload request: %w", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if d.config.Server.APIToken != "" {
+		req.Header.Set("Authorization", "Token "+d.config.Server.APIToken)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to upload export package: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("export upload failed: %s - %s", resp.Status, strings.TrimSpace(string(respBody)))
+	}
+	return nil
 }
 
 // executeMount executes a mount task (Sync Proxy only)

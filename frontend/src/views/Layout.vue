@@ -228,6 +228,13 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
           current: route.path === "/recovery-tasks",
         },
         {
+          name: t("nav.recoveryExports"),
+          path: "/recovery-exports",
+          icon: DocumentDuplicateIcon,
+          iconSolid: DocumentDuplicateIconSolid,
+          current: route.path === "/recovery-exports",
+        },
+        {
           name: t("nav.policies"),
           path: "/policies",
           icon: ClockIcon,

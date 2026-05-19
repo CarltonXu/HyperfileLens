@@ -426,8 +426,8 @@ export const backupTasksApi = {
     api.get(`/api/v1/backup-tasks/tasks/${id}/runs/`, { params }),
 
   listSnapshots: (params?: {
-    node?: number;
-    repository?: number;
+    node?: number | string;
+    repository?: number | string;
     page?: number;
     page_size?: number;
   }) => api.get("/api/v1/backup-tasks/snapshots/", { params }),
@@ -468,6 +468,34 @@ export const recoveryTasksApi = {
 
   cancel: (id: number | string) =>
     api.post(`/api/v1/recovery-tasks/tasks/${id}/cancel/`),
+
+  pause: (id: number | string) =>
+    api.post(`/api/v1/recovery-tasks/tasks/${id}/pause/`),
+
+  runs: (id: number | string, params?: { page?: number; page_size?: number }) =>
+    api.get(`/api/v1/recovery-tasks/tasks/${id}/runs/`, { params }),
+
+  precheck: (id: number | string) =>
+    api.post(`/api/v1/recovery-tasks/tasks/${id}/precheck/`),
+};
+
+export const recoveryExportsApi = {
+  list: (params?: { page?: number; page_size?: number; status?: string; snapshot?: string }) =>
+    api.get("/api/v1/recovery-tasks/exports/", { params }),
+
+  detail: (id: number | string) =>
+    api.get(`/api/v1/recovery-tasks/exports/${id}/`),
+
+  create: (data: any) => api.post("/api/v1/recovery-tasks/exports/", data),
+
+  execute: (id: number | string) =>
+    api.post(`/api/v1/recovery-tasks/exports/${id}/execute/`),
+
+  cancel: (id: number | string) =>
+    api.post(`/api/v1/recovery-tasks/exports/${id}/cancel/`),
+
+  downloadUrl: (id: number | string) =>
+    `/api/v1/recovery-tasks/exports/${id}/download/`,
 };
 
 // ============== Source Resources API ==============

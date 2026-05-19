@@ -534,6 +534,7 @@ class ProxyTask(models.Model):
         SNAPSHOT_DELETE = 'snapshot_delete', 'Snapshot Delete'
         KOPIA_MAINTENANCE = 'kopia_maintenance', 'Kopia Maintenance'
         POLICY_SHOW = 'policy_show', 'Policy Show'
+        SNAPSHOT_EXPORT = 'snapshot_export', 'Snapshot Export'
         VERIFY = 'verify', 'Verify'
         TEST_STORAGE = 'test_storage', 'Test Storage'
         INIT_REPOSITORY = 'init_repository', 'Init Repository'

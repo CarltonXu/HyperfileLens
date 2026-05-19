@@ -45,6 +45,56 @@ def parse_kopia_snapshot_stats(output):
     return int(files), int(float(size) * multiplier)
 
 
+def parse_human_bytes(size, unit):
+    multiplier = {
+        'B': 1,
+        'KB': 1024,
+        'MB': 1024 ** 2,
+        'GB': 1024 ** 3,
+        'TB': 1024 ** 4,
+    }.get(str(unit).upper(), 1)
+    return int(float(size or 0) * multiplier)
+
+
+def parse_kopia_restore_stats(output):
+    """Extract restore metrics from Kopia restore output as a compatibility fallback."""
+    if not output:
+        return {}
+    text = str(output)
+    stats = {}
+    restored = re.findall(
+        r'Restored\s+(\d+)\s+files?,\s+(\d+)\s+directories\s+and\s+(\d+)\s+symbolic links\s+\(([\d.]+)\s*(B|KB|MB|GB|TB)\)',
+        text,
+        flags=re.IGNORECASE,
+    )
+    if restored:
+        files = dirs = symlinks = size = 0
+        for file_count, dir_count, symlink_count, value, unit in restored:
+            files += int(file_count)
+            dirs += int(dir_count)
+            symlinks += int(symlink_count)
+            size += parse_human_bytes(value, unit)
+        stats.update({
+            'restored_files': files,
+            'total_files': files,
+            'restored_size': size,
+            'total_size': size,
+            'directory_count': dirs,
+            'symlink_count': symlinks,
+        })
+    progress = re.findall(
+        r'Processed\s+\d+\s+\(([\d.]+)\s*(B|KB|MB|GB|TB)\)\s+of\s+\d+\s+\(([\d.]+)\s*(B|KB|MB|GB|TB)\)\s+([\d.]+)\s*(B|KB|MB|GB|TB)/s',
+        text,
+        flags=re.IGNORECASE,
+    )
+    if progress:
+        processed_value, processed_unit, _total_value, _total_unit, speed_value, speed_unit = progress[-1]
+        stats.setdefault('restored_size', parse_human_bytes(processed_value, processed_unit))
+        stats.setdefault('total_size', stats.get('restored_size', 0))
+        stats['speed_mbps'] = parse_human_bytes(speed_value, speed_unit) / 1024 / 1024
+    return stats
+
+
 def parse_kopia_snapshot_ids(output):
     """Extract Kopia root object ID and snapshot manifest ID from snapshot output."""
     if not output:
@@ -940,6 +990,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         """Update task status."""
         from .models import ProxyTask
         from backup_tasks.models import BackupTask, BackupTaskRun
+        from recovery_tasks.models import RecoveryExport, RecoveryRun, RecoveryTask
         try:
             task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
             task.status = status
@@ -970,6 +1021,58 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 BackupTaskRun.objects.filter(proxy_task=task).update(
                     **run_update
                 )
+
+            recovery_task_id = (task.parameters or {}).get('recovery_task_id')
+            if recovery_task_id and task.task_type == ProxyTask.TaskType.RESTORE:
+                current_file = None
+                total_files = None
+                processed_files = None
+                processed_bytes = None
+                total_bytes = None
+                speed_mbps = None
+                eta = None
+                update_data = {
+                    'status': RecoveryTask.STATUS_RUNNING,
+                    'progress': progress,
+                    'status_message': message or '',
+                    'updated_at': timezone.now(),
+                }
+                if current_file is not None:
+                    update_data['current_file'] = current_file or ''
+                if total_files is not None:
+                    update_data['total_files'] = total_files
+                if processed_files is not None:
+                    update_data['restored_files'] = processed_files
+                if total_bytes is not None:
+                    update_data['total_size'] = total_bytes
+                if processed_bytes is not None:
+                    update_data['restored_size'] = processed_bytes
+                if speed_mbps is not None:
+                    update_data['speed_mbps'] = float(speed_mbps or 0)
+                if eta is not None:
+                    update_data['eta'] = eta or ''
+                RecoveryTask.objects.filter(id=recovery_task_id).update(**update_data)
+                run_update = {
+                    'status': RecoveryRun.STATUS_RUNNING,
+                    'progress': progress,
+                    'message': message or '',
+                    'started_at': task.started_at or timezone.now(),
+                }
+                if current_file is not None:
+                    run_update['current_file'] = current_file or ''
+                if total_files is not None:
+                    run_update['total_files'] = total_files
+                if processed_files is not None:
+                    run_update['restored_files'] = processed_files
+                if total_bytes is not None:
+                    run_update['total_size'] = total_bytes
+                if processed_bytes is not None:
+                    run_update['restored_size'] = processed_bytes
+                if speed_mbps is not None:
+                    run_update['speed_mbps'] = float(speed_mbps or 0)
+                if eta is not None:
+                    run_update['eta'] = eta or ''
+                RecoveryRun.objects.filter(proxy_task=task).update(**run_update)
         except ProxyTask.DoesNotExist:
             pass
 
@@ -981,6 +1084,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         """Update task with detailed progress information."""
         from .models import ProxyTask
         from backup_tasks.models import BackupTask, BackupTaskRun
+        from recovery_tasks.models import RecoveryExport, RecoveryRun, RecoveryTask
         try:
             task = ProxyTask.objects.get(id=task_id, proxy_id=self.proxy_id)
             task.status = ProxyTask.TaskStatus.RUNNING
@@ -1045,6 +1149,72 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 BackupTaskRun.objects.filter(proxy_task=task).update(
                     **run_update
                 )
+
+            recovery_task_id = (task.parameters or {}).get('recovery_task_id')
+            if recovery_task_id and task.task_type == ProxyTask.TaskType.RESTORE:
+                update_data = {
+                    'status': RecoveryTask.STATUS_RUNNING,
+                    'progress': progress,
+                    'status_message': message or '',
+                    'updated_at': timezone.now(),
+                }
+                if current_file is not None:
+                    update_data['current_file'] = current_file or ''
+                if total_files is not None:
+                    update_data['total_files'] = total_files
+                if processed_files is not None:
+                    update_data['restored_files'] = processed_files
+                if total_bytes is not None:
+                    update_data['total_size'] = total_bytes
+                if processed_bytes is not None:
+                    update_data['restored_size'] = processed_bytes
+                if speed_mbps is not None:
+                    update_data['speed_mbps'] = float(speed_mbps or 0)
+                if eta is not None:
+                    update_data['eta'] = eta or ''
+                RecoveryTask.objects.filter(id=recovery_task_id).update(**update_data)
+
+                run_update = {
+                    'status': RecoveryRun.STATUS_RUNNING,
+                    'progress': progress,
+                    'message': message or '',
+                    'started_at': task.started_at or timezone.now(),
+                }
+                if current_file is not None:
+                    run_update['current_file'] = current_file or ''
+                if total_files is not None:
+                    run_update['total_files'] = total_files
+                if processed_files is not None:
+                    run_update['restored_files'] = processed_files
+                if total_bytes is not None:
+                    run_update['total_size'] = total_bytes
+                if processed_bytes is not None:
+                    run_update['restored_size'] = processed_bytes
+                if speed_mbps is not None:
+                    run_update['speed_mbps'] = float(speed_mbps or 0)
+                if eta is not None:
+                    run_update['eta'] = eta or ''
+                RecoveryRun.objects.filter(proxy_task=task).update(**run_update)
+
+            recovery_export_id = (task.parameters or {}).get('recovery_export_id')
+            if recovery_export_id and task.task_type == ProxyTask.TaskType.SNAPSHOT_EXPORT:
+                update_data = {
+                    'status': RecoveryExport.STATUS_PACKAGING if progress >= 80 else RecoveryExport.STATUS_RUNNING,
+                    'progress': progress,
+                    'status_message': message or '',
+                    'updated_at': timezone.now(),
+                }
+                if current_file is not None:
+                    update_data['current_file'] = current_file or ''
+                if total_files is not None:
+                    update_data['total_files'] = total_files
+                if processed_files is not None:
+                    update_data['processed_files'] = processed_files
+                if total_bytes is not None:
+                    update_data['total_size'] = total_bytes
+                if processed_bytes is not None:
+                    update_data['processed_size'] = processed_bytes
+                RecoveryExport.objects.filter(id=recovery_export_id).update(**update_data)
         except ProxyTask.DoesNotExist:
             pass
 
@@ -1053,6 +1223,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         """Complete a task."""
         from .models import ProxyTask
         from backup_tasks.models import BackupTask, BackupSnapshot, BackupTaskRun
+        from recovery_tasks.models import RecoveryExport, RecoveryRun, RecoveryTask
         from backup_tasks.services.retention import (
             reconcile_snapshot_result,
             dispatch_kopia_maintenance,
@@ -1232,6 +1403,106 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                         ])
                 except BackupTask.DoesNotExist:
                     pass
+            recovery_task_id = (task.parameters or {}).get('recovery_task_id')
+            if recovery_task_id and task.task_type == ProxyTask.TaskType.RESTORE:
+                stats = result or {}
+                parsed_restore_stats = parse_kopia_restore_stats(stats.get('output'))
+                recovery_task = RecoveryTask.objects.filter(id=recovery_task_id).first()
+                keep_paused = bool(cancelled and recovery_task and recovery_task.status == RecoveryTask.STATUS_PAUSED)
+                final_status = (
+                    RecoveryTask.STATUS_PAUSED if keep_paused else
+                    RecoveryTask.STATUS_CANCELLED if cancelled else
+                    RecoveryTask.STATUS_COMPLETED if success else
+                    RecoveryTask.STATUS_FAILED
+                )
+                final_message = (
+                    recovery_task.status_message if keep_paused and recovery_task else
+                    'Recovery completed' if success else
+                    'Recovery paused' if keep_paused else
+                    'Recovery cancelled' if cancelled else
+                    error or task.error_message or 'Recovery failed'
+                )
+                update_data = {
+                    'status': final_status,
+                    'progress': 100 if success else task.progress,
+                    'status_message': final_message,
+                    'error_message': '' if success else error or task.error_message or '',
+                    'completed_at': timezone.now(),
+                    'proxy_task': task,
+                    'metadata': {
+                        'proxy_task_id': str(task.id),
+                        'result': stats,
+                    },
+                }
+                if task.current_file:
+                    update_data['current_file'] = task.current_file
+                update_data['total_files'] = (
+                    stats.get('total_files') or stats.get('file_count')
+                    or parsed_restore_stats.get('total_files')
+                    or task.total_files or 0
+                )
+                update_data['restored_files'] = (
+                    stats.get('restored_files') or stats.get('processed_files')
+                    or parsed_restore_stats.get('restored_files')
+                    or task.processed_files or update_data['total_files']
+                )
+                update_data['total_size'] = (
+                    stats.get('total_size') or stats.get('total_bytes')
+                    or parsed_restore_stats.get('total_size')
+                    or task.total_bytes or 0
+                )
+                update_data['restored_size'] = (
+                    stats.get('restored_size') or stats.get('processed_bytes')
+                    or parsed_restore_stats.get('restored_size')
+                    or task.processed_bytes or update_data['total_size']
+                )
+                speed_mbps = stats.get('speed_mbps') or parsed_restore_stats.get('speed_mbps') or task.speed_mbps
+                if speed_mbps:
+                    update_data['speed_mbps'] = float(speed_mbps or 0)
+                if task.eta:
+                    update_data['eta'] = task.eta
+                RecoveryTask.objects.filter(id=recovery_task_id).update(**update_data)
+                run_update = {
+                    'status': update_data['status'],
+                    'progress': update_data['progress'],
+                    'message': update_data['status_message'],
+                    'error_message': update_data['error_message'],
+                    'result': stats,
+                    'current_file': update_data.get('current_file', ''),
+                    'total_files': update_data['total_files'],
+                    'restored_files': update_data['restored_files'],
+                    'total_size': update_data['total_size'],
+                    'restored_size': update_data['restored_size'],
+                    'speed_mbps': update_data.get('speed_mbps', 0),
+                    'eta': update_data.get('eta', ''),
+                    'completed_at': timezone.now(),
+                }
+                RecoveryRun.objects.filter(proxy_task=task).update(**run_update)
+            recovery_export_id = (task.parameters or {}).get('recovery_export_id')
+            if recovery_export_id and task.task_type == ProxyTask.TaskType.SNAPSHOT_EXPORT:
+                stats = result or {}
+                export = RecoveryExport.objects.filter(id=recovery_export_id).first()
+                if export and export.status != RecoveryExport.STATUS_READY:
+                    export.status = (
+                        RecoveryExport.STATUS_CANCELLED if cancelled else
+                        RecoveryExport.STATUS_READY if success and export.file_path else
+                        RecoveryExport.STATUS_FAILED
+                    )
+                    export.progress = 100 if success else task.progress
+                    export.status_message = (
+                        'Export package is ready' if export.status == RecoveryExport.STATUS_READY else
+                        'Export cancelled' if cancelled else
+                        error or task.error_message or 'Export failed'
+                    )
+                    export.error_message = '' if success else error or task.error_message or ''
+                    export.package_size = stats.get('package_size') or export.package_size
+                    export.checksum = stats.get('checksum') or export.checksum
+                    export.file_name = stats.get('file_name') or export.file_name
+                    export.completed_at = timezone.now()
+                    export.save(update_fields=[
+                        'status', 'progress', 'status_message', 'error_message',
+                        'package_size', 'checksum', 'file_name', 'completed_at', 'updated_at',
+                    ])
             elif backup_task_id and task.task_type == ProxyTask.TaskType.SNAPSHOT_LIST and success:
                 summary = reconcile_snapshot_result(task, result or {})
                 task.result = {**(task.result or {}), 'reconcile_summary': summary}
