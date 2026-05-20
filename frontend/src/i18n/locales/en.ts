@@ -970,6 +970,7 @@ export default {
       running: "Running",
       paused: "Paused",
       completed: "Completed",
+      partial: "Partial Success",
       failed: "Failed",
       cancelled: "Cancelled",
     },

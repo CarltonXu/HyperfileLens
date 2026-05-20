@@ -26,6 +26,7 @@ class BackupTask(models.Model):
     STATUS_PENDING = 'pending'
     STATUS_RUNNING = 'running'
     STATUS_COMPLETED = 'completed'
+    STATUS_PARTIAL = 'partial'
     STATUS_FAILED = 'failed'
     STATUS_CANCELLED = 'cancelled'
     STATUS_PAUSED = 'paused'
@@ -34,6 +35,7 @@ class BackupTask(models.Model):
         (STATUS_PENDING, 'Pending'),
         (STATUS_RUNNING, 'Running'),
         (STATUS_COMPLETED, 'Completed'),
+        (STATUS_PARTIAL, 'Partial Success'),
         (STATUS_FAILED, 'Failed'),
         (STATUS_CANCELLED, 'Cancelled'),
         (STATUS_PAUSED, 'Paused'),
@@ -513,6 +515,7 @@ class BackupTaskRun(models.Model):
     STATUS_DISPATCHED = 'dispatched'
     STATUS_RUNNING = 'running'
     STATUS_COMPLETED = 'completed'
+    STATUS_PARTIAL = 'partial'
     STATUS_FAILED = 'failed'
     STATUS_CANCELLED = 'cancelled'
     STATUS_TIMEOUT = 'timeout'
@@ -522,6 +525,7 @@ class BackupTaskRun(models.Model):
         (STATUS_DISPATCHED, 'Dispatched'),
         (STATUS_RUNNING, 'Running'),
         (STATUS_COMPLETED, 'Completed'),
+        (STATUS_PARTIAL, 'Partial Success'),
         (STATUS_FAILED, 'Failed'),
         (STATUS_CANCELLED, 'Cancelled'),
         (STATUS_TIMEOUT, 'Timeout'),

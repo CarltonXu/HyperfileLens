@@ -1462,6 +1462,8 @@ function getStatusColor(status: string): string {
       "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
     completed:
       "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+    partial:
+      "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
     failed: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400",
     cancelled: "bg-background-tertiary text-slate-600",
   };
@@ -1473,6 +1475,7 @@ function getStatusIcon(status: string) {
     pending: ClockIcon,
     running: BoltIcon,
     completed: CheckCircleIcon,
+    partial: ExclamationTriangleIcon,
     failed: ExclamationTriangleIcon,
     paused: PauseIcon,
     cancelled: XCircleIcon,

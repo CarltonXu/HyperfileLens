@@ -108,6 +108,16 @@ def parse_kopia_snapshot_ids(output):
     return match.group(1).strip(), match.group(2).strip().rstrip('.')
 
 
+def parse_kopia_fatal_error_count(output):
+    """Extract Kopia fatal error count from snapshot output."""
+    if not output:
+        return 0
+    match = re.search(r'Found\s+(\d+)\s+fatal error', str(output), flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    return len(re.findall(r'^\s*!\s+Error when processing', str(output), flags=re.MULTILINE))
+
+
 class ProxyConsumer(AsyncWebsocketConsumer):
     """
     WebSocket consumer for proxy connections.
@@ -1391,16 +1401,127 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                                 exc,
                             )
                     else:
-                        backup_task.status = BackupTask.STATUS_FAILED
-                        backup_task.progress = task.progress
-                        backup_task.error_message = error or ''
-                        backup_task.status_message = error or 'Backup failed'
-                        backup_task.last_run_status = BackupTaskRun.STATUS_FAILED
-                        backup_task.completed_at = timezone.now()
-                        backup_task.save(update_fields=[
-                            'status', 'progress', 'error_message',
-                            'status_message', 'last_run_status', 'completed_at', 'updated_at',
-                        ])
+                        stats = result or {}
+                        output = str(stats.get('output') or error or '')
+                        parsed_root_object_id, parsed_snapshot_id = parse_kopia_snapshot_ids(output)
+                        fatal_error_count = parse_kopia_fatal_error_count(output)
+                        parsed_files, parsed_size = parse_kopia_snapshot_stats(output)
+                        root_object_id = (
+                            stats.get('root_object_id') or stats.get('object_id')
+                            or stats.get('root_id') or stats.get('root')
+                            or stats.get('manifest_path') or parsed_root_object_id
+                        )
+                        snapshot_id = (
+                            stats.get('snapshot_id') or stats.get('manifest_id')
+                            or stats.get('snapshot') or stats.get('id')
+                            or parsed_snapshot_id
+                        )
+                        if snapshot_id and root_object_id:
+                            backup_task.status = BackupTask.STATUS_PARTIAL
+                            backup_task.progress = 100
+                            backup_task.error_message = error or ''
+                            backup_task.status_message = (
+                                f'Backup completed with {fatal_error_count} fatal error(s)'
+                                if fatal_error_count else 'Backup completed with errors'
+                            )
+                            backup_task.last_run_status = BackupTaskRun.STATUS_PARTIAL
+                            backup_task.completed_at = timezone.now()
+                            backup_task.total_files = (
+                                stats.get('total_files') or stats.get('file_count')
+                                or task.total_files or backup_task.total_files or parsed_files
+                            )
+                            backup_task.backed_up_files = (
+                                stats.get('backed_up_files') or stats.get('processed_files')
+                                or stats.get('file_count') or task.processed_files
+                                or backup_task.backed_up_files or backup_task.total_files
+                                or parsed_files
+                            )
+                            backup_task.total_size = (
+                                stats.get('total_size') or stats.get('total_bytes')
+                                or task.total_bytes or backup_task.total_size or parsed_size
+                            )
+                            backup_task.backed_up_size = (
+                                stats.get('backed_up_size') or stats.get('processed_bytes')
+                                or stats.get('total_size') or task.processed_bytes
+                                or backup_task.backed_up_size or backup_task.total_size
+                                or parsed_size
+                            )
+                            if task.speed_mbps:
+                                backup_task.bytes_per_second = int(task.speed_mbps * 1024 * 1024)
+                            backup_task.save()
+                            snapshot, _created = BackupSnapshot.objects.get_or_create(
+                                task=backup_task,
+                                storage_path=str(snapshot_id),
+                                defaults={
+                                    'repository': backup_task.target_repository,
+                                    'name': f'snapshot-{timezone.now().strftime("%Y%m%d_%H%M%S")}',
+                                    'version': str(snapshot_id),
+                                    'manifest_path': str(root_object_id),
+                                    'total_size': backup_task.backed_up_size,
+                                    'file_count': backup_task.backed_up_files,
+                                    'metadata': {},
+                                },
+                            )
+                            metadata = snapshot.metadata or {}
+                            metadata.update({
+                                'proxy_task_id': str(task.id),
+                                'source_path': (task.parameters or {}).get('source_path', ''),
+                                'kopia_output': output,
+                                'root_object_id': str(root_object_id),
+                                'snapshot_id': str(snapshot_id),
+                                'partial_success': True,
+                                'fatal_error_count': fatal_error_count,
+                                'last_seen_at': timezone.now().isoformat(),
+                                'synthetic': False,
+                            })
+                            snapshot.repository = backup_task.target_repository
+                            snapshot.version = str(snapshot_id)
+                            snapshot.storage_path = str(snapshot_id)
+                            snapshot.manifest_path = str(root_object_id)
+                            snapshot.total_size = snapshot.total_size or backup_task.backed_up_size
+                            snapshot.file_count = snapshot.file_count or backup_task.backed_up_files
+                            snapshot.metadata = metadata
+                            snapshot.save(update_fields=[
+                                'repository', 'version', 'storage_path', 'manifest_path',
+                                'total_size', 'file_count', 'metadata',
+                            ])
+                            BackupTaskRun.objects.filter(proxy_task=task).update(
+                                status=BackupTaskRun.STATUS_PARTIAL,
+                                progress=100,
+                                message=backup_task.status_message,
+                                error_message=error or '',
+                                result={
+                                    **(stats or {}),
+                                    'snapshot_id': str(snapshot_id),
+                                    'root_object_id': str(root_object_id),
+                                    'partial_success': True,
+                                    'fatal_error_count': fatal_error_count,
+                                },
+                                total_files=backup_task.total_files,
+                                processed_files=backup_task.backed_up_files,
+                                total_bytes=backup_task.total_size,
+                                processed_bytes=backup_task.backed_up_size,
+                                completed_at=timezone.now(),
+                            )
+                            try:
+                                dispatch_snapshot_reconciliation(backup_task)
+                            except Exception as exc:
+                                logger.exception(
+                                    "Failed to dispatch snapshot reconciliation after partial backup %s: %s",
+                                    backup_task.id,
+                                    exc,
+                                )
+                        else:
+                            backup_task.status = BackupTask.STATUS_FAILED
+                            backup_task.progress = task.progress
+                            backup_task.error_message = error or ''
+                            backup_task.status_message = error or 'Backup failed'
+                            backup_task.last_run_status = BackupTaskRun.STATUS_FAILED
+                            backup_task.completed_at = timezone.now()
+                            backup_task.save(update_fields=[
+                                'status', 'progress', 'error_message',
+                                'status_message', 'last_run_status', 'completed_at', 'updated_at',
+                            ])
                 except BackupTask.DoesNotExist:
                     pass
             recovery_task_id = (task.parameters or {}).get('recovery_task_id')

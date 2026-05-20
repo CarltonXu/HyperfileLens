@@ -946,6 +946,7 @@ export default {
       running: "运行中",
       paused: "已暂停",
       completed: "已完成",
+      partial: "部分成功",
       failed: "失败",
       cancelled: "已取消",
     },
