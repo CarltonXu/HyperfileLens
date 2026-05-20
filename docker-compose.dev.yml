@@ -27,6 +27,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
 
   # =====================================================
   # Redis Cache
@@ -47,14 +52,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   # =====================================================
   # Backend Development Server
   # =====================================================
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ./backend
+      dockerfile: ../Dockerfile.dev
     container_name: hyperfilelens-backend-dev
     restart: unless-stopped
     environment:
@@ -66,7 +76,6 @@ services:
       - DEV_MODE=true
     volumes:
       - ./backend:/app:rw
-      - ./frontend:/app/frontend:rw
     ports:
       - "8000:8000"
     depends_on:
@@ -76,6 +85,11 @@ services:
         condition: service_healthy
     networks:
       - hyperfilelens-dev-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
     command: >
       sh -c "python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
@@ -99,15 +113,18 @@ services:
       - "5173:5173"
     networks:
       - hyperfilelens-dev-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
     command: pnpm run dev --host 0.0.0.0 --port 5173
 
   # =====================================================
   # Celery Worker (Development)
   # =====================================================
   celery:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
+    image: hyperfilelens-backend-dev
     container_name: hyperfilelens-celery-dev
     restart: unless-stopped
     environment:
@@ -118,7 +135,7 @@ services:
       - DJANGO_SETTINGS_MODULE=core.settings
       - DEV_MODE=true
     volumes:
-      - ./backend:/app:rw
+      - ./backend:/app:ro
     depends_on:
       backend:
         condition: service_started
@@ -128,15 +145,18 @@ services:
         condition: service_healthy
     networks:
       - hyperfilelens-dev-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
     command: celery -A core worker --loglevel=debug
 
   # =====================================================
   # Celery Beat (Development)
   # =====================================================
   celery-beat:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
+    image: hyperfilelens-backend-dev
     container_name: hyperfilelens-celery-beat-dev
     restart: unless-stopped
     environment:
@@ -147,7 +167,7 @@ services:
       - DJANGO_SETTINGS_MODULE=core.settings
       - DEV_MODE=true
     volumes:
-      - ./backend:/app:rw
+      - ./backend:/app:ro
     depends_on:
       backend:
         condition: service_started
@@ -157,6 +177,11 @@ services:
         condition: service_healthy
     networks:
       - hyperfilelens-dev-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
     command: celery -A core beat --loglevel=debug --scheduler django_celery_beat.schedulers:DatabaseScheduler
 
 # =====================================================

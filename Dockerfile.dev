@@ -10,13 +10,15 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
+# Install system dependencies - layered for better caching
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    gcc \
-    gettext \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get install -y --no-install-recommends \
     libpq-dev \
     postgresql-client \
+    gettext \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -26,7 +28,7 @@ WORKDIR /app
 COPY backend/requirements.txt /app/
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Copy application code
 COPY backend/ /app/
