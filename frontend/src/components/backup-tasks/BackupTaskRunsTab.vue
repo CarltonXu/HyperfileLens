@@ -77,7 +77,7 @@ const { t } = useI18n();
           </div>
 
           <div
-            class="grid grid-cols-2 gap-2 text-xs md:grid-cols-[90px_110px_1fr_100px]"
+            class="grid grid-cols-2 gap-2 text-xs md:grid-cols-[65px_80px_70px_1fr_85px]"
           >
             <div>
               <p class="text-[11px] text-foreground-muted">
@@ -93,6 +93,14 @@ const { t } = useI18n();
               </p>
               <p class="font-medium text-foreground">
                 {{ runDuration(run) }}
+              </p>
+            </div>
+            <div>
+              <p class="text-[11px] text-foreground-muted">
+                {{ t("backupTasks.progress.eta") }}
+              </p>
+              <p class="font-medium text-foreground">
+                {{ run.eta || "-" }}
               </p>
             </div>
             <div>

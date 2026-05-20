@@ -158,6 +158,8 @@ export default {
     logout: "退出登录",
     online: "在线",
     offline: "离线",
+    view: "查看",
+    checking: "检查中",
   },
 
   // Favorites
@@ -525,6 +527,11 @@ export default {
       disk: "磁盘",
       lastHeartbeat: "最后心跳",
       actions: "操作",
+    },
+
+    viewModes: {
+      card: "卡片",
+      list: "列表",
     },
 
     gridView: "网格视图",
@@ -1707,6 +1714,11 @@ export default {
       kopia: "Kopia 状态",
       initialized: "已初始化",
       actions: "操作",
+    },
+
+    viewModes: {
+      card: "卡片",
+      list: "列表",
     },
 
     errors: {

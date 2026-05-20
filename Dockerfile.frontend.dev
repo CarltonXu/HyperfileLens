@@ -3,13 +3,13 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install pnpm globally (cached)
-RUN npm install -g pnpm
+RUN npm install -g pnpm --registry=https://registry.npmmirror.com
 
 # Copy package files first for better caching
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies (cached if package files unchanged)
-RUN pnpm install --frozen-lockfile
+# Install dependencies with Taobao registry for faster downloads in China
+RUN pnpm install --registry=https://registry.npmmirror.com
 
 # Copy source code
 COPY . .

@@ -82,6 +82,7 @@ const sourceTypes = computed(() => [
     label: t("sourceResources.types.s3"),
     description: t("sourceResources.typeDescriptions.s3"),
     icon: CloudIcon,
+    disabled: true,
   },
 ]);
 
@@ -505,16 +506,25 @@ function save() {
                 v-for="type in sourceTypes"
                 :key="type.value"
                 type="button"
-                :disabled="!!modelValue"
+                :disabled="!!modelValue || !!type.disabled"
                 :class="[
-                  'text-left rounded-xl border-2 p-4 transition-all',
-                  modelValue ? 'cursor-not-allowed opacity-60' : '',
+                  'text-left rounded-xl border-2 p-4 transition-all relative',
+                  modelValue || type.disabled
+                    ? 'cursor-not-allowed opacity-60'
+                    : '',
                   form.source_kind === type.value
                     ? 'border-blue-500 dark:border-blue-400 bg-background/50 shadow-sm'
                     : 'border-border bg-background/50 hover:border-border-secondary',
+                  type.disabled ? 'opacity-40' : '',
                 ]"
-                @click="!modelValue && selectType(type.value as any)"
+                @click="!modelValue && !type.disabled && selectType(type.value as any)"
               >
+                <div
+                  v-if="type.disabled"
+                  class="absolute top-2 right-2 text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                >
+                  {{ t("common.comingSoon") }}
+                </div>
                 <div class="flex items-center gap-3">
                   <div
                     class="w-10 h-10 rounded-lg bg-background-secondary flex items-center justify-center text-blue-600 dark:text-blue-400"

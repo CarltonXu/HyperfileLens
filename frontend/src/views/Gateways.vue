@@ -6,12 +6,12 @@ import { useAppStore } from "@/stores/app";
 import { getApiErrorMessage } from "@/utils/errors";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
-import Pagination from "@/components/Pagination.vue";
-import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
+import GatewayListView from "@/components/gateways/GatewayListView.vue";
+import GatewayStats from "@/components/gateways/GatewayStats.vue";
+import GatewayToolbar from "@/components/gateways/GatewayToolbar.vue";
 import {
   ServerIcon,
   PlusIcon,
-  MagnifyingGlassIcon,
   ArrowPathIcon,
   CpuChipIcon,
   CircleStackIcon,
@@ -21,9 +21,6 @@ import {
   PlayIcon,
   PauseIcon,
   TrashIcon,
-  ChatBubbleLeftRightIcon,
-  Squares2X2Icon,
-  Bars3Icon,
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
@@ -98,6 +95,10 @@ const viewMode = ref<"card" | "list">(
 
 watch(pageSize, (newSize) => {
   setPageSize(newSize, PAGE_STORAGE_KEY);
+  fetchGateways();
+});
+watch(currentPage, () => {
+  fetchGateways();
 });
 watch(viewMode, (mode) => {
   try {
@@ -607,381 +608,31 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- Stats Cards -->
-    <div
-      v-if="stats"
-      class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6"
-    >
-      <div class="bg-card rounded-xl border border-border p-4">
-        <p class="text-sm text-foreground-secondary">
-          {{ t("gateways.statsTotal") }}
-        </p>
-        <p class="text-2xl font-bold text-foreground mt-1">{{ stats.total }}</p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4">
-        <p class="text-sm text-foreground-secondary">
-          {{ t("gateways.statsActive") }}
-        </p>
-        <p
-          class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1"
-        >
-          {{ stats.active }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4">
-        <p class="text-sm text-foreground-secondary">
-          {{ t("gateways.statsOffline") }}
-        </p>
-        <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-          {{ stats.offline }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4">
-        <p class="text-sm text-foreground-secondary">
-          {{ t("gateways.statsPending") }}
-        </p>
-        <p class="text-2xl font-bold text-foreground-secondary mt-1">
-          {{ stats.pending }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4">
-        <p class="text-sm text-foreground-secondary">
-          {{ t("gateways.statsError") }}
-        </p>
-        <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-          {{ stats.error }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4">
-        <p class="text-sm text-foreground-secondary">
-          {{ t("gateways.statsMounts") }}
-        </p>
-        <p class="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
-          {{ stats.total_mounts }}
-        </p>
-      </div>
-    </div>
+    <GatewayStats :stats="stats" />
 
-    <!-- Filters -->
-    <div class="flex items-center gap-4 mb-6">
-      <div class="flex-1 relative">
-        <MagnifyingGlassIcon
-          class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
-        />
-        <input
-          v-model="searchQuery"
-          type="text"
-          :placeholder="t('gateways.searchPlaceholder')"
-          class="w-full pl-10 pr-4 py-2 surface-card border border-border rounded-lg text-foreground placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
-        />
-      </div>
-      <select
-        v-model="selectedStatus"
-        class="px-4 py-2 surface-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
-      >
-        <option value="all">{{ t("gateways.allStatus") }}</option>
-        <option value="online">{{ t("gateways.statusOnline") }}</option>
-        <option value="offline">{{ t("gateways.statusOffline") }}</option>
-        <option value="pending">{{ t("gateways.statusPending") }}</option>
-        <option value="error">{{ t("gateways.statusError") }}</option>
-      </select>
-      <button
-        @click="fetchGateways"
-        class="p-2 text-foreground-secondary hover:text-foreground hover:bg-hover rounded-lg"
-      >
-        <ArrowPathIcon class="w-5 h-5" />
-      </button>
-      <div class="flex rounded-lg border border-border overflow-hidden">
-        <button
-          @click="viewMode = 'card'"
-          :class="[
-            'p-2 transition-colors',
-            viewMode === 'card'
-              ? 'bg-primary text-primary-foreground'
-              : 'surface-card text-foreground-secondary hover:bg-hover',
-          ]"
-          :title="t('repository.viewModes.card')"
-        >
-          <Squares2X2Icon class="w-5 h-5" />
-        </button>
-        <button
-          @click="viewMode = 'list'"
-          :class="[
-            'p-2 transition-colors',
-            viewMode === 'list'
-              ? 'bg-primary text-primary-foreground'
-              : 'surface-card text-foreground-secondary hover:bg-hover',
-          ]"
-          :title="t('repository.viewModes.list')"
-        >
-          <Bars3Icon class="w-5 h-5" />
-        </button>
-      </div>
-    </div>
+    <GatewayToolbar
+      v-model:search-query="searchQuery"
+      v-model:selected-status="selectedStatus"
+      v-model:view-mode="viewMode"
+      @refresh="fetchGateways"
+    />
 
-    <!-- Gateway List -->
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
-    </div>
-
-    <div v-else-if="filteredGateways.length === 0" class="text-center py-12">
-      <ServerIcon class="w-16 h-16 text-foreground-muted mx-auto mb-4" />
-      <p class="text-foreground-secondary">{{ t("gateways.noGateways") }}</p>
-    </div>
-
-    <div
-      v-else-if="viewMode === 'card'"
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-    >
-      <div
-        v-for="gateway in filteredGateways"
-        :key="gateway.id"
-        class="bg-card rounded-xl border border-border p-5 hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer transition-all"
-        @click="viewGatewayDetail(gateway)"
-      >
-        <!-- Header -->
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <div
-              :class="[
-                'w-10 h-10 rounded-lg flex items-center justify-center',
-                gateway.is_online
-                  ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                  : 'bg-background-tertiary',
-              ]"
-            >
-              <ServerIcon
-                :class="[
-                  'w-5 h-5',
-                  gateway.is_online
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-slate-400',
-                ]"
-              />
-            </div>
-            <div>
-              <h3 class="font-semibold text-foreground">{{ gateway.name }}</h3>
-              <p class="text-sm text-foreground-secondary">
-                {{ gateway.hostname || gateway.internal_ip || "-" }}
-              </p>
-            </div>
-          </div>
-          <span
-            :class="[
-              'px-2 py-1 text-xs font-medium rounded-full',
-              statusColors[gateway.status],
-            ]"
-          >
-            {{ getStatusLabel(gateway.status) }}
-          </span>
-        </div>
-
-        <!-- Info -->
-        <div class="space-y-2 text-sm">
-          <div
-            class="flex items-center justify-between text-foreground-secondary"
-          >
-            <span>{{ t("gateways.activeMounts") }}</span>
-            <span class="font-medium text-foreground-secondary">{{
-              gateway.active_mounts
-            }}</span>
-          </div>
-          <div
-            class="flex items-center justify-between text-foreground-secondary"
-          >
-            <span>{{ t("gateways.cpuCores") }}</span>
-            <span class="font-medium text-foreground-secondary">{{
-              gateway.cpu_cores || "-"
-            }}</span>
-          </div>
-          <div
-            v-if="gateway.kopia_version"
-            class="flex items-center justify-between text-foreground-secondary"
-          >
-            <span>{{ t("gateways.kopiaVersion") }}</span>
-            <span class="font-medium text-foreground-secondary">{{
-              gateway.kopia_version
-            }}</span>
-          </div>
-        </div>
-
-        <!-- AI Status -->
-        <div v-if="gateway.ai_enabled" class="mt-4 pt-4 border-t border-border">
-          <div
-            class="flex items-center gap-2 text-sm text-violet-600 dark:text-violet-400"
-          >
-            <ChatBubbleLeftRightIcon class="w-4 h-4" />
-            <span>{{ t("gateways.aiEnabled") }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-else class="bg-card rounded-xl border border-border overflow-hidden">
-      <div class="overflow-x-auto">
-        <table
-          class="w-full table-fixed divide-y divide-border"
-          :style="{ minWidth: gatewayTable.tableMinWidth.value }"
-        >
-          <colgroup>
-            <col
-              v-for="column in gatewayColumns"
-              :key="column.key"
-              :style="gatewayTable.columnStyle(column.key)"
-            />
-          </colgroup>
-          <thead class="bg-background-secondary">
-            <tr>
-              <ResizableSortableTh
-                v-for="column in gatewayColumns"
-                :key="column.key"
-                :column-key="column.key"
-                :label="column.label"
-                :style-value="gatewayTable.columnStyle(column.key)"
-                :sortable="column.sortable !== false"
-                :active="gatewayTable.sort.value.key === column.key"
-                :align="column.align"
-                :sort-icon="gatewayTable.getSortIcon(column.key)"
-                :resizing="gatewayTable.resizingColumn.value === column.key"
-                @sort="gatewayTable.toggleSort($event as GatewayColumnKey)"
-                @resize-start="
-                  (key, event) =>
-                    gatewayTable.startResize(key as GatewayColumnKey, event)
-                "
-                @resize-reset="
-                  gatewayTable.resetColumnWidth($event as GatewayColumnKey)
-                "
-              />
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border">
-            <tr
-              v-for="gateway in gatewayTable.sortedRows.value"
-              :key="gateway.id"
-              class="hover:bg-hover/50"
-            >
-              <td
-                class="px-4 py-3 whitespace-nowrap"
-                :style="gatewayTable.columnStyle('name')"
-              >
-                <button
-                  @click="viewGatewayDetail(gateway)"
-                  class="flex min-w-0 items-center gap-3 text-left"
-                >
-                  <ServerIcon
-                    :class="[
-                      'w-5 h-5 flex-shrink-0',
-                      gateway.is_online
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-foreground-muted',
-                    ]"
-                  />
-                  <span class="min-w-0">
-                    <span class="block truncate font-medium text-foreground">
-                      {{ gateway.name }}
-                    </span>
-                    <span
-                      class="block truncate text-xs text-foreground-secondary"
-                    >
-                      {{ gateway.description || gateway.id }}
-                    </span>
-                  </span>
-                </button>
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap"
-                :style="gatewayTable.columnStyle('status')"
-              >
-                <span
-                  :class="[
-                    'px-2 py-1 text-xs font-medium rounded-full',
-                    statusColors[gateway.status],
-                  ]"
-                >
-                  {{ getStatusLabel(gateway.status) }}
-                </span>
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-                :style="gatewayTable.columnStyle('hostname')"
-              >
-                {{ gateway.hostname || "-" }}
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-                :style="gatewayTable.columnStyle('internal_ip')"
-              >
-                {{ gateway.internal_ip || "-" }}
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-                :style="gatewayTable.columnStyle('active_mounts')"
-              >
-                {{ gateway.active_mounts }}
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-                :style="gatewayTable.columnStyle('cpu_cores')"
-              >
-                {{ gateway.cpu_cores || "-" }}
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-                :style="gatewayTable.columnStyle('memory_total')"
-              >
-                {{ formatBytes(gateway.memory_total) }}
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-                :style="gatewayTable.columnStyle('kopia_version')"
-              >
-                {{ gateway.kopia_version || "-" }}
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-                :style="gatewayTable.columnStyle('last_heartbeat')"
-              >
-                {{ formatDate(gateway.last_heartbeat) }}
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-right"
-                :style="gatewayTable.columnStyle('actions')"
-              >
-                <div class="flex justify-end gap-1">
-                  <button
-                    @click="viewGatewayDetail(gateway)"
-                    class="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-hover rounded"
-                    :title="t('common.details')"
-                  >
-                    <ClipboardDocumentIcon class="w-4 h-4" />
-                  </button>
-                  <button
-                    @click="deleteGateway(gateway)"
-                    class="p-1.5 text-foreground-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-                    :title="t('common.delete')"
-                  >
-                    <TrashIcon class="w-4 h-4" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Pagination -->
-    <div v-if="totalItems > pageSize" class="mt-6">
-      <Pagination
-        :current-page="currentPage"
-        :total-items="totalItems"
-        :page-size="pageSize"
-        @page-change="
-          currentPage = $event;
-          fetchGateways();
-        "
-      />
-    </div>
+    <GatewayListView
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :loading="isLoading"
+      :filtered-gateways="filteredGateways"
+      :view-mode="viewMode"
+      :total-items="totalItems"
+      :columns="gatewayColumns"
+      :table="gatewayTable"
+      :status-colors="statusColors"
+      :get-status-label="getStatusLabel"
+      :format-bytes="formatBytes"
+      :format-date="formatDate"
+      @detail="viewGatewayDetail"
+      @delete="deleteGateway"
+    />
 
     <!-- Create Modal -->
     <div

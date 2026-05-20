@@ -159,6 +159,8 @@ export default {
     logout: "Logout",
     online: "Online",
     offline: "Offline",
+    view: "View",
+    checking: "Checking",
   },
 
   // Favorites
@@ -537,6 +539,11 @@ export default {
       disk: "Disk",
       lastHeartbeat: "Last Heartbeat",
       actions: "Actions",
+    },
+
+    viewModes: {
+      card: "Card",
+      list: "List",
     },
 
     gridView: "Grid View",
@@ -1791,6 +1798,11 @@ export default {
       kopia: "Kopia Status",
       initialized: "Initialized",
       actions: "Actions",
+    },
+
+    viewModes: {
+      card: "Card",
+      list: "List",
     },
 
     testConnection: "Test Connection",

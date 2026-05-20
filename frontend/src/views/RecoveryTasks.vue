@@ -20,16 +20,16 @@ import type { ProxyNode } from "@/types/proxy";
 import type { Repository } from "@/types/repository";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
-import Pagination from "@/components/Pagination.vue";
-import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
+import RecoveryTaskDetailModal from "@/components/recovery-tasks/RecoveryTaskDetailModal.vue";
+import RecoveryTaskListView from "@/components/recovery-tasks/RecoveryTaskListView.vue";
+import RecoveryTaskStats from "@/components/recovery-tasks/RecoveryTaskStats.vue";
+import RecoveryTaskToolbar from "@/components/recovery-tasks/RecoveryTaskToolbar.vue";
+import RecoveryWizardReviewAside from "@/components/recovery-tasks/RecoveryWizardReviewAside.vue";
+import RecoveryWizardStepper from "@/components/recovery-tasks/RecoveryWizardStepper.vue";
 import {
-  ArrowDownTrayIcon,
   PlusIcon,
   MagnifyingGlassIcon,
   ArrowPathIcon,
-  PlayIcon,
-  StopIcon,
-  EyeIcon,
   CheckCircleIcon,
   ClockIcon,
   ExclamationTriangleIcon,
@@ -44,8 +44,6 @@ import {
   FolderIcon,
   FolderOpenIcon,
   ShieldCheckIcon,
-  PencilSquareIcon,
-  DocumentDuplicateIcon,
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
@@ -882,328 +880,32 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">{{ t("common.total") }}</p>
-        <p class="text-xl font-bold text-foreground mt-1">
-          {{ recoveryStats.total_tasks }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("recoveryTasks.status.running") }}
-        </p>
-        <p class="text-xl font-bold text-indigo-600 mt-1">
-          {{ recoveryStats.running_tasks }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("recoveryTasks.status.completed") }}
-        </p>
-        <p class="text-xl font-bold text-emerald-600 mt-1">
-          {{ recoveryStats.completed_tasks }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("recoveryTasks.status.failed") }}
-        </p>
-        <p class="text-xl font-bold text-red-600 mt-1">
-          {{ recoveryStats.failed_tasks }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("recoveryTasks.progress.files") }}
-        </p>
-        <p class="text-xl font-bold text-foreground mt-1">
-          {{ recoveryStats.total_files }}
-        </p>
-      </div>
-    </div>
+    <RecoveryTaskStats :stats="recoveryStats" />
 
-    <!-- Filters -->
-    <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="relative flex-1 min-w-[200px]">
-          <MagnifyingGlassIcon
-            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
-          />
-          <input
-            v-model="searchQuery"
-            type="text"
-            :placeholder="t('common.search')"
-            class="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-        </div>
-        <select
-          v-model="selectedStatus"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
-        >
-          <option class="bg-background" value="all">
-            {{ t("common.status") }}: {{ t("common.all") }}
-          </option>
-          <option class="bg-background" value="pending">
-            {{ t("recoveryTasks.status.pending") }}
-          </option>
-          <option class="bg-background" value="running">
-            {{ t("recoveryTasks.status.running") }}
-          </option>
-          <option class="bg-background" value="completed">
-            {{ t("recoveryTasks.status.completed") }}
-          </option>
-          <option class="bg-background" value="failed">
-            {{ t("recoveryTasks.status.failed") }}
-          </option>
-        </select>
-        <button
-          @click="fetchTasks"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
-        >
-          <ArrowPathIcon class="w-4 h-4" />
-          {{ t("common.refresh") }}
-        </button>
-      </div>
-    </div>
+    <RecoveryTaskToolbar
+      v-model:search-query="searchQuery"
+      v-model:selected-status="selectedStatus"
+      @refresh="fetchTasks"
+    />
 
-    <!-- Tasks List -->
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <div
-        class="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"
-      />
-    </div>
-
-    <div
-      v-else-if="filteredTasks.length === 0"
-      class="bg-card rounded-xl border border-border p-12 text-center"
-    >
-      <div
-        class="w-16 h-16 bg-background-tertiary rounded-full flex items-center justify-center mx-auto mb-4"
-      >
-        <ArrowDownTrayIcon class="w-8 h-8 text-slate-400" />
-      </div>
-      <h3 class="text-lg font-medium text-slate-800 mb-1">
-        {{ t("recoveryTasks.empty.title") }}
-      </h3>
-      <p class="text-foreground-secondary">
-        {{ t("recoveryTasks.empty.description") }}
-      </p>
-    </div>
-
-    <div
-      v-else
-      class="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
-    >
-      <div class="overflow-x-auto">
-      <table
-        class="w-full table-fixed"
-        :style="{ minWidth: recoveryTaskTable.tableMinWidth.value }"
-      >
-        <colgroup>
-          <col
-            v-for="column in recoveryTaskColumns"
-            :key="column.key"
-            :style="recoveryTaskTable.columnStyle(column.key)"
-          />
-        </colgroup>
-        <thead class="bg-background-secondary border-b border-border">
-          <tr>
-            <ResizableSortableTh
-              v-for="column in recoveryTaskColumns"
-              :key="column.key"
-              :column-key="column.key"
-              :label="column.label"
-              :style-value="recoveryTaskTable.columnStyle(column.key)"
-              :sortable="column.sortable !== false"
-              :active="recoveryTaskTable.sort.value.key === column.key"
-              :align="column.align"
-              :sort-icon="recoveryTaskTable.getSortIcon(column.key)"
-              :resizing="recoveryTaskTable.resizingColumn.value === column.key"
-              @sort="
-                recoveryTaskTable.toggleSort($event as RecoveryTaskColumnKey)
-              "
-              @resize-start="
-                (key, event) =>
-                  recoveryTaskTable.startResize(
-                    key as RecoveryTaskColumnKey,
-                    event,
-                  )
-              "
-              @resize-reset="
-                recoveryTaskTable.resetColumnWidth(
-                  $event as RecoveryTaskColumnKey,
-                )
-              "
-            />
-          </tr>
-        </thead>
-        <tbody
-          class="divide-y divide-slate-100 dark:divide-slate-700 dark:divide-slate-700"
-        >
-          <tr
-            v-for="task in paginatedTasks"
-            :key="task.id"
-            class="hover:bg-hover transition-colors"
-          >
-            <td class="px-4 py-4" :style="recoveryTaskTable.columnStyle('name')">
-              <div class="flex items-center gap-3">
-                <div
-                  :class="[
-                    'w-9 h-9 rounded-lg flex items-center justify-center',
-                    task.status === 'running'
-                      ? 'bg-emerald-100'
-                      : task.status === 'completed'
-                        ? 'bg-emerald-100'
-                        : task.status === 'failed'
-                          ? 'bg-red-100'
-                          : 'bg-slate-100',
-                  ]"
-                >
-                  <ArrowDownTrayIcon
-                    :class="[
-                      'w-5 h-5',
-                      task.status === 'running'
-                        ? 'text-emerald-600'
-                        : task.status === 'completed'
-                          ? 'text-emerald-600'
-                          : task.status === 'failed'
-                            ? 'text-red-600'
-                            : 'text-slate-400',
-                    ]"
-                  />
-                </div>
-                <div>
-                  <p class="text-sm font-medium text-foreground">
-                    {{ task.name }}
-                  </p>
-                  <p class="text-xs text-foreground-secondary">
-                    {{ task.target_node_name || "Node" }}
-                  </p>
-                </div>
-              </div>
-            </td>
-            <td class="px-4 py-4" :style="recoveryTaskTable.columnStyle('type')">
-              <span
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-background-tertiary text-foreground"
-              >
-                {{
-                  t(
-                    `recoveryTasks.types.${task.recovery_type || "original"}`,
-                  )
-                }}
-              </span>
-            </td>
-            <td class="px-4 py-4" :style="recoveryTaskTable.columnStyle('status')">
-              <span
-                :class="[
-                  'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium',
-                  getStatusColor(task.status),
-                ]"
-              >
-                <component
-                  :is="getStatusIcon(task.status)"
-                  class="w-3.5 h-3.5"
-                />
-                {{ t(`recoveryTasks.status.${task.status}`) }}
-              </span>
-            </td>
-            <td
-              class="px-4 py-4"
-              :style="recoveryTaskTable.columnStyle('progress')"
-            >
-              <div
-                v-if="task.status === 'running' || task.progress"
-                class="w-32"
-              >
-                <div
-                  class="flex items-center justify-between text-xs text-slate-500 mb-1"
-                >
-                  <span>{{ task.progress || 0 }}%</span>
-                </div>
-                <div
-                  class="h-1.5 bg-background-tertiary rounded-full overflow-hidden"
-                >
-                  <div
-                    class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-300"
-                    :style="{ width: `${task.progress || 0}%` }"
-                  />
-                </div>
-              </div>
-              <span v-else class="text-sm text-slate-400">-</span>
-            </td>
-            <td
-              class="px-4 py-4 text-sm text-foreground-secondary dark:text-slate-400"
-              :style="recoveryTaskTable.columnStyle('date')"
-            >
-              {{ formatDateTime(task.created_at) }}
-            </td>
-            <td
-              class="px-4 py-4 text-right"
-              :style="recoveryTaskTable.columnStyle('actions')"
-            >
-              <div class="flex items-center justify-end gap-2">
-                <button
-                  v-if="['pending', 'failed', 'paused', 'completed', 'cancelled'].includes(task.status)"
-                  @click="executeRecovery(task)"
-                  class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                  :title="t('recoveryTasks.actions.start')"
-                >
-                  <PlayIcon class="w-4 h-4" />
-                </button>
-                <button
-                  v-if="task.status === 'running'"
-                  @click="pauseRecovery(task)"
-                  class="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                  :title="t('recoveryTasks.actions.pause')"
-                >
-                  <PauseIcon class="w-4 h-4" />
-                </button>
-                <button
-                  v-if="task.status === 'running'"
-                  @click="cancelRecovery(task)"
-                  class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  :title="t('recoveryTasks.actions.cancel')"
-                >
-                  <StopIcon class="w-4 h-4" />
-                </button>
-                <button
-                  v-if="task.status !== 'running'"
-                  @click="openEditRecovery(task)"
-                  class="p-1.5 text-slate-500 hover:bg-background-tertiary rounded-lg transition-colors"
-                  :title="t('common.edit')"
-                >
-                  <PencilSquareIcon class="w-4 h-4" />
-                </button>
-                <button
-                  @click="copyRecovery(task)"
-                  class="p-1.5 text-slate-500 hover:bg-background-tertiary rounded-lg transition-colors"
-                  :title="t('recoveryTasks.actions.copy')"
-                >
-                  <DocumentDuplicateIcon class="w-4 h-4" />
-                </button>
-                <button
-                  @click="openTaskDetails(task)"
-                  class="p-1.5 text-slate-500 hover:bg-background-tertiary rounded-lg transition-colors"
-                  :title="t('common.details')"
-                >
-                  <EyeIcon class="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
-
-      <!-- Pagination -->
-      <Pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :total-items="filteredTasks.length"
-      />
-    </div>
+    <RecoveryTaskListView
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :loading="isLoading"
+      :filtered-count="filteredTasks.length"
+      :tasks="paginatedTasks"
+      :columns="recoveryTaskColumns"
+      :table="recoveryTaskTable"
+      :format-date-time="formatDateTime"
+      :get-status-color="getStatusColor"
+      :get-status-icon="getStatusIcon"
+      @execute="executeRecovery"
+      @pause="pauseRecovery"
+      @cancel="cancelRecovery"
+      @edit="openEditRecovery"
+      @copy="copyRecovery"
+      @detail="openTaskDetails"
+    />
 
     <!-- Create Modal -->
     <Teleport to="body">
@@ -1236,44 +938,10 @@ onMounted(() => {
             </button>
           </div>
 
-          <div class="px-6 py-4 border-b border-border bg-background-secondary/30">
-            <div class="grid grid-cols-5 gap-0">
-              <div
-                v-for="(step, index) in recoveryWizardSteps"
-                :key="step.key"
-                class="relative flex flex-col items-center text-center"
-              >
-                <div
-                  v-if="index > 0"
-                  :class="[
-                    'absolute top-4 right-1/2 h-0.5 w-full -z-0',
-                    index <= createStep ? 'bg-emerald-500' : 'bg-border',
-                  ]"
-                />
-                <div
-                  :class="[
-                    'relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold border-2 bg-card',
-                    index < createStep
-                      ? 'border-emerald-500 bg-emerald-500 text-white'
-                      : index === createStep
-                        ? 'border-emerald-500 text-emerald-600'
-                        : 'border-border text-foreground-secondary',
-                  ]"
-                >
-                  <CheckCircleIcon v-if="index < createStep" class="w-4 h-4" />
-                  <span v-else>{{ index + 1 }}</span>
-                </div>
-                <p
-                  :class="[
-                    'mt-2 text-xs font-medium',
-                    index === createStep ? 'text-foreground' : 'text-foreground-secondary',
-                  ]"
-                >
-                  {{ step.label }}
-                </p>
-              </div>
-            </div>
-          </div>
+          <RecoveryWizardStepper
+            :steps="recoveryWizardSteps"
+            :current-step="createStep"
+          />
 
           <div class="p-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
             <div class="space-y-5 min-h-[420px]">
@@ -1814,96 +1482,13 @@ onMounted(() => {
               </section>
             </div>
 
-            <aside class="rounded-lg border border-border bg-card p-4 h-fit sticky top-20">
-              <div class="flex items-center gap-2 mb-4">
-                <CircleStackIcon class="w-5 h-5 text-emerald-600" />
-                <h3 class="text-sm font-semibold text-foreground">
-                  {{ t("recoveryTasks.review.title") }}
-                </h3>
-              </div>
-              <dl class="space-y-3 text-sm">
-                <div>
-                  <dt class="text-xs text-foreground-secondary">
-                    {{ t("recoveryTasks.form.snapshot") }}
-                  </dt>
-                  <dd class="font-medium text-foreground break-all">
-                    {{ selectedSnapshot?.name || selectedSnapshot?.id || "-" }}
-                  </dd>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <dt class="text-xs text-foreground-secondary">
-                      {{ t("recoveryTasks.progress.size") }}
-                    </dt>
-                    <dd class="font-medium text-foreground">
-                      {{ formatBytes(selectedSnapshot?.total_size || selectedSnapshot?.size_bytes || 0) }}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt class="text-xs text-foreground-secondary">
-                      {{ t("recoveryTasks.progress.files") }}
-                    </dt>
-                    <dd class="font-medium text-foreground">
-                      {{ selectedSnapshot?.file_count || selectedSnapshot?.files_total || 0 }}
-                    </dd>
-                  </div>
-                </div>
-                <div>
-                  <dt class="text-xs text-foreground-secondary">
-                    {{ t("recoveryTasks.scope.title") }}
-                  </dt>
-                  <dd class="font-medium text-foreground">
-                    {{
-                      newRecovery.restore_scope === "selected_paths"
-                        ? `${selectedRecoveryFileStats.paths} ${t("recoveryTasks.scope.selectedCount")}`
-                        : t("recoveryTasks.scope.entire")
-                    }}
-                  </dd>
-                </div>
-                <div v-if="newRecovery.restore_scope === 'selected_paths'">
-                  <dt class="text-xs text-foreground-secondary">
-                    {{ t("recoveryTasks.review.knownSelection") }}
-                  </dt>
-                  <dd class="font-medium text-foreground">
-                    {{ selectedRecoveryFileStats.knownFiles }}
-                    {{ t("recoveryTasks.progress.files") }} ·
-                    {{ formatBytes(selectedRecoveryFileStats.knownBytes) }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-xs text-foreground-secondary">
-                    {{ t("recoveryTasks.review.sourcePath") }}
-                  </dt>
-                  <dd class="font-mono text-xs text-foreground break-all">
-                    {{ selectedSnapshot?.source_path || "-" }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-xs text-foreground-secondary">
-                    {{ t("recoveryTasks.form.targetNode") }}
-                  </dt>
-                  <dd class="font-medium text-foreground">
-                    {{ selectedTargetNode?.name || "-" }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-xs text-foreground-secondary">
-                    {{ t("recoveryTasks.form.targetPath") }}
-                  </dt>
-                  <dd class="font-mono text-xs text-foreground break-all">
-                    {{ newRecovery.target_path || "-" }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-xs text-foreground-secondary">
-                    {{ t("recoveryTasks.form.conflictPolicy") }}
-                  </dt>
-                  <dd class="font-medium text-foreground">
-                    {{ t(`recoveryTasks.conflict.${newRecovery.conflict_policy || "skip"}`) }}
-                  </dd>
-                </div>
-              </dl>
-            </aside>
+            <RecoveryWizardReviewAside
+              :recovery="newRecovery"
+              :selected-snapshot="selectedSnapshot"
+              :selected-target-node="selectedTargetNode"
+              :selected-file-stats="selectedRecoveryFileStats"
+              :format-bytes="formatBytes"
+            />
           </div>
           <div
             class="sticky bottom-0 modal-surface px-6 py-4 border-t border-border flex justify-between gap-3"
@@ -1944,326 +1529,18 @@ onMounted(() => {
       </div>
     </Teleport>
 
-    <!-- Detail Modal -->
-    <Teleport to="body">
-      <div
-        v-if="showDetailModal && selectedTask"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      >
-        <div
-          class="absolute inset-0 bg-black/50"
-          @click="showDetailModal = false"
-        />
-        <div
-          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-4xl max-h-[88vh] overflow-y-auto"
-        >
-          <div
-            class="px-6 py-4 border-b border-border flex items-center justify-between"
-          >
-            <div>
-              <h2 class="text-lg font-semibold text-foreground">
-                {{ selectedTask.name }}
-              </h2>
-              <p class="text-xs text-foreground-secondary mt-1">
-                {{ selectedTask.backup_task_name || "-" }} ·
-                {{ selectedTask.repository_name || "-" }}
-              </p>
-            </div>
-            <button
-              @click="showDetailModal = false"
-              class="p-1 hover:bg-background-tertiary rounded-lg"
-            >
-              <XCircleIcon class="w-5 h-5 text-slate-400" />
-            </button>
-          </div>
-
-          <div class="px-6 pt-4 border-b border-border">
-            <div class="flex items-center gap-2">
-              <button
-                @click="detailTab = 'overview'"
-                :class="[
-                  'px-3 py-2 text-sm font-medium border-b-2 transition-colors',
-                  detailTab === 'overview'
-                    ? 'border-emerald-500 text-emerald-600'
-                    : 'border-transparent text-foreground-secondary hover:text-foreground',
-                ]"
-              >
-                {{ t("recoveryTasks.tabs.overview") }}
-              </button>
-              <button
-                @click="detailTab = 'runs'"
-                :class="[
-                  'px-3 py-2 text-sm font-medium border-b-2 transition-colors',
-                  detailTab === 'runs'
-                    ? 'border-emerald-500 text-emerald-600'
-                    : 'border-transparent text-foreground-secondary hover:text-foreground',
-                ]"
-              >
-                {{ t("recoveryTasks.tabs.runs") }}
-              </button>
-            </div>
-          </div>
-
-          <div v-if="detailTab === 'overview'" class="p-6 space-y-4">
-            <div class="flex flex-wrap items-center gap-3">
-              <span
-                :class="[
-                  'inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium',
-                  getStatusColor(selectedTask.status),
-                ]"
-              >
-                <component
-                  :is="getStatusIcon(selectedTask.status)"
-                  class="w-4 h-4"
-                />
-                {{ t(`recoveryTasks.status.${selectedTask.status}`) }}
-              </span>
-              <span
-                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-background-tertiary text-foreground"
-              >
-                {{
-                  t(
-                    `recoveryTasks.types.${selectedTask.recovery_type || "original"}`,
-                  )
-                }}
-              </span>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("recoveryTasks.form.snapshot") }}
-                </p>
-                <p class="font-medium text-foreground mt-1 break-all">
-                  {{ selectedTask.snapshot_name || selectedTask.snapshot }}
-                </p>
-                <p class="text-xs text-foreground-secondary mt-1">
-                  {{ formatBytes(selectedTask.snapshot_size || 0) }} ·
-                  {{ selectedTask.snapshot_file_count || 0 }}
-                  {{ t("recoveryTasks.progress.files") }}
-                </p>
-              </div>
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("recoveryTasks.form.targetNode") }}
-                </p>
-                <p class="font-medium text-foreground mt-1">
-                  {{ selectedTask.target_node_name || "N/A" }}
-                </p>
-                <p class="text-xs text-foreground-secondary mt-1">
-                  {{ selectedTask.target_node_status || "-" }}
-                </p>
-              </div>
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("recoveryTasks.form.targetPath") }}
-                </p>
-                <p class="font-medium text-foreground mt-1 font-mono text-xs break-all">
-                  {{ selectedTask.target_path || "Original Location" }}
-                </p>
-              </div>
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("recoveryTasks.review.sourcePath") }}
-                </p>
-                <p class="font-mono text-xs text-foreground mt-1 break-all">
-                  {{ selectedTask.snapshot_source_path || selectedTask.metadata?.source_path || "-" }}
-                </p>
-              </div>
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("recoveryTasks.scope.title") }}
-                </p>
-                <p class="font-medium text-foreground mt-1">
-                  {{
-                    selectedTask.restore_scope === "selected_paths"
-                      ? `${selectedTask.selected_paths?.length || 0} ${t("recoveryTasks.scope.selectedCount")}`
-                      : t("recoveryTasks.scope.entire")
-                  }}
-                </p>
-                <p
-                  v-if="selectedTask.selected_paths?.length"
-                  class="font-mono text-xs text-foreground-secondary mt-1 break-all"
-                >
-                  {{ selectedTask.selected_paths.slice(0, 3).join(", ") }}
-                  <span v-if="selectedTask.selected_paths.length > 3">...</span>
-                </p>
-              </div>
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("recoveryTasks.form.conflictPolicy") }}
-                </p>
-                <p class="font-medium text-foreground mt-1">
-                  {{
-                    t(
-                      `recoveryTasks.conflict.${selectedTask.conflict_policy || "skip"}`,
-                    )
-                  }}
-                </p>
-              </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("recoveryTasks.progress.speed") }}
-                </p>
-                <p class="font-medium text-foreground mt-1">
-                  {{ (selectedTask.speed_mbps || 0).toFixed(2) }} MB/s
-                </p>
-              </div>
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("recoveryTasks.progress.success") }}
-                </p>
-                <p class="font-medium text-foreground mt-1">
-                  {{ selectedTask.restored_files || 0 }}
-                </p>
-              </div>
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">
-                  {{ t("recoveryTasks.progress.failed") }}
-                </p>
-                <p class="font-medium text-foreground mt-1">
-                  {{ selectedTask.failed_files || 0 }}
-                </p>
-              </div>
-              <div class="bg-background-secondary rounded-lg p-3">
-                <p class="text-foreground-secondary">ETA</p>
-                <p class="font-medium text-foreground mt-1">
-                  {{ selectedTask.eta || "-" }}
-                </p>
-              </div>
-            </div>
-            <div class="bg-background-secondary rounded-lg p-3">
-              <div class="flex justify-between text-sm mb-2">
-                <span class="text-foreground-secondary">{{
-                  t("recoveryTasks.progress.progress")
-                }}</span>
-                <span class="font-medium text-foreground">
-                  {{ selectedTask.progress || 0 }}%
-                </span>
-              </div>
-              <div class="h-2 bg-background-tertiary rounded-full overflow-hidden">
-                <div
-                  class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"
-                  :style="{ width: `${selectedTask.progress || 0}%` }"
-                />
-              </div>
-              <div class="flex justify-between text-xs text-slate-500 mt-2">
-                <span>
-                  {{ selectedTask.restored_files || 0 }} /
-                  {{ selectedTask.total_files || 0 }}
-                  {{ t("recoveryTasks.progress.files") }}
-                </span>
-                <span>{{ formatBytes(selectedTask.restored_size || 0) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div v-else class="p-6 space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-sm font-semibold text-foreground">
-                  {{ t("recoveryTasks.runs.title") }}
-                </h3>
-                <p class="text-xs text-foreground-secondary mt-1">
-                  {{ t("recoveryTasks.runs.description") }}
-                </p>
-              </div>
-              <button
-                @click="selectedTask && fetchRecoveryRuns(selectedTask.id)"
-                class="inline-flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg hover:bg-hover"
-              >
-                <ArrowPathIcon class="w-4 h-4" />
-                {{ t("common.refresh") }}
-              </button>
-            </div>
-            <div v-if="runsLoading" class="py-10 flex justify-center">
-              <div class="w-7 h-7 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
-            </div>
-            <div
-              v-else-if="recoveryRuns.length === 0"
-              class="rounded-lg border border-dashed border-border p-8 text-center"
-            >
-              <ClockIcon class="w-8 h-8 text-slate-400 mx-auto mb-3" />
-              <p class="text-sm font-medium text-foreground">
-                {{ t("recoveryTasks.runs.emptyTitle") }}
-              </p>
-              <p class="text-xs text-foreground-secondary mt-1">
-                {{ t("recoveryTasks.runs.emptyDescription") }}
-              </p>
-            </div>
-            <div v-else class="space-y-3">
-              <div
-                v-for="run in recoveryRuns"
-                :key="run.id"
-                class="rounded-lg border border-border bg-background-secondary/40 p-4"
-              >
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <span
-                        :class="[
-                          'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium',
-                          getStatusColor(run.status),
-                        ]"
-                      >
-                        <component
-                          :is="getStatusIcon(run.status)"
-                          class="w-3.5 h-3.5"
-                        />
-                        {{ t(`recoveryTasks.status.${run.status}`) }}
-                      </span>
-                      <span class="text-xs text-foreground-secondary">
-                        {{ formatDateTime(run.created_at) }}
-                      </span>
-                    </div>
-                    <p class="text-sm text-foreground mt-2">
-                      {{ run.message || run.error_message || "-" }}
-                    </p>
-                    <p class="text-xs text-foreground-secondary mt-1 font-mono break-all">
-                      {{ run.proxy_task || "-" }}
-                    </p>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.form.targetPath") }}:
-                      <span class="font-mono">
-                        {{ run.parameters?.target_path || "-" }}
-                      </span>
-                    </p>
-                  </div>
-                  <div class="text-right text-xs text-foreground-secondary min-w-[150px]">
-                    <p>{{ run.progress || 0 }}%</p>
-                    <p>{{ formatBytes(run.restored_size || 0) }}</p>
-                    <p>
-                      {{ run.restored_files || 0 }}
-                      {{ t("recoveryTasks.progress.files") }}
-                    </p>
-                    <p>{{ (run.speed_mbps || 0).toFixed(2) }} MB/s</p>
-                    <p>
-                      {{ t("recoveryTasks.progress.failed") }}:
-                      {{ run.failed_files || 0 }}
-                    </p>
-                  </div>
-                </div>
-                <div class="h-1.5 bg-background-tertiary rounded-full overflow-hidden mt-3">
-                  <div
-                    class="h-full bg-emerald-500 rounded-full"
-                    :style="{ width: `${run.progress || 0}%` }"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="px-6 py-4 border-t border-border flex justify-end">
-            <button
-              @click="showDetailModal = false"
-              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
-            >
-              {{ t("common.close") }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <RecoveryTaskDetailModal
+      v-if="showDetailModal && selectedTask"
+      v-model:detail-tab="detailTab"
+      :task="selectedTask"
+      :runs="recoveryRuns"
+      :runs-loading="runsLoading"
+      :format-bytes="formatBytes"
+      :format-date-time="formatDateTime"
+      :get-status-color="getStatusColor"
+      :get-status-icon="getStatusIcon"
+      @close="showDetailModal = false"
+      @refresh-runs="selectedTask && fetchRecoveryRuns(selectedTask.id)"
+    />
   </div>
 </template>

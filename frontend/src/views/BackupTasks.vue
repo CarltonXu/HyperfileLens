@@ -25,11 +25,14 @@ import type { SourceResource } from "@/types/sourceResource";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import BackupTaskWizard from "@/components/BackupTaskWizard.vue";
+import BackupTaskDetailHeader from "@/components/backup-tasks/BackupTaskDetailHeader.vue";
 import BackupTaskOverviewTab from "@/components/backup-tasks/BackupTaskOverviewTab.vue";
 import BackupTaskEditModal from "@/components/backup-tasks/BackupTaskEditModal.vue";
 import BackupTaskRunsTab from "@/components/backup-tasks/BackupTaskRunsTab.vue";
 import BackupTaskSnapshotsTab from "@/components/backup-tasks/BackupTaskSnapshotsTab.vue";
+import BackupTaskStatsCards from "@/components/backup-tasks/BackupTaskStats.vue";
 import BackupTaskTable from "@/components/backup-tasks/BackupTaskTable.vue";
+import BackupTaskToolbar from "@/components/backup-tasks/BackupTaskToolbar.vue";
 import SnapshotHoverCard from "@/components/backup-tasks/SnapshotHoverCard.vue";
 import {
   isNoChangeSnapshotReference,
@@ -40,16 +43,12 @@ import {
 import { useSnapshotFileBrowser } from "@/features/backup-tasks/useSnapshotFileBrowser";
 import {
   PlusIcon,
-  MagnifyingGlassIcon,
-  ArrowPathIcon,
-  PlayIcon,
   CheckCircleIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   BoltIcon,
   PauseIcon,
   XCircleIcon,
-  PowerIcon,
 } from "@heroicons/vue/24/outline";
 
 const { t, locale } = useI18n();
@@ -222,18 +221,6 @@ watch(pageSize, (newSize) => {
 
 watch(snapshotPageSize, (newSize) => {
   setPageSize(newSize, SNAPSHOT_PAGE_STORAGE_KEY);
-});
-
-const newTask = ref<BackupTaskCreateData>({
-  name: "",
-  source_resource: "",
-  target_repository: "",
-  backup_paths: [],
-  task_type: "incremental",
-  priority: "normal",
-  retention_days: 30,
-  compression_enabled: true,
-  encryption_enabled: true,
 });
 
 const taskStats = computed(
@@ -881,21 +868,10 @@ async function deleteTask(task: BackupTask) {
   }
 }
 
-async function createTask() {
+async function createTaskFromWizard(payload: BackupTaskCreateData) {
   try {
-    await backupTasksApi.create(newTask.value);
+    await backupTasksApi.create(payload);
     showCreateModal.value = false;
-    newTask.value = {
-      name: "",
-      source_resource: "",
-      target_repository: "",
-      backup_paths: [],
-      task_type: "incremental",
-      priority: "normal",
-      retention_days: 30,
-      compression_enabled: true,
-      encryption_enabled: true,
-    };
     await fetchTasks();
     await fetchStats();
   } catch (error) {
@@ -906,11 +882,6 @@ async function createTask() {
       message: getApiErrorMessage(error, t("common.createFailed")),
     });
   }
-}
-
-async function createTaskFromWizard(payload: BackupTaskCreateData) {
-  newTask.value = payload;
-  await createTask();
 }
 
 function listToText(value?: string[] | null) {
@@ -1525,6 +1496,7 @@ function runDuration(run: any) {
   return start && end ? formatDurationSeconds((end - start) / 1000) : "-";
 }
 
+
 onMounted(() => {
   fetchTasks();
   fetchStats();
@@ -1551,85 +1523,17 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">{{ t("common.total") }}</p>
-        <p class="text-xl font-bold text-foreground mt-1">
-          {{ taskStats.total_tasks }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("backupTasks.status.running") }}
-        </p>
-        <p class="text-xl font-bold text-indigo-600 mt-1">
-          {{ taskStats.running_tasks }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("backupTasks.status.completed") }}
-        </p>
-        <p class="text-xl font-bold text-emerald-600 mt-1">
-          {{ taskStats.completed_tasks }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("backupTasks.status.failed") }}
-        </p>
-        <p class="text-xl font-bold text-red-600 mt-1">
-          {{ taskStats.failed_tasks }}
-        </p>
-      </div>
-      <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("backupTasks.progress.size") }}
-        </p>
-        <p class="text-xl font-bold text-pink-800 mt-1">
-          {{ totalBackupSize ? formatBytes(totalBackupSize) : "0 B" }}
-        </p>
-      </div>
-    </div>
+    <BackupTaskStatsCards
+      :stats="taskStats"
+      :total-backup-size="totalBackupSize"
+      :format-bytes="formatBytes"
+    />
 
-    <!-- Filters -->
-    <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="relative flex-1 min-w-[200px]">
-          <MagnifyingGlassIcon
-            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
-          />
-          <input
-            v-model="searchQuery"
-            type="text"
-            :placeholder="t('common.search')"
-            class="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-        <select
-          v-model="selectedStatus"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="all">
-            {{ t("common.status") }}: {{ t("common.all") }}
-          </option>
-          <option value="pending">{{ t("backupTasks.status.pending") }}</option>
-          <option value="running">{{ t("backupTasks.status.running") }}</option>
-          <option value="completed">
-            {{ t("backupTasks.status.completed") }}
-          </option>
-          <option value="failed">{{ t("backupTasks.status.failed") }}</option>
-        </select>
-        <button
-          @click="fetchTasks"
-          class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
-        >
-          <ArrowPathIcon class="w-4 h-4" />
-          {{ t("common.refresh") }}
-        </button>
-      </div>
-    </div>
+    <BackupTaskToolbar
+      v-model:search-query="searchQuery"
+      v-model:selected-status="selectedStatus"
+      @refresh="fetchTasks"
+    />
 
     <BackupTaskTable
       v-model:current-page="currentPage"
@@ -1661,120 +1565,6 @@ onMounted(() => {
       @close="showCreateModal = false"
       @save="createTaskFromWizard"
     />
-
-    <!-- Legacy Create Modal -->
-    <Teleport to="body">
-      <div
-        v-if="false && showCreateModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      >
-        <div
-          class="absolute inset-0 bg-black/50"
-          @click="showCreateModal = false"
-        />
-        <div
-          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-        >
-          <div
-            class="sticky top-0 modal-surface px-6 py-4 border-b border-border flex items-center justify-between"
-          >
-            <h2 class="text-lg font-semibold text-foreground">
-              {{ t("backupTasks.createTask") }}
-            </h2>
-            <button
-              @click="showCreateModal = false"
-              class="p-1 hover:bg-background-tertiary rounded-lg"
-            >
-              <XCircleIcon class="w-5 h-5 text-slate-400" />
-            </button>
-          </div>
-          <div class="p-6 space-y-4">
-            <div>
-              <label
-                class="block text-sm font-medium text-foreground-secondary mb-1"
-                >{{ t("common.name") }}</label
-              >
-              <input
-                v-model="newTask.name"
-                type="text"
-                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label
-                  class="block text-sm font-medium text-foreground-secondary mb-1"
-                  >{{ t("backupTasks.form.sourceNode") }}</label
-                >
-                <select
-                  v-model="newTask.source_resource"
-                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option :value="0">Select</option>
-                  <option
-                    v-for="source in sourceResources"
-                    :key="source.id"
-                    :value="source.id"
-                  >
-                    {{ source.name }}
-                  </option>
-                </select>
-              </div>
-              <div>
-                <label
-                  class="block text-sm font-medium text-foreground-secondary mb-1"
-                  >{{ t("backupTasks.form.repository") }}</label
-                >
-                <select
-                  v-model="newTask.target_repository"
-                  class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option :value="0">Select</option>
-                  <option
-                    v-for="repo in repositories"
-                    :key="repo.id"
-                    :value="repo.id"
-                  >
-                    {{ repo.name }}
-                  </option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label
-                class="block text-sm font-medium text-foreground-secondary mb-1"
-                >{{ t("backupTasks.form.taskType") }}</label
-              >
-              <select
-                v-model="newTask.task_type"
-                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="full">{{ t("backupTasks.types.full") }}</option>
-                <option value="incremental">
-                  {{ t("backupTasks.types.incremental") }}
-                </option>
-              </select>
-            </div>
-          </div>
-          <div
-            class="sticky bottom-0 modal-surface px-6 py-4 border-t border-border flex justify-end gap-3"
-          >
-            <button
-              @click="showCreateModal = false"
-              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
-            >
-              {{ t("common.cancel") }}
-            </button>
-            <button
-              @click="createTask"
-              class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
-            >
-              {{ t("common.create") }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
 
     <BackupTaskEditModal
       v-if="showEditModal && editingTask"
@@ -1810,150 +1600,21 @@ onMounted(() => {
         <aside
           class="relative drawer-panel h-full w-full lg:w-[60vw] max-w-none border-l border-border overflow-y-auto"
         >
-          <div
-            class="sticky top-0 z-10 modal-surface px-6 py-4 border-b border-border flex items-start justify-between gap-4"
-          >
-            <div>
-              <h2 class="text-lg font-semibold text-foreground">
-                {{ selectedTask.name }}
-              </h2>
-              <p class="mt-1 text-sm text-foreground-secondary">
-                {{ selectedTask.source_resource_name || "-" }} →
-                {{ selectedTask.target_repository_name || "-" }}
-              </p>
-            </div>
-            <button
-              @click="showDetailModal = false"
-              class="p-2 hover:bg-background-tertiary rounded-lg"
-            >
-              <XCircleIcon class="w-5 h-5 text-slate-400" />
-            </button>
-          </div>
-
-          <div
-            class="px-6 py-3 border-b border-border flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3"
-          >
-            <div class="flex flex-wrap items-center gap-2">
-              <div
-                class="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-background-secondary p-1"
-                role="tablist"
-              >
-                <button
-                  v-for="tab in ['overview', 'snapshots', 'tasks']"
-                  :key="tab"
-                  type="button"
-                  role="tab"
-                  :aria-selected="detailTab === tab"
-                  @click="selectDetailTab(tab as any)"
-                  :class="[
-                    'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-primary/40',
-                    detailTab === tab
-                      ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                      : 'border-transparent text-foreground-secondary hover:border-border hover:bg-card hover:text-foreground',
-                  ]"
-                >
-                  {{ t(`backupTasks.tabs.${tab}`) }}
-                </button>
-              </div>
-
-              <div
-                class="flex flex-wrap items-center gap-2 pl-0 xl:pl-3 xl:border-l xl:border-border"
-              >
-                <button
-                  type="button"
-                  :disabled="currentDetailTabLoading"
-                  @click="refreshCurrentDetailTab()"
-                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ArrowPathIcon
-                    :class="[
-                      'w-3.5 h-3.5',
-                      currentDetailTabLoading ? 'animate-spin' : '',
-                    ]"
-                  />
-                  {{ t("common.refresh") }}
-                </button>
-
-                <label
-                  class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover"
-                >
-                  <input
-                    v-model="detailAutoRefresh"
-                    type="checkbox"
-                    class="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary"
-                  />
-                  {{ t("backupTasks.detail.autoRefresh") }}
-                </label>
-
-                <select
-                  v-model.number="detailRefreshInterval"
-                  :disabled="!detailAutoRefresh"
-                  class="px-2.5 py-1.5 rounded-lg border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-                >
-                  <option :value="5">5s</option>
-                  <option :value="10">10s</option>
-                  <option :value="30">30s</option>
-                  <option :value="60">60s</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2 xl:justify-end">
-              <span
-                :class="[
-                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium',
-                  getStatusColor(selectedTask.status),
-                ]"
-              >
-                <component
-                  :is="getStatusIcon(selectedTask.status)"
-                  class="w-3.5 h-3.5"
-                />
-                {{ t(`backupTasks.status.${selectedTask.status}`) }}
-              </span>
-              <span
-                :class="[
-                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium',
-                  selectedTask.is_enabled === false
-                    ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-                ]"
-              >
-                <span
-                  :class="[
-                    'h-2 w-2 rounded-full',
-                    selectedTask.is_enabled === false
-                      ? 'bg-red-500'
-                      : 'bg-emerald-500',
-                  ]"
-                />
-                {{
-                  selectedTask.is_enabled === false
-                    ? t("backupTasks.disabled")
-                    : t("backupTasks.enabled")
-                }}
-              </span>
-              <button
-                v-if="canRunTask(selectedTask)"
-                @click="executeTask(selectedTask)"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
-              >
-                <PlayIcon class="w-3.5 h-3.5" />
-                {{ t("backupTasks.actions.runNow") }}
-              </button>
-              <button
-                @click="toggleTaskEnabled(selectedTask)"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-hover"
-              >
-                <PowerIcon class="w-3.5 h-3.5" />
-                {{
-                  selectedTask.is_enabled === false
-                    ? t("backupTasks.actions.enable")
-                    : t("backupTasks.actions.disable")
-                }}
-              </button>
-            </div>
-          </div>
+          <BackupTaskDetailHeader
+            v-model:detail-tab="detailTab"
+            v-model:auto-refresh="detailAutoRefresh"
+            v-model:refresh-interval="detailRefreshInterval"
+            :task="selectedTask"
+            :current-loading="currentDetailTabLoading"
+            :get-status-color="getStatusColor"
+            :get-status-icon="getStatusIcon"
+            :can-run-task="canRunTask"
+            @close="showDetailModal = false"
+            @select-tab="selectDetailTab"
+            @refresh="refreshCurrentDetailTab()"
+            @execute="executeTask"
+            @toggle-enabled="toggleTaskEnabled"
+          />
 
           <div class="p-6">
             <div

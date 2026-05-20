@@ -27,12 +27,10 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 # CSRF trusted origins - allow coze.site domain and localhost
 _default_csrf_origins = [
     'http://localhost:5000',
-    'http://localhost:5001',
+    'http://10.147.18.11:5001',
     'http://localhost:8000',
 ]
-_coze_domain = os.environ.get('COZE_PROJECT_DOMAIN_DEFAULT', '').replace('https://', '').replace('http://', '')
-if _coze_domain:
-    _default_csrf_origins.append('https://' + _coze_domain)
+
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf_origins)).split(',')
@@ -192,7 +190,7 @@ AUTH_USER_MODEL = 'accounts.User'
 # CORS settings - Allow all origins for development
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5000,http://localhost:5173,http://localhost:8000,http://127.0.0.1:5000'
+    'http://10.147.18.11:5001,http://localhost:5173,http://localhost:8000,http://127.0.0.1:5000'
 ).split(',')
 CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'true').lower() == 'true'
 CORS_ALLOW_CREDENTIALS = True
