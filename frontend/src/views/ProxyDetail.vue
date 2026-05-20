@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import api from "@/api";
+import { proxiesApi } from "@/api";
 import type { ProxyNode, ProxyTask, ProxyHeartbeat } from "@/types/proxy";
 import {
   ArrowLeftIcon,
@@ -233,7 +233,7 @@ let pollInterval: number | null = null;
 
 async function fetchProxy() {
   try {
-    const res = await api.get(`/api/v1/proxies/${proxyId.value}/`);
+    const res = await proxiesApi.detail(proxyId.value);
     proxy.value = res.data;
     // If pending, show install tab by default
     if (proxy.value?.status === "pending") {
@@ -246,9 +246,7 @@ async function fetchProxy() {
 
 async function fetchTasks() {
   try {
-    const res = await api.get(
-      `/api/v1/proxies/${proxyId.value}/tasks/?limit=50`,
-    );
+    const res = await proxiesApi.tasks(proxyId.value, { limit: 50 });
     tasks.value = res.data.results || res.data;
   } catch (error) {
     console.error("Failed to fetch tasks:", error);
@@ -257,9 +255,7 @@ async function fetchTasks() {
 
 async function fetchHeartbeats() {
   try {
-    const res = await api.get(
-      `/api/v1/proxies/${proxyId.value}/heartbeats/?hours=24`,
-    );
+    const res = await proxiesApi.heartbeats(proxyId.value, { hours: 24 });
     heartbeats.value = res.data.results || res.data;
   } catch (error) {
     console.error("Failed to fetch heartbeats:", error);
@@ -268,9 +264,7 @@ async function fetchHeartbeats() {
 
 async function updateStatus(newStatus: string) {
   try {
-    await api.post(`/api/v1/proxies/${proxyId.value}/set_status/`, {
-      status: newStatus,
-    });
+    await proxiesApi.setStatus(proxyId.value, newStatus);
     await fetchProxy();
   } catch (error) {
     console.error("Failed to update status:", error);
@@ -280,9 +274,7 @@ async function updateStatus(newStatus: string) {
 async function regenerateToken() {
   if (!confirm(t("proxies.actions.regenerateTokenConfirm"))) return;
   try {
-    const res = await api.post(
-      `/api/v1/proxies/${proxyId.value}/regenerate_token/`,
-    );
+    const res = await proxiesApi.regenerateToken(proxyId.value);
     // Update install info from response
     installInfo.value = {
       install_command: res.data.install_command,
@@ -300,7 +292,7 @@ async function regenerateToken() {
 async function deleteProxy() {
   if (!confirm(t("proxies.delete.confirm"))) return;
   try {
-    await api.delete(`/api/v1/proxies/${proxyId.value}/`);
+    await proxiesApi.delete(proxyId.value);
     router.push("/proxies");
   } catch (error) {
     console.error("Failed to delete proxy:", error);

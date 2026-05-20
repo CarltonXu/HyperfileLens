@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import api from "@/api";
+import { proxiesApi } from "@/api";
 import type { ProxyNode, ProxyStats, ProxyTask } from "@/types/proxy";
 import { usePagination } from "@/composables/usePagination";
 import Pagination from "@/components/Pagination.vue";
@@ -601,8 +601,8 @@ async function fetchProxies() {
   isLoading.value = true;
   try {
     const [proxiesRes, statsRes] = await Promise.all([
-      api.get("/api/v1/proxies/"),
-      api.get("/api/v1/proxies/stats/"),
+      proxiesApi.list(),
+      proxiesApi.stats(),
     ]);
     proxies.value = proxiesRes.data.results || proxiesRes.data || [];
     stats.value = statsRes.data;
@@ -618,7 +618,7 @@ async function fetchProxies() {
 async function fetchProxyOverview(proxyId: string, silent = false) {
   if (!silent) tabData.value.overview.loading = true;
   try {
-    const res = await api.get(`/api/v1/proxies/${proxyId}/overview/`);
+    const res = await proxiesApi.overview(proxyId);
     tabData.value.overview.data = res.data;
     tabData.value.overview.loaded = true;
   } catch (error) {
@@ -631,9 +631,7 @@ async function fetchProxyOverview(proxyId: string, silent = false) {
 async function fetchProxyTasks(proxyId: string, page = 1, silent = false) {
   if (!silent) tabData.value.tasks.loading = true;
   try {
-    const res = await api.get(
-      `/api/v1/proxies/${proxyId}/tasks/?limit=50&page=${page}`,
-    );
+    const res = await proxiesApi.tasks(proxyId, { limit: 50, page });
     // Handle new response format with stats
     if (res.data.tasks) {
       tabData.value.tasks.data = res.data.tasks;
@@ -660,9 +658,11 @@ async function fetchProxyTasks(proxyId: string, page = 1, silent = false) {
 async function fetchProxyHeartbeats(proxyId: string, page = 1, silent = false) {
   if (!silent) tabData.value.heartbeats.loading = true;
   try {
-    const res = await api.get(
-      `/api/v1/proxies/${proxyId}/heartbeats/?hours=24&page=${page}&page_size=${tabData.value.heartbeats.pagination.pageSize}`,
-    );
+    const res = await proxiesApi.heartbeats(proxyId, {
+      hours: 24,
+      page,
+      page_size: tabData.value.heartbeats.pagination.pageSize,
+    });
     // Handle paginated response
     if (res.data.results) {
       tabData.value.heartbeats.data = res.data.results;
@@ -690,9 +690,7 @@ async function fetchProxyMonitor(proxyId: string, silent = false) {
     else if (monitorTimeRange.value === "7d") hours = 168;
     else if (monitorTimeRange.value === "30d") hours = 720;
 
-    const res = await api.get(
-      `/api/v1/proxies/${proxyId}/monitor/?hours=${hours}`,
-    );
+    const res = await proxiesApi.monitor(proxyId, { hours });
     tabData.value.monitor.data = res.data;
     tabData.value.monitor.loaded = true;
   } catch (error) {
@@ -766,7 +764,7 @@ async function generateInstallCommand() {
 
   isGeneratingInstall.value = true;
   try {
-    const res = await api.post("/api/v1/proxies/generate_install/", {
+    const res = await proxiesApi.generateInstall({
       name: installData.value.name,
       role: installData.value.role,
       os: installData.value.os,
@@ -956,7 +954,7 @@ function closeDetailDrawer() {
 async function viewInstallInfo(proxy: ProxyNode) {
   // Fetch fresh proxy data with install info
   try {
-    const response = await api.get(`/api/v1/proxies/${proxy.id}/`);
+    const response = await proxiesApi.detail(proxy.id);
     selectedProxy.value = response.data;
     showInstallInfoModal.value = true;
     openMenuId.value = null;
@@ -981,10 +979,7 @@ function editProxy(proxy: ProxyNode) {
 async function updateProxy() {
   if (!selectedProxy.value) return;
   try {
-    await api.patch(
-      `/api/v1/proxies/${selectedProxy.value.id}/`,
-      editFormData.value,
-    );
+    await proxiesApi.update(selectedProxy.value.id, editFormData.value);
     showEditModal.value = false;
     await fetchProxies();
   } catch (error) {
@@ -1001,7 +996,7 @@ function confirmDeleteProxy(proxy: ProxyNode) {
 async function deleteProxy() {
   if (!proxyToDelete.value) return;
   try {
-    await api.delete(`/api/v1/proxies/${proxyToDelete.value.id}/`);
+    await proxiesApi.delete(proxyToDelete.value.id);
     showDeleteConfirm.value = false;
     proxyToDelete.value = null;
     await fetchProxies();
@@ -1012,9 +1007,7 @@ async function deleteProxy() {
 
 async function updateProxyStatus(proxy: ProxyNode, newStatus: string) {
   try {
-    await api.post(`/api/v1/proxies/${proxy.id}/set_status/`, {
-      status: newStatus,
-    });
+    await proxiesApi.setStatus(proxy.id, newStatus);
     await fetchProxies();
     openMenuId.value = null;
   } catch (error) {
@@ -1025,7 +1018,7 @@ async function updateProxyStatus(proxy: ProxyNode, newStatus: string) {
 async function regenerateToken(proxy: ProxyNode) {
   if (!confirm(t("proxies.actions.regenerateTokenConfirm"))) return;
   try {
-    await api.post(`/api/v1/proxies/${proxy.id}/regenerate_token/`);
+    await proxiesApi.regenerateToken(proxy.id);
     await fetchProxies();
     openMenuId.value = null;
   } catch (error) {
@@ -1042,9 +1035,7 @@ async function regenerateTokenFromModal() {
   if (!confirm(t("proxies.actions.regenerateTokenConfirm"))) return;
 
   try {
-    const response = await api.post(
-      `/api/v1/proxies/${proxyId}/regenerate_token/`,
-    );
+    const response = await proxiesApi.regenerateToken(proxyId);
     console.log("Regenerate response:", response.data);
     // Update selectedProxy with the new data, ensuring id is preserved
     selectedProxy.value = {

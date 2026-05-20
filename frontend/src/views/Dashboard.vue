@@ -2,7 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import api from "@/api";
+import { backupTasksApi, proxiesApi } from "@/api";
 import {
   ServerIcon,
   BoltIcon,
@@ -246,8 +246,8 @@ async function fetchDashboardData() {
   isLoading.value = true;
   try {
     const [proxiesRes, tasksRes] = await Promise.all([
-      api.get("/api/v1/proxies/stats/"),
-      api.get("/api/v1/backup-tasks/tasks/?ordering=-created_at&page_size=5"),
+      proxiesApi.stats(),
+      backupTasksApi.list({ ordering: "-created_at", page_size: 5 }),
     ]);
 
     const tasksData = tasksRes.data.results || [];
