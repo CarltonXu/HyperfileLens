@@ -473,25 +473,63 @@ func (d *Dispatcher) prepareBackupSource(taskID, sourcePath string, sourceConfig
 		if server == "" || remotePath == "" {
 			return "", "", "", fmt.Errorf("network source server and path are required")
 		}
-		tempDir, err := os.MkdirTemp("", "hyperfilelens-source-"+safeTaskPrefix(taskID)+"-")
+		mountPath, removeAfterUse, err := d.resolveStableSourceMountPath(taskID, sourceConfig)
 		if err != nil {
+			return "", "", "", err
+		}
+		if err := os.MkdirAll(mountPath, 0755); err != nil {
 			return "", "", "", fmt.Errorf("failed to create source mount directory: %w", err)
 		}
+		if mount.IsPathMounted(mountPath) {
+			logger.Debug("Reusing already mounted source path", map[string]interface{}{
+				"task_id":    taskID,
+				"mount_path": mountPath,
+			})
+			return resolveMountedSourcePath(sourcePath, mountPath, remotePath, getString(sourceConfig, "mount_point", "")), "", "", nil
+		}
 		if mountType == "smb" || mountType == "cifs" {
-			err = d.mountMgr.MountSMB(server, remotePath, tempDir, username, password, mountOptions)
+			err = d.mountMgr.MountSMB(server, remotePath, mountPath, username, password, mountOptions)
 		} else {
-			err = d.mountMgr.MountNFS(server, remotePath, tempDir, mountOptions)
+			err = d.mountMgr.MountNFS(server, remotePath, mountPath, mountOptions)
 		}
 		if err != nil {
-			os.RemoveAll(tempDir)
+			if mount.IsPathMounted(mountPath) {
+				logger.Warn("Mount command failed but source path is mounted; continuing with mounted path", map[string]interface{}{
+					"task_id":    taskID,
+					"mount_path": mountPath,
+					"error":      err.Error(),
+				})
+				return resolveMountedSourcePath(sourcePath, mountPath, remotePath, getString(sourceConfig, "mount_point", "")), "", "", nil
+			}
+			if removeAfterUse {
+				os.RemoveAll(mountPath)
+			}
 			return "", "", "", fmt.Errorf("failed to mount network source: %w", err)
 		}
-		return resolveMountedSourcePath(sourcePath, tempDir, remotePath, getString(sourceConfig, "mount_point", "")), tempDir, tempDir, nil
+		tempPath := ""
+		if removeAfterUse {
+			tempPath = mountPath
+		}
+		return resolveMountedSourcePath(sourcePath, mountPath, remotePath, getString(sourceConfig, "mount_point", "")), mountPath, tempPath, nil
 	case "s3":
 		return "", "", "", fmt.Errorf("S3 object storage as backup source is not yet supported by this proxy backup executor")
 	default:
 		return sourcePath, "", "", nil
 	}
+}
+
+func (d *Dispatcher) resolveStableSourceMountPath(taskID string, sourceConfig map[string]interface{}) (string, bool, error) {
+	configuredMountPoint := strings.TrimSpace(getString(sourceConfig, "mount_point", ""))
+	if configuredMountPoint != "" && filepath.IsAbs(configuredMountPoint) {
+		return filepath.Clean(configuredMountPoint), false, nil
+	}
+
+	sourceID := strings.TrimSpace(getString(sourceConfig, "id", ""))
+	if sourceID != "" {
+		return filepath.Join("/mnt/hyperfilelens", "source-"+safeSourceIDPrefix(sourceID)), false, nil
+	}
+
+	return filepath.Join("/mnt/hyperfilelens", "sources", "task-"+safePathToken(taskID)), false, nil
 }
 
 func resolveMountedSourcePath(sourcePath, mountPath, remotePath, configuredMountPoint string) string {
@@ -514,6 +552,41 @@ func resolveMountedSourcePath(sourcePath, mountPath, remotePath, configuredMount
 		}
 	}
 	return filepath.Join(mountPath, strings.TrimLeft(sourcePath, `/\`))
+}
+
+func safePathToken(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "unknown"
+	}
+	var b strings.Builder
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_' || r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	token := strings.Trim(b.String(), "-.")
+	if token == "" {
+		return "unknown"
+	}
+	return token
+}
+
+func safeSourceIDPrefix(sourceID string) string {
+	token := safePathToken(sourceID)
+	if len(token) > 8 {
+		return token[:8]
+	}
+	return token
 }
 
 // executeRestore executes a restore task
@@ -647,7 +720,9 @@ func (d *Dispatcher) executeSnapshotExport(msg ws.Message) {
 	if stagingRoot == "" {
 		stagingRoot = "/tmp/hyperfilelens"
 	}
-	result, err := d.kopia.ExportSelected(taskID, objectID, stagingRoot, password, selectedPaths)
+	result, err := d.kopia.ExportSelected(taskID, objectID, stagingRoot, password, selectedPaths, func(update kopia.ExportProgress) {
+		d.sendSnapshotExportProgress(msg.ID, taskID, update)
+	})
 	if err != nil {
 		d.failTask(taskID, err.Error())
 		d.sendTaskFailed(msg.ID, taskID, err.Error())
@@ -655,7 +730,27 @@ func (d *Dispatcher) executeSnapshotExport(msg ws.Message) {
 	}
 
 	d.sendTaskProgress(msg.ID, taskID, TypeSnapshotExport, 85, "Uploading export package")
-	if err := d.uploadExportPackage(uploadURL, result.PackagePath, result.PackageName, result.Checksum); err != nil {
+	if err := d.uploadExportPackage(uploadURL, result.PackagePath, result.PackageName, result.Checksum, func(uploaded, total int64, speedMBps float64, eta string) {
+		progress := 85
+		if total > 0 {
+			progress = 85 + int(float64(uploaded)/float64(total)*14)
+		}
+		if progress > 99 {
+			progress = 99
+		}
+		d.sendSnapshotExportProgress(msg.ID, taskID, kopia.ExportProgress{
+			Stage:          "upload",
+			Message:        "Uploading export package",
+			Progress:       progress,
+			CurrentFile:    result.PackageName,
+			TotalFiles:     1,
+			ProcessedFiles: 0,
+			TotalBytes:     total,
+			ProcessedBytes: uploaded,
+			SpeedMBps:      speedMBps,
+			ETA:            eta,
+		})
+	}); err != nil {
 		d.failTask(taskID, err.Error())
 		d.sendTaskFailed(msg.ID, taskID, err.Error())
 		return
@@ -666,42 +761,136 @@ func (d *Dispatcher) executeSnapshotExport(msg ws.Message) {
 	d.sendTaskCompleted(msg.ID, taskID, result)
 }
 
-func (d *Dispatcher) uploadExportPackage(uploadURL, packagePath, packageName, checksum string) error {
+func (d *Dispatcher) sendSnapshotExportProgress(msgID, taskID string, update kopia.ExportProgress) {
+	progress := NewProgress(taskID, TypeSnapshotExport, update.Message)
+	progress.Progress = update.Progress
+	progress.CurrentFile = update.CurrentFile
+	progress.TotalFiles = update.TotalFiles
+	progress.ProcessedFiles = update.ProcessedFiles
+	progress.TotalBytes = update.TotalBytes
+	progress.ProcessedBytes = update.ProcessedBytes
+	progress.SpeedMBps = update.SpeedMBps
+	progress.ETA = update.ETA
+	d.sendTaskProgressWithDetails(msgID, progress)
+}
+
+func (d *Dispatcher) uploadExportPackage(uploadURL, packagePath, packageName, checksum string, onProgress func(uploaded, total int64, speedMBps float64, eta string)) error {
 	if uploadURL == "" {
 		return fmt.Errorf("upload_url is required")
 	}
 	if strings.HasPrefix(uploadURL, "/") {
 		uploadURL = strings.TrimRight(d.config.Server.URL, "/") + uploadURL
 	}
+	var lastErr error
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := d.uploadExportPackageOnce(uploadURL, packagePath, packageName, checksum, onProgress); err != nil {
+			lastErr = err
+			if attempt == 1 {
+				logger.Warn("Export upload failed, retrying once", map[string]interface{}{
+					"error": err.Error(),
+				})
+				time.Sleep(2 * time.Second)
+				continue
+			}
+		} else {
+			return nil
+		}
+	}
+	return lastErr
+}
+
+type exportUploadProgressReader struct {
+	reader     io.Reader
+	total      int64
+	read       int64
+	startedAt  time.Time
+	onProgress func(uploaded, total int64, speedMBps float64, eta string)
+}
+
+func (r *exportUploadProgressReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	if n > 0 {
+		r.read += int64(n)
+		if r.onProgress != nil {
+			elapsed := time.Since(r.startedAt).Seconds()
+			speedMBps := 0.0
+			eta := ""
+			if elapsed > 0 {
+				speedBps := float64(r.read) / elapsed
+				speedMBps = speedBps / 1024 / 1024
+				if speedBps > 0 && r.total > r.read {
+					eta = formatExportDuration(float64(r.total-r.read) / speedBps)
+				}
+			}
+			r.onProgress(r.read, r.total, speedMBps, eta)
+		}
+	}
+	return n, err
+}
+
+func formatExportDuration(seconds float64) string {
+	if seconds <= 0 {
+		return ""
+	}
+	duration := time.Duration(seconds) * time.Second
+	if duration < time.Minute {
+		return fmt.Sprintf("%ds", int(duration.Seconds()))
+	}
+	if duration < time.Hour {
+		return fmt.Sprintf("%dm%02ds", int(duration.Minutes()), int(duration.Seconds())%60)
+	}
+	return fmt.Sprintf("%dh%02dm", int(duration.Hours()), int(duration.Minutes())%60)
+}
+
+func (d *Dispatcher) uploadExportPackageOnce(uploadURL, packagePath, packageName, checksum string, onProgress func(uploaded, total int64, speedMBps float64, eta string)) error {
 	file, err := os.Open(packagePath)
 	if err != nil {
 		return fmt.Errorf("failed to open export package: %w", err)
 	}
 	defer file.Close()
-
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	part, err := writer.CreateFormFile("file", packageName)
+	info, err := file.Stat()
 	if err != nil {
+		return fmt.Errorf("failed to stat export package: %w", err)
+	}
+
+	var header bytes.Buffer
+	writer := multipart.NewWriter(&header)
+	if err := writer.WriteField("checksum", checksum); err != nil {
+		return fmt.Errorf("failed to write checksum field: %w", err)
+	}
+	if _, err := writer.CreateFormFile("file", packageName); err != nil {
 		return fmt.Errorf("failed to prepare upload form: %w", err)
 	}
-	if _, err := io.Copy(part, file); err != nil {
-		return fmt.Errorf("failed to read export package: %w", err)
+	contentType := writer.FormDataContentType()
+
+	var footer bytes.Buffer
+	footerWriter := multipart.NewWriter(&footer)
+	if err := footerWriter.SetBoundary(writer.Boundary()); err != nil {
+		return fmt.Errorf("failed to prepare upload boundary: %w", err)
 	}
-	_ = writer.WriteField("checksum", checksum)
-	if err := writer.Close(); err != nil {
+	if err := footerWriter.Close(); err != nil {
 		return fmt.Errorf("failed to finalize upload form: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", uploadURL, &body)
+	reader := &exportUploadProgressReader{
+		reader:     file,
+		total:      info.Size(),
+		startedAt:  time.Now(),
+		onProgress: onProgress,
+	}
+	body := io.MultiReader(&header, reader, &footer)
+
+	req, err := http.NewRequest("POST", uploadURL, body)
 	if err != nil {
 		return fmt.Errorf("failed to create upload request: %w", err)
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.ContentLength = int64(header.Len()) + info.Size() + int64(footer.Len())
+	req.Header.Set("Content-Type", contentType)
 	if d.config.Server.APIToken != "" {
 		req.Header.Set("Authorization", "Token "+d.config.Server.APIToken)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 24 * time.Hour}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to upload export package: %w", err)
 	}

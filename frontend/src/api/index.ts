@@ -479,8 +479,34 @@ export const recoveryTasksApi = {
     api.post(`/api/v1/recovery-tasks/tasks/${id}/precheck/`),
 };
 
+export const insightsApi = {
+  indexSnapshot: (snapshotId: number | string, data?: { gateway_id?: string; force?: boolean }) =>
+    api.post(`/api/v1/insights/snapshots/${snapshotId}/index/`, data || {}),
+
+  indexStatus: (snapshotId: number | string) =>
+    api.get(`/api/v1/insights/snapshots/${snapshotId}/index/status/`),
+
+  files: (snapshotId: number | string, params?: { q?: string; category?: string; extension?: string; page?: number; page_size?: number; ordering?: string }) =>
+    api.get(`/api/v1/insights/snapshots/${snapshotId}/files/`, { params }),
+
+  search: (snapshotId: number | string, params?: { q?: string; limit?: number }) =>
+    api.get(`/api/v1/insights/snapshots/${snapshotId}/search/`, { params }),
+
+  insights: (snapshotId: number | string) =>
+    api.get(`/api/v1/insights/snapshots/${snapshotId}/insights/`),
+
+  analyze: (snapshotId: number | string) =>
+    api.post(`/api/v1/insights/snapshots/${snapshotId}/analyze/`),
+
+  aiSummary: (snapshotId: number | string, data?: { gateway_id?: string; language?: string }) =>
+    api.post(`/api/v1/insights/snapshots/${snapshotId}/ai-summary/`, data || {}),
+
+  aiJobs: (snapshotId: number | string) =>
+    api.get(`/api/v1/insights/snapshots/${snapshotId}/ai-jobs/`),
+};
+
 export const recoveryExportsApi = {
-  list: (params?: { page?: number; page_size?: number; status?: string; snapshot?: string }) =>
+  list: (params?: { page?: number; page_size?: number; status?: string; snapshot?: string; ordering?: string }) =>
     api.get("/api/v1/recovery-tasks/exports/", { params }),
 
   detail: (id: number | string) =>
@@ -493,6 +519,24 @@ export const recoveryExportsApi = {
 
   cancel: (id: number | string) =>
     api.post(`/api/v1/recovery-tasks/exports/${id}/cancel/`),
+
+  share: (id: number | string, data: any) =>
+    api.post(`/api/v1/recovery-tasks/exports/${id}/share/`, data),
+
+  publicInfo: (id: number | string, token: string) =>
+    api.get(`/api/v1/recovery-tasks/exports/${id}/public-info/`, {
+      params: { token },
+      _skipGlobalErrorHandler: true,
+    } as AxiosRequestConfig),
+
+  publicDownload: (id: number | string, data: { token: string; password: string }) =>
+    api.post(`/api/v1/recovery-tasks/exports/${id}/public-download/`, data, {
+      responseType: "blob",
+      _skipGlobalErrorHandler: true,
+    } as AxiosRequestConfig),
+
+  bulkDelete: (ids: Array<number | string>) =>
+    api.post("/api/v1/recovery-tasks/exports/bulk-delete/", { ids }),
 
   downloadUrl: (id: number | string) =>
     `/api/v1/recovery-tasks/exports/${id}/download/`,
@@ -756,6 +800,19 @@ export const aiInsightsApi = {
     repository_id?: string;
     filters?: Record<string, unknown>;
   }) => api.get("/api/v1/ai-insights/smart-search/", { params }),
+
+  providers: (params?: { page?: number; page_size?: number }) =>
+    api.get("/api/v1/system/ai-providers/", { params }),
+
+  defaultProvider: () => api.get("/api/v1/system/ai-providers/default/"),
+
+  createProvider: (data: any) => api.post("/api/v1/system/ai-providers/", data),
+
+  updateProvider: (id: number | string, data: any) =>
+    api.patch(`/api/v1/system/ai-providers/${id}/`, data),
+
+  setDefaultProvider: (id: number | string) =>
+    api.post(`/api/v1/system/ai-providers/${id}/set-default/`),
 };
 
 // Legacy export for backward compatibility

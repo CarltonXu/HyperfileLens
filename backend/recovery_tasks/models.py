@@ -430,10 +430,18 @@ class RecoveryExport(models.Model):
     processed_files = models.IntegerField(default=0)
     total_size = models.BigIntegerField(default=0)
     processed_size = models.BigIntegerField(default=0)
+    speed_mbps = models.FloatField(default=0.0)
+    eta = models.CharField(max_length=64, blank=True)
     package_size = models.BigIntegerField(default=0)
     checksum = models.CharField(max_length=128, blank=True)
     file_path = models.CharField(max_length=4096, blank=True)
     file_name = models.CharField(max_length=255, blank=True)
+    download_count = models.IntegerField(default=0)
+    last_downloaded_at = models.DateTimeField(null=True, blank=True)
+    share_enabled = models.BooleanField(default=False)
+    share_token = models.CharField(max_length=128, blank=True, db_index=True)
+    share_password_hash = models.CharField(max_length=255, blank=True)
+    share_expires_at = models.DateTimeField(null=True, blank=True)
     proxy_task = models.ForeignKey(
         'nodes.ProxyTask',
         on_delete=models.SET_NULL,

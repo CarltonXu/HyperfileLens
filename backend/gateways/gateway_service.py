@@ -376,6 +376,29 @@ class GatewayService:
         return cls.send_command(gateway_id, command)
 
     @classmethod
+    def index_snapshot(
+        cls,
+        gateway_id: str,
+        job_id: str,
+        snapshot_id: str,
+        kopia_snapshot_id: str,
+        object_id: str,
+        repository_config: dict,
+        password: str,
+    ) -> str:
+        """Send snapshot indexing command to gateway."""
+        command = {
+            'type': 'index_snapshot',
+            'job_id': job_id,
+            'snapshot_id': snapshot_id,
+            'kopia_snapshot_id': kopia_snapshot_id,
+            'object_id': object_id,
+            'repository': repository_config,
+            'password': password,
+        }
+        return cls.send_command(gateway_id, command)
+
+    @classmethod
     def stop_indexing(cls, gateway_id: str) -> str:
         """
         Send stop indexing command to gateway.
@@ -439,6 +462,27 @@ class GatewayService:
         AuditService.log_gateway_ai_query(gateway_id, query)
         
         return task_id
+
+    @classmethod
+    def ai_summarize_snapshot(
+        cls,
+        gateway_id: str,
+        job_id: str,
+        snapshot_id: str,
+        snapshot_context: dict,
+        language: str = 'zh-CN',
+        ai_provider_config: dict = None,
+    ) -> str:
+        """Send snapshot AI summary command to gateway."""
+        command = {
+            'type': 'ai_summarize_snapshot',
+            'job_id': job_id,
+            'snapshot_id': snapshot_id,
+            'snapshot_context': snapshot_context,
+            'language': language,
+            'ai_provider_config': ai_provider_config or {},
+        }
+        return cls.send_command(gateway_id, command)
 
     # ==================== System Operations ====================
 

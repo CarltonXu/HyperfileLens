@@ -1224,6 +1224,10 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                     update_data['total_size'] = total_bytes
                 if processed_bytes is not None:
                     update_data['processed_size'] = processed_bytes
+                if speed_mbps is not None:
+                    update_data['speed_mbps'] = float(speed_mbps or 0)
+                if eta is not None:
+                    update_data['eta'] = eta or ''
                 RecoveryExport.objects.filter(id=recovery_export_id).update(**update_data)
         except ProxyTask.DoesNotExist:
             pass

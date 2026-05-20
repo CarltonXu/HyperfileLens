@@ -13,6 +13,8 @@ const ProxyDetail = () => import("@/views/ProxyDetail.vue");
 const BackupTasks = () => import("@/views/BackupTasks.vue");
 const RecoveryTasks = () => import("@/views/RecoveryTasks.vue");
 const RecoveryExports = () => import("@/views/RecoveryExports.vue");
+const SharedRecoveryExport = () => import("@/views/SharedRecoveryExport.vue");
+const SnapshotInsights = () => import("@/views/SnapshotInsights.vue");
 const Repository = () => import("@/views/Repository.vue");
 const SourceResources = () => import("@/views/SourceResources.vue");
 const Policies = () => import("@/views/Policies.vue");
@@ -80,6 +82,15 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
     },
   },
+  {
+    path: "/shared/recovery-export/:id",
+    name: "SharedRecoveryExport",
+    component: SharedRecoveryExport,
+    meta: {
+      title: "Shared Recovery Export",
+      requiresAuth: false,
+    },
+  },
 
   // Main routes with layout
   {
@@ -110,6 +121,12 @@ const routes: RouteRecordRaw[] = [
         name: "BackupTasks",
         component: BackupTasks,
         meta: { title: "Backup Tasks" },
+      },
+      {
+        path: "snapshots/:snapshotId/insights",
+        name: "SnapshotInsights",
+        component: SnapshotInsights,
+        meta: { title: "Snapshot Insights" },
       },
       {
         path: "recovery-tasks",

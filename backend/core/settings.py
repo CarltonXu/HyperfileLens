@@ -75,6 +75,7 @@ PROJECT_APPS = [
     'alerts',       # 告警管理
     'checkpoints',   # 断点续传检查点
     'ai_query',
+    'insights',
     'audit_log',
     'system_settings',  # System settings & SMTP config
 ]

@@ -5,6 +5,7 @@ HyperFileLens Backend - AI Insights URLs
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
+    AIProviderViewSet,
     AIQueryViewSet,
     gateway_mount_status,
     gateway_index_status,
@@ -15,12 +16,14 @@ from .views import (
     sensitive_data_scan,
     content_profile,
     data_heatmap,
-    redundancy_analysis
+    redundancy_analysis,
+    smart_search,
 )
 
 
 router = DefaultRouter()
 router.register(r'queries', AIQueryViewSet, basename='ai-query')
+router.register(r'providers', AIProviderViewSet, basename='ai-provider')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -38,4 +41,5 @@ urlpatterns = [
     path('content-profile/', content_profile, name='content-profile'),
     path('data-heatmap/', data_heatmap, name='data-heatmap'),
     path('redundancy/', redundancy_analysis, name='redundancy-analysis'),
+    path('smart-search/', smart_search, name='smart-search'),
 ]

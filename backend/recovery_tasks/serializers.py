@@ -191,6 +191,8 @@ class RecoveryExportSerializer(serializers.ModelSerializer):
     executor_node_name = serializers.CharField(source='executor_node.name', read_only=True)
     user_email = serializers.CharField(source='user.email', read_only=True)
     download_url = serializers.SerializerMethodField()
+    share_url = serializers.SerializerMethodField()
+    has_share_password = serializers.SerializerMethodField()
     is_downloadable = serializers.BooleanField(read_only=True)
 
     class Meta:
@@ -202,16 +204,20 @@ class RecoveryExportSerializer(serializers.ModelSerializer):
             'repository_name', 'selected_paths', 'package_format', 'status',
             'progress', 'status_message', 'error_message', 'current_file',
             'total_files', 'processed_files', 'total_size', 'processed_size',
-            'package_size', 'checksum', 'file_name', 'executor_node',
+            'speed_mbps', 'eta', 'package_size', 'checksum', 'file_name', 'executor_node',
             'executor_node_name', 'proxy_task', 'user', 'user_email',
-            'metadata', 'expires_at', 'created_at', 'updated_at',
-            'started_at', 'completed_at', 'download_url', 'is_downloadable',
+            'download_count', 'last_downloaded_at', 'share_enabled',
+            'share_token', 'share_expires_at', 'share_url',
+            'has_share_password', 'metadata', 'expires_at', 'created_at',
+            'updated_at', 'started_at', 'completed_at', 'download_url',
+            'is_downloadable',
         ]
         read_only_fields = [
             'id', 'repository', 'status', 'progress', 'status_message',
             'error_message', 'current_file', 'total_files', 'processed_files',
-            'total_size', 'processed_size', 'package_size', 'checksum',
+            'total_size', 'processed_size', 'speed_mbps', 'eta', 'package_size', 'checksum',
             'file_name', 'executor_node', 'proxy_task', 'user', 'metadata',
+            'download_count', 'last_downloaded_at', 'share_token',
             'created_at', 'updated_at', 'started_at', 'completed_at',
         ]
 
@@ -225,6 +231,16 @@ class RecoveryExportSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         url = f'/api/v1/recovery-tasks/exports/{obj.id}/download/'
         return request.build_absolute_uri(url) if request else url
+
+    def get_share_url(self, obj):
+        if not obj.share_enabled or not obj.share_token:
+            return ''
+        request = self.context.get('request')
+        url = f'/shared/recovery-export/{obj.id}?token={obj.share_token}'
+        return request.build_absolute_uri(url) if request else url
+
+    def get_has_share_password(self, obj):
+        return bool(obj.share_password_hash)
 
 
 class RecoveryExportCreateSerializer(serializers.ModelSerializer):

@@ -3,7 +3,7 @@ HyperFileLens Backend - AI Query Serializers
 """
 
 from rest_framework import serializers
-from .models import AIQuery, AIFeature
+from .models import AIProvider, AIQuery, AIFeature
 
 
 class AIQuerySerializer(serializers.ModelSerializer):
@@ -66,3 +66,33 @@ class AIQueryResultSerializer(serializers.Serializer):
         required=False,
         help_text="Follow-up suggestions"
     )
+
+
+class AIProviderSerializer(serializers.ModelSerializer):
+    api_key = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    api_key_masked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AIProvider
+        fields = [
+            'id', 'name', 'provider_type', 'base_url', 'api_key',
+            'api_key_masked', 'default_model', 'timeout_seconds',
+            'is_enabled', 'is_default', 'config', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'api_key_masked', 'created_at', 'updated_at']
+
+    def get_api_key_masked(self, obj):
+        return obj.get_masked_api_key()
+
+    def validate(self, attrs):
+        provider_type = attrs.get('provider_type', getattr(self.instance, 'provider_type', AIProvider.PROVIDER_OPENAI_COMPATIBLE))
+        api_key = attrs.get('api_key')
+        existing_key = getattr(self.instance, 'api_key', '')
+        if provider_type != AIProvider.PROVIDER_LOCAL and not api_key and not existing_key:
+            raise serializers.ValidationError({'api_key': 'API key is required for external AI providers.'})
+        return attrs
+
+    def update(self, instance, validated_data):
+        if 'api_key' in validated_data and not validated_data['api_key']:
+            validated_data.pop('api_key')
+        return super().update(instance, validated_data)

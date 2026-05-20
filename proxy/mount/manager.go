@@ -247,6 +247,39 @@ func (m *Manager) IsMounted(target string) bool {
 	return exists
 }
 
+// IsPathMounted checks the operating system mount table for a target path.
+// This catches mounts that existed before the proxy process started.
+func IsPathMounted(target string) bool {
+	cleanTarget := filepath.Clean(target)
+	if cleanTarget == "." || cleanTarget == "" {
+		return false
+	}
+
+	if data, err := os.ReadFile("/proc/mounts"); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 && filepath.Clean(fields[1]) == cleanTarget {
+				return true
+			}
+		}
+	}
+
+	output, err := exec.Command("mount").CombinedOutput()
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(output), "\n") {
+		if strings.Contains(line, " on "+cleanTarget+" ") || strings.HasSuffix(line, " on "+cleanTarget) {
+			return true
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 3 && fields[1] == "on" && filepath.Clean(fields[2]) == cleanTarget {
+			return true
+		}
+	}
+	return false
+}
+
 // CheckMounts verifies mount status
 func (m *Manager) CheckMounts() error {
 	// Read /proc/mounts to verify

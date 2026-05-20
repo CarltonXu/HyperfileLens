@@ -9,6 +9,7 @@ from django.db import models
 from django.utils import timezone
 from accounts.models import User
 from tenants.models import Tenant
+from common.encryption import decrypt_value, encrypt_value, is_encrypted, mask_access_key
 
 
 class AIQuery(models.Model):
@@ -182,3 +183,91 @@ class AIFeature(models.Model):
     
     def __str__(self):
         return self.name
+
+
+class AIProvider(models.Model):
+    """Platform-side AI provider configuration used by Gateway AI tasks."""
+
+    PROVIDER_OPENAI_COMPATIBLE = 'openai_compatible'
+    PROVIDER_OPENAI = 'openai'
+    PROVIDER_LOCAL = 'local'
+
+    PROVIDER_CHOICES = [
+        (PROVIDER_OPENAI_COMPATIBLE, 'OpenAI Compatible'),
+        (PROVIDER_OPENAI, 'OpenAI'),
+        (PROVIDER_LOCAL, 'Local Fallback'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name='ai_providers',
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(max_length=120)
+    provider_type = models.CharField(
+        max_length=32,
+        choices=PROVIDER_CHOICES,
+        default=PROVIDER_OPENAI_COMPATIBLE,
+    )
+    base_url = models.URLField(blank=True, default='https://api.openai.com/v1')
+    api_key = models.TextField(blank=True)
+    default_model = models.CharField(max_length=128, blank=True, default='gpt-4.1-mini')
+    timeout_seconds = models.PositiveIntegerField(default=60)
+    is_enabled = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    config = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_ai_providers',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'ai_providers'
+        ordering = ['-is_default', 'name']
+        indexes = [
+            models.Index(fields=['tenant', 'is_enabled']),
+            models.Index(fields=['tenant', 'is_default']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'name'], name='uniq_tenant_ai_provider_name'),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if self.api_key and not is_encrypted(self.api_key):
+            self.api_key = encrypt_value(self.api_key)
+        super().save(*args, **kwargs)
+        if self.is_default:
+            AIProvider.objects.filter(tenant=self.tenant, is_default=True).exclude(id=self.id).update(is_default=False)
+
+    def get_decrypted_api_key(self):
+        if not self.api_key:
+            return ''
+        try:
+            return decrypt_value(self.api_key)
+        except Exception:
+            return self.api_key
+
+    def get_masked_api_key(self):
+        return mask_access_key(self.get_decrypted_api_key())
+
+    def to_gateway_config(self):
+        return {
+            'enabled': self.is_enabled,
+            'provider': self.provider_type,
+            'base_url': self.base_url,
+            'api_key': self.get_decrypted_api_key(),
+            'model': self.default_model,
+            'timeout': self.timeout_seconds,
+            'config': self.config or {},
+        }

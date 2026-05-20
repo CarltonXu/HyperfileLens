@@ -23,10 +23,12 @@ import platform
 import subprocess
 import sys
 import uuid
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 try:
     import psutil
@@ -72,6 +74,14 @@ class GatewayConfig:
     # Repository settings
     repo_path: str = os.getenv('REPO_PATH', '/var/lib/hyperfilelens/repository')
     repo_password: str = os.getenv('KOPIA_PASSWORD', '')
+
+    # AI settings
+    ai_enabled: bool = os.getenv('AI_ENABLED', 'true').lower() in ('1', 'true', 'yes')
+    ai_provider: str = os.getenv('AI_PROVIDER', 'local')
+    ai_base_url: str = os.getenv('AI_BASE_URL', os.getenv('AI_API_URL', 'https://api.openai.com/v1'))
+    ai_api_key: str = os.getenv('AI_API_KEY', '')
+    ai_model: str = os.getenv('AI_MODEL', 'gpt-4.1-mini')
+    ai_timeout: int = int(os.getenv('AI_TIMEOUT', '60'))
     
     # Logging
     log_level: str = os.getenv('LOG_LEVEL', 'INFO')
@@ -87,6 +97,132 @@ class MountInfo:
     snapshot_id: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.now)
     process: Optional[subprocess.Popen] = None
+
+
+class AIClient:
+    """Gateway-side AI provider with a local fallback."""
+
+    def __init__(self, config: GatewayConfig):
+        self.config = config
+
+    async def summarize_snapshot(self, snapshot_context: dict, language: str = 'zh-CN', provider_config: Optional[dict] = None) -> dict:
+        provider_config = provider_config or {}
+        enabled = provider_config.get('enabled', self.config.ai_enabled)
+        provider = provider_config.get('provider') or self.config.ai_provider
+        api_key = provider_config.get('api_key') or self.config.ai_api_key
+        if enabled and api_key and provider in {'openai', 'openai_compatible'}:
+            try:
+                return await asyncio.to_thread(self._summarize_with_openai_compatible, snapshot_context, language, provider_config)
+            except Exception as exc:
+                logger.warning(f"AI provider failed, falling back to local summary: {exc}")
+        return self._local_summary(snapshot_context, language)
+
+    def _summarize_with_openai_compatible(self, snapshot_context: dict, language: str, provider_config: Optional[dict] = None) -> dict:
+        provider_config = provider_config or {}
+        prompt = self._build_prompt(snapshot_context, language)
+        provider = provider_config.get('provider') or self.config.ai_provider
+        base_url = provider_config.get('base_url') or self.config.ai_base_url
+        api_key = provider_config.get('api_key') or self.config.ai_api_key
+        model = provider_config.get('model') or self.config.ai_model
+        timeout = int(provider_config.get('timeout') or self.config.ai_timeout)
+        url = base_url.rstrip('/') + '/chat/completions'
+        payload = {
+            'model': model,
+            'messages': [
+                {
+                    'role': 'system',
+                    'content': 'You are a backup data intelligence analyst. Return concise JSON only.',
+                },
+                {'role': 'user', 'content': prompt},
+            ],
+            'temperature': 0.2,
+            'response_format': {'type': 'json_object'},
+        }
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode('utf-8'),
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+                **((provider_config.get('config') or {}).get('headers') or {}),
+            },
+            method='POST',
+        )
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode('utf-8'))
+        content = data['choices'][0]['message']['content']
+        result = json.loads(content)
+        result.setdefault('provider', provider)
+        result.setdefault('model', model)
+        return result
+
+    def _build_prompt(self, snapshot_context: dict, language: str) -> str:
+        compact = json.dumps(snapshot_context, ensure_ascii=False)[:24000]
+        return f"""
+Language: {language}
+
+Analyze this backup snapshot using the structured rule insights below.
+Return JSON with keys:
+- title
+- summary
+- risk_level: info|warning|critical
+- findings: array of {{title,severity,description,evidence}}
+- recommended_actions: array of {{type,label,description}}
+- related_paths: array of important paths
+
+Snapshot context:
+{compact}
+"""
+
+    def _local_summary(self, snapshot_context: dict, language: str) -> dict:
+        insights = {item.get('type'): item for item in snapshot_context.get('insights', [])}
+        snapshot = snapshot_context.get('snapshot', {})
+        categories = (insights.get('file_categories') or {}).get('evidence', {}).get('categories', [])
+        duplicate_groups = (insights.get('duplicates') or {}).get('evidence', {}).get('groups', [])
+        cold = (insights.get('cold_data') or {}).get('evidence', {})
+        growth = (insights.get('growth') or {}).get('evidence', {})
+        top_category = categories[0] if categories else {}
+        findings = []
+        if top_category:
+            findings.append({
+                'title': 'Dominant file category',
+                'severity': 'info',
+                'description': f"{top_category.get('category')} is the largest category with {top_category.get('count')} files.",
+                'evidence': top_category,
+            })
+        if duplicate_groups:
+            findings.append({
+                'title': 'Duplicate candidates detected',
+                'severity': 'warning',
+                'description': f"{len(duplicate_groups)} duplicate candidate groups were found by name and size.",
+                'evidence': {'groups': duplicate_groups[:5]},
+            })
+        if cold.get('count'):
+            findings.append({
+                'title': 'Cold data exists',
+                'severity': 'warning',
+                'description': f"{cold.get('count')} files have not changed for more than {cold.get('days', 90)} days.",
+                'evidence': cold,
+            })
+        risk_level = 'warning' if duplicate_groups or cold.get('count') else 'info'
+        return {
+            'title': 'AI snapshot summary',
+            'summary': f"Snapshot {snapshot.get('name') or snapshot.get('id')} contains {snapshot.get('file_count') or 0} files. Rule insights were analyzed by the Gateway local AI fallback.",
+            'risk_level': risk_level,
+            'findings': findings,
+            'recommended_actions': [
+                {'type': 'review_duplicates', 'label': 'Review duplicate candidates', 'description': 'Validate duplicate groups before cleanup.'},
+                {'type': 'review_cold_data', 'label': 'Review cold data', 'description': 'Consider archive policy for long-unmodified data.'},
+            ],
+            'related_paths': [
+                path
+                for group in duplicate_groups[:3]
+                for path in (group.get('paths') or [])[:2]
+            ],
+            'provider': 'local',
+            'model': 'rule-summary',
+            'growth': growth,
+        }
 
 
 class KopiaClient:
@@ -190,6 +326,51 @@ class KopiaClient:
                 return {'status': 'error', 'message': error}
         except Exception as e:
             logger.error(f"Error connecting to repository: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    async def connect_repository_config(self, repository: dict, password: str) -> dict:
+        """Connect to a repository using the control-plane repository payload."""
+        repo_type = (repository or {}).get('type', 'filesystem')
+        try:
+            if repo_type == 's3':
+                endpoint = (repository.get('endpoint') or '').replace('http://', '').replace('https://', '').rstrip('/')
+                args = [
+                    str(self.kopia_path), 'repository', 'connect', 's3',
+                    '--bucket', repository.get('bucket', ''),
+                    '--password', password,
+                    '--endpoint', endpoint,
+                    '--region', repository.get('region') or 'us-east-1',
+                    '--access-key', repository.get('access_key', ''),
+                    '--secret-access-key', repository.get('secret_key', ''),
+                ]
+                if repository.get('prefix'):
+                    args.extend(['--prefix', repository.get('prefix')])
+                if repository.get('use_tls') is False:
+                    args.append('--disable-tls')
+            else:
+                storage_path = repository.get('path') or repository.get('url') or self.config.repo_path
+                if storage_path.startswith('file://'):
+                    storage_path = urlparse(storage_path).path
+                args = [
+                    str(self.kopia_path), 'repository', 'connect', 'filesystem',
+                    f'--path={storage_path}',
+                    f'--password={password}',
+                    '--override-hostname=gateway',
+                    '--override-username=hfl',
+                ]
+
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            output = (stdout + stderr).decode()
+            if proc.returncode == 0 or 'already connected' in output.lower():
+                return {'status': 'success'}
+            return {'status': 'error', 'message': output}
+        except Exception as e:
+            logger.error(f"Error connecting repository config: {e}")
             return {'status': 'error', 'message': str(e)}
     
     # ==================== Mount Operations ====================
@@ -487,6 +668,81 @@ class KopiaClient:
     async def list_snapshots(self) -> dict:
         """List all snapshots."""
         return await self.execute_command('snapshot list')
+
+    async def list_object(self, object_path: str) -> list[dict]:
+        """List a Kopia object path."""
+        json_result = await self._list_object_json(object_path)
+        if json_result is not None:
+            return json_result
+        return await self._list_object_text(object_path)
+
+    async def _list_object_json(self, object_path: str) -> Optional[list[dict]]:
+        proc = await asyncio.create_subprocess_exec(
+            str(self.kopia_path), 'ls', '--json', '--long', object_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _stderr = await proc.communicate()
+        if proc.returncode != 0:
+            return None
+        try:
+            payload = json.loads(stdout.decode() or '[]')
+        except json.JSONDecodeError:
+            return None
+        if isinstance(payload, dict):
+            items = payload.get('entries') or payload.get('items') or []
+        else:
+            items = payload
+        result = []
+        for item in items:
+            name = item.get('name') or item.get('path') or ''
+            if not name or name in ('.', '..'):
+                continue
+            item_type = item.get('type') or item.get('mode') or ''
+            is_directory = bool(item.get('isDir') or item.get('is_directory') or str(item_type).startswith('d') or item_type == 'dir')
+            result.append({
+                'name': name.rstrip('/'),
+                'size': int(item.get('size') or item.get('length') or 0),
+                'modified_time': item.get('mtime') or item.get('modTime') or item.get('modified') or None,
+                'is_directory': is_directory,
+            })
+        return result
+
+    async def _list_object_text(self, object_path: str) -> list[dict]:
+        proc = await asyncio.create_subprocess_exec(
+            str(self.kopia_path), 'ls', '--long', object_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(stderr.decode() or stdout.decode())
+        entries = []
+        for raw in stdout.decode().splitlines():
+            line = raw.strip()
+            if not line or line.startswith('total '):
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            mode = parts[0]
+            name = parts[-1].rstrip('/')
+            if name in ('.', '..'):
+                continue
+            size = 0
+            for part in parts[1:-1]:
+                try:
+                    size = int(part)
+                    break
+                except ValueError:
+                    continue
+            entries.append({
+                'name': name,
+                'size': size,
+                'modified_time': None,
+                'is_directory': mode.startswith('d'),
+            })
+        return entries
     
     async def get_stats(self) -> dict:
         """Get repository statistics."""
@@ -571,6 +827,7 @@ class GatewayAgent:
         # Components
         self.kopia = KopiaClient(config)
         self.monitor = SystemMonitor()
+        self.ai = AIClient(config)
         
         # State
         self._connected = False
@@ -723,9 +980,11 @@ class GatewayAgent:
                 'list_mounts': self._handle_list_mounts,
                 'init_repository': self._handle_init_repository,
                 'connect_repository': self._handle_connect_repository,
+                'index_snapshot': self._handle_index_snapshot,
                 'index_start': self._handle_index_start,
                 'index_stop': self._handle_index_stop,
                 'ai_query': self._handle_ai_query,
+                'ai_summarize_snapshot': self._handle_ai_summarize_snapshot,
                 'system_info': self._handle_system_info,
             }
             
@@ -939,6 +1198,108 @@ class GatewayAgent:
         }
         
         await self._ws.send(json.dumps(response))
+
+    async def _handle_index_snapshot(self, data):
+        """Handle snapshot indexing command."""
+        task_id = data.get('task_id')
+        job_id = data.get('job_id')
+        object_id = data.get('object_id')
+        repository = data.get('repository') or {}
+        password = data.get('password') or ''
+
+        async def send(message: dict):
+            await self._ws.send(json.dumps(message))
+
+        try:
+            if not job_id or not object_id:
+                raise ValueError('job_id and object_id are required')
+            connect_result = await self.kopia.connect_repository_config(repository, password)
+            if connect_result.get('status') != 'success':
+                raise RuntimeError(connect_result.get('message') or 'repository connect failed')
+
+            await send({
+                'type': 'index_progress',
+                'task_id': task_id,
+                'job_id': job_id,
+                'status': 'running',
+                'progress': 1,
+                'current_path': '/',
+            })
+
+            indexed_files = 0
+            indexed_bytes = 0
+            batch: list[dict] = []
+
+            async def flush():
+                nonlocal batch
+                if not batch:
+                    return
+                await send({
+                    'type': 'index_batch',
+                    'task_id': task_id,
+                    'job_id': job_id,
+                    'files': batch,
+                })
+                batch = []
+
+            async def walk(object_path: str, relative_path: str = ''):
+                nonlocal indexed_files, indexed_bytes, batch
+                entries = await self.kopia.list_object(object_path)
+                for entry in entries:
+                    name = entry['name']
+                    child_relative = f"{relative_path.rstrip('/')}/{name}".strip('/')
+                    extension = ''
+                    if not entry.get('is_directory') and '.' in name:
+                        extension = '.' + name.rsplit('.', 1)[-1].lower()
+                    size = int(entry.get('size') or 0)
+                    indexed_files += 1
+                    indexed_bytes += size
+                    batch.append({
+                        'path': child_relative,
+                        'name': name,
+                        'extension': extension,
+                        'size': size,
+                        'modified_time': entry.get('modified_time'),
+                        'is_directory': bool(entry.get('is_directory')),
+                        'depth': child_relative.count('/'),
+                    })
+                    if len(batch) >= 500:
+                        await flush()
+                    if indexed_files % 1000 == 0:
+                        await send({
+                            'type': 'index_progress',
+                            'task_id': task_id,
+                            'job_id': job_id,
+                            'status': 'running',
+                            'progress': 50,
+                            'indexed_files': indexed_files,
+                            'indexed_bytes': indexed_bytes,
+                            'current_path': child_relative,
+                        })
+                    if entry.get('is_directory'):
+                        await walk(f"{object_path.rstrip('/')}/{name}", child_relative)
+
+            await walk(object_id)
+            await flush()
+            await send({
+                'type': 'index_completed',
+                'task_id': task_id,
+                'job_id': job_id,
+                'status': 'completed',
+                'progress': 100,
+                'total_files': indexed_files,
+                'indexed_files': indexed_files,
+                'total_bytes': indexed_bytes,
+                'indexed_bytes': indexed_bytes,
+            })
+        except Exception as e:
+            logger.error(f"Snapshot indexing failed: {e}")
+            await send({
+                'type': 'index_failed',
+                'task_id': task_id,
+                'job_id': job_id,
+                'error': str(e),
+            })
     
     async def _handle_index_start(self, data):
         """Handle index start command."""
@@ -985,6 +1346,38 @@ class GatewayAgent:
         }
         
         await self._ws.send(json.dumps(response))
+
+    async def _handle_ai_summarize_snapshot(self, data):
+        """Handle snapshot AI summary."""
+        task_id = data.get('task_id')
+        job_id = data.get('job_id')
+        snapshot_context = data.get('snapshot_context') or {}
+        language = data.get('language') or 'zh-CN'
+        provider_config = data.get('ai_provider_config') or {}
+        try:
+            await self._ws.send(json.dumps({
+                'type': 'ai_summary_progress',
+                'task_id': task_id,
+                'job_id': job_id,
+                'status': 'running',
+                'progress': 20,
+            }))
+            result = await self.ai.summarize_snapshot(snapshot_context, language, provider_config)
+            await self._ws.send(json.dumps({
+                'type': 'ai_summary_result',
+                'task_id': task_id,
+                'job_id': job_id,
+                'success': True,
+                'result': result,
+            }))
+        except Exception as e:
+            logger.error(f"AI summary failed: {e}")
+            await self._ws.send(json.dumps({
+                'type': 'ai_summary_failed',
+                'task_id': task_id,
+                'job_id': job_id,
+                'error': str(e),
+            }))
     
     async def _handle_system_info(self, data):
         """Handle system info request."""

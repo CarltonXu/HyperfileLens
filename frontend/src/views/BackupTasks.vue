@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
   backupTasksApi,
+  insightsApi,
   nodesApi,
   policiesApi,
   recoveryExportsApi,
@@ -58,6 +59,15 @@ const { t, locale } = useI18n();
 const router = useRouter();
 const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
+
+const vIndeterminate = {
+  mounted(el: HTMLInputElement, binding: { value: boolean }) {
+    el.indeterminate = Boolean(binding.value);
+  },
+  updated(el: HTMLInputElement, binding: { value: boolean }) {
+    el.indeterminate = Boolean(binding.value);
+  },
+};
 
 const isLoading = ref(true);
 const tasks = ref<BackupTask[]>([]);
@@ -1037,12 +1047,80 @@ async function toggleSnapshotDirectory(file: any) {
 function toggleSnapshotPathSelection(file: any) {
   const path = file.relative_path;
   const next = new Set(selectedSnapshotPaths.value);
-  if (next.has(path)) {
-    next.delete(path);
+  const currentlySelected = getSnapshotSelectionState(file) === "checked";
+  if (currentlySelected) {
+    removeSnapshotPathAndDescendants(next, path);
   } else {
+    removeSnapshotDescendants(next, path);
     next.add(path);
   }
   selectedSnapshotPaths.value = next;
+}
+
+function removeSnapshotPathAndDescendants(selected: Set<string>, path: string) {
+  selected.delete(path);
+  for (const item of [...selected]) {
+    if (item.startsWith(`${path}/`)) selected.delete(item);
+  }
+  const ancestor = findSelectedSnapshotAncestor(path, selected);
+  if (ancestor) {
+    selected.delete(ancestor);
+    const descendants = selectedSnapshotFiles.value.filter((file) =>
+      file.relative_path?.startsWith(`${ancestor}/`),
+    );
+    for (const file of descendants) {
+      if (
+        file.relative_path !== path &&
+        !file.relative_path.startsWith(`${path}/`)
+      ) {
+        selected.add(file.relative_path);
+      }
+    }
+  }
+}
+
+function removeSnapshotDescendants(selected: Set<string>, path: string) {
+  for (const item of [...selected]) {
+    if (item.startsWith(`${path}/`)) selected.delete(item);
+  }
+}
+
+function findSelectedSnapshotAncestor(path: string, selected: Set<string>) {
+  const parts = path.split("/").filter(Boolean);
+  while (parts.length > 1) {
+    parts.pop();
+    const ancestor = parts.join("/");
+    if (selected.has(ancestor)) return ancestor;
+  }
+  return "";
+}
+
+function hasSelectedSnapshotAncestor(path: string) {
+  return Boolean(
+    findSelectedSnapshotAncestor(path, selectedSnapshotPaths.value),
+  );
+}
+
+function getSnapshotSelectionState(file: any): "checked" | "partial" | "none" {
+  const path = file.relative_path;
+  const selected = selectedSnapshotPaths.value;
+  if (selected.has(path) || hasSelectedSnapshotAncestor(path)) {
+    return "checked";
+  }
+  if (!file.is_dir) return "none";
+  const descendants = selectedSnapshotFiles.value.filter((item) =>
+    item.relative_path?.startsWith(`${path}/`),
+  );
+  if (
+    descendants.some(
+      (item) =>
+        selected.has(item.relative_path) ||
+        hasSelectedSnapshotAncestor(item.relative_path),
+    )
+  ) {
+    return "partial";
+  }
+  return "none";
 }
 
 async function exportSelectedSnapshotPaths() {
@@ -1065,6 +1143,27 @@ async function exportSelectedSnapshotPaths() {
   } catch (error) {
     appStore.error(getApiErrorMessage(error, t("recoveryExports.createFailed")));
   }
+}
+
+async function indexSelectedSnapshot() {
+  if (!selectedSnapshot.value?.id) return;
+  snapshotOperationLoading.value = true;
+  try {
+    await insightsApi.indexSnapshot(selectedSnapshot.value.id, { force: true });
+    appStore.success(t("snapshotInsights.indexStarted"));
+  } catch (error) {
+    appStore.error(getApiErrorMessage(error, t("snapshotInsights.indexFailed")));
+  } finally {
+    snapshotOperationLoading.value = false;
+  }
+}
+
+function openSelectedSnapshotInsights() {
+  if (!selectedSnapshot.value?.id) return;
+  router.push({
+    name: "SnapshotInsights",
+    params: { snapshotId: selectedSnapshot.value.id },
+  });
 }
 
 async function fetchStats() {
@@ -4453,10 +4552,13 @@ onMounted(() => {
                                   <input
                                     type="checkbox"
                                     class="h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-primary"
+                                    v-indeterminate="
+                                      getSnapshotSelectionState(file) ===
+                                      'partial'
+                                    "
                                     :checked="
-                                      selectedSnapshotPaths.has(
-                                        file.relative_path,
-                                      )
+                                      getSnapshotSelectionState(file) ===
+                                      'checked'
                                     "
                                     @change="toggleSnapshotPathSelection(file)"
                                   />
@@ -4588,6 +4690,23 @@ onMounted(() => {
                         }}
                       </p>
                     </div>
+                    <div v-if="selectedSnapshot" class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        class="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-hover disabled:opacity-50"
+                        :disabled="snapshotOperationLoading"
+                        @click="indexSelectedSnapshot"
+                      >
+                        {{ t("snapshotInsights.indexSnapshot") }}
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+                        @click="openSelectedSnapshotInsights"
+                      >
+                        {{ t("snapshotInsights.viewInsights") }}
+                      </button>
+                    </div>
                   </div>
                   <div
                     v-if="selectedSnapshot"
@@ -4696,8 +4815,11 @@ onMounted(() => {
                         <input
                           type="checkbox"
                           class="h-4 w-4 rounded border-border text-primary focus:ring-primary shrink-0"
+                          v-indeterminate="
+                            getSnapshotSelectionState(file) === 'partial'
+                          "
                           :checked="
-                            selectedSnapshotPaths.has(file.relative_path)
+                            getSnapshotSelectionState(file) === 'checked'
                           "
                           @change="toggleSnapshotPathSelection(file)"
                         />

@@ -3,15 +3,17 @@ HyperFileLens Backend - Recovery Tasks Views
 """
 
 import os
+import secrets
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.auth.hashers import check_password, make_password
 from django.http import FileResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.utils import timezone
 
 from .models import RecoveryExport, RecoveryRun, RecoveryTask
@@ -278,6 +280,27 @@ class RecoveryExportViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
+    def get_permissions(self):
+        if getattr(self, 'action', None) in ('upload', 'public_info', 'public_download'):
+            return [AllowAny()]
+        return super().get_permissions()
+
+    def get_authenticators(self):
+        if getattr(self, 'action', None) in ('upload', 'public_info', 'public_download') or self._is_callback_request():
+            return []
+        return super().get_authenticators()
+
+    def _is_callback_request(self):
+        resolver_match = getattr(self.request, 'resolver_match', None)
+        return bool(
+            resolver_match
+            and getattr(resolver_match, 'url_name', '') in (
+                'recovery-export-upload',
+                'recovery-export-public-info',
+                'recovery-export-public-download',
+            )
+        )
+
     def get_serializer_class(self):
         if self.action == 'create':
             return RecoveryExportCreateSerializer
@@ -302,7 +325,13 @@ class RecoveryExportViewSet(viewsets.ModelViewSet):
         snapshot_id = self.request.query_params.get('snapshot')
         if snapshot_id:
             queryset = queryset.filter(snapshot_id=snapshot_id)
-        return queryset.order_by('-created_at')
+        ordering = self.request.query_params.get('ordering') or '-created_at'
+        allowed = {
+            'name', '-name', 'status', '-status', 'created_at', '-created_at',
+            'completed_at', '-completed_at', 'package_size', '-package_size',
+            'download_count', '-download_count', 'expires_at', '-expires_at',
+        }
+        return queryset.order_by(ordering if ordering in allowed else '-created_at')
 
     def perform_create(self, serializer):
         expires_in_hours = serializer.validated_data.pop('expires_in_hours', 24)
@@ -360,9 +389,77 @@ class RecoveryExportViewSet(viewsets.ModelViewSet):
             )
         return Response({'message': 'Export cancelled'})
 
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        ids = request.data.get('ids') or []
+        if not isinstance(ids, list) or not ids:
+            return Response({'error': 'ids is required'}, status=status.HTTP_400_BAD_REQUEST)
+        active_statuses = [
+            RecoveryExport.STATUS_PENDING,
+            RecoveryExport.STATUS_DISPATCHED,
+            RecoveryExport.STATUS_RUNNING,
+            RecoveryExport.STATUS_PACKAGING,
+        ]
+        queryset = self.get_queryset().filter(id__in=ids)
+        if queryset.filter(status__in=active_statuses).exists():
+            return Response({'error': 'Running exports cannot be deleted'}, status=status.HTTP_400_BAD_REQUEST)
+        deleted = 0
+        for export in queryset:
+            if export.file_path and os.path.exists(export.file_path):
+                try:
+                    os.remove(export.file_path)
+                except OSError:
+                    pass
+            export.delete()
+            deleted += 1
+        return Response({'deleted': deleted})
+
+    @action(detail=True, methods=['post'])
+    def share(self, request, pk=None):
+        export = self.get_object()
+        export.share_enabled = bool(request.data.get('enabled', True))
+        if export.share_enabled and not export.share_token:
+            export.share_token = secrets.token_urlsafe(32)
+        password = request.data.get('password')
+        if export.share_enabled and not password and not export.share_password_hash:
+            return Response({'error': 'Share password is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if password:
+            export.share_password_hash = make_password(password)
+        if request.data.get('clear_password') and not export.share_enabled:
+            export.share_password_hash = ''
+        expires_in_hours = request.data.get('expires_in_hours')
+        if expires_in_hours:
+            try:
+                export.share_expires_at = timezone.now() + timedelta(hours=int(expires_in_hours))
+            except (TypeError, ValueError):
+                return Response({'error': 'expires_in_hours must be a number'}, status=status.HTTP_400_BAD_REQUEST)
+        export.save(update_fields=[
+            'share_enabled', 'share_token', 'share_password_hash',
+            'share_expires_at', 'updated_at',
+        ])
+        return Response(RecoveryExportSerializer(export, context={'request': request}).data)
+
     @action(detail=True, methods=['post'])
     def upload(self, request, pk=None):
-        export = self.get_object()
+        try:
+            export = RecoveryExport.objects.select_related(
+                'proxy_task', 'proxy_task__proxy',
+            ).get(pk=pk)
+        except RecoveryExport.DoesNotExist:
+            return Response({'error': 'Export not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        auth_header = request.headers.get('Authorization', '')
+        api_token = request.data.get('api_token') or ''
+        if not api_token and auth_header.startswith('Token '):
+            api_token = auth_header[6:]
+
+        expected_token = ''
+        if export.proxy_task_id and export.proxy_task.proxy_id:
+            expected_token = export.proxy_task.proxy.api_token
+
+        if not expected_token or api_token != expected_token:
+            return Response({'error': 'Invalid proxy token'}, status=status.HTTP_403_FORBIDDEN)
+
         package = request.FILES.get('file')
         if not package:
             return Response({'error': 'file is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -396,6 +493,75 @@ class RecoveryExportViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Export package is not ready or has expired'}, status=status.HTTP_400_BAD_REQUEST)
         if not os.path.exists(export.file_path):
             return Response({'error': 'Export package file is missing'}, status=status.HTTP_404_NOT_FOUND)
+        export.download_count = (export.download_count or 0) + 1
+        export.last_downloaded_at = timezone.now()
+        export.save(update_fields=['download_count', 'last_downloaded_at', 'updated_at'])
+        return FileResponse(
+            open(export.file_path, 'rb'),
+            as_attachment=True,
+            filename=export.file_name or f'{export.id}.zip',
+        )
+
+    @action(detail=True, methods=['get'], url_path='public-info')
+    def public_info(self, request, pk=None):
+        token = request.query_params.get('token') or ''
+        export = RecoveryExport.objects.select_related(
+            'snapshot', 'repository',
+        ).filter(
+            pk=pk,
+            share_enabled=True,
+            share_token=token,
+        ).first()
+        if not export:
+            return Response({'error': 'Share link is invalid'}, status=status.HTTP_404_NOT_FOUND)
+        if export.share_expires_at and export.share_expires_at <= timezone.now():
+            return Response({'error': 'Share link has expired'}, status=status.HTTP_410_GONE)
+
+        snapshot_metadata = getattr(export.snapshot, 'metadata', None) or {}
+        return Response({
+            'id': export.id,
+            'name': export.name,
+            'description': export.description,
+            'file_name': export.file_name,
+            'package_format': export.package_format,
+            'package_size': export.package_size,
+            'selected_paths': export.selected_paths,
+            'selected_path_count': len(export.selected_paths or []),
+            'snapshot_name': getattr(export.snapshot, 'name', ''),
+            'snapshot_source_path': (
+                snapshot_metadata.get('source_path')
+                or snapshot_metadata.get('kopia_source_path')
+                or ''
+            ),
+            'snapshot_created_at': getattr(export.snapshot, 'created_at', None),
+            'repository_name': getattr(export.repository, 'name', ''),
+            'share_expires_at': export.share_expires_at,
+            'expires_at': export.expires_at,
+            'download_count': export.download_count,
+            'has_share_password': bool(export.share_password_hash),
+            'is_downloadable': export.is_downloadable,
+        })
+
+    @action(detail=True, methods=['post'], url_path='public-download')
+    def public_download(self, request, pk=None):
+        token = request.data.get('token') or ''
+        password = request.data.get('password') or ''
+        export = RecoveryExport.objects.filter(
+            pk=pk,
+            share_enabled=True,
+            share_token=token,
+        ).first()
+        if not export:
+            return Response({'error': 'Share link is invalid'}, status=status.HTTP_404_NOT_FOUND)
+        if export.share_expires_at and export.share_expires_at <= timezone.now():
+            return Response({'error': 'Share link has expired'}, status=status.HTTP_410_GONE)
+        if export.share_password_hash and not check_password(password, export.share_password_hash):
+            return Response({'error': 'Share password is invalid'}, status=status.HTTP_403_FORBIDDEN)
+        if not export.is_downloadable or not os.path.exists(export.file_path):
+            return Response({'error': 'Export package is not ready or has expired'}, status=status.HTTP_400_BAD_REQUEST)
+        export.download_count = (export.download_count or 0) + 1
+        export.last_downloaded_at = timezone.now()
+        export.save(update_fields=['download_count', 'last_downloaded_at', 'updated_at'])
         return FileResponse(
             open(export.file_path, 'rb'),
             as_attachment=True,

@@ -1,13 +1,18 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
+import { aiInsightsApi } from "@/api";
 import {
   UserCircleIcon,
   KeyIcon,
   PaintBrushIcon,
   LanguageIcon,
   Cog6ToothIcon,
+  SparklesIcon,
+  CodeBracketSquareIcon,
+  InformationCircleIcon,
+  ServerStackIcon,
 } from "@heroicons/vue/24/outline";
 import ThemeSwitcher from "@/components/ThemeSwitcher.vue";
 import { usePagination } from "@/composables/usePagination";
@@ -46,8 +51,75 @@ const passwordForm = ref({
 
 const isSaving = ref(false);
 const isChangingPassword = ref(false);
+const isSavingProvider = ref(false);
 const passwordError = ref("");
 const passwordSuccess = ref("");
+const aiProvider = ref<any>(null);
+const aiProviderError = ref("");
+const aiProviderSuccess = ref("");
+const aiProviderJsonError = ref("");
+const providerJson = ref("");
+const selectedProviderPreset = ref("openai");
+const aiInsightsEnabled = ref(false);
+const providerForm = ref({
+  name: "Default AI Provider",
+  provider_type: "openai_compatible",
+  base_url: "https://api.openai.com/v1",
+  api_key: "",
+  default_model: "gpt-4.1-mini",
+  timeout_seconds: 60,
+  is_enabled: true,
+  is_default: true,
+  config: {} as Record<string, unknown>,
+});
+
+const aiProviderPresets = computed(() => [
+  {
+    id: "openai",
+    label: "OpenAI",
+    provider_type: "openai",
+    base_url: "https://api.openai.com/v1",
+    default_model: "gpt-4.1-mini",
+    config: {},
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    provider_type: "openai_compatible",
+    base_url: "https://openrouter.ai/api/v1",
+    default_model: "openai/gpt-4.1-mini",
+    config: {
+      headers: {
+        "HTTP-Referer": "https://hyperfilelens.local",
+        "X-Title": "HyperFileLens",
+      },
+    },
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    provider_type: "openai_compatible",
+    base_url: "https://api.deepseek.com/v1",
+    default_model: "deepseek-chat",
+    config: {},
+  },
+  {
+    id: "local",
+    label: "Local Fallback",
+    provider_type: "local",
+    base_url: "",
+    default_model: "rule-summary",
+    config: {},
+  },
+  {
+    id: "custom",
+    label: t("settings.aiInsights.customPreset"),
+    provider_type: "openai_compatible",
+    base_url: "",
+    default_model: "",
+    config: {},
+  },
+]);
 
 // Get user initials for avatar
 const userInitials = computed(() => {
@@ -99,6 +171,11 @@ const tabs = computed(() => [
     id: "language",
     icon: LanguageIcon,
     label: t("settings.sections.language"),
+  },
+  {
+    id: "aiInsights",
+    icon: SparklesIcon,
+    label: t("settings.sections.aiInsights"),
   },
 ]);
 
@@ -163,6 +240,140 @@ async function changePassword() {
     isChangingPassword.value = false;
   }
 }
+
+async function fetchAiProvider() {
+  try {
+    const response = await aiInsightsApi.defaultProvider();
+    aiProvider.value = response.data;
+    aiInsightsEnabled.value = response.data.is_enabled === true;
+    providerForm.value = {
+      name: response.data.name || "Default AI Provider",
+      provider_type: response.data.provider_type || "openai_compatible",
+      base_url: response.data.base_url || "https://api.openai.com/v1",
+      api_key: "",
+      default_model: response.data.default_model || "gpt-4.1-mini",
+      timeout_seconds: response.data.timeout_seconds || 60,
+      is_enabled: response.data.is_enabled !== false,
+      is_default: response.data.is_default !== false,
+      config: response.data.config || {},
+    };
+    selectedProviderPreset.value = inferProviderPreset(providerForm.value.base_url, providerForm.value.provider_type);
+    syncProviderJson();
+  } catch (error: any) {
+    aiProvider.value = null;
+    aiInsightsEnabled.value = false;
+    if (error?.response?.status !== 404) {
+      aiProviderError.value = t("settings.aiInsights.loadFailed");
+    }
+    syncProviderJson();
+  }
+}
+
+function inferProviderPreset(baseUrl: string, providerType: string) {
+  if (providerType === "local") return "local";
+  if (baseUrl.includes("openrouter.ai")) return "openrouter";
+  if (baseUrl.includes("deepseek.com")) return "deepseek";
+  if (baseUrl.includes("api.openai.com")) return "openai";
+  return "custom";
+}
+
+function applyProviderPreset() {
+  const preset = aiProviderPresets.value.find((item) => item.id === selectedProviderPreset.value);
+  if (!preset || preset.id === "custom") return;
+  providerForm.value.provider_type = preset.provider_type;
+  providerForm.value.base_url = preset.base_url;
+  providerForm.value.default_model = preset.default_model;
+  providerForm.value.config = { ...preset.config };
+  syncProviderJson();
+}
+
+function syncProviderJson() {
+  aiProviderJsonError.value = "";
+  providerJson.value = JSON.stringify(
+    {
+      provider_type: providerForm.value.provider_type,
+      base_url: providerForm.value.base_url,
+      default_model: providerForm.value.default_model,
+      timeout_seconds: providerForm.value.timeout_seconds,
+      is_enabled: providerForm.value.is_enabled,
+      config: providerForm.value.config || {},
+    },
+    null,
+    2,
+  );
+}
+
+function applyProviderJson(showSuccess = true) {
+  aiProviderJsonError.value = "";
+  try {
+    const parsed = JSON.parse(providerJson.value || "{}");
+    providerForm.value.provider_type = parsed.provider_type || providerForm.value.provider_type;
+    providerForm.value.base_url = parsed.base_url ?? providerForm.value.base_url;
+    providerForm.value.default_model = parsed.default_model ?? providerForm.value.default_model;
+    providerForm.value.timeout_seconds = Number(parsed.timeout_seconds || providerForm.value.timeout_seconds || 60);
+    providerForm.value.is_enabled = parsed.is_enabled !== false;
+    aiInsightsEnabled.value = providerForm.value.is_enabled;
+    providerForm.value.config = parsed.config || {};
+    selectedProviderPreset.value = inferProviderPreset(providerForm.value.base_url, providerForm.value.provider_type);
+    if (showSuccess) {
+      aiProviderSuccess.value = t("settings.aiInsights.jsonApplied");
+    }
+    return true;
+  } catch (error) {
+    aiProviderJsonError.value = t("settings.aiInsights.invalidJson");
+    return false;
+  }
+}
+
+async function saveAiProvider() {
+  aiProviderError.value = "";
+  aiProviderSuccess.value = "";
+  if (!applyProviderJson(false)) return;
+  isSavingProvider.value = true;
+  try {
+    const payload = { ...providerForm.value };
+    if (!payload.api_key) {
+      delete (payload as any).api_key;
+    }
+    const response = aiProvider.value?.id
+      ? await aiInsightsApi.updateProvider(aiProvider.value.id, payload)
+      : await aiInsightsApi.createProvider(payload);
+    aiProvider.value = response.data;
+    aiInsightsEnabled.value = response.data.is_enabled === true;
+    providerForm.value.is_enabled = aiInsightsEnabled.value;
+    providerForm.value.api_key = "";
+    aiProviderSuccess.value = t("settings.aiInsights.saved");
+  } catch (error: any) {
+    aiProviderError.value = error?.response?.data?.error || error?.response?.data?.api_key || t("settings.aiInsights.saveFailed");
+  } finally {
+    isSavingProvider.value = false;
+  }
+}
+
+async function toggleAiInsights() {
+  aiProviderError.value = "";
+  aiProviderSuccess.value = "";
+  providerForm.value.is_enabled = aiInsightsEnabled.value;
+  syncProviderJson();
+  if (!aiInsightsEnabled.value && aiProvider.value?.id) {
+    isSavingProvider.value = true;
+    try {
+      const response = await aiInsightsApi.updateProvider(aiProvider.value.id, { is_enabled: false });
+      aiProvider.value = response.data;
+      aiProviderSuccess.value = t("settings.aiInsights.disabled");
+    } catch (error: any) {
+      aiProviderError.value = error?.response?.data?.error || t("settings.aiInsights.saveFailed");
+      aiInsightsEnabled.value = true;
+      providerForm.value.is_enabled = true;
+    } finally {
+      isSavingProvider.value = false;
+    }
+  }
+}
+
+onMounted(() => {
+  fetchAiProvider();
+});
 </script>
 
 <template>
@@ -517,6 +728,230 @@ async function changePassword() {
               </svg>
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- AI Insights -->
+      <div
+        v-if="activeTab === 'aiInsights'"
+        class="bg-card rounded-xl border border-border shadow-sm">
+        <div class="px-6 py-4 border-b border-border">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 class="text-lg font-semibold text-foreground">
+                {{ t("settings.aiInsights.title") }}
+              </h3>
+              <p class="mt-1 text-sm text-foreground-secondary">
+                {{ t("settings.aiInsights.description") }}
+              </p>
+            </div>
+            <label class="inline-flex cursor-pointer items-center gap-3">
+              <span class="text-sm text-foreground-secondary">
+                {{ aiInsightsEnabled ? t("common.enabled") : t("common.disabled") }}
+              </span>
+              <input
+                v-model="aiInsightsEnabled"
+                type="checkbox"
+                class="sr-only"
+                @change="toggleAiInsights" />
+              <span
+                :class="[
+                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors',
+                  aiInsightsEnabled ? 'bg-indigo-600' : 'bg-background-tertiary border border-border',
+                ]">
+                <span
+                  :class="[
+                    'inline-block h-5 w-5 rounded-full bg-white shadow transition-transform',
+                    aiInsightsEnabled ? 'translate-x-6' : 'translate-x-1',
+                  ]" />
+              </span>
+            </label>
+          </div>
+        </div>
+        <div class="p-6 space-y-5">
+          <div
+            v-if="aiProviderError"
+            class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
+            {{ aiProviderError }}
+          </div>
+          <div
+            v-if="aiProviderSuccess"
+            class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+            {{ aiProviderSuccess }}
+          </div>
+          <div
+            v-if="aiProviderJsonError"
+            class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
+            {{ aiProviderJsonError }}
+          </div>
+
+          <div
+            v-if="!aiInsightsEnabled"
+            class="rounded-lg border border-dashed border-border bg-background/40 p-5">
+            <div class="flex gap-3">
+              <SparklesIcon class="mt-0.5 h-5 w-5 text-foreground-muted" />
+              <div>
+                <p class="text-sm font-medium text-foreground">
+                  {{ t("settings.aiInsights.disabledTitle") }}
+                </p>
+                <p class="mt-1 text-sm leading-6 text-foreground-secondary">
+                  {{ t("settings.aiInsights.disabledDescription") }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <template v-else>
+          <div class="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
+            <div class="rounded-lg border border-border bg-background/40 p-4">
+              <h4 class="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                <ServerStackIcon class="h-4 w-4 text-indigo-500" />
+                {{ t("settings.aiInsights.quickPreset") }}
+              </h4>
+              <p class="mt-2 text-xs leading-5 text-foreground-secondary">
+                {{ t("settings.aiInsights.quickPresetHint") }}
+              </p>
+              <select
+                v-model="selectedProviderPreset"
+                class="mt-3 w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                @change="applyProviderPreset()">
+                <option
+                  v-for="preset in aiProviderPresets"
+                  :key="preset.id"
+                  :value="preset.id">
+                  {{ preset.label }}
+                </option>
+              </select>
+            </div>
+
+            <div class="rounded-lg border border-border bg-background/40 p-4">
+              <h4 class="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                <InformationCircleIcon class="h-4 w-4 text-indigo-500" />
+                {{ t("settings.aiInsights.howItWorks") }}
+              </h4>
+              <p class="mt-2 text-xs leading-5 text-foreground-secondary">
+                {{ t("settings.aiInsights.howItWorksDesc") }}
+              </p>
+              <p class="mt-2 text-xs leading-5 text-foreground-muted">
+                {{ t("settings.aiInsights.providerExamples") }}
+              </p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-foreground-secondary mb-1">
+                {{ t("settings.aiInsights.providerName") }}
+              </label>
+              <input
+                v-model="providerForm.name"
+                type="text"
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-foreground-secondary mb-1">
+                {{ t("settings.aiInsights.providerType") }}
+              </label>
+              <select
+                v-model="providerForm.provider_type"
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                @change="syncProviderJson()">
+                <option value="openai_compatible">OpenAI Compatible</option>
+                <option value="openai">OpenAI</option>
+                <option value="local">Local Fallback</option>
+              </select>
+            </div>
+            <div class="lg:col-span-2">
+              <label class="block text-sm font-medium text-foreground-secondary mb-1">
+                {{ t("settings.aiInsights.baseUrl") }}
+              </label>
+              <input
+                v-model="providerForm.base_url"
+                type="text"
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                @input="syncProviderJson()" />
+              <p class="mt-1 text-xs text-foreground-muted">
+                {{ t("settings.aiInsights.baseUrlHint") }}
+              </p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-foreground-secondary mb-1">
+                {{ t("settings.aiInsights.model") }}
+              </label>
+              <input
+                v-model="providerForm.default_model"
+                type="text"
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                @input="syncProviderJson()" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-foreground-secondary mb-1">
+                {{ t("settings.aiInsights.timeout") }}
+              </label>
+              <input
+                v-model.number="providerForm.timeout_seconds"
+                type="number"
+                min="5"
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                @input="syncProviderJson()" />
+            </div>
+            <div class="lg:col-span-2">
+              <label class="block text-sm font-medium text-foreground-secondary mb-1">
+                {{ t("settings.aiInsights.apiKey") }}
+              </label>
+              <input
+                v-model="providerForm.api_key"
+                type="password"
+                class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                :placeholder="aiProvider?.api_key_masked || t('settings.aiInsights.apiKeyPlaceholder')" />
+              <p class="mt-1 text-xs text-foreground-muted">
+                {{ t("settings.aiInsights.apiKeyHint") }}
+              </p>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-border bg-background/40">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+              <div>
+                <h4 class="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <CodeBracketSquareIcon class="h-4 w-4 text-indigo-500" />
+                  {{ t("settings.aiInsights.jsonConfig") }}
+                </h4>
+                <p class="mt-1 text-xs text-foreground-muted">
+                  {{ t("settings.aiInsights.jsonConfigHint") }}
+                </p>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  class="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground-secondary hover:bg-hover"
+                  @click="syncProviderJson()">
+                  {{ t("settings.aiInsights.refreshJson") }}
+                </button>
+                <button
+                  class="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground-secondary hover:bg-hover"
+                  @click="applyProviderJson()">
+                  {{ t("settings.aiInsights.applyJson") }}
+                </button>
+              </div>
+            </div>
+            <textarea
+              v-model="providerJson"
+              class="min-h-64 w-full resize-y border-0 bg-transparent p-4 font-mono text-xs leading-5 text-foreground outline-none focus:ring-0"
+              spellcheck="false" />
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
+            <p class="text-xs leading-5 text-foreground-muted">
+              {{ t("settings.aiInsights.saveHint") }}
+            </p>
+            <button
+              class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md disabled:opacity-50"
+              :disabled="isSavingProvider"
+              @click="saveAiProvider">
+              {{ isSavingProvider ? t("common.saving") : t("common.save") }}
+            </button>
+          </div>
+          </template>
         </div>
       </div>
     </div>

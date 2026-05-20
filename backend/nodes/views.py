@@ -1377,7 +1377,7 @@ class ProxyHeartbeatView(APIView):
 
 def build_global_task_items(request):
     """Build a normalized task list across proxy, backup, and recovery tasks."""
-    from backup_tasks.models import BackupTask
+    from backup_tasks.models import BackupTask, BackupTaskRun
     from recovery_tasks.models import RecoveryTask
 
     user = request.user
@@ -1420,6 +1420,21 @@ def build_global_task_items(request):
 
         backup_task_id = (task.parameters or {}).get('backup_task_id')
         if backup_task_id and task.task_type == ProxyTask.TaskType.BACKUP:
+            run_status = (
+                BackupTaskRun.STATUS_TIMEOUT if timed_out else BackupTaskRun.STATUS_FAILED
+            )
+            BackupTaskRun.objects.filter(
+                proxy_task=task,
+                status__in=[
+                    BackupTaskRun.STATUS_PENDING,
+                    BackupTaskRun.STATUS_DISPATCHED,
+                    BackupTaskRun.STATUS_RUNNING,
+                ],
+            ).update(
+                status=run_status,
+                error_message=error,
+                completed_at=now,
+            )
             BackupTask.objects.filter(id=backup_task_id, status=BackupTask.STATUS_RUNNING).update(
                 status=BackupTask.STATUS_FAILED,
                 error_message=error,

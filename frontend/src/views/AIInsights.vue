@@ -665,10 +665,16 @@ onMounted(() => {
                 <div class="flex-1 min-w-0">
                   <p
                     class="text-sm font-medium text-foreground-secondary truncate">
-                    {{ result.path?.split("/").pop() }}
+                    {{ result.name || result.path?.split("/").pop() }}
                   </p>
                   <p class="text-xs text-slate-500 truncate">
                     {{ result.path }}
+                  </p>
+                  <p class="mt-1 text-[11px] text-foreground-muted truncate">
+                    {{ result.snapshot_name || result.snapshot_id }} ·
+                    {{ result.backup_task_name || "-" }} ·
+                    {{ result.repository_name || "-" }} ·
+                    {{ result.category || "-" }}
                   </p>
                 </div>
                 <span class="text-sm text-slate-500">{{

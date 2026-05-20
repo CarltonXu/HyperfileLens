@@ -130,6 +130,19 @@ type ExportResult struct {
 	FinishedAt    time.Time `json:"finished_at"`
 }
 
+type ExportProgress struct {
+	Stage          string
+	Message        string
+	Progress       int
+	CurrentFile    string
+	TotalFiles     int
+	ProcessedFiles int
+	TotalBytes     int64
+	ProcessedBytes int64
+	SpeedMBps      float64
+	ETA            string
+}
+
 // CreateRepoResult captures repository initialization metadata.
 type CreateRepoResult struct {
 	RepositoryID  string                   `json:"repository_id"`
@@ -686,7 +699,7 @@ func (c *Client) RestoreSelected(taskID, objectID, targetPath, password string, 
 	}, nil
 }
 
-func (c *Client) ExportSelected(taskID, objectID, stagingRoot, password string, selectedPaths []string) (*ExportResult, error) {
+func (c *Client) ExportSelected(taskID, objectID, stagingRoot, password string, selectedPaths []string, onProgress func(ExportProgress)) (*ExportResult, error) {
 	startedAt := time.Now()
 	ctx, done := c.registerTaskContext(taskID)
 	defer done()
@@ -721,6 +734,20 @@ func (c *Client) ExportSelected(taskID, objectID, stagingRoot, password string, 
 			return nil, fmt.Errorf("kopia export restore failed for %s: %w, output: %s", cleanPath, err, string(output))
 		}
 		cleanPaths = append(cleanPaths, cleanPath)
+		if onProgress != nil {
+			progress := 25 + int(float64(len(cleanPaths))/float64(len(selectedPaths))*35)
+			if progress > 60 {
+				progress = 60
+			}
+			onProgress(ExportProgress{
+				Stage:          "restore",
+				Message:        fmt.Sprintf("Restored %d of %d selected path(s)", len(cleanPaths), len(selectedPaths)),
+				Progress:       progress,
+				CurrentFile:    cleanPath,
+				TotalFiles:     len(selectedPaths),
+				ProcessedFiles: len(cleanPaths),
+			})
+		}
 	}
 
 	if len(cleanPaths) == 0 {
@@ -729,7 +756,20 @@ func (c *Client) ExportSelected(taskID, objectID, stagingRoot, password string, 
 
 	packageName := fmt.Sprintf("recovery-export-%s.zip", taskID)
 	packagePath := filepath.Join(stagingRoot, taskID, packageName)
-	if err := zipDirectory(exportDir, packagePath); err != nil {
+	stats, err := directoryStats(exportDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect export staging directory: %w", err)
+	}
+	if onProgress != nil {
+		onProgress(ExportProgress{
+			Stage:      "package",
+			Message:    "Packaging ZIP archive",
+			Progress:   62,
+			TotalFiles: stats.files,
+			TotalBytes: stats.bytes,
+		})
+	}
+	if err := zipDirectory(exportDir, packagePath, stats, onProgress); err != nil {
 		return nil, err
 	}
 	checksum, size, err := fileChecksumAndSize(packagePath)
@@ -750,7 +790,47 @@ func (c *Client) ExportSelected(taskID, objectID, stagingRoot, password string, 
 	}, nil
 }
 
-func zipDirectory(sourceDir, packagePath string) error {
+type exportDirectoryStats struct {
+	files int
+	bytes int64
+}
+
+func directoryStats(sourceDir string) (exportDirectoryStats, error) {
+	stats := exportDirectoryStats{}
+	err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 || info.Mode().IsRegular() {
+			stats.files++
+			stats.bytes += info.Size()
+		}
+		return nil
+	})
+	return stats, err
+}
+
+func formatDuration(seconds float64) string {
+	if seconds <= 0 {
+		return ""
+	}
+	duration := time.Duration(seconds) * time.Second
+	if duration < time.Minute {
+		return fmt.Sprintf("%ds", int(duration.Seconds()))
+	}
+	if duration < time.Hour {
+		return fmt.Sprintf("%dm%02ds", int(duration.Minutes()), int(duration.Seconds())%60)
+	}
+	return fmt.Sprintf("%dh%02dm", int(duration.Hours()), int(duration.Minutes())%60)
+}
+
+func zipDirectory(sourceDir, packagePath string, stats exportDirectoryStats, onProgress func(ExportProgress)) error {
 	zipFile, err := os.Create(packagePath)
 	if err != nil {
 		return fmt.Errorf("failed to create zip package: %w", err)
@@ -760,8 +840,54 @@ func zipDirectory(sourceDir, packagePath string) error {
 	writer := zip.NewWriter(zipFile)
 	defer writer.Close()
 
+	startedAt := time.Now()
+	processedFiles := 0
+	processedBytes := int64(0)
+	reportProgress := func(currentFile string) {
+		if onProgress == nil {
+			return
+		}
+		progress := 62
+		if stats.bytes > 0 {
+			progress = 62 + int(float64(processedBytes)/float64(stats.bytes)*18)
+		} else if stats.files > 0 {
+			progress = 62 + int(float64(processedFiles)/float64(stats.files)*18)
+		}
+		if progress > 80 {
+			progress = 80
+		}
+		elapsed := time.Since(startedAt).Seconds()
+		speedMBps := 0.0
+		eta := ""
+		if elapsed > 0 && processedBytes > 0 {
+			speedMBps = float64(processedBytes) / elapsed / 1024 / 1024
+			if stats.bytes > processedBytes {
+				eta = formatDuration(float64(stats.bytes-processedBytes) / (float64(processedBytes) / elapsed))
+			}
+		}
+		onProgress(ExportProgress{
+			Stage:          "package",
+			Message:        "Packaging ZIP archive",
+			Progress:       progress,
+			CurrentFile:    filepath.ToSlash(currentFile),
+			TotalFiles:     stats.files,
+			ProcessedFiles: processedFiles,
+			TotalBytes:     stats.bytes,
+			ProcessedBytes: processedBytes,
+			SpeedMBps:      speedMBps,
+			ETA:            eta,
+		})
+	}
+
 	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			if os.IsNotExist(err) {
+				logger.Warn("Skipping missing file while packaging export", map[string]interface{}{
+					"path":  path,
+					"error": err.Error(),
+				})
+				return nil
+			}
 			return err
 		}
 		if info.IsDir() {
@@ -776,6 +902,42 @@ func zipDirectory(sourceDir, packagePath string) error {
 			return err
 		}
 		header.Name = filepath.ToSlash(relPath)
+		progressPath := header.Name
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				if os.IsNotExist(err) {
+					logger.Warn("Skipping missing symlink while packaging export", map[string]interface{}{
+						"path":  path,
+						"error": err.Error(),
+					})
+					return nil
+				}
+				return err
+			}
+			header.SetMode(info.Mode())
+			entry, err := writer.CreateHeader(header)
+			if err != nil {
+				return err
+			}
+			_, err = entry.Write([]byte(target))
+			if err == nil {
+				processedFiles++
+				processedBytes += info.Size()
+				reportProgress(progressPath)
+			}
+			return err
+		}
+
+		if !info.Mode().IsRegular() {
+			logger.Warn("Skipping non-regular file while packaging export", map[string]interface{}{
+				"path": path,
+				"mode": info.Mode().String(),
+			})
+			return nil
+		}
+
 		header.Method = zip.Deflate
 		entry, err := writer.CreateHeader(header)
 		if err != nil {
@@ -783,11 +945,24 @@ func zipDirectory(sourceDir, packagePath string) error {
 		}
 		file, err := os.Open(path)
 		if err != nil {
+			if os.IsNotExist(err) {
+				logger.Warn("Skipping missing file while packaging export", map[string]interface{}{
+					"path":  path,
+					"error": err.Error(),
+				})
+				return nil
+			}
 			return err
 		}
-		defer file.Close()
-		_, err = io.Copy(entry, file)
-		return err
+		_, copyErr := io.Copy(entry, file)
+		closeErr := file.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		processedFiles++
+		processedBytes += info.Size()
+		reportProgress(progressPath)
+		return closeErr
 	})
 }
 

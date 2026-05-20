@@ -98,7 +98,14 @@ class GatewayConsumer(AsyncWebsocketConsumer):
                 'kopia_command_result': self.handle_kopia_command_result,
                 'capabilities': self.handle_capabilities,
                 'index_status': self.handle_index_status,
+                'index_progress': self.handle_index_progress,
+                'index_batch': self.handle_index_batch,
+                'index_completed': self.handle_index_completed,
+                'index_failed': self.handle_index_failed,
                 'ai_query_result': self.handle_ai_query_result,
+                'ai_summary_progress': self.handle_ai_summary_progress,
+                'ai_summary_result': self.handle_ai_summary_result,
+                'ai_summary_failed': self.handle_ai_summary_failed,
                 'stats_report': self.handle_stats_report,
                 'error': self.handle_error,
             }
@@ -519,7 +526,6 @@ class GatewayConsumer(AsyncWebsocketConsumer):
         error = data.get('error')
 
         await self.store_ai_query_result(task_id, success, result, error)
-        
         await self.channel_layer.group_send(
             f'task_{task_id}',
             {
@@ -533,6 +539,15 @@ class GatewayConsumer(AsyncWebsocketConsumer):
                 }
             }
         )
+
+    async def handle_ai_summary_progress(self, data):
+        await self.update_ai_summary_progress(data)
+
+    async def handle_ai_summary_result(self, data):
+        await self.complete_ai_summary_job(data)
+
+    async def handle_ai_summary_failed(self, data):
+        await self.fail_ai_summary_job(data)
 
     # ==================== Statistics ====================
 
@@ -616,6 +631,18 @@ class GatewayConsumer(AsyncWebsocketConsumer):
 
         await self.store_gateway_error(error_code, error_message, context)
 
+    async def handle_index_progress(self, data):
+        await self.update_index_progress(data)
+
+    async def handle_index_batch(self, data):
+        await self.save_index_batch(data)
+
+    async def handle_index_completed(self, data):
+        await self.complete_index_job(data)
+
+    async def handle_index_failed(self, data):
+        await self.fail_index_job(data)
+
     # ==================== Channel Layer Methods ====================
 
     async def send_command(self, event):
@@ -642,7 +669,7 @@ class GatewayConsumer(AsyncWebsocketConsumer):
         from gateways.models import Gateway
         try:
             gateway = Gateway.objects.get(id=self.gateway_id)
-            gateway.status = 'online' if online else 'offline'
+            gateway.status = Gateway.GatewayStatus.ACTIVE if online else Gateway.GatewayStatus.OFFLINE
             gateway.last_heartbeat = timezone.now()
             gateway.save(update_fields=['status', 'last_heartbeat'])
             
@@ -667,16 +694,19 @@ class GatewayConsumer(AsyncWebsocketConsumer):
             
             # Update gateway info
             gateway.hostname = gateway_info.get('hostname', gateway.hostname)
-            gateway.ip_address = gateway_info.get('ip_address', gateway.ip_address)
+            gateway.internal_ip = gateway_info.get('ip_address') or gateway.internal_ip
             gateway.version = gateway_info.get('version', '')
-            gateway.os_type = gateway_info.get('os', 'Linux')
+            gateway.os_version = gateway_info.get('os', 'Linux')
             gateway.capabilities = gateway_info.get('capabilities', [])
             gateway.kopia_version = gateway_info.get('kopia_version', '')
             gateway.cpu_cores = gateway_info.get('cpu_cores', 0)
-            gateway.memory_gb = gateway_info.get('memory_gb', 0)
-            gateway.disk_gb = gateway_info.get('disk_gb', 0)
-            gateway.status = 'online'
-            gateway.install_token = None  # Clear token after registration
+            gateway.memory_total = int(float(gateway_info.get('memory_gb') or 0) * 1024 * 1024 * 1024)
+            gateway.disk_total = int(float(gateway_info.get('disk_gb') or 0) * 1024 * 1024 * 1024)
+            gateway.status = Gateway.GatewayStatus.ACTIVE
+            gateway.install_token = ''
+            gateway.install_token_used = True
+            gateway.registered_at = timezone.now()
+            gateway.installed_at = gateway.installed_at or gateway.registered_at
             gateway.save()
             
             # Audit log
@@ -831,6 +861,41 @@ class GatewayConsumer(AsyncWebsocketConsumer):
             gateway.save()
         except Gateway.DoesNotExist:
             pass
+
+    @database_sync_to_async
+    def update_index_progress(self, data):
+        from insights.services import update_index_progress
+        update_index_progress(data.get('job_id'), data)
+
+    @database_sync_to_async
+    def save_index_batch(self, data):
+        from insights.services import save_index_batch
+        save_index_batch(data.get('job_id'), data.get('files') or [])
+
+    @database_sync_to_async
+    def complete_index_job(self, data):
+        from insights.services import complete_index_job
+        complete_index_job(data.get('job_id'), data)
+
+    @database_sync_to_async
+    def fail_index_job(self, data):
+        from insights.services import fail_index_job
+        fail_index_job(data.get('job_id'), data.get('error') or data.get('error_message'))
+
+    @database_sync_to_async
+    def update_ai_summary_progress(self, data):
+        from insights.services import update_ai_job_progress
+        update_ai_job_progress(data.get('job_id'), data)
+
+    @database_sync_to_async
+    def complete_ai_summary_job(self, data):
+        from insights.services import complete_ai_summary_job
+        complete_ai_summary_job(data.get('job_id'), data)
+
+    @database_sync_to_async
+    def fail_ai_summary_job(self, data):
+        from insights.services import fail_ai_job
+        fail_ai_job(data.get('job_id'), data.get('error') or data.get('error_message'))
 
     @database_sync_to_async
     def store_ai_query_result(self, task_id, success, result, error):

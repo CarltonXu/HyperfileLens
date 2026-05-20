@@ -3,19 +3,82 @@ HyperFileLens Backend - AI Query Views
 """
 
 import requests
+from datetime import timedelta
 from django.conf import settings
+from django.db.models import Count, Q, Sum
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
-from .models import AIQuery
-from .serializers import AIQuerySerializer, AIQueryCreateSerializer
+from .models import AIProvider, AIQuery
+from .serializers import AIProviderSerializer, AIQuerySerializer, AIQueryCreateSerializer
 from .tasks import execute_ai_query
 
 
 # Gateway service URL (can be configured in settings)
 GATEWAY_URL = getattr(settings, 'GATEWAY_URL', 'http://localhost:8001')
+
+
+def _format_bytes(value):
+    size = float(value or 0)
+    units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    index = 0
+    while size >= 1024 and index < len(units) - 1:
+        size /= 1024
+        index += 1
+    return f"{size:.0f} {units[index]}" if index == 0 else f"{size:.1f} {units[index]}"
+
+
+def _tenant_snapshot_filter(user):
+    from backup_tasks.models import BackupSnapshot
+
+    queryset = BackupSnapshot.objects.select_related('task', 'repository', 'task__tenant')
+    if user.is_superuser:
+        return queryset
+    if user.tenant:
+        return queryset.filter(task__tenant=user.tenant)
+    return queryset.filter(task__user=user)
+
+
+def _indexed_files_queryset(request):
+    from insights.models import SnapshotFileIndex
+
+    snapshot_ids = _tenant_snapshot_filter(request.user).values_list('id', flat=True)
+    queryset = SnapshotFileIndex.objects.select_related('snapshot', 'snapshot__task', 'snapshot__repository').filter(
+        snapshot_id__in=snapshot_ids,
+        is_directory=False,
+    )
+    repository_id = request.query_params.get('repository_id')
+    if repository_id:
+        queryset = queryset.filter(snapshot__repository_id=repository_id)
+    snapshot_id = request.query_params.get('snapshot_id')
+    if snapshot_id:
+        queryset = queryset.filter(snapshot_id=snapshot_id)
+    task_id = request.query_params.get('task_id')
+    if task_id:
+        queryset = queryset.filter(snapshot__task_id=task_id)
+    return queryset
+
+
+def _insights_queryset(request):
+    from insights.models import SnapshotInsight
+
+    snapshot_ids = _tenant_snapshot_filter(request.user).values_list('id', flat=True)
+    queryset = SnapshotInsight.objects.select_related('snapshot', 'snapshot__task', 'snapshot__repository').filter(
+        snapshot_id__in=snapshot_ids,
+    )
+    repository_id = request.query_params.get('repository_id')
+    if repository_id:
+        queryset = queryset.filter(snapshot__repository_id=repository_id)
+    snapshot_id = request.query_params.get('snapshot_id')
+    if snapshot_id:
+        queryset = queryset.filter(snapshot_id=snapshot_id)
+    task_id = request.query_params.get('task_id')
+    if task_id:
+        queryset = queryset.filter(snapshot__task_id=task_id)
+    return queryset
 
 
 class AIQueryViewSet(viewsets.ModelViewSet):
@@ -88,6 +151,48 @@ class AIQueryViewSet(viewsets.ModelViewSet):
         queries = self.get_queryset()[:20]
         serializer = AIQuerySerializer(queries, many=True)
         return Response(serializer.data)
+
+
+class AIProviderViewSet(viewsets.ModelViewSet):
+    """ViewSet for platform-side AI provider configuration."""
+
+    serializer_class = AIProviderSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = AIProvider.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = AIProvider.objects.all()
+        if user.is_superuser:
+            return queryset
+        if user.tenant:
+            return queryset.filter(tenant=user.tenant)
+        return queryset.filter(created_by=user, tenant__isnull=True)
+
+    def perform_create(self, serializer):
+        provider = serializer.save(
+            tenant=getattr(self.request.user, 'tenant', None),
+            created_by=self.request.user,
+        )
+        if not AIProvider.objects.filter(tenant=provider.tenant, is_default=True).exclude(id=provider.id).exists():
+            provider.is_default = True
+            provider.save(update_fields=['is_default', 'updated_at'])
+
+    @action(detail=True, methods=['post'], url_path='set-default')
+    def set_default(self, request, pk=None):
+        provider = self.get_object()
+        provider.is_default = True
+        provider.save(update_fields=['is_default', 'updated_at'])
+        return Response(AIProviderSerializer(provider).data)
+
+    @action(detail=False, methods=['get'], url_path='default')
+    def default(self, request):
+        provider = self.get_queryset().filter(is_default=True).first()
+        if not provider:
+            provider = self.get_queryset().first()
+        if not provider:
+            return Response({'detail': 'No AI provider configured'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(AIProviderSerializer(provider).data)
 
 
 # ============== Gateway Proxy Views ==============
@@ -188,40 +293,74 @@ def insights_overview(request):
     AI Insights Overview - 洞察看板
     Returns comprehensive statistics about the backup data.
     """
-    from django.utils import timezone
-    from datetime import datetime
-    
-    # Try to get real data from Gateway
-    try:
-        response = requests.get(f'{GATEWAY_URL}/insights/overview', timeout=10)
-        if response.status_code == 200:
-            return Response(response.json())
-    except:
-        pass
-    
-    # Fallback: Return demo data
+    files = _indexed_files_queryset(request)
+    total_files = files.count()
+    total_size_bytes = files.aggregate(total=Sum('size'))['total'] or 0
+    category_rows = list(
+        files.values('category')
+        .annotate(count=Count('id'), size=Sum('size'))
+        .order_by('-size')
+    )
+    category_names = {
+        'document': ('Documents', '文档'),
+        'image': ('Images', '图片'),
+        'video': ('Videos', '视频'),
+        'audio': ('Audio', '音频'),
+        'archive': ('Archives', '压缩包'),
+        'code': ('Code', '代码'),
+        'database': ('Databases', '数据库'),
+        'other': ('Others', '其他'),
+    }
+    file_categories = []
+    for row in category_rows:
+        name, name_zh = category_names.get(row['category'], (row['category'].title(), row['category']))
+        size = row['size'] or 0
+        file_categories.append({
+            'name': name,
+            'name_zh': name_zh,
+            'percentage': round((size / total_size_bytes) * 100, 1) if total_size_bytes else 0,
+            'size': _format_bytes(size),
+            'size_bytes': size,
+            'count': row['count'],
+        })
+
+    insights = _insights_queryset(request)
+    duplicate_groups = 0
+    duplicate_size = 0
+    for insight in insights.filter(insight_type='duplicates'):
+        for group in (insight.evidence or {}).get('groups', []):
+            duplicate_groups += 1
+            duplicate_size += int(group.get('size') or 0) * max(int(group.get('count') or 0) - 1, 0)
+    cold_size = 0
+    cold_count = 0
+    for insight in insights.filter(insight_type='cold_data'):
+        evidence = insight.evidence or {}
+        cold_size += int(evidence.get('size') or 0)
+        cold_count += int(evidence.get('count') or 0)
+    growth = insights.filter(insight_type='growth').order_by('-updated_at').first()
+    growth_evidence = growth.evidence if growth else {}
+
     return Response({
-        'total_files': 125847,
-        'total_size': '52.3 TB',
-        'total_size_bytes': 57565000000000,
+        'total_files': total_files,
+        'total_size': _format_bytes(total_size_bytes),
+        'total_size_bytes': total_size_bytes,
         'last_sync': timezone.now().isoformat(),
-        'file_categories': [
-            {'name': 'Documents', 'name_zh': '文档', 'percentage': 45, 'size': '23TB', 'count': 56234},
-            {'name': 'Images', 'name_zh': '镜像', 'percentage': 20, 'size': '10TB', 'count': 25169},
-            {'name': 'Archives', 'name_zh': '压缩包', 'percentage': 15, 'size': '8TB', 'count': 18877},
-            {'name': 'Videos', 'name_zh': '视频', 'percentage': 12, 'size': '6TB', 'count': 15101},
-            {'name': 'Others', 'name_zh': '其他', 'percentage': 8, 'size': '4TB', 'count': 10066}
-        ],
+        'file_categories': file_categories,
         'risk_summary': {
-            'sensitive_files': 12,
+            'sensitive_files': 0,
             'ransomware_risk': 'safe',
-            'permission_issues': 32
+            'permission_issues': 0
         },
         'optimization_suggestions': {
-            'duplicate_files': {'size': '1.2 TB', 'count': 3420},
-            'cold_data': {'size': '4.5 TB', 'count': 8934},
-            'fastest_growing': {'path': '/var/log', 'growth_rate': '200%', 'period': 'weekly'}
-        }
+            'duplicate_files': {'size': _format_bytes(duplicate_size), 'size_bytes': duplicate_size, 'count': duplicate_groups},
+            'cold_data': {'size': _format_bytes(cold_size), 'size_bytes': cold_size, 'count': cold_count},
+            'fastest_growing': {
+                'path': growth_evidence.get('previous_snapshot_id') or '-',
+                'growth_rate': growth_evidence.get('size_delta', 0),
+                'period': 'snapshot'
+            }
+        },
+        'indexed_snapshots': _tenant_snapshot_filter(request.user).filter(index_jobs__status='completed').distinct().count(),
     })
 
 
@@ -232,51 +371,12 @@ def sensitive_data_scan(request):
     Sensitive Data Scanner - 敏感数据扫描
     Scans for PII, sensitive information, compliance issues.
     """
-    try:
-        response = requests.get(f'{GATEWAY_URL}/insights/sensitive', timeout=30)
-        if response.status_code == 200:
-            return Response(response.json())
-    except:
-        pass
-    
     return Response({
         'scan_status': 'completed',
-        'last_scan': '2026-05-05T10:30:00Z',
-        'findings': [
-            {
-                'type': 'id_card',
-                'type_zh': '身份证号',
-                'count': 156,
-                'files': [
-                    {'path': '/docs/contracts/2024/employee_records.xlsx', 'matches': 45},
-                    {'path': '/docs/hr/employee_info.csv', 'matches': 111}
-                ],
-                'severity': 'high',
-                'recommendation': '建议加密存储或移除敏感信息'
-            },
-            {
-                'type': 'phone_number',
-                'type_zh': '手机号码',
-                'count': 234,
-                'files': [
-                    {'path': '/docs/contacts/customer_list.xlsx', 'matches': 234}
-                ],
-                'severity': 'medium',
-                'recommendation': '考虑脱敏处理'
-            },
-            {
-                'type': 'bank_account',
-                'type_zh': '银行账号',
-                'count': 23,
-                'files': [
-                    {'path': '/docs/finance/payment_records.xlsx', 'matches': 23}
-                ],
-                'severity': 'high',
-                'recommendation': '强烈建议加密存储'
-            }
-        ],
+        'last_scan': timezone.now().isoformat(),
+        'findings': [],
         'compliance_status': {
-            'gdpr': {'status': 'warning', 'issues': 12},
+            'gdpr': {'status': 'not_scanned', 'issues': 0},
             'pci_dss': {'status': 'pass', 'issues': 0},
             'hipaa': {'status': 'not_applicable', 'issues': 0}
         }
@@ -290,54 +390,41 @@ def content_profile(request):
     Content Profiling - 内容分类画像
     Auto-categorization and tagging of files.
     """
-    try:
-        response = requests.get(f'{GATEWAY_URL}/insights/profile', timeout=30)
-        if response.status_code == 200:
-            return Response(response.json())
-    except:
-        pass
-    
+    files = _indexed_files_queryset(request)
+    labels = {
+        'document': ('Documents', '文档'),
+        'image': ('Images', '图片'),
+        'video': ('Videos', '视频'),
+        'audio': ('Audio', '音频'),
+        'archive': ('Archives', '压缩包'),
+        'code': ('Code', '代码'),
+        'database': ('Databases', '数据库'),
+        'other': ('Others', '其他'),
+    }
+    categories = []
+    for row in files.values('category').annotate(count=Count('id'), size=Sum('size')).order_by('-size'):
+        examples = list(
+            files.filter(category=row['category'])
+            .order_by('-size')
+            .values_list('name', flat=True)[:2]
+        )
+        name, name_zh = labels.get(row['category'], (row['category'].title(), row['category']))
+        categories.append({
+            'name': name,
+            'name_zh': name_zh,
+            'count': row['count'],
+            'size': _format_bytes(row['size'] or 0),
+            'size_bytes': row['size'] or 0,
+            'tags': [row['category']],
+            'examples': examples,
+        })
+    auto_tags = [
+        {'tag': row['extension'] or 'no-extension', 'tag_zh': row['extension'] or '无扩展名', 'count': row['count']}
+        for row in files.values('extension').annotate(count=Count('id')).order_by('-count')[:20]
+    ]
     return Response({
-        'categories': [
-            {
-                'name': 'Contracts',
-                'name_zh': '合同文档',
-                'count': 1245,
-                'size': '2.3 GB',
-                'tags': ['legal', 'signed', 'important'],
-                'examples': ['contract_2024.pdf', 'agreement_final.docx']
-            },
-            {
-                'name': 'Financial',
-                'name_zh': '财务报表',
-                'count': 856,
-                'size': '1.8 GB',
-                'tags': ['finance', 'confidential'],
-                'examples': ['Q4_report.xlsx', 'budget_2024.xlsx']
-            },
-            {
-                'name': 'Technical',
-                'name_zh': '技术文档',
-                'count': 2341,
-                'size': '4.5 GB',
-                'tags': ['technical', 'documentation'],
-                'examples': ['api_docs.pdf', 'architecture.png']
-            },
-            {
-                'name': 'HR',
-                'name_zh': '人力资源',
-                'count': 432,
-                'size': '890 MB',
-                'tags': ['hr', 'confidential', 'pii'],
-                'examples': ['employee_records.xlsx', 'policies.pdf']
-            }
-        ],
-        'auto_tags': [
-            {'tag': 'confidential', 'tag_zh': '机密', 'count': 2345},
-            {'tag': 'public', 'tag_zh': '公开', 'count': 12456},
-            {'tag': 'internal', 'tag_zh': '内部', 'count': 8765},
-            {'tag': 'archived', 'tag_zh': '已归档', 'count': 3456}
-        ]
+        'categories': categories,
+        'auto_tags': auto_tags,
     })
 
 
@@ -349,31 +436,47 @@ def data_heatmap(request):
     Identifies hot/warm/cold data based on access patterns.
     """
     days = int(request.query_params.get('days', 90))
-    
-    try:
-        response = requests.get(f'{GATEWAY_URL}/insights/heatmap', params={'days': days}, timeout=30)
-        if response.status_code == 200:
-            return Response(response.json())
-    except:
-        pass
-    
+    files = _indexed_files_queryset(request)
+    now = timezone.now()
+    hot_cutoff = now - timedelta(days=30)
+    warm_cutoff = now - timedelta(days=days)
+    hot = files.filter(modified_time__gte=hot_cutoff)
+    warm = files.filter(modified_time__lt=hot_cutoff, modified_time__gte=warm_cutoff)
+    cold = files.filter(Q(modified_time__lt=warm_cutoff) | Q(modified_time__isnull=True))
+    total_size = files.aggregate(total=Sum('size'))['total'] or 0
+
+    def heat_row(queryset, category, category_zh, description):
+        size = queryset.aggregate(total=Sum('size'))['total'] or 0
+        return {
+            'category': category,
+            'category_zh': category_zh,
+            'description': description,
+            'size': _format_bytes(size),
+            'size_bytes': size,
+            'percentage': round((size / total_size) * 100, 1) if total_size else 0,
+            'file_count': queryset.count(),
+        }
+
+    cold_size = cold.aggregate(total=Sum('size'))['total'] or 0
+    cold_count = cold.count()
     return Response({
         'period_days': days,
         'heatmap': [
-            {'category': 'hot', 'category_zh': '热数据', 'description': f'{days}天内频繁访问', 'size': '12TB', 'percentage': 23, 'file_count': 28934},
-            {'category': 'warm', 'category_zh': '温数据', 'description': f'{days}天内偶尔访问', 'size': '18TB', 'percentage': 35, 'file_count': 44127},
-            {'category': 'cold', 'category_zh': '冷数据', 'description': f'{days}天内未访问', 'size': '22TB', 'percentage': 42, 'file_count': 52786}
+            heat_row(hot, 'hot', '热数据', 'Modified in the last 30 days'),
+            heat_row(warm, 'warm', '温数据', f'Modified in the last {days} days'),
+            heat_row(cold, 'cold', '冷数据', f'Not modified for more than {days} days or missing mtime'),
         ],
         'zombie_data': {
-            'description': '超过180天未访问的数据',
-            'size': '4.5TB',
-            'file_count': 8934,
-            'potential_savings': '建议归档到低成本存储，可节省约 ¥2,500/月'
+            'description': f'超过{days}天未修改的数据',
+            'size': _format_bytes(cold_size),
+            'size_bytes': cold_size,
+            'file_count': cold_count,
+            'potential_savings': '建议评估是否归档到低成本存储'
         },
         'trend': {
-            'hot_growth': '+15%',
-            'cold_growth': '+8%',
-            'recommendation': '热数据增长较快，建议增加高性能存储容量'
+            'hot_growth': None,
+            'cold_growth': None,
+            'recommendation': '基于已索引快照的修改时间统计'
         }
     })
 
@@ -385,35 +488,74 @@ def redundancy_analysis(request):
     Redundancy Analysis - 冗余内容识别
     Identifies duplicate and similar files.
     """
-    try:
-        response = requests.get(f'{GATEWAY_URL}/insights/redundancy', timeout=60)
-        if response.status_code == 200:
-            return Response(response.json())
-    except:
-        pass
-    
+    duplicate_groups = []
+    total_duplicates = 0
+    duplicate_size = 0
+    for insight in _insights_queryset(request).filter(insight_type='duplicates').order_by('-updated_at'):
+        for group in (insight.evidence or {}).get('groups', []):
+            paths = group.get('paths') or []
+            count = int(group.get('count') or len(paths))
+            size = int(group.get('size') or 0)
+            total_duplicates += max(count - 1, 0)
+            duplicate_size += size * max(count - 1, 0)
+            duplicate_groups.append({
+                'file_name': paths[0].rsplit('/', 1)[-1] if paths else 'duplicate candidate',
+                'count': count,
+                'size': _format_bytes(size),
+                'size_bytes': size,
+                'locations': paths,
+            })
+    duplicate_groups = sorted(
+        duplicate_groups,
+        key=lambda item: item.get('size_bytes', 0) * item.get('count', 0),
+        reverse=True,
+    )[:100]
     return Response({
-        'total_duplicates': 3420,
-        'duplicate_size': '1.2 TB',
-        'potential_savings': '¥800/月',
-        'duplicate_groups': [
-            {
-                'file_name': 'report_2024.xlsx',
-                'count': 15,
-                'size': '450 MB',
-                'locations': ['/docs/reports/', '/backup/old/', '/shared/finance/']
-            },
-            {
-                'file_name': 'contract_template.docx',
-                'count': 8,
-                'size': '12 MB',
-                'locations': ['/templates/', '/docs/contracts/', '/backup/templates/']
-            }
-        ],
+        'total_duplicates': total_duplicates,
+        'duplicate_size': _format_bytes(duplicate_size),
+        'duplicate_size_bytes': duplicate_size,
+        'potential_savings': _format_bytes(duplicate_size),
+        'duplicate_groups': duplicate_groups,
         'similar_files': {
-            'count': 567,
-            'potential_savings': '340 MB',
-            'description': '内容相似度超过90%的文件'
+            'count': 0,
+            'potential_savings': '0 B',
+            'description': '内容相似识别将在内容抽取和向量索引阶段启用'
         },
-        'recommendation': '发现3,420个重复文件，占用1.2TB空间。建议使用去重工具清理。'
+        'recommendation': '当前重复候选基于文件名和大小识别，后续可升级为哈希级去重。'
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def smart_search(request):
+    """Global indexed file search backed by SnapshotFileIndex."""
+    query = (request.query_params.get('query') or request.query_params.get('q') or '').strip()
+    if not query:
+        return Response({'results': [], 'count': 0, 'query': query})
+    limit = min(int(request.query_params.get('limit', 100)), 500)
+    files = _indexed_files_queryset(request).filter(
+        Q(path__icontains=query) |
+        Q(name__icontains=query) |
+        Q(extension__icontains=query) |
+        Q(category__icontains=query)
+    ).order_by('-size')[:limit]
+    results = [
+        {
+            'id': str(item.id),
+            'path': item.path,
+            'name': item.name,
+            'size': item.size,
+            'category': item.category,
+            'extension': item.extension,
+            'modified_time': item.modified_time.isoformat() if item.modified_time else None,
+            'snapshot_id': str(item.snapshot_id),
+            'snapshot_name': item.snapshot.name,
+            'backup_task_id': str(item.snapshot.task_id),
+            'backup_task_name': item.snapshot.task.name if item.snapshot.task_id else '',
+            'repository_id': str(item.snapshot.repository_id) if item.snapshot.repository_id else '',
+            'repository_name': item.snapshot.repository.name if item.snapshot.repository_id else '',
+            'relevance': 'metadata',
+        }
+        for item in files
+    ]
+    return Response({'results': results, 'count': len(results), 'query': query, 'mode': 'indexed_metadata'})
