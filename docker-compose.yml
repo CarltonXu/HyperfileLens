@@ -52,6 +52,23 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5001,http://localhost:8000}
       CORS_ALLOW_ALL_ORIGINS: ${CORS_ALLOW_ALL_ORIGINS:-false}
       DJANGO_TIME_ZONE: ${DJANGO_TIME_ZONE:-UTC}
+      STATIC_ROOT: ${STATIC_ROOT:-/app/staticfiles}
+      MEDIA_ROOT: ${MEDIA_ROOT:-/app/media}
+      LOG_FILE: ${LOG_FILE:-/app/logs/app.log}
+      SESSION_COOKIE_AGE: ${SESSION_COOKIE_AGE:-86400}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SESSION_COOKIE_HTTPONLY: ${SESSION_COOKIE_HTTPONLY:-true}
+      CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-false}
+      CSRF_COOKIE_HTTPONLY: ${CSRF_COOKIE_HTTPONLY:-false}
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-false}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-localhost}
+      EMAIL_PORT: ${EMAIL_PORT:-25}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-false}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-false}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-HyperFileLens <noreply@localhost>}
     volumes:
       - backend_static:/app/staticfiles
       - backend_media:/app/media
@@ -82,6 +99,16 @@ services:
       DEBUG: ${DEBUG:-false}
       DJANGO_SETTINGS_MODULE: core.settings
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,control}
+      MEDIA_ROOT: ${MEDIA_ROOT:-/app/media}
+      LOG_FILE: ${LOG_FILE:-/app/logs/app.log}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-localhost}
+      EMAIL_PORT: ${EMAIL_PORT:-25}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-false}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-false}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-HyperFileLens <noreply@localhost>}
     volumes:
       - backend_media:/app/media
       - backend_logs:/app/logs
@@ -106,6 +133,7 @@ services:
       DEBUG: ${DEBUG:-false}
       DJANGO_SETTINGS_MODULE: core.settings
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,control}
+      LOG_FILE: ${LOG_FILE:-/app/logs/app.log}
     volumes:
       - backend_logs:/app/logs
     depends_on:

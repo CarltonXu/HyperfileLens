@@ -7,7 +7,7 @@ FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBITCODE=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies
@@ -32,7 +32,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ /app/
 
 # Create logs directory
-RUN mkdir -p /app/logs
+RUN mkdir -p /app/static /app/staticfiles /app/media /app/logs
 
-# Default command
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Default command. Use ASGI in development so WebSocket Proxy/Gateway agents work.
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]

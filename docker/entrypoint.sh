@@ -91,8 +91,8 @@ main() {
     
     # Start the application
     if [ $# -eq 0 ]; then
-        # Default: run gunicorn
-        start_application gunicorn -c /app/gunicorn.conf.py core.wsgi:application
+        # Default: run ASGI so WebSocket Proxy/Gateway agents work.
+        start_application daphne -b 0.0.0.0 -p 8000 core.asgi:application
     else
         start_application "$@"
     fi

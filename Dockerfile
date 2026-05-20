@@ -1,97 +1,39 @@
-# =====================================================
-# HyperFileLens Dockerfile
-# Multi-stage build for optimized production image
-# =====================================================
+# HyperFileLens Control Plane image.
+#
+# This root Dockerfile is kept for users who build from the repository root.
+# The production compose stack uses backend/Dockerfile for the same ASGI
+# control-plane runtime and frontend/Dockerfile for the web console.
 
-# Stage 1: Base image
-FROM python:3.11-slim as base
+FROM python:3.11-slim
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBITCODE=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DJANGO_SETTINGS_MODULE=core.settings
 
-# Install system dependencies
+WORKDIR /app
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gcc \
-    gettext \
     libpq-dev \
+    netcat-openbsd \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
-# =====================================================
-# Backend stage
-# =====================================================
-FROM base as backend
-
-# Copy requirements files
-COPY backend/requirements.txt /app/
-
-# Install Python dependencies
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
-COPY backend/ /app/
-
-# Collect static files
-RUN python manage.py collectstatic --noinput || true
-
-# =====================================================
-# Frontend stage
-# =====================================================
-FROM node:20-alpine as frontend
-
-WORKDIR /app
-
-# Copy frontend files
-COPY frontend/package.json frontend/pnpm-lock.yaml* /app/
-COPY frontend/ /app/
-
-# Install dependencies
-RUN npm install -g pnpm && \
-    pnpm install --frozen-lockfile
-
-# Build frontend
-RUN pnpm run build
-
-# =====================================================
-# Production stage
-# =====================================================
-FROM base as production
-
-# Install Nginx
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    nginx \
-    supervisor \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy Nginx configuration
-COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
-
-# Copy backend from backend stage
-COPY --from=backend /app/ /app/
-COPY --from=backend /app/staticfiles/ /app/staticfiles/
-
-# Copy frontend build from frontend stage
-COPY --from=frontend /app/dist/ /app/frontend/dist/
-
-# Copy entrypoint script
+COPY backend/ .
 COPY docker/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh \
+    && mkdir -p /app/static /app/staticfiles /app/media /app/logs
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/media /run
+EXPOSE 8000
 
-# Expose ports
-EXPOSE 8000 5555
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/api/schema/ || exit 1
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health/ || exit 1
-
-# Default command
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["gunicorn", "-c", "/app/gunicorn.conf.py", "core.wsgi:application"]
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]

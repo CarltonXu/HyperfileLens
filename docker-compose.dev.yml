@@ -76,7 +76,7 @@ services:
         condition: service_healthy
     networks:
       - hyperfilelens-dev-network
-    command: python manage.py runserver 0.0.0.0:8000
+    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
 
   # =====================================================
   # Frontend Development Server (Vite)
@@ -88,7 +88,8 @@ services:
     container_name: hyperfilelens-frontend-dev
     restart: unless-stopped
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_API_BASE_URL=http://backend:8000
+      - VITE_WS_BASE_URL=ws://backend:8000
       - VITE_APP_TITLE=HyperFileLens
     volumes:
       - ./frontend:/app:rw
@@ -96,7 +97,7 @@ services:
       - "5173:5173"
     networks:
       - hyperfilelens-dev-network
-    command: pnpm run dev --host 0.0.0.0
+    command: pnpm run dev --host 0.0.0.0 --port 5173
 
   # =====================================================
   # Celery Worker (Development)
