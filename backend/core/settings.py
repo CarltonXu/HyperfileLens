@@ -25,12 +25,18 @@ DEBUG = os.environ.get('DJANGO_DEBUG', os.environ.get('DEBUG', 'True')).lower() 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
 # CSRF trusted origins - allow coze.site domain and localhost
-CSRF_TRUSTED_ORIGINS = [
-    'http://10.147.18.11:5001',
+_default_csrf_origins = [
     'http://localhost:5000',
-    'http://localhost:5005',
+    'http://localhost:5001',
     'http://localhost:8000',
-    'https://' + os.environ.get('COZE_PROJECT_DOMAIN_DEFAULT', '').replace('https://', '').replace('http://', ''),
+]
+_coze_domain = os.environ.get('COZE_PROJECT_DOMAIN_DEFAULT', '').replace('https://', '').replace('http://', '')
+if _coze_domain:
+    _default_csrf_origins.append('https://' + _coze_domain)
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf_origins)).split(',')
+    if origin.strip()
 ]
 
 # Application definition
@@ -170,7 +176,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
 
 # Media files
 MEDIA_URL = '/media/'

@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     gcc \
     libpq-dev \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -23,11 +24,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . .
 
-# Create directories for static and media files
-RUN mkdir -p /app/staticfiles /app/media
+# Create directories for static, media and logs
+RUN mkdir -p /app/static /app/staticfiles /app/media /app/logs
 
 # Expose port
 EXPOSE 8000
 
-# Run migrations and start server
-CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4"]
+# Run ASGI server so HTTP and WebSocket endpoints are both available.
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]

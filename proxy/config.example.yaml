@@ -67,7 +67,7 @@ security:
 # Storage settings
 storage:
   cache_size_mb: 1024          # Cache size in MB
-  temp_directory: "/tmp/hyperfilelens"  # Temporary directory
+  temp_directory: "/var/lib/hyperfilelens/tmp"  # Stable temporary directory
   temp_cleanup: true            # Cleanup temporary files
 
 # Logging

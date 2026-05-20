@@ -19,16 +19,16 @@ const (
 
 // Config holds the complete proxy configuration
 type Config struct {
-	Version   string   `yaml:"version"`
-	Role     Role     `yaml:"role"`
-	Server   Server   `yaml:"server"`
-	Agent    Agent    `yaml:"agent"`
-	Kopia    Kopia    `yaml:"kopia"`
-	Mount    Mount    `yaml:"mount"`
-	Logging  Logging  `yaml:"logging"`
+	Version     string      `yaml:"version"`
+	Role        Role        `yaml:"role"`
+	Server      Server      `yaml:"server"`
+	Agent       Agent       `yaml:"agent"`
+	Kopia       Kopia       `yaml:"kopia"`
+	Mount       Mount       `yaml:"mount"`
+	Logging     Logging     `yaml:"logging"`
 	Performance Performance `yaml:"performance"`
-	Security  Security  `yaml:"security"`
-	Storage   Storage   `yaml:"storage"`
+	Security    Security    `yaml:"security"`
+	Storage     Storage     `yaml:"storage"`
 
 	// Runtime state
 	NodeID   string `yaml:"-"`
@@ -37,32 +37,32 @@ type Config struct {
 
 // Server holds server connection configuration
 type Server struct {
-	URL              string        `yaml:"url"`
-	APIToken         string        `yaml:"api_token"`
-	WSProtocol       string        `yaml:"ws_protocol"`
-	ReconnectDelay   time.Duration `yaml:"reconnect_delay"`
+	URL               string        `yaml:"url"`
+	APIToken          string        `yaml:"api_token"`
+	WSProtocol        string        `yaml:"ws_protocol"`
+	ReconnectDelay    time.Duration `yaml:"reconnect_delay"`
 	HeartbeatInterval time.Duration `yaml:"heartbeat_interval"`
-	VerifySSL        bool          `yaml:"verify_ssl"`
-	Timeout          time.Duration `yaml:"timeout"`
+	VerifySSL         bool          `yaml:"verify_ssl"`
+	Timeout           time.Duration `yaml:"timeout"`
 }
 
 // Agent holds agent-specific configuration
 type Agent struct {
-	ID       string `yaml:"id"`       // Proxy ID from control plane
+	ID       string `yaml:"id"` // Proxy ID from control plane
 	Name     string `yaml:"name"`
 	Hostname string `yaml:"hostname"`
 }
 
 // Kopia holds Kopia configuration
 type Kopia struct {
-	Path        string `yaml:"path"`
-	CachePath   string `yaml:"cache_path"`
-	ConfigPath  string `yaml:"config_path"`
+	Path       string `yaml:"path"`
+	CachePath  string `yaml:"cache_path"`
+	ConfigPath string `yaml:"config_path"`
 }
 
 // Mount holds mount configuration (for Sync Proxy only)
 type Mount struct {
-	Enabled bool   `yaml:"enabled"`
+	Enabled bool     `yaml:"enabled"`
 	NFS     NFSMount `yaml:"nfs"`
 	SMB     SMBMount `yaml:"smb"`
 }
@@ -95,31 +95,31 @@ type Logging struct {
 
 // Performance holds performance configuration
 type Performance struct {
-	MaxConcurrentTasks int           `yaml:"max_concurrent_tasks"`
-	TaskTimeoutSeconds int           `yaml:"task_timeout_seconds"`
-	CompressionEnabled  bool         `yaml:"compression_enabled"`
-	CompressionLevel    int           `yaml:"compression_level"`
-	RateLimitKBPS       int64        `yaml:"rate_limit_kbps"`
-	BufferSizeMB        int          `yaml:"buffer_size_mb"`
-	ChunkSizeMB         int          `yaml:"chunk_size_mb"`
+	MaxConcurrentTasks int   `yaml:"max_concurrent_tasks"`
+	TaskTimeoutSeconds int   `yaml:"task_timeout_seconds"`
+	CompressionEnabled bool  `yaml:"compression_enabled"`
+	CompressionLevel   int   `yaml:"compression_level"`
+	RateLimitKBPS      int64 `yaml:"rate_limit_kbps"`
+	BufferSizeMB       int   `yaml:"buffer_size_mb"`
+	ChunkSizeMB        int   `yaml:"chunk_size_mb"`
 }
 
 // Security holds security configuration
 type Security struct {
-	TLSVerify            bool   `yaml:"tls_verify"`
-	TLSCertPath          string `yaml:"tls_cert_path"`
-	TLSKeyPath           string `yaml:"tls_key_path"`
-	AllowedHosts         []string `yaml:"allowed_hosts"`
-	EnableMetricsAuth    bool   `yaml:"enable_metrics_auth"`
-	MetricsPassword      string `yaml:"metrics_password"`
+	TLSVerify         bool     `yaml:"tls_verify"`
+	TLSCertPath       string   `yaml:"tls_cert_path"`
+	TLSKeyPath        string   `yaml:"tls_key_path"`
+	AllowedHosts      []string `yaml:"allowed_hosts"`
+	EnableMetricsAuth bool     `yaml:"enable_metrics_auth"`
+	MetricsPassword   string   `yaml:"metrics_password"`
 }
 
 // Storage holds storage configuration
 type Storage struct {
-	CacheSizeMB      int    `yaml:"cache_size_mb"`
-	TempDirectory     string `yaml:"temp_directory"`
-	TempCleanup       bool   `yaml:"temp_cleanup"`
-	RetentionPolicy    string `yaml:"retention_policy"` // "delete", "archive"
+	CacheSizeMB     int    `yaml:"cache_size_mb"`
+	TempDirectory   string `yaml:"temp_directory"`
+	TempCleanup     bool   `yaml:"temp_cleanup"`
+	RetentionPolicy string `yaml:"retention_policy"` // "delete", "archive"
 }
 
 // DefaultConfig returns configuration with sensible defaults
@@ -134,8 +134,8 @@ func DefaultConfig() *Config {
 			WSProtocol:        "ws",
 			ReconnectDelay:    5 * time.Second,
 			HeartbeatInterval: 10 * time.Second,
-			VerifySSL:        true,
-			Timeout:          30 * time.Second,
+			VerifySSL:         true,
+			Timeout:           30 * time.Second,
 		},
 		Agent: Agent{
 			Hostname: hostname,
@@ -158,11 +158,11 @@ func DefaultConfig() *Config {
 		Performance: Performance{
 			MaxConcurrentTasks: 5,
 			TaskTimeoutSeconds: 3600,
-			CompressionEnabled:  true,
-			CompressionLevel:    6,
-			RateLimitKBPS:       0,     // 0 = no limit
-			BufferSizeMB:        100,
-			ChunkSizeMB:         50,
+			CompressionEnabled: true,
+			CompressionLevel:   6,
+			RateLimitKBPS:      0, // 0 = no limit
+			BufferSizeMB:       100,
+			ChunkSizeMB:        50,
 		},
 		Security: Security{
 			TLSVerify:         true,
@@ -171,8 +171,8 @@ func DefaultConfig() *Config {
 		},
 		Storage: Storage{
 			CacheSizeMB:   1024,
-			TempDirectory: "/tmp/hyperfilelens",
-			TempCleanup:    true,
+			TempDirectory: "/var/lib/hyperfilelens/tmp",
+			TempCleanup:   true,
 		},
 	}
 }
@@ -180,7 +180,7 @@ func DefaultConfig() *Config {
 // Load loads configuration from file and environment
 func Load(path string) (*Config, error) {
 	cfg := DefaultConfig()
-	
+
 	// Try default locations if path not specified
 	if path == "" {
 		locations := []string{
@@ -195,19 +195,19 @@ func Load(path string) (*Config, error) {
 			}
 		}
 	}
-	
+
 	// Load from file if exists
 	if path != "" {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
-		
+
 		if err := yaml.Unmarshal(data, cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config file: %w", err)
 		}
 	}
-	
+
 	// Override with environment variables
 	cfg.applyEnvironment()
 
@@ -247,7 +247,7 @@ func (c *Config) GetWebSocketURL() string {
 	if protocol == "" {
 		protocol = "ws"
 	}
-	
+
 	// Strip protocol from URL
 	base := c.Server.URL
 	if len(base) > 7 && base[:7] == "http://" {
@@ -255,12 +255,12 @@ func (c *Config) GetWebSocketURL() string {
 	} else if len(base) > 8 && base[:8] == "https://" {
 		base = base[8:]
 	}
-	
+
 	nodeID := c.NodeID
 	if nodeID == "" {
 		nodeID = "unknown"
 	}
-	
+
 	return fmt.Sprintf("%s://%s/ws/proxy/%s/", protocol, base, nodeID)
 }
 
@@ -285,12 +285,12 @@ func (c *Config) EnsureDirectories() error {
 		filepath.Dir(c.Logging.File),
 		c.Kopia.CachePath,
 	}
-	
+
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }

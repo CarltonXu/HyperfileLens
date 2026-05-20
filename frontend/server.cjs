@@ -12,10 +12,10 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 5005;  // Hardcoded to avoid environment variable conflicts
+const PORT = Number(process.env.PORT || 5000);
 const SERVE_DIR = path.join(__dirname, 'dist');
-const API_PROXY_HOST = 'localhost';
-const API_PROXY_PORT = 8000;
+const API_PROXY_HOST = process.env.API_PROXY_HOST || 'localhost';
+const API_PROXY_PORT = Number(process.env.API_PROXY_PORT || 8000);
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',

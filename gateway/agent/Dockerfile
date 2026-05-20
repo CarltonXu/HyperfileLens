@@ -19,10 +19,10 @@ RUN curl -s https://kopia.io/signing-key | gpg --dearmor -o /usr/share/keyrings/
     && apt-get install -y --no-install-recommends kopia \
     && rm -rf /var/lib/apt/lists/*
 
-COPY agent/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY agent/client.py .
+COPY client.py .
 
 RUN mkdir -p /mnt/kopia /var/lib/hyperfilelens/repository /var/log/hyperfilelens
 
