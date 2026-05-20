@@ -76,7 +76,9 @@ services:
         condition: service_healthy
     networks:
       - hyperfilelens-dev-network
-    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
 
   # =====================================================
   # Frontend Development Server (Vite)
@@ -118,6 +120,8 @@ services:
     volumes:
       - ./backend:/app:rw
     depends_on:
+      backend:
+        condition: service_started
       db:
         condition: service_healthy
       redis:
@@ -145,6 +149,8 @@ services:
     volumes:
       - ./backend:/app:rw
     depends_on:
+      backend:
+        condition: service_started
       db:
         condition: service_healthy
       redis:

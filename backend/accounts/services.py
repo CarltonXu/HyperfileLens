@@ -14,10 +14,7 @@ import uuid
 from datetime import timedelta
 from django.utils import timezone
 from django.core.cache import cache
-from django.conf import settings
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
+from django.core.mail import EmailMessage
 
 # Try to import PIL for captcha image generation
 try:
@@ -213,14 +210,26 @@ class EmailService:
             
             plain_message = f"Your verification code is: {code}. It will expire in 5 minutes."
             
-            send_mail(
-                subject=subject,
-                message=plain_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                html_message=html_message,
-                fail_silently=False
+            from system_settings.models import SMTPConfig
+
+            smtp_config = (
+                SMTPConfig.objects.filter(is_active=True, is_default=True).first()
+                or SMTPConfig.objects.filter(is_active=True).first()
             )
+            if not smtp_config:
+                print("Failed to send email: no active SMTP configuration")
+                return False
+
+            with smtp_config.get_connection() as connection:
+                message = EmailMessage(
+                    subject=subject,
+                    body=html_message or plain_message,
+                    from_email=f'{smtp_config.from_name} <{smtp_config.from_email}>',
+                    to=[email],
+                    connection=connection,
+                )
+                message.content_subtype = 'html'
+                message.send(fail_silently=False)
             return True
         except Exception as e:
             print(f"Failed to send email: {e}")

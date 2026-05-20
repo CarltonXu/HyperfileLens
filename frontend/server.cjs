@@ -10,12 +10,15 @@
 
 const http = require('http');
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
 
 const PORT = Number(process.env.PORT || 5000);
 const SERVE_DIR = path.join(__dirname, 'dist');
 const API_PROXY_HOST = process.env.API_PROXY_HOST || 'localhost';
 const API_PROXY_PORT = Number(process.env.API_PROXY_PORT || 8000);
+const WS_PROXY_HOST = process.env.WS_PROXY_HOST || API_PROXY_HOST;
+const WS_PROXY_PORT = Number(process.env.WS_PROXY_PORT || API_PROXY_PORT);
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -179,7 +182,37 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at: http://localhost:${PORT}`);
   console.log(`Serving files from: ${SERVE_DIR}`);
   console.log(`API proxy target: http://${API_PROXY_HOST}:${API_PROXY_PORT}`);
+  console.log(`WebSocket proxy target: ws://${WS_PROXY_HOST}:${WS_PROXY_PORT}`);
   console.log('='.repeat(50));
+});
+
+server.on('upgrade', (req, socket, head) => {
+  if (!req.url.startsWith('/ws/')) {
+    socket.destroy();
+    return;
+  }
+
+  const upstream = net.connect(WS_PROXY_PORT, WS_PROXY_HOST, () => {
+    upstream.write(
+      `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n` +
+        Object.entries({
+          ...req.headers,
+          host: `${WS_PROXY_HOST}:${WS_PROXY_PORT}`,
+        })
+          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+          .join('\r\n') +
+        '\r\n\r\n'
+    );
+
+    if (head.length) {
+      upstream.write(head);
+    }
+
+    upstream.pipe(socket);
+    socket.pipe(upstream);
+  });
+
+  upstream.on('error', () => socket.destroy());
 });
 
 server.on('error', (err) => {
