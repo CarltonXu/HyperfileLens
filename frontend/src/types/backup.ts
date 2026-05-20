@@ -1,8 +1,11 @@
 export type BackupType = "full" | "incremental" | "differential";
 export type BackupStatus =
   | "pending"
+  | "queued"
+  | "dispatched"
   | "running"
   | "completed"
+  | "partial"
   | "failed"
   | "cancelled"
   | "paused";
@@ -47,11 +50,17 @@ export interface BackupTask {
   error_message?: string;
   total_files?: number;
   backed_up_files?: number;
+  processed_files?: number;
   total_size?: number;
   backed_up_size?: number;
+  total_bytes?: number;
+  processed_bytes?: number;
   skipped_files?: number;
   failed_files?: number;
   bytes_per_second?: number;
+  speed_mbps?: number;
+  eta?: string | null;
+  current_file?: string;
   bandwidth_limit_kbps?: number | null;
   enable_checkpoint?: boolean;
   checkpoint_interval_minutes?: number;

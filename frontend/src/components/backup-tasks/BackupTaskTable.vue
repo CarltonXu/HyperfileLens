@@ -12,6 +12,16 @@ import {
 import Pagination from "@/components/Pagination.vue";
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 import type { BackupTask } from "@/types/backup";
+import {
+  backupTaskEtaSeconds,
+  backupTaskProcessedBytes,
+  backupTaskProcessedFiles,
+  backupTaskProgressPercent,
+  backupTaskSpeedBytesPerSecond,
+  backupTaskTotalBytes,
+  backupTaskTotalFiles,
+  hasBackupTaskProgress,
+} from "@/features/backup-tasks/progressDisplay";
 
 type BackupTaskColumnKey =
   | "name"
@@ -19,6 +29,7 @@ type BackupTaskColumnKey =
   | "source"
   | "repository"
   | "status"
+  | "progress"
   | "last_backup"
   | "next_backup"
   | "actions";
@@ -43,6 +54,8 @@ const props = defineProps<{
   getTaskPolicySummary: (task: BackupTask) => string;
   canRunTask: (task: BackupTask) => boolean;
   formatDateTime: (value?: string | null) => string;
+  formatBytes: (bytes: number) => string;
+  formatSpeed: (bytesPerSecond?: number | null) => string;
 }>();
 
 const currentPage = defineModel<number>("currentPage", { required: true });
@@ -69,6 +82,46 @@ function startResize(key: string, event: MouseEvent) {
 
 function resetColumnWidth(key: string) {
   props.table.resetColumnWidth(key as BackupTaskColumnKey);
+}
+
+function etaText(task: BackupTask) {
+  if (task.eta) return task.eta;
+  const seconds = backupTaskEtaSeconds(task);
+  if (seconds === null) return "-";
+  if (seconds <= 0) return t("backupTasks.progress.lessThanMinute");
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.ceil(seconds / 60)}m`;
+  return `${Math.ceil(seconds / 3600)}h`;
+}
+
+function progressMeta(task: BackupTask) {
+  const processedFiles = backupTaskProcessedFiles(task);
+  const totalFiles = backupTaskTotalFiles(task);
+  const processedBytes = backupTaskProcessedBytes(task);
+  const totalBytes = backupTaskTotalBytes(task);
+  const fileText =
+    totalFiles > 0
+      ? `${processedFiles.toLocaleString()}/${totalFiles.toLocaleString()}`
+      : processedFiles > 0
+        ? processedFiles.toLocaleString()
+        : "-";
+  const sizeText =
+    totalBytes > 0
+      ? `${props.formatBytes(processedBytes)}/${props.formatBytes(totalBytes)}`
+      : processedBytes > 0
+        ? props.formatBytes(processedBytes)
+        : "-";
+
+  return `${fileText} · ${sizeText}`;
+}
+
+function progressPrimaryText(task: BackupTask) {
+  const hasFiles =
+    backupTaskTotalFiles(task) > 0 || backupTaskProcessedFiles(task) > 0;
+  const hasBytes =
+    backupTaskTotalBytes(task) > 0 || backupTaskProcessedBytes(task) > 0;
+  if (hasFiles || hasBytes) return progressMeta(task);
+  return task.status_message || t(`backupTasks.status.${task.status}`);
 }
 </script>
 
@@ -231,6 +284,44 @@ function resetColumnWidth(key: string) {
                 />
                 {{ t(`backupTasks.status.${task.status}`) }}
               </span>
+            </td>
+            <td class="px-4 py-4" :style="table.columnStyle('progress')">
+              <div v-if="hasBackupTaskProgress(task)" class="min-w-0">
+                <div class="mb-1.5 flex items-center justify-between gap-3">
+                  <span class="truncate text-xs text-foreground-secondary">
+                    {{ progressPrimaryText(task) }}
+                  </span>
+                  <span class="text-xs font-semibold text-foreground">
+                    {{ backupTaskProgressPercent(task) }}%
+                  </span>
+                </div>
+                <div
+                  class="h-1.5 overflow-hidden rounded-full bg-background-tertiary"
+                >
+                  <div
+                    :class="[
+                      'h-full rounded-full transition-all',
+                      task.status === 'failed'
+                        ? 'bg-red-500'
+                        : task.status === 'completed'
+                          ? 'bg-emerald-500'
+                          : 'bg-indigo-500',
+                    ]"
+                    :style="{ width: `${backupTaskProgressPercent(task)}%` }"
+                  />
+                </div>
+                <div
+                  class="mt-1.5 flex items-center justify-between gap-2 text-xs text-foreground-muted"
+                >
+                  <span class="truncate">
+                    {{ formatSpeed(backupTaskSpeedBytesPerSecond(task)) }}
+                  </span>
+                  <span class="truncate">
+                    {{ etaText(task) }}
+                  </span>
+                </div>
+              </div>
+              <span v-else class="text-sm text-foreground-muted">-</span>
             </td>
             <td
               class="px-4 py-4 text-sm text-foreground-secondary"

@@ -40,6 +40,12 @@ import {
   snapshotDisplaySize,
   snapshotDisplayTime,
 } from "@/features/backup-tasks/snapshotDisplay";
+import {
+  backupTaskProcessedBytes,
+  backupTaskProcessedFiles,
+  backupTaskProgressPercent,
+  backupTaskSpeedBytesPerSecond,
+} from "@/features/backup-tasks/progressDisplay";
 import { useSnapshotFileBrowser } from "@/features/backup-tasks/useSnapshotFileBrowser";
 import {
   PlusIcon,
@@ -284,6 +290,7 @@ type BackupTaskColumnKey =
   | "source"
   | "repository"
   | "status"
+  | "progress"
   | "last_backup"
   | "next_backup"
   | "actions";
@@ -309,6 +316,12 @@ const backupTaskColumns = computed(() => [
     max: 360,
   },
   { key: "status" as const, label: t("common.status"), min: 140, max: 220 },
+  {
+    key: "progress" as const,
+    label: t("backupTasks.progress.title"),
+    min: 240,
+    max: 380,
+  },
   {
     key: "last_backup" as const,
     label: t("backupTasks.lastBackup"),
@@ -339,13 +352,14 @@ const backupTaskTable = useResizableSortableTable<
   columns: backupTaskColumns,
   rows: filteredTasks,
   defaultSort: { key: "name", direction: "asc" },
-  minTableWidth: 1440,
+  minTableWidth: 1620,
   getSortValue: (task, key) => {
     if (key === "name") return task.name;
     if (key === "policy") return task.schedule_name || "";
     if (key === "source") return task.source_resource_name || "";
     if (key === "repository") return task.target_repository_name || "";
     if (key === "status") return task.status || "";
+    if (key === "progress") return backupTaskProgressPercent(task);
     if (key === "last_backup")
       return task.last_run_time ? new Date(task.last_run_time).getTime() : 0;
     if (key === "next_backup")
@@ -361,6 +375,8 @@ const backupTaskTable = useResizableSortableTable<
     if (key === "repository")
       return `${task.target_repository_name || ""} ${task.target_repository_type || ""}`;
     if (key === "status") return task.status || "";
+    if (key === "progress")
+      return `${backupTaskProgressPercent(task)} ${backupTaskProcessedFiles(task)} ${backupTaskProcessedBytes(task)} ${backupTaskSpeedBytesPerSecond(task)}`;
     if (key === "last_backup") return formatDateTime(task.last_run_time);
     if (key === "next_backup") return formatDateTime(task.next_run_time);
     return "";
@@ -1496,7 +1512,6 @@ function runDuration(run: any) {
   return start && end ? formatDurationSeconds((end - start) / 1000) : "-";
 }
 
-
 onMounted(() => {
   fetchTasks();
   fetchStats();
@@ -1548,6 +1563,8 @@ onMounted(() => {
       :get-task-policy-summary="getTaskPolicySummary"
       :can-run-task="canRunTask"
       :format-date-time="formatDateTime"
+      :format-bytes="formatBytes"
+      :format-speed="formatSpeed"
       @execute="executeTask"
       @toggle-enabled="toggleTaskEnabled"
       @cancel="cancelTask"

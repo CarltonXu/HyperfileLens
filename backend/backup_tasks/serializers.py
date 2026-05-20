@@ -157,6 +157,7 @@ class BackupTaskListSerializer(serializers.ModelSerializer):
     schedule_name = serializers.CharField(source='schedule.name', read_only=True)
     execution_node_name = serializers.SerializerMethodField()
     duration_formatted = serializers.CharField(read_only=True)
+    progress_percent = serializers.IntegerField(source='progress', read_only=True)
     snapshot_count = serializers.SerializerMethodField()
     
     class Meta:
@@ -168,14 +169,17 @@ class BackupTaskListSerializer(serializers.ModelSerializer):
             'target_repository', 'target_repository_name',
             'target_repository_type',
             'execution_node_name',
-            'task_type', 'priority', 'status', 'progress', 'is_enabled',
+            'task_type', 'priority', 'status', 'status_message',
+            'progress', 'progress_percent', 'error_message', 'is_enabled',
             'last_run_status',
             'execution_mode', 'preferred_execution_node',
             'schedule', 'schedule_name', 'policy_overrides', 'effective_policy',
             'next_run_time', 'last_run_time',
             'created_at', 'started_at', 'completed_at',
             'duration_formatted',
-            'total_files', 'total_size', 'snapshot_count',
+            'total_files', 'backed_up_files', 'total_size', 'backed_up_size',
+            'skipped_files', 'failed_files', 'bytes_per_second',
+            'snapshot_count',
             'enable_checkpoint', 'checkpoint_interval_minutes',
             'max_retries', 'retry_count', 'estimated_completion_at'
         ]

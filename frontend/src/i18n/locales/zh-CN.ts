@@ -1194,11 +1194,15 @@ export default {
     },
 
     progress: {
+      title: "进度",
       files: "文件",
+      data: "数据",
       size: "大小",
       progress: "进度",
       speed: "速度",
       eta: "预计剩余时间",
+      calculating: "计算中",
+      lessThanMinute: "< 1m",
       errors: "错误",
       warnings: "警告",
     },
@@ -2065,7 +2069,8 @@ export default {
 
     provider: {
       title: "AI Provider",
-      description: "平台侧统一配置模型服务，Gateway 只在执行 AI 任务时接收本次 Provider 配置。",
+      description:
+        "平台侧统一配置模型服务，Gateway 只在执行 AI 任务时接收本次 Provider 配置。",
       notConfigured: "未配置",
       name: "名称",
       type: "类型",
@@ -3033,7 +3038,8 @@ export default {
     cleanSelected: "清理 {count} 项",
     selectPage: "选择本页",
     clearSelection: "清空选择",
-    deleteConfirm: "确认删除选中的 {count} 个导出任务？已生成的压缩包也会被移除。",
+    deleteConfirm:
+      "确认删除选中的 {count} 个导出任务？已生成的压缩包也会被移除。",
     shareSettings: "分享设置",
     sourcePath: "源路径",
     snapshotTime: "快照时间",

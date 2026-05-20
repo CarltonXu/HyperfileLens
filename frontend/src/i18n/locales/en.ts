@@ -1229,11 +1229,15 @@ export default {
     },
 
     progress: {
+      title: "Progress",
       files: "Files",
+      data: "Data",
       size: "Size",
       progress: "Progress",
       speed: "Speed",
       eta: "ETA",
+      calculating: "Calculating",
+      lessThanMinute: "< 1m",
       errors: "Errors",
       warnings: "Warnings",
     },
@@ -1539,7 +1543,8 @@ export default {
       description:
         "Each restore execution is recorded separately for troubleshooting and audit.",
       emptyTitle: "No recovery runs yet",
-      emptyDescription: "Run this recovery task to create the first execution record.",
+      emptyDescription:
+        "Run this recovery task to create the first execution record.",
     },
 
     messages: {
@@ -2168,7 +2173,8 @@ export default {
 
     provider: {
       title: "AI Provider",
-      description: "Platform-side model configuration. Gateway receives this provider only when executing AI tasks.",
+      description:
+        "Platform-side model configuration. Gateway receives this provider only when executing AI tasks.",
       notConfigured: "Not configured",
       name: "Name",
       type: "Type",
@@ -3127,7 +3133,8 @@ export default {
   },
 
   recoveryExports: {
-    subtitle: "Export selected files or folders from backup snapshots and download them as packages.",
+    subtitle:
+      "Export selected files or folders from backup snapshots and download them as packages.",
     searchPlaceholder: "Search exports, snapshots, repositories",
     export: "Export",
     snapshot: "Snapshot",
@@ -3142,7 +3149,8 @@ export default {
     selectedItems: "{count} selected",
     expires: "expires",
     noExportsTitle: "No recovery exports yet",
-    noExportsDesc: "Select files or folders in a snapshot file browser to create a downloadable export.",
+    noExportsDesc:
+      "Select files or folders in a snapshot file browser to create a downloadable export.",
     created: "Recovery export has been created.",
     createFailed: "Failed to create recovery export",
     cancelled: "Export cancelled",
@@ -3157,7 +3165,8 @@ export default {
     cleanSelected: "Clean {count}",
     selectPage: "Select page",
     clearSelection: "Clear selection",
-    deleteConfirm: "Delete {count} selected export(s)? Generated packages will be removed.",
+    deleteConfirm:
+      "Delete {count} selected export(s)? Generated packages will be removed.",
     shareSettings: "Share settings",
     sourcePath: "Source path",
     snapshotTime: "Snapshot time",
@@ -3174,11 +3183,13 @@ export default {
     shareCopyFailed: "Failed to copy share link",
     copyShareLink: "Copy share link",
     passwordRequired: "This share link requires a password.",
-    passwordRequiredForCopy: "Enter the share password before copying this link.",
+    passwordRequiredForCopy:
+      "Enter the share password before copying this link.",
     passwordRequiredForShare: "Share password is required.",
     copyInstruction: "Copy this link into a browser to access",
     accessPassword: "Access password",
-    copyWillIncludePassword: "Copied content will include the link and access password.",
+    copyWillIncludePassword:
+      "Copied content will include the link and access password.",
     statuses: {
       all: "All statuses",
       pending: "Pending",
@@ -3215,7 +3226,8 @@ export default {
     repository: "Repository",
     downloads: "Downloads",
     downloadTitle: "Download export",
-    downloadDescription: "Enter the access password from the share message to download this package.",
+    downloadDescription:
+      "Enter the access password from the share message to download this package.",
     password: "Access password",
     passwordPlaceholder: "Enter access password",
     showPassword: "Show password",
@@ -3258,7 +3270,8 @@ export default {
     aiSummaryStarted: "Gateway AI summary task has been dispatched.",
     aiSummaryFailed: "Failed to start AI summary",
     latestAiJob: "Latest AI job",
-    noAiSummary: "No AI summary yet. Generate one after the snapshot has been indexed and analyzed.",
+    noAiSummary:
+      "No AI summary yet. Generate one after the snapshot has been indexed and analyzed.",
     recommendedActions: "Recommended actions",
     relatedPaths: "Related paths",
   },
