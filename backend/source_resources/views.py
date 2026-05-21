@@ -372,6 +372,8 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
 
     def _run_storage_test(self, node, resource_type, config, credentials, resource_id=None):
         storage_type, storage_config = self._storage_config(resource_type, config, credentials)
+        if resource_id:
+            storage_config['source_resource_id'] = resource_id
         logger.info(
             "[SourceResource Test] Dispatching storage test to proxy: "
             "resource_id=%s, proxy_id=%s, proxy_name=%s, resource_type=%s, storage_type=%s",

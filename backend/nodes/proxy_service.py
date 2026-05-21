@@ -194,6 +194,7 @@ class ProxyService:
         # Add storage-specific configuration to payload
         if storage_type in ('nas', 'nfs'):
             message['payload'].update({
+                'source_resource_id': storage_config.get('source_resource_id', ''),
                 'server': storage_config.get('server', ''),
                 'path': storage_config.get('path', ''),
                 'mount_type': storage_config.get('mount_type', 'nfs'),
@@ -204,6 +205,7 @@ class ProxyService:
             })
         elif storage_type == 'smb':
             message['payload'].update({
+                'source_resource_id': storage_config.get('source_resource_id', ''),
                 'server': storage_config.get('server', ''),
                 'share': storage_config.get('share', ''),
                 'username': storage_config.get('username', ''),

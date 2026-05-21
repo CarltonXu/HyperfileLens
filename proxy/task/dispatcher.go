@@ -345,7 +345,7 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 			}
 		}
 		if tempSourceMountPath != "" {
-			if err := os.RemoveAll(tempSourceMountPath); err != nil {
+			if err := safeRemoveMountPointDir(tempSourceMountPath); err != nil {
 				logger.Warn("Failed to remove temporary source mount path", map[string]interface{}{
 					"mount_path": tempSourceMountPath,
 					"error":      err.Error(),
@@ -502,7 +502,12 @@ func (d *Dispatcher) prepareBackupSource(taskID, sourcePath string, sourceConfig
 				return resolveMountedSourcePath(sourcePath, mountPath, remotePath, getString(sourceConfig, "mount_point", "")), "", "", nil
 			}
 			if removeAfterUse {
-				os.RemoveAll(mountPath)
+				if removeErr := safeRemoveMountPointDir(mountPath); removeErr != nil {
+					logger.Warn("Failed to remove unmounted source path after mount failure", map[string]interface{}{
+						"mount_path": mountPath,
+						"error":      removeErr.Error(),
+					})
+				}
 			}
 			return "", "", "", fmt.Errorf("failed to mount network source: %w", err)
 		}
@@ -660,6 +665,37 @@ func safeSourceIDPrefix(sourceID string) string {
 		return token[:8]
 	}
 	return token
+}
+
+func resolveStorageTestMountPath(taskID, repositoryID, sourceResourceID, configuredMountPath string) (string, bool, error) {
+	configuredMountPath = strings.TrimSpace(configuredMountPath)
+	if configuredMountPath != "" {
+		if !filepath.IsAbs(configuredMountPath) {
+			return "", false, fmt.Errorf("configured mount_path must be absolute")
+		}
+		return filepath.Clean(configuredMountPath), false, nil
+	}
+	if sourceResourceID != "" {
+		return filepath.Join("/mnt/hyperfilelens", "source-"+safeSourceIDPrefix(sourceResourceID)), false, nil
+	}
+	if repositoryID != "" {
+		return filepath.Join("/mnt/hyperfilelens", "repository-"+safeSourceIDPrefix(repositoryID)), false, nil
+	}
+	return filepath.Join("/mnt/hyperfilelens", "storage-test", "task-"+safePathToken(taskID)), true, nil
+}
+
+func safeRemoveMountPointDir(path string) error {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "" || path == "." || path == string(os.PathSeparator) {
+		return fmt.Errorf("refusing to remove unsafe path %q", path)
+	}
+	if mount.IsPathMounted(path) {
+		return fmt.Errorf("refusing to remove %s because it is still mounted", path)
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // executeRestore executes a restore task
@@ -1709,6 +1745,7 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 		mountType := getString(msg.Payload, "mount_type", "nfs") // nfs, smb, or cifs
 		mountPath := getString(msg.Payload, "mount_path", "")
 		mountOptions := getString(msg.Payload, "mount_options", "")
+		sourceResourceID := getString(msg.Payload, "source_resource_id", "")
 
 		logger.Debug("NAS/NFS test parameters", map[string]interface{}{
 			"server":     server,
@@ -1759,16 +1796,26 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 		}
 
 		if mountPath == "" {
-			logger.Info("Creating temporary mount point for NAS storage test", nil)
-			tempDir := filepath.Join(os.TempDir(), "hyperfilelens-nas-test-"+taskID[:8])
-			if err := os.MkdirAll(tempDir, 0755); err != nil {
+			var removeAfterUse bool
+			var err error
+			mountPath, removeAfterUse, err = resolveStorageTestMountPath(taskID, repositoryID, sourceResourceID, "")
+			if err != nil {
+				d.sendStorageTestResult(msg.ID, taskID, result, err.Error())
+				return
+			}
+			logger.Info("Using storage test mount point", map[string]interface{}{
+				"mount_path":         mountPath,
+				"source_resource_id": sourceResourceID,
+				"repository_id":      repositoryID,
+				"remove_after_use":   removeAfterUse,
+			})
+			if err := os.MkdirAll(mountPath, 0755); err != nil {
 				logger.Error("Failed to create temporary mount directory", map[string]interface{}{
 					"error": err.Error(),
 				})
-				d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("failed to create temp mount dir: %v", err))
+				d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("failed to create storage test mount dir: %v", err))
 				return
 			}
-			mountPath = tempDir
 			logger.Debug("Created temporary mount point", map[string]interface{}{
 				"mount_path": mountPath,
 			})
@@ -1780,38 +1827,58 @@ func (d *Dispatcher) executeTestStorage(msg ws.Message) {
 			})
 
 			var mountErr error
-			if mountType == "smb" || mountType == "cifs" {
-				username := getString(msg.Payload, "username", "")
-				password := getString(msg.Payload, "password", "")
-				mountErr = d.mountMgr.MountSMB(server, path, mountPath, username, password, mountOptions)
+			if mount.IsPathMounted(mountPath) {
+				logger.Debug("Reusing already mounted storage test path", map[string]interface{}{
+					"mount_path": mountPath,
+				})
 			} else {
-				mountErr = d.mountMgr.MountNFS(server, path, mountPath, mountOptions)
+				if mountType == "smb" || mountType == "cifs" {
+					username := getString(msg.Payload, "username", "")
+					password := getString(msg.Payload, "password", "")
+					mountErr = d.mountMgr.MountSMB(server, path, mountPath, username, password, mountOptions)
+				} else {
+					mountErr = d.mountMgr.MountNFS(server, path, mountPath, mountOptions)
+				}
 			}
 
 			if mountErr != nil {
 				logger.Error("Failed to mount for storage test", map[string]interface{}{
 					"error": mountErr.Error(),
 				})
-				os.RemoveAll(mountPath)
+				if removeAfterUse {
+					if removeErr := safeRemoveMountPointDir(mountPath); removeErr != nil {
+						logger.Warn("Failed to remove storage test mount path after mount failure", map[string]interface{}{
+							"mount_path": mountPath,
+							"error":      removeErr.Error(),
+						})
+					}
+				}
 				d.sendStorageTestResult(msg.ID, taskID, result, fmt.Sprintf("mount failed: %v", mountErr))
 				return
 			}
 
 			logger.Debug("NAS mounted successfully for storage test", nil)
 
-			defer func() {
-				logger.Debug("Cleaning up temporary mount", map[string]interface{}{
-					"mount_path": mountPath,
-				})
-				if err := d.mountMgr.Unmount(mountPath); err != nil {
-					logger.Warn("Failed to unmount temporary NAS test path", map[string]interface{}{
+			if removeAfterUse {
+				defer func() {
+					logger.Debug("Cleaning up temporary storage test mount", map[string]interface{}{
 						"mount_path": mountPath,
-						"error":      err.Error(),
 					})
-				}
-				os.RemoveAll(mountPath)
-				logger.Debug("Temporary mount cleaned up", nil)
-			}()
+					if err := d.mountMgr.Unmount(mountPath); err != nil {
+						logger.Warn("Failed to unmount temporary storage test path", map[string]interface{}{
+							"mount_path": mountPath,
+							"error":      err.Error(),
+						})
+					}
+					if err := safeRemoveMountPointDir(mountPath); err != nil {
+						logger.Warn("Failed to remove temporary storage test mount path", map[string]interface{}{
+							"mount_path": mountPath,
+							"error":      err.Error(),
+						})
+					}
+					logger.Debug("Temporary storage test mount cleaned up", nil)
+				}()
+			}
 		}
 
 		if _, err := os.Stat(mountPath); os.IsNotExist(err) {
