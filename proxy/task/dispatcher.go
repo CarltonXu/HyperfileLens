@@ -384,7 +384,7 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 	// Connect to repository if config provided
 	if len(repoConfig) > 0 {
 		logger.Debug("Connecting to repository...", nil)
-		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+		if err := d.connectRepository(repoConfig, password); err != nil {
 			logger.Error("Failed to connect to repository", map[string]interface{}{
 				"error": err.Error(),
 			})
@@ -554,6 +554,79 @@ func resolveMountedSourcePath(sourcePath, mountPath, remotePath, configuredMount
 	return filepath.Join(mountPath, strings.TrimLeft(sourcePath, `/\`))
 }
 
+func (d *Dispatcher) connectRepository(repoConfig map[string]interface{}, password string) error {
+	kopiaConfig, err := d.prepareRepository(repoConfig)
+	if err != nil {
+		return err
+	}
+	return d.kopia.ConnectRepo(kopiaConfig, password)
+}
+
+func (d *Dispatcher) prepareRepository(repoConfig map[string]interface{}) (map[string]interface{}, error) {
+	if len(repoConfig) == 0 {
+		return repoConfig, nil
+	}
+	repoType := strings.ToLower(getString(repoConfig, "type", "filesystem"))
+	switch repoType {
+	case "nas", "nfs", "cifs":
+		if !d.config.IsSyncProxy() {
+			return nil, fmt.Errorf("network repository requires a Sync Proxy")
+		}
+		server := getString(repoConfig, "server", getString(repoConfig, "nas_server", ""))
+		remotePath := getString(repoConfig, "export_path", getString(repoConfig, "nas_path", getString(repoConfig, "path", "")))
+		mountType := strings.ToLower(getString(repoConfig, "mount_type", repoType))
+		mountOptions := getString(repoConfig, "mount_options", "")
+		username := getString(repoConfig, "username", "")
+		mountPassword := getString(repoConfig, "password", "")
+		if server == "" || remotePath == "" {
+			return nil, fmt.Errorf("network repository server and export path are required")
+		}
+		mountPath, err := d.resolveStableRepositoryMountPath(repoConfig)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.MkdirAll(mountPath, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create repository mount directory: %w", err)
+		}
+		if !mount.IsPathMounted(mountPath) {
+			if mountType == "smb" || mountType == "cifs" {
+				err = d.mountMgr.MountSMB(server, remotePath, mountPath, username, mountPassword, mountOptions)
+			} else {
+				err = d.mountMgr.MountNFS(server, remotePath, mountPath, mountOptions)
+			}
+			if err != nil {
+				if mount.IsPathMounted(mountPath) {
+					logger.Warn("Repository mount command failed but path is mounted; continuing", map[string]interface{}{
+						"mount_path": mountPath,
+						"error":      err.Error(),
+					})
+				} else {
+					return nil, fmt.Errorf("failed to mount network repository: %w", err)
+				}
+			}
+		}
+		kopiaConfig := copyMap(repoConfig)
+		kopiaConfig["type"] = "filesystem"
+		kopiaConfig["path"] = mountPath
+		kopiaConfig["mounted_path"] = mountPath
+		return kopiaConfig, nil
+	default:
+		return repoConfig, nil
+	}
+}
+
+func (d *Dispatcher) resolveStableRepositoryMountPath(repoConfig map[string]interface{}) (string, error) {
+	configuredMountPath := strings.TrimSpace(getString(repoConfig, "mount_path", ""))
+	if configuredMountPath != "" && filepath.IsAbs(configuredMountPath) {
+		return filepath.Clean(configuredMountPath), nil
+	}
+	repositoryID := strings.TrimSpace(getString(repoConfig, "id", getString(repoConfig, "repository_id", "")))
+	if repositoryID != "" {
+		return filepath.Join("/mnt/hyperfilelens", "repository-"+safeSourceIDPrefix(repositoryID)), nil
+	}
+	return filepath.Join("/mnt/hyperfilelens", "repository-unknown"), nil
+}
+
 func safePathToken(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -640,7 +713,7 @@ func (d *Dispatcher) executeRestore(msg ws.Message) {
 	// Connect to repository
 	if len(repoConfig) > 0 {
 		logger.Debug("Connecting to repository...", nil)
-		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+		if err := d.connectRepository(repoConfig, password); err != nil {
 			logger.Error("Failed to connect to repository", map[string]interface{}{
 				"error": err.Error(),
 			})
@@ -708,7 +781,7 @@ func (d *Dispatcher) executeSnapshotExport(msg ws.Message) {
 	d.sendTaskProgress(msg.ID, taskID, TypeSnapshotExport, 5, "Connecting repository")
 
 	if len(repoConfig) > 0 {
-		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+		if err := d.connectRepository(repoConfig, password); err != nil {
 			d.failTask(taskID, err.Error())
 			d.sendTaskFailed(msg.ID, taskID, err.Error())
 			return
@@ -980,7 +1053,7 @@ func (d *Dispatcher) listSnapshots(msg ws.Message) {
 	logger.Debug("Listing Kopia snapshots...", nil)
 	d.sendTaskStart(msg.ID, taskID, message.MsgTypeListSnapshots)
 	if len(repoConfig) > 0 {
-		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+		if err := d.connectRepository(repoConfig, password); err != nil {
 			d.sendTaskFailed(msg.ID, taskID, err.Error())
 			return
 		}
@@ -1062,7 +1135,7 @@ func (d *Dispatcher) deleteSnapshots(msg ws.Message) {
 	})
 	d.sendTaskStart(msg.ID, taskID, message.MsgTypeDeleteSnapshots)
 	if len(repoConfig) > 0 {
-		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+		if err := d.connectRepository(repoConfig, password); err != nil {
 			d.sendTaskFailed(msg.ID, taskID, err.Error())
 			return
 		}
@@ -1100,7 +1173,7 @@ func (d *Dispatcher) runMaintenance(msg ws.Message) {
 
 	d.sendTaskStart(msg.ID, taskID, message.MsgTypeRunMaintenance)
 	if len(repoConfig) > 0 {
-		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+		if err := d.connectRepository(repoConfig, password); err != nil {
 			d.sendTaskFailed(msg.ID, taskID, err.Error())
 			return
 		}
@@ -1134,7 +1207,7 @@ func (d *Dispatcher) showPolicy(msg ws.Message) {
 
 	d.sendTaskStart(msg.ID, taskID, message.MsgTypePolicyShow)
 	if len(repoConfig) > 0 {
-		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+		if err := d.connectRepository(repoConfig, password); err != nil {
 			d.sendTaskFailed(msg.ID, taskID, err.Error())
 			return
 		}
@@ -1182,7 +1255,7 @@ func (d *Dispatcher) listSnapshotFiles(msg ws.Message) {
 
 	d.sendTaskStart(msg.ID, taskID, message.MsgTypeListSnapshotFiles)
 	if len(repoConfig) > 0 {
-		if err := d.kopia.ConnectRepo(repoConfig, password); err != nil {
+		if err := d.connectRepository(repoConfig, password); err != nil {
 			d.sendTaskFailed(msg.ID, taskID, err.Error())
 			return
 		}
@@ -2015,27 +2088,6 @@ func (d *Dispatcher) executeInitRepository(msg ws.Message) {
 
 	repoType := getString(repoConfig, "type", "filesystem")
 	kopiaConfig := copyMap(repoConfig)
-	var mountedPath string
-	var tempMountPath string
-
-	defer func() {
-		if mountedPath != "" {
-			if err := d.mountMgr.Unmount(mountedPath); err != nil {
-				logger.Warn("Failed to unmount temporary repository path", map[string]interface{}{
-					"mount_path": mountedPath,
-					"error":      err.Error(),
-				})
-			}
-		}
-		if tempMountPath != "" {
-			if err := os.RemoveAll(tempMountPath); err != nil {
-				logger.Warn("Failed to remove temporary mount path", map[string]interface{}{
-					"mount_path": tempMountPath,
-					"error":      err.Error(),
-				})
-			}
-		}
-	}()
 
 	sendProgress(5, "validate", "running", "Validating repository configuration")
 	switch repoType {
@@ -2068,33 +2120,39 @@ func (d *Dispatcher) executeInitRepository(msg ws.Message) {
 		}
 		sendProgress(25, "connectivity", "completed", "NAS connectivity check passed")
 
-		tempDir, err := os.MkdirTemp("", "hyperfilelens-repo-init-"+safeTaskPrefix(taskID)+"-")
+		mountPath, err := d.resolveStableRepositoryMountPath(repoConfig)
 		if err != nil {
-			errMsg := fmt.Sprintf("failed to create temp mount dir: %v", err)
+			errMsg := fmt.Sprintf("failed to resolve repository mount path: %v", err)
 			sendProgress(100, "mount_prepare", "failed", errMsg)
 			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
 			return
 		}
-		tempMountPath = tempDir
-
-		sendProgress(35, "mount", "running", "Mounting NAS to a temporary path")
-		var mountErr error
-		if mountType == "smb" || mountType == "cifs" {
-			mountErr = d.mountMgr.MountSMB(server, remotePath, tempMountPath, username, mountPassword, mountOptions)
-		} else {
-			mountErr = d.mountMgr.MountNFS(server, remotePath, tempMountPath, mountOptions)
-		}
-		if mountErr != nil {
-			errMsg := fmt.Sprintf("mount failed: %v", mountErr)
-			sendProgress(100, "mount", "failed", errMsg)
+		if err := os.MkdirAll(mountPath, 0755); err != nil {
+			errMsg := fmt.Sprintf("failed to create repository mount dir: %v", err)
+			sendProgress(100, "mount_prepare", "failed", errMsg)
 			d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
 			return
 		}
-		mountedPath = tempMountPath
+
+		sendProgress(35, "mount", "running", "Mounting NAS to a stable repository path")
+		if !mount.IsPathMounted(mountPath) {
+			var mountErr error
+			if mountType == "smb" || mountType == "cifs" {
+				mountErr = d.mountMgr.MountSMB(server, remotePath, mountPath, username, mountPassword, mountOptions)
+			} else {
+				mountErr = d.mountMgr.MountNFS(server, remotePath, mountPath, mountOptions)
+			}
+			if mountErr != nil {
+				errMsg := fmt.Sprintf("mount failed: %v", mountErr)
+				sendProgress(100, "mount", "failed", errMsg)
+				d.sendRepoInitResult(msg.ID, taskID, repositoryID, nil, errMsg, steps)
+				return
+			}
+		}
 		sendProgress(50, "mount", "completed", "NAS mounted successfully")
 
 		sendProgress(60, "write_test", "running", "Testing repository write permission")
-		writeResult := mount.TestWriteSimple(mountedPath)
+		writeResult := mount.TestWriteSimple(mountPath)
 		if !writeResult.Writable {
 			errMsg := fmt.Sprintf("write test failed: %s", writeResult.Error)
 			sendProgress(100, "write_test", "failed", errMsg)
@@ -2104,8 +2162,8 @@ func (d *Dispatcher) executeInitRepository(msg ws.Message) {
 		sendProgress(70, "write_test", "completed", "Write test passed")
 
 		kopiaConfig["type"] = "filesystem"
-		kopiaConfig["path"] = mountedPath
-		kopiaConfig["mounted_path"] = mountedPath
+		kopiaConfig["path"] = mountPath
+		kopiaConfig["mounted_path"] = mountPath
 
 	case "local":
 		localPath := getString(repoConfig, "path", "")

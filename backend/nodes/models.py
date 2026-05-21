@@ -678,6 +678,44 @@ class ProxyTask(models.Model):
             models.Index(fields=['proxy', 'status']),
             models.Index(fields=['task_type', 'status']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['repository_id'],
+                condition=(
+                    models.Q(repository_id__isnull=False)
+                    & models.Q(status__in=[
+                        'pending',
+                        'dispatched',
+                        'accepted',
+                        'running',
+                    ])
+                    & models.Q(task_type__in=[
+                        'snapshot_delete',
+                        'kopia_maintenance',
+                        'init_repository',
+                    ])
+                ),
+                name='unique_active_exclusive_repository_task',
+            ),
+            models.UniqueConstraint(
+                fields=['repository_id', 'source_resource_id'],
+                condition=(
+                    models.Q(repository_id__isnull=False)
+                    & models.Q(source_resource_id__isnull=False)
+                    & models.Q(status__in=[
+                        'pending',
+                        'dispatched',
+                        'accepted',
+                        'running',
+                    ])
+                    & models.Q(task_type__in=[
+                        'backup',
+                        'snapshot_list',
+                    ])
+                ),
+                name='unique_active_repository_source_task',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.task_type} - {self.proxy.name} ({self.status})'

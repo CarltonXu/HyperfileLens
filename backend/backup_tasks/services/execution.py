@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from nodes.models import ProxyNode, ProxyTask
 from nodes.proxy_service import ProxyService
+from nodes.repository_locks import RepositoryLockError, create_repository_proxy_task
 from repository.models import Repository
 from backup_tasks.models import BackupTask, BackupTaskRun
 
@@ -56,33 +57,40 @@ def dispatch_backup_task(task, *, trigger_type=BackupTaskRun.TRIGGER_MANUAL, for
         source_resource=task.source_resource,
     )
 
-    proxy_task = ProxyTask.objects.create(
-        proxy=execution_node,
-        task_type=ProxyTask.TaskType.BACKUP,
-        parameters={
-            'backup_task_id': str(task.id),
-            'backup_run_id': str(run.id),
-            'backup_task_name': task.name,
-            'source_resource_id': str(task.source_resource_id),
-            'repository_id': str(task.target_repository_id),
-            'source_path': source_path,
-            'backup_paths': task.backup_paths,
-            'exclude_patterns': task.exclude_patterns,
-            'include_patterns': task.include_patterns,
-            'policy_overrides': task.policy_overrides,
-            'effective_policy': effective_policy,
-            'execution_mode': task.execution_mode,
-            'selected_execution_node_id': str(execution_node.id),
-            'selected_execution_node_name': execution_node.name,
-            'task_type': task_type or task.task_type,
-            'priority': task.priority,
-            'trigger_type': trigger_type,
-        },
-        repository_id=task.target_repository_id,
-        source_resource_id=task.source_resource_id,
-        status=ProxyTask.TaskStatus.PENDING,
-        timeout_seconds=task.checkpoint_interval_minutes * 60 if task.checkpoint_interval_minutes else 3600,
-    )
+    try:
+        proxy_task = create_repository_proxy_task(
+            repository_id=task.target_repository_id,
+            task_type=ProxyTask.TaskType.BACKUP,
+            proxy=execution_node,
+            parameters={
+                'backup_task_id': str(task.id),
+                'backup_run_id': str(run.id),
+                'backup_task_name': task.name,
+                'source_resource_id': str(task.source_resource_id),
+                'repository_id': str(task.target_repository_id),
+                'source_path': source_path,
+                'backup_paths': task.backup_paths,
+                'exclude_patterns': task.exclude_patterns,
+                'include_patterns': task.include_patterns,
+                'policy_overrides': task.policy_overrides,
+                'effective_policy': effective_policy,
+                'execution_mode': task.execution_mode,
+                'selected_execution_node_id': str(execution_node.id),
+                'selected_execution_node_name': execution_node.name,
+                'task_type': task_type or task.task_type,
+                'priority': task.priority,
+                'trigger_type': trigger_type,
+            },
+            source_resource_id=task.source_resource_id,
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=task.checkpoint_interval_minutes * 60 if task.checkpoint_interval_minutes else 3600,
+        )
+    except RepositoryLockError as exc:
+        run.status = BackupTaskRun.STATUS_FAILED
+        run.error_message = str(exc)
+        run.completed_at = timezone.now()
+        run.save(update_fields=['status', 'error_message', 'completed_at'])
+        raise BackupTaskExecutionError(str(exc)) from exc
     proxy_task.dispatch()
 
     payload = {

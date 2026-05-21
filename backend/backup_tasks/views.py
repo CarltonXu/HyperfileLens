@@ -23,6 +23,7 @@ from licenses.quota import QuotaCheckMixin
 from audit_log.services import AuditService
 from nodes.models import ProxyNode, ProxyTask
 from nodes.proxy_service import ProxyService
+from nodes.repository_locks import RepositoryLockError, create_repository_proxy_task
 from repository.models import Repository
 from .models import BackupTask, BackupSnapshot, BackupTaskRun
 from .serializers import (
@@ -911,22 +912,25 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        proxy_task = ProxyTask.objects.create(
-            proxy=proxy,
-            task_type='list_snapshot_files',
-            parameters={
-                'snapshot_id': snapshot_identifier,
-                'object_id': object_id,
-                'snapshot_record_id': str(snapshot.id),
-                'backup_task_id': str(task.id),
-                'repository_id': str(task.target_repository_id),
-                'path': path,
-            },
-            repository_id=task.target_repository_id,
-            source_resource_id=task.source_resource_id,
-            status=ProxyTask.TaskStatus.PENDING,
-            timeout_seconds=60,
-        )
+        try:
+            proxy_task = create_repository_proxy_task(
+                repository_id=task.target_repository_id,
+                proxy=proxy,
+                task_type='list_snapshot_files',
+                parameters={
+                    'snapshot_id': snapshot_identifier,
+                    'object_id': object_id,
+                    'snapshot_record_id': str(snapshot.id),
+                    'backup_task_id': str(task.id),
+                    'repository_id': str(task.target_repository_id),
+                    'path': path,
+                },
+                source_resource_id=task.source_resource_id,
+                status=ProxyTask.TaskStatus.PENDING,
+                timeout_seconds=60,
+            )
+        except RepositoryLockError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_409_CONFLICT)
         proxy_task.dispatch()
 
         payload = {

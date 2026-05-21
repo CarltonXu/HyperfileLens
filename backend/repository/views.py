@@ -28,7 +28,8 @@ from .serializers import (
     ConnectionTestSerializer,
     ConnectionTestResultSerializer
 )
-from nodes.models import Node
+from nodes.models import Node, ProxyTask
+from nodes.repository_locks import RepositoryLockError, create_repository_proxy_task
 from audit_log.services import AuditService
 from licenses.quota import QuotaCheckMixin, enforce_license_quota
 from audit_log.services import AuditService
@@ -958,22 +959,29 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         # Create task for tracking
         task_id = str(uuid.uuid4())
         
+        # Create ProxyTask record
+        try:
+            proxy_task = create_repository_proxy_task(
+                id=task_id,
+                repository_id=repo.id,
+                proxy=repo.bound_node,
+                task_type=ProxyTask.TaskType.INIT_REPOSITORY,
+                parameters={
+                    'repository_id': str(repo.id),
+                    'repository_config': repository_config,
+                },
+                status=ProxyTask.TaskStatus.PENDING,
+            )
+        except RepositoryLockError as exc:
+            return Response({
+                'success': False,
+                'message': str(exc),
+                'error_code': 'REPOSITORY_BUSY',
+            }, status=status.HTTP_409_CONFLICT)
+
         # Update repository status
         repo.status = Repository.STATUS_INITIALIZING
         repo.save(update_fields=['kopia_password', 'status', 'updated_at'])
-        
-        # Create ProxyTask record
-        ProxyTask.objects.create(
-            id=task_id,
-            proxy=repo.bound_node,
-            task_type=ProxyTask.TaskType.INIT_REPOSITORY,
-            parameters={
-                'repository_id': str(repo.id),
-                'repository_config': repository_config,
-            },
-            repository_id=repo.id,
-            status=ProxyTask.TaskStatus.PENDING,
-        )
         
         # Send command to SyncProxy via WebSocket
         sent = ProxyService.send_init_repository_command(
@@ -988,6 +996,7 @@ class RepositoryViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             logger.error(
                 f"[Repository Initialize] Failed to send command to proxy {repo.bound_node.name}"
             )
+            proxy_task.fail('Failed to send initialization command to proxy. Proxy may be offline.')
             repo.status = Repository.STATUS_ERROR
             repo.status_message = 'Failed to send initialization command to proxy. Proxy may be offline.'
             repo.save()

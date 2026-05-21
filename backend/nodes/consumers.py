@@ -1668,15 +1668,23 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                         'target_repository__bound_node', 'preferred_execution_node', 'schedule',
                     ).first()
                     if backup_task:
+                        maintenance_task = None
                         try:
-                            dispatch_kopia_maintenance(backup_task, full=False)
+                            maintenance_task, maintenance_error = dispatch_kopia_maintenance(backup_task, full=False)
+                            if maintenance_error:
+                                logger.warning(
+                                    "Kopia maintenance was not dispatched after snapshot delete for task %s: %s",
+                                    backup_task.id,
+                                    maintenance_error,
+                                )
                         except Exception as exc:
                             logger.exception(
                                 "Failed to dispatch Kopia maintenance after snapshot delete for task %s: %s",
                                 backup_task.id,
                                 exc,
                             )
-                        dispatch_snapshot_reconciliation(backup_task)
+                        if not maintenance_task:
+                            dispatch_snapshot_reconciliation(backup_task)
                 else:
                     BackupSnapshot.objects.filter(
                         task_id=backup_task_id,

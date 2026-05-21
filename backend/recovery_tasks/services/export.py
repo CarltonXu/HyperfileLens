@@ -7,6 +7,7 @@ from backup_tasks.models import BackupSnapshot
 from backup_tasks.services.execution import build_repository_config
 from nodes.models import ProxyTask
 from nodes.proxy_service import ProxyService
+from nodes.repository_locks import RepositoryLockError, create_repository_proxy_task
 from recovery_tasks.models import RecoveryExport
 
 
@@ -49,23 +50,26 @@ def dispatch_recovery_export(export):
     if not snapshot_id:
         raise RecoveryExportExecutionError('Snapshot ID is missing. Please resync snapshots before exporting files.')
 
-    proxy_task = ProxyTask.objects.create(
-        proxy=proxy,
-        task_type=ProxyTask.TaskType.SNAPSHOT_EXPORT,
-        parameters={
-            'recovery_export_id': str(export.id),
-            'snapshot_record_id': str(export.snapshot_id),
-            'snapshot_id': snapshot_id,
-            'object_id': object_id,
-            'selected_paths': export.selected_paths,
-            'package_format': export.package_format,
-            'repository_id': str(repository.id),
-        },
-        repository_id=repository.id,
-        source_resource_id=task.source_resource_id,
-        status=ProxyTask.TaskStatus.PENDING,
-        timeout_seconds=24 * 60 * 60,
-    )
+    try:
+        proxy_task = create_repository_proxy_task(
+            repository_id=repository.id,
+            proxy=proxy,
+            task_type=ProxyTask.TaskType.SNAPSHOT_EXPORT,
+            parameters={
+                'recovery_export_id': str(export.id),
+                'snapshot_record_id': str(export.snapshot_id),
+                'snapshot_id': snapshot_id,
+                'object_id': object_id,
+                'selected_paths': export.selected_paths,
+                'package_format': export.package_format,
+                'repository_id': str(repository.id),
+            },
+            source_resource_id=task.source_resource_id,
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=24 * 60 * 60,
+        )
+    except RepositoryLockError as exc:
+        raise RecoveryExportExecutionError(str(exc)) from exc
     proxy_task.dispatch()
 
     export.proxy_task = proxy_task

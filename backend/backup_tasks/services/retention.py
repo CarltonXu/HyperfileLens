@@ -20,6 +20,7 @@ from backup_tasks.services.execution import (
 )
 from nodes.models import ProxyTask
 from nodes.proxy_service import ProxyService
+from nodes.repository_locks import RepositoryLockError, create_repository_proxy_task
 
 
 @dataclass
@@ -41,24 +42,27 @@ def dispatch_snapshot_reconciliation(task: BackupTask) -> tuple[ProxyTask | None
     if not password:
         return None, "Repository password is not saved"
 
-    proxy_task = ProxyTask.objects.create(
-        proxy=proxy,
-        task_type=ProxyTask.TaskType.SNAPSHOT_LIST,
-        parameters={
-            "backup_task_id": str(task.id),
-            "repository_id": str(task.target_repository_id),
-            "source_resource_id": str(task.source_resource_id),
-            "source_path": source_path,
-            "source_resource": build_source_resource_config(task.source_resource),
-            "repository": build_repository_config(task.target_repository),
-            "password": password,
-            "task_id": "",
-        },
-        repository_id=task.target_repository_id,
-        source_resource_id=task.source_resource_id,
-        status=ProxyTask.TaskStatus.PENDING,
-        timeout_seconds=300,
-    )
+    try:
+        proxy_task = create_repository_proxy_task(
+            repository_id=task.target_repository_id,
+            proxy=proxy,
+            task_type=ProxyTask.TaskType.SNAPSHOT_LIST,
+            parameters={
+                "backup_task_id": str(task.id),
+                "repository_id": str(task.target_repository_id),
+                "source_resource_id": str(task.source_resource_id),
+                "source_path": source_path,
+                "source_resource": build_source_resource_config(task.source_resource),
+                "repository": build_repository_config(task.target_repository),
+                "password": password,
+                "task_id": "",
+            },
+            source_resource_id=task.source_resource_id,
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=300,
+        )
+    except RepositoryLockError as exc:
+        return None, str(exc)
     proxy_task.parameters["task_id"] = str(proxy_task.id)
     proxy_task.save(update_fields=["parameters"])
     task.latest_snapshot_sync_task_id = proxy_task.id
@@ -93,23 +97,26 @@ def dispatch_snapshot_delete(task: BackupTask, snapshot_ids: list[str]) -> tuple
     if not password:
         return None, "Repository password is not saved"
 
-    proxy_task = ProxyTask.objects.create(
-        proxy=proxy,
-        task_type=ProxyTask.TaskType.SNAPSHOT_DELETE,
-        parameters={
-            "backup_task_id": str(task.id),
-            "repository_id": str(task.target_repository_id),
-            "source_resource_id": str(task.source_resource_id),
-            "snapshot_ids": snapshot_ids,
-            "repository": build_repository_config(task.target_repository),
-            "password": password,
-            "task_id": "",
-        },
-        repository_id=task.target_repository_id,
-        source_resource_id=task.source_resource_id,
-        status=ProxyTask.TaskStatus.PENDING,
-        timeout_seconds=900,
-    )
+    try:
+        proxy_task = create_repository_proxy_task(
+            repository_id=task.target_repository_id,
+            proxy=proxy,
+            task_type=ProxyTask.TaskType.SNAPSHOT_DELETE,
+            parameters={
+                "backup_task_id": str(task.id),
+                "repository_id": str(task.target_repository_id),
+                "source_resource_id": str(task.source_resource_id),
+                "snapshot_ids": snapshot_ids,
+                "repository": build_repository_config(task.target_repository),
+                "password": password,
+                "task_id": "",
+            },
+            source_resource_id=task.source_resource_id,
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=900,
+        )
+    except RepositoryLockError as exc:
+        return None, str(exc)
     proxy_task.parameters["task_id"] = str(proxy_task.id)
     proxy_task.save(update_fields=["parameters"])
     proxy_task.dispatch()
@@ -146,22 +153,25 @@ def dispatch_kopia_maintenance(task: BackupTask, full: bool = True) -> tuple[Pro
     if not password:
         return None, "Repository password is not saved"
 
-    proxy_task = ProxyTask.objects.create(
-        proxy=proxy,
-        task_type=ProxyTask.TaskType.KOPIA_MAINTENANCE,
-        parameters={
-            "backup_task_id": str(task.id),
-            "repository_id": str(task.target_repository_id),
-            "repository": build_repository_config(task.target_repository),
-            "password": password,
-            "full": full,
-            "task_id": "",
-        },
-        repository_id=task.target_repository_id,
-        source_resource_id=task.source_resource_id,
-        status=ProxyTask.TaskStatus.PENDING,
-        timeout_seconds=1800,
-    )
+    try:
+        proxy_task = create_repository_proxy_task(
+            repository_id=task.target_repository_id,
+            proxy=proxy,
+            task_type=ProxyTask.TaskType.KOPIA_MAINTENANCE,
+            parameters={
+                "backup_task_id": str(task.id),
+                "repository_id": str(task.target_repository_id),
+                "repository": build_repository_config(task.target_repository),
+                "password": password,
+                "full": full,
+                "task_id": "",
+            },
+            source_resource_id=task.source_resource_id,
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=1800,
+        )
+    except RepositoryLockError as exc:
+        return None, str(exc)
     proxy_task.parameters["task_id"] = str(proxy_task.id)
     proxy_task.save(update_fields=["parameters"])
     proxy_task.dispatch()

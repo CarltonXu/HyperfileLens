@@ -6,6 +6,7 @@ from backup_tasks.models import BackupSnapshot
 from backup_tasks.services.execution import build_repository_config
 from nodes.models import ProxyTask
 from nodes.proxy_service import ProxyService
+from nodes.repository_locks import RepositoryLockError, create_repository_proxy_task
 from recovery_tasks.models import RecoveryRun
 
 
@@ -67,28 +68,35 @@ def dispatch_recovery_task(task, *, trigger_type=RecoveryRun.TRIGGER_MANUAL):
             'priority': task.priority,
         },
     )
-    proxy_task = ProxyTask.objects.create(
-        proxy=task.target_node,
-        task_type=ProxyTask.TaskType.RESTORE,
-        parameters={
-            'recovery_task_id': str(task.id),
-            'recovery_run_id': str(run.id),
-            'recovery_task_name': task.name,
-            'snapshot_record_id': str(task.snapshot_id),
-            'snapshot_id': snapshot_id,
-            'object_id': object_id,
-            'repository_id': str(repository.id),
-            'target_path': target_path,
-            'recovery_type': task.recovery_type,
-            'restore_scope': task.restore_scope,
-            'selected_paths': restore_paths,
-            'conflict_policy': task.conflict_policy,
-            'priority': task.priority,
-        },
-        repository_id=repository.id,
-        status=ProxyTask.TaskStatus.PENDING,
-        timeout_seconds=task.options.get('timeout_seconds') or 24 * 60 * 60,
-    )
+    try:
+        proxy_task = create_repository_proxy_task(
+            repository_id=repository.id,
+            proxy=task.target_node,
+            task_type=ProxyTask.TaskType.RESTORE,
+            parameters={
+                'recovery_task_id': str(task.id),
+                'recovery_run_id': str(run.id),
+                'recovery_task_name': task.name,
+                'snapshot_record_id': str(task.snapshot_id),
+                'snapshot_id': snapshot_id,
+                'object_id': object_id,
+                'repository_id': str(repository.id),
+                'target_path': target_path,
+                'recovery_type': task.recovery_type,
+                'restore_scope': task.restore_scope,
+                'selected_paths': restore_paths,
+                'conflict_policy': task.conflict_policy,
+                'priority': task.priority,
+            },
+            status=ProxyTask.TaskStatus.PENDING,
+            timeout_seconds=task.options.get('timeout_seconds') or 24 * 60 * 60,
+        )
+    except RepositoryLockError as exc:
+        run.status = RecoveryRun.STATUS_FAILED
+        run.error_message = str(exc)
+        run.completed_at = timezone.now()
+        run.save(update_fields=['status', 'error_message', 'completed_at'])
+        raise RecoveryTaskExecutionError(str(exc)) from exc
     proxy_task.dispatch()
     run.proxy_task = proxy_task
     run.status = RecoveryRun.STATUS_DISPATCHED
