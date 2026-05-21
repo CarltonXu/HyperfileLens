@@ -8,7 +8,6 @@ from datetime import timezone as datetime_timezone
 from typing import Any
 
 from django.db import transaction
-from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 
@@ -16,7 +15,7 @@ from backup_tasks.models import BackupSnapshot, BackupTask
 from backup_tasks.services.execution import (
     build_source_resource_config,
     build_repository_config,
-    resolve_source_path,
+    resolve_kopia_source_path,
     select_execution_node,
 )
 from nodes.models import ProxyTask
@@ -35,7 +34,7 @@ def dispatch_snapshot_reconciliation(task: BackupTask) -> tuple[ProxyTask | None
     proxy, error = select_execution_node(task)
     if error:
         return None, error
-    source_path = resolve_source_path(task)
+    source_path = resolve_kopia_source_path(task)
     if not source_path:
         return None, "Backup task has no source path to reconcile"
     password = task.target_repository.get_kopia_password()
@@ -62,6 +61,13 @@ def dispatch_snapshot_reconciliation(task: BackupTask) -> tuple[ProxyTask | None
     )
     proxy_task.parameters["task_id"] = str(proxy_task.id)
     proxy_task.save(update_fields=["parameters"])
+    task.latest_snapshot_sync_task_id = proxy_task.id
+    task.latest_snapshot_sync_started_at = timezone.now()
+    task.save(update_fields=[
+        "latest_snapshot_sync_task_id",
+        "latest_snapshot_sync_started_at",
+        "updated_at",
+    ])
     proxy_task.dispatch()
 
     message = {
@@ -120,7 +126,7 @@ def dispatch_snapshot_delete(task: BackupTask, snapshot_ids: list[str]) -> tuple
 
     for snapshot in BackupSnapshot.objects.filter(
         task=task,
-        storage_path__in=snapshot_ids,
+        kopia_snapshot_id__in=snapshot_ids,
     ):
         metadata = snapshot.metadata or {}
         metadata["prune_proxy_task_id"] = str(proxy_task.id)
@@ -180,6 +186,13 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
     task = BackupTask.objects.select_related("target_repository").filter(id=task_id).first()
     if not task:
         return {"seen": 0, "missing": 0}
+    if task.latest_snapshot_sync_task_id and task.latest_snapshot_sync_task_id != proxy_task.id:
+        return {
+            "seen": 0,
+            "missing": 0,
+            "ignored_stale_sync": 1,
+            "latest_snapshot_sync_task_id": str(task.latest_snapshot_sync_task_id),
+        }
 
     raw_snapshots = result.get("snapshots", [])
     if isinstance(raw_snapshots, str):
@@ -188,7 +201,7 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
         except json.JSONDecodeError:
             raw_snapshots = []
     now = timezone.now()
-    available_seen_ids: set[str] = set()
+    current_snapshot_ids: set[str] = set()
     seen_snapshots = 0
     skipped_source_mismatch = 0
     expected_source_path = _normalize_source_path(
@@ -196,26 +209,20 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
     )
 
     with transaction.atomic():
-        existing_snapshot_ids = _existing_snapshot_ids(task)
         for item in raw_snapshots or []:
             if not isinstance(item, dict):
                 continue
             snapshot_id = str(item.get("id") or "").strip()
             if not snapshot_id:
                 continue
-            available_seen_ids.add(snapshot_id)
             source = item.get("source") or {}
             source_path = _normalize_source_path(source.get("path") if source else "")
             root_entry = item.get("rootEntry") or {}
             root_object_id = str(root_entry.get("obj") or "").strip()
-            if (
-                expected_source_path
-                and source_path
-                and source_path != expected_source_path
-                and snapshot_id not in existing_snapshot_ids
-            ):
+            if expected_source_path and source_path and source_path != expected_source_path:
                 skipped_source_mismatch += 1
                 continue
+            current_snapshot_ids.add(snapshot_id)
             seen_snapshots += 1
             stats = item.get("stats") or {}
             snapshot_time = _parse_snapshot_time(item)
@@ -231,7 +238,7 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
             }
             snapshot = (
                 BackupSnapshot.objects.filter(
-                    Q(storage_path=snapshot_id) | Q(metadata__snapshot_id=snapshot_id),
+                    kopia_snapshot_id=snapshot_id,
                     task=task,
                 )
                 .exclude(metadata__no_changes=True)
@@ -239,10 +246,10 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
                 .first()
             )
             if not snapshot:
-                snapshot = _find_legacy_snapshot_by_root_object(task, root_object_id)
-            if not snapshot:
                 snapshot = BackupSnapshot.objects.create(
                     task=task,
+                    kopia_snapshot_id=snapshot_id,
+                    kopia_root_object_id=root_object_id,
                     storage_path=snapshot_id,
                     repository=task.target_repository,
                     name=f"snapshot-{snapshot_id[:12]}",
@@ -255,6 +262,8 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
             existing_metadata = snapshot.metadata or {}
             existing_metadata.update(metadata)
             snapshot.repository = task.target_repository
+            snapshot.kopia_snapshot_id = snapshot_id
+            snapshot.kopia_root_object_id = root_object_id
             snapshot.version = snapshot_id
             snapshot.storage_path = snapshot_id
             snapshot.manifest_path = root_object_id or snapshot.manifest_path
@@ -270,26 +279,27 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
             snapshot.pruned_at = None
             snapshot.save(update_fields=[
                 "repository", "version", "storage_path", "manifest_path", "created_at",
-                "total_size", "file_count",
+                "kopia_snapshot_id", "kopia_root_object_id", "total_size", "file_count",
                 "metadata", "retention_reasons", "snapshot_status", "last_synced_at",
                 "missing_count", "pruned_at",
             ])
 
-        existing = BackupSnapshot.objects.filter(task=task).exclude(metadata__no_changes=True)
+        existing = (
+            BackupSnapshot.objects
+            .filter(task=task)
+            .exclude(metadata__no_changes=True)
+            .exclude(kopia_snapshot_id="")
+        )
         missing_count = 0
-        if not available_seen_ids:
+        if not current_snapshot_ids:
             return {
                 "seen": seen_snapshots,
                 "missing": missing_count,
-                "available_seen": len(available_seen_ids),
+                "available_seen": len(current_snapshot_ids),
                 "skipped_source_mismatch": skipped_source_mismatch,
             }
         for snapshot in existing:
-            identity_keys = _snapshot_identity_keys(
-                snapshot.storage_path,
-                (snapshot.metadata or {}).get("snapshot_id"),
-            )
-            if identity_keys & available_seen_ids:
+            if snapshot.kopia_snapshot_id in current_snapshot_ids:
                 if (
                     snapshot.snapshot_status != BackupSnapshot.STATUS_AVAILABLE
                     or snapshot.missing_count
@@ -305,18 +315,23 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
                 continue
             snapshot.missing_count += 1
             snapshot.last_synced_at = now
-            if snapshot.snapshot_status == BackupSnapshot.STATUS_PENDING_PRUNE or snapshot.missing_count >= 2:
+            if snapshot.snapshot_status == BackupSnapshot.STATUS_PENDING_PRUNE or snapshot.missing_count >= 3:
                 snapshot.snapshot_status = BackupSnapshot.STATUS_PRUNED
                 snapshot.pruned_at = snapshot.pruned_at or now
-            else:
+            elif snapshot.missing_count >= 2:
                 snapshot.snapshot_status = BackupSnapshot.STATUS_MISSING
+            else:
+                update_fields = ["missing_count", "last_synced_at"]
+                snapshot.save(update_fields=update_fields)
+                missing_count += 1
+                continue
             snapshot.save(update_fields=["missing_count", "last_synced_at", "snapshot_status", "pruned_at"])
             missing_count += 1
 
     return {
         "seen": seen_snapshots,
         "missing": missing_count,
-        "available_seen": len(available_seen_ids),
+        "available_seen": len(current_snapshot_ids),
         "skipped_source_mismatch": skipped_source_mismatch,
     }
 
@@ -328,44 +343,6 @@ def _normalize_source_path(path: Any) -> str:
     while len(value) > 1 and value.endswith(("/", "\\")):
         value = value[:-1]
     return value
-
-
-def _snapshot_identity_keys(*values: Any) -> set[str]:
-    return {str(value).strip() for value in values if str(value or "").strip()}
-
-
-def _existing_snapshot_ids(task: BackupTask) -> set[str]:
-    ids: set[str] = set()
-    for snapshot in BackupSnapshot.objects.filter(task=task).exclude(metadata__no_changes=True):
-        ids.update(_snapshot_identity_keys(
-            snapshot.storage_path,
-            (snapshot.metadata or {}).get("snapshot_id"),
-        ))
-    return ids
-
-
-def _find_legacy_snapshot_by_root_object(task: BackupTask, root_object_id: str) -> BackupSnapshot | None:
-    """Find old records that stored only the Kopia root object, not the snapshot manifest ID."""
-    if not root_object_id:
-        return None
-    candidates = (
-        BackupSnapshot.objects.filter(
-            Q(storage_path=root_object_id)
-            | Q(manifest_path=root_object_id)
-            | Q(metadata__root_object_id=root_object_id),
-            task=task,
-        )
-        .exclude(metadata__no_changes=True)
-        .order_by("-created_at")
-    )
-    for snapshot in candidates:
-        metadata = snapshot.metadata or {}
-        if str(metadata.get("snapshot_id") or "").strip():
-            continue
-        if snapshot.storage_path and snapshot.storage_path != root_object_id:
-            continue
-        return snapshot
-    return None
 
 
 def _parse_snapshot_time(item: dict[str, Any]):
@@ -386,6 +363,7 @@ def evaluate_retention(task: BackupTask) -> RetentionPlan:
             snapshot_status=BackupSnapshot.STATUS_AVAILABLE,
         )
         .exclude(metadata__no_changes=True)
+        .exclude(kopia_snapshot_id="")
         .order_by("-created_at")
     )
     retention = _effective_retention(task)
@@ -393,8 +371,8 @@ def evaluate_retention(task: BackupTask) -> RetentionPlan:
     reasons: dict[str, list[str]] = {}
 
     def retain(snapshot: BackupSnapshot, reason: str) -> None:
-        retain_ids.add(snapshot.storage_path)
-        reasons.setdefault(snapshot.storage_path, []).append(reason)
+        retain_ids.add(snapshot.kopia_snapshot_id)
+        reasons.setdefault(snapshot.kopia_snapshot_id, []).append(reason)
 
     for snapshot in snapshots[: int(retention.get("keep_latest") or 0)]:
         retain(snapshot, "latest")
@@ -405,14 +383,14 @@ def evaluate_retention(task: BackupTask) -> RetentionPlan:
     _retain_by_bucket(snapshots, retention.get("keep_monthly"), "%Y-%m", "monthly", retain)
     _retain_by_bucket(snapshots, retention.get("keep_annual"), "%Y", "annual", retain)
 
-    all_ids = {snapshot.storage_path for snapshot in snapshots}
+    all_ids = {snapshot.kopia_snapshot_id for snapshot in snapshots if snapshot.kopia_snapshot_id}
     return RetentionPlan(retain_ids=retain_ids, prune_ids=all_ids - retain_ids, reasons=reasons)
 
 
 def apply_retention_marks(task: BackupTask, plan: RetentionPlan) -> None:
     """Persist retention reasons for retained snapshots without deleting anything."""
-    for snapshot in BackupSnapshot.objects.filter(task=task, storage_path__in=plan.retain_ids):
-        snapshot.retention_reasons = plan.reasons.get(snapshot.storage_path, [])
+    for snapshot in BackupSnapshot.objects.filter(task=task, kopia_snapshot_id__in=plan.retain_ids):
+        snapshot.retention_reasons = plan.reasons.get(snapshot.kopia_snapshot_id, [])
         if snapshot.snapshot_status == BackupSnapshot.STATUS_PENDING_PRUNE:
             snapshot.snapshot_status = BackupSnapshot.STATUS_AVAILABLE
         snapshot.save(update_fields=["retention_reasons", "snapshot_status"])

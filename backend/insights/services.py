@@ -76,6 +76,10 @@ def dispatch_snapshot_index(snapshot, user, gateway_id=None, force=False):
         SnapshotFileIndex.objects.filter(snapshot=snapshot).delete()
         SnapshotInsight.objects.filter(snapshot=snapshot).delete()
 
+    object_id = snapshot.kopia_root_object_id or snapshot.manifest_path or ''
+    kopia_snapshot_id = snapshot.kopia_snapshot_id or (snapshot.metadata or {}).get('referenced_snapshot_id', '')
+    if not kopia_snapshot_id:
+        raise ValueError('Snapshot ID is missing. Please resync snapshots before indexing')
     job = SnapshotIndexJob.objects.create(
         snapshot=snapshot,
         gateway=gateway,
@@ -83,12 +87,11 @@ def dispatch_snapshot_index(snapshot, user, gateway_id=None, force=False):
         user=user,
         status=SnapshotIndexJob.STATUS_PENDING,
     )
-    object_id = snapshot.manifest_path or (snapshot.metadata or {}).get('root_object_id') or ''
     task_id = GatewayService.index_snapshot(
         str(gateway.id),
         job_id=str(job.id),
         snapshot_id=str(snapshot.id),
-        kopia_snapshot_id=snapshot.storage_path,
+        kopia_snapshot_id=kopia_snapshot_id,
         object_id=object_id,
         repository_config=build_repository_config(repository),
         password=password,

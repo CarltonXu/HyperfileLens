@@ -262,8 +262,20 @@ def build_source_resource_config(source):
 
 
 def resolve_source_path(task):
+    kopia_source_path = resolve_kopia_source_path(task)
+    if kopia_source_path:
+        return kopia_source_path
     if task.backup_paths:
         return task.backup_paths[0]
+    return ''
+
+
+def resolve_kopia_source_path(task):
+    """Return the path Kopia records as source.path on the execution proxy."""
+    if task.backup_paths:
+        source = task.source_resource
+        if source and source.resource_type in ('local', 's3'):
+            return task.backup_paths[0]
     source = task.source_resource
     if not source:
         return ''
@@ -272,7 +284,18 @@ def resolve_source_path(task):
         return config.get('root_path') or config.get('path') or '/'
     if source.resource_type == 's3':
         return config.get('prefix') or '/'
-    return source.mount_point or source.get_effective_mount_point()
+    if source.mount_point:
+        return source.mount_point
+    return f"/mnt/hyperfilelens/source-{_safe_source_id_prefix(source.id)}"
+
+
+def _safe_source_id_prefix(source_id):
+    value = str(source_id or '').strip()
+    token = ''.join(
+        char if char.isalnum() or char in {'-', '_', '.'} else '-'
+        for char in value
+    ).strip('-.')
+    return (token or 'unknown')[:8]
 
 
 def build_effective_policy(task, source_path):

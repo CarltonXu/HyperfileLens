@@ -307,6 +307,16 @@ class BackupTask(models.Model):
         blank=True,
         help_text="Status of the latest execution run"
     )
+    latest_snapshot_sync_task_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="Latest proxy task allowed to reconcile this task's Kopia snapshots"
+    )
+    latest_snapshot_sync_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the latest snapshot reconciliation was dispatched"
+    )
     
     class Meta:
         db_table = 'backup_tasks'
@@ -643,6 +653,17 @@ class BackupSnapshot(models.Model):
     )
     
     # Storage
+    kopia_snapshot_id = models.CharField(
+        max_length=128,
+        blank=True,
+        db_index=True,
+        help_text="Kopia snapshot manifest ID. This is the canonical snapshot identity."
+    )
+    kopia_root_object_id = models.CharField(
+        max_length=128,
+        blank=True,
+        help_text="Kopia root object ID used for browsing/restoring snapshot contents."
+    )
     repository = models.ForeignKey(
         'repository.Repository',
         on_delete=models.CASCADE,
@@ -722,6 +743,13 @@ class BackupSnapshot(models.Model):
             models.Index(fields=['expires_at']),
             models.Index(fields=['snapshot_status']),
             models.Index(fields=['last_synced_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['task', 'kopia_snapshot_id'],
+                condition=~models.Q(kopia_snapshot_id=''),
+                name='uniq_backup_snapshot_task_kopia_id',
+            ),
         ]
     
     def __str__(self):

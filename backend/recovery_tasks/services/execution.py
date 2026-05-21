@@ -33,12 +33,12 @@ def dispatch_recovery_task(task, *, trigger_type=RecoveryRun.TRIGGER_MANUAL):
             'Repository password is not saved. Please save the Kopia repository password before recovery.'
         )
 
-    snapshot_id = task.snapshot.storage_path or task.snapshot.version
+    snapshot_id = task.snapshot.kopia_snapshot_id or (task.snapshot.metadata or {}).get('referenced_snapshot_id', '')
     if not snapshot_id:
         raise RecoveryTaskExecutionError('Snapshot ID is missing')
     object_id = (
-        task.snapshot.manifest_path
-        or (task.snapshot.metadata or {}).get('root_object_id')
+        task.snapshot.kopia_root_object_id
+        or task.snapshot.manifest_path
         or ''
     )
     if task.restore_scope == task.SCOPE_SELECTED_PATHS and not object_id:

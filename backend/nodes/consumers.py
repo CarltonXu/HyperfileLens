@@ -1354,6 +1354,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                                         version=str(snapshot_id),
                                         storage_path=str(snapshot_id),
                                         manifest_path=str(root_object_id),
+                                        kopia_root_object_id=str(root_object_id),
                                         total_size=backup_task.backed_up_size,
                                         file_count=backup_task.backed_up_files,
                                         metadata={},
@@ -1361,12 +1362,14 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                             else:
                                 snapshot, _created = BackupSnapshot.objects.get_or_create(
                                     task=backup_task,
-                                    storage_path=str(snapshot_id),
+                                    kopia_snapshot_id=str(snapshot_id),
                                     defaults={
                                         'repository': backup_task.target_repository,
                                         'name': f'snapshot-{timezone.now().strftime("%Y%m%d_%H%M%S")}',
                                         'version': str(snapshot_id),
+                                        'storage_path': str(snapshot_id),
                                         'manifest_path': str(root_object_id),
+                                        'kopia_root_object_id': str(root_object_id),
                                         'total_size': backup_task.backed_up_size,
                                         'file_count': backup_task.backed_up_files,
                                         'metadata': {},
@@ -1386,6 +1389,8 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                                 'synthetic': False,
                             })
                             snapshot.repository = backup_task.target_repository
+                            snapshot.kopia_snapshot_id = '' if no_changes else str(snapshot_id)
+                            snapshot.kopia_root_object_id = str(root_object_id)
                             snapshot.version = str(snapshot_id)
                             snapshot.storage_path = str(snapshot_id)
                             snapshot.manifest_path = str(root_object_id)
@@ -1397,7 +1402,8 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                             snapshot.pruned_at = None
                             snapshot.last_synced_at = timezone.now()
                             snapshot.save(update_fields=[
-                                'repository', 'version', 'storage_path', 'manifest_path',
+                                'repository', 'kopia_snapshot_id', 'kopia_root_object_id',
+                                'version', 'storage_path', 'manifest_path',
                                 'total_size', 'file_count', 'metadata', 'snapshot_status',
                                 'missing_count', 'pruned_at', 'last_synced_at',
                             ])
@@ -1460,12 +1466,14 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                             backup_task.save()
                             snapshot, _created = BackupSnapshot.objects.get_or_create(
                                 task=backup_task,
-                                storage_path=str(snapshot_id),
+                                kopia_snapshot_id=str(snapshot_id),
                                 defaults={
                                     'repository': backup_task.target_repository,
                                     'name': f'snapshot-{timezone.now().strftime("%Y%m%d_%H%M%S")}',
                                     'version': str(snapshot_id),
+                                    'storage_path': str(snapshot_id),
                                     'manifest_path': str(root_object_id),
+                                    'kopia_root_object_id': str(root_object_id),
                                     'total_size': backup_task.backed_up_size,
                                     'file_count': backup_task.backed_up_files,
                                     'metadata': {},
@@ -1484,6 +1492,8 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                                 'synthetic': False,
                             })
                             snapshot.repository = backup_task.target_repository
+                            snapshot.kopia_snapshot_id = str(snapshot_id)
+                            snapshot.kopia_root_object_id = str(root_object_id)
                             snapshot.version = str(snapshot_id)
                             snapshot.storage_path = str(snapshot_id)
                             snapshot.manifest_path = str(root_object_id)
@@ -1495,7 +1505,8 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                             snapshot.pruned_at = None
                             snapshot.last_synced_at = timezone.now()
                             snapshot.save(update_fields=[
-                                'repository', 'version', 'storage_path', 'manifest_path',
+                                'repository', 'kopia_snapshot_id', 'kopia_root_object_id',
+                                'version', 'storage_path', 'manifest_path',
                                 'total_size', 'file_count', 'metadata', 'snapshot_status',
                                 'missing_count', 'pruned_at', 'last_synced_at',
                             ])
@@ -1647,7 +1658,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 if success:
                     BackupSnapshot.objects.filter(
                         task_id=backup_task_id,
-                        storage_path__in=snapshot_ids,
+                        kopia_snapshot_id__in=snapshot_ids,
                     ).update(
                         snapshot_status=BackupSnapshot.STATUS_MISSING,
                         last_synced_at=timezone.now(),
@@ -1669,7 +1680,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 else:
                     BackupSnapshot.objects.filter(
                         task_id=backup_task_id,
-                        storage_path__in=snapshot_ids,
+                        kopia_snapshot_id__in=snapshot_ids,
                     ).update(
                         snapshot_status=BackupSnapshot.STATUS_DELETE_FAILED,
                         last_synced_at=timezone.now(),

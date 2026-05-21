@@ -37,7 +37,11 @@ from .serializers import (
     BackupSnapshotListSerializer,
     BackupTaskRunSerializer,
 )
-from .services.execution import dispatch_backup_task, BackupTaskExecutionError
+from .services.execution import (
+    dispatch_backup_task,
+    BackupTaskExecutionError,
+    resolve_kopia_source_path,
+)
 from .services.retention import (
     dispatch_kopia_maintenance,
     dispatch_snapshot_reconciliation,
@@ -350,17 +354,7 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
 
     def _resolve_source_path(self, task):
         """Return the first executable source path for the current proxy implementation."""
-        if task.backup_paths:
-            return task.backup_paths[0]
-        source = task.source_resource
-        if not source:
-            return ''
-        config = source.config or {}
-        if source.resource_type == 'local':
-            return config.get('root_path') or config.get('path') or '/'
-        if source.resource_type == 's3':
-            return config.get('prefix') or '/'
-        return source.mount_point or source.get_effective_mount_point()
+        return resolve_kopia_source_path(task)
 
     def _build_effective_policy(self, task, source_path):
         """Resolve the Kopia policy that must be applied before snapshot creation."""
@@ -638,8 +632,8 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         task = self.get_object()
         valid_snapshot_ids = [
             snapshot.id
-            for snapshot in BackupSnapshot.objects.filter(task=task).only('id', 'manifest_path')
-            if _is_probably_kopia_object_id(snapshot.manifest_path)
+            for snapshot in BackupSnapshot.objects.filter(task=task).only('id', 'kopia_root_object_id', 'manifest_path')
+            if _is_probably_kopia_object_id(snapshot.kopia_root_object_id or snapshot.manifest_path)
         ]
         snapshots = list(BackupSnapshot.objects.filter(
             id__in=valid_snapshot_ids,
@@ -882,30 +876,10 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         object_id = (
-            snapshot.manifest_path
-            or (snapshot.metadata or {}).get('root_object_id')
+            snapshot.kopia_root_object_id
+            or snapshot.manifest_path
             or ''
         )
-        if not _is_probably_kopia_object_id(object_id):
-            parsed_object_id, parsed_snapshot_id = _parse_kopia_snapshot_ids(
-                (snapshot.metadata or {}).get('kopia_output', '')
-            )
-            if parsed_object_id:
-                object_id = parsed_object_id
-                if parsed_snapshot_id and snapshot.storage_path != parsed_snapshot_id:
-                    snapshot.storage_path = parsed_snapshot_id
-                    snapshot.version = parsed_snapshot_id
-                snapshot.manifest_path = parsed_object_id
-                metadata = snapshot.metadata or {}
-                metadata.update({
-                    'root_object_id': parsed_object_id,
-                    'snapshot_id': parsed_snapshot_id or snapshot.storage_path,
-                })
-                snapshot.metadata = metadata
-                snapshot.save(update_fields=[
-                    'storage_path', 'version', 'manifest_path', 'metadata',
-                ])
-
         if not _is_probably_kopia_object_id(object_id):
             return Response(
                 {
@@ -914,6 +888,12 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                         'Please run a new backup or resync snapshots before browsing files.'
                     )
                 },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        snapshot_identifier = snapshot.kopia_snapshot_id or (snapshot.metadata or {}).get('referenced_snapshot_id', '')
+        if not snapshot_identifier:
+            return Response(
+                {'error': 'Snapshot Kopia manifest ID is missing. Please resync snapshots before browsing files.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -935,7 +915,7 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             proxy=proxy,
             task_type='list_snapshot_files',
             parameters={
-                'snapshot_id': snapshot.storage_path,
+                'snapshot_id': snapshot_identifier,
                 'object_id': object_id,
                 'snapshot_record_id': str(snapshot.id),
                 'backup_task_id': str(task.id),
@@ -951,7 +931,7 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
         payload = {
             'task_id': str(proxy_task.id),
-            'snapshot_id': snapshot.storage_path,
+            'snapshot_id': snapshot_identifier,
             'object_id': object_id,
             'snapshot_record_id': str(snapshot.id),
             'path': path,

@@ -35,11 +35,11 @@ class RecoveryTaskSerializer(serializers.ModelSerializer):
         read_only=True
     )
     snapshot_storage_path = serializers.CharField(
-        source='snapshot.storage_path',
+        source='snapshot.kopia_snapshot_id',
         read_only=True
     )
     snapshot_manifest_path = serializers.CharField(
-        source='snapshot.manifest_path',
+        source='snapshot.kopia_root_object_id',
         read_only=True
     )
     snapshot_status = serializers.CharField(
@@ -182,8 +182,8 @@ class RecoveryExportSerializer(serializers.ModelSerializer):
     """Serializer for downloadable recovery exports."""
 
     snapshot_name = serializers.CharField(source='snapshot.name', read_only=True)
-    snapshot_storage_path = serializers.CharField(source='snapshot.storage_path', read_only=True)
-    snapshot_manifest_path = serializers.CharField(source='snapshot.manifest_path', read_only=True)
+    snapshot_storage_path = serializers.CharField(source='snapshot.kopia_snapshot_id', read_only=True)
+    snapshot_manifest_path = serializers.CharField(source='snapshot.kopia_root_object_id', read_only=True)
     snapshot_status = serializers.CharField(source='snapshot.snapshot_status', read_only=True)
     snapshot_created_at = serializers.DateTimeField(source='snapshot.created_at', read_only=True)
     snapshot_source_path = serializers.SerializerMethodField()

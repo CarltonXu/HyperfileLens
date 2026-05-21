@@ -33,7 +33,8 @@ class BackupSnapshotSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'task', 'task_name', 'name', 'description', 'version',
             'parent_snapshot', 'repository', 'repository_name', 'storage_path',
-            'manifest_path', 'total_size', 'file_count',
+            'manifest_path', 'kopia_snapshot_id', 'kopia_root_object_id',
+            'total_size', 'file_count',
             'created_at', 'expires_at', 'checksum', 'metadata',
             'snapshot_status', 'retention_reasons', 'last_synced_at',
             'missing_count', 'pruned_at', 'files'
@@ -49,7 +50,8 @@ class BackupSnapshotListSerializer(serializers.ModelSerializer):
         model = BackupSnapshot
         fields = [
             'id', 'task', 'task_name', 'name', 'version', 'total_size', 'file_count',
-            'storage_path', 'manifest_path', 'metadata', 'snapshot_status',
+            'storage_path', 'manifest_path', 'kopia_snapshot_id', 'kopia_root_object_id',
+            'metadata', 'snapshot_status',
             'retention_reasons', 'last_synced_at', 'missing_count', 'pruned_at',
             'created_at', 'expires_at'
         ]

@@ -40,11 +40,14 @@ def dispatch_recovery_export(export):
     if not repository_password:
         raise RecoveryExportExecutionError('Repository password is not saved')
 
-    object_id = export.snapshot.manifest_path or (export.snapshot.metadata or {}).get('root_object_id') or ''
+    object_id = export.snapshot.kopia_root_object_id or export.snapshot.manifest_path or ''
     if not _is_probably_kopia_object_id(object_id):
         raise RecoveryExportExecutionError(
             'Snapshot root object ID is missing or invalid. Please resync snapshots before exporting files.'
         )
+    snapshot_id = export.snapshot.kopia_snapshot_id or (export.snapshot.metadata or {}).get('referenced_snapshot_id', '')
+    if not snapshot_id:
+        raise RecoveryExportExecutionError('Snapshot ID is missing. Please resync snapshots before exporting files.')
 
     proxy_task = ProxyTask.objects.create(
         proxy=proxy,
@@ -52,7 +55,7 @@ def dispatch_recovery_export(export):
         parameters={
             'recovery_export_id': str(export.id),
             'snapshot_record_id': str(export.snapshot_id),
-            'snapshot_id': export.snapshot.storage_path,
+            'snapshot_id': snapshot_id,
             'object_id': object_id,
             'selected_paths': export.selected_paths,
             'package_format': export.package_format,
@@ -81,7 +84,7 @@ def dispatch_recovery_export(export):
         'task_id': str(proxy_task.id),
         'recovery_export_id': str(export.id),
         'snapshot_record_id': str(export.snapshot_id),
-        'snapshot_id': export.snapshot.storage_path,
+        'snapshot_id': snapshot_id,
         'object_id': object_id,
         'selected_paths': export.selected_paths,
         'package_format': export.package_format,
