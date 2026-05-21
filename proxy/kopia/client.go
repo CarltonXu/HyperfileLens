@@ -993,7 +993,7 @@ func (c *Client) ListSnapshotsForSource(password, sourcePath string) (interface{
 
 	args := []string{"snapshot", "list", "--json"}
 	if strings.TrimSpace(sourcePath) != "" {
-		args = append(args, sourcePath)
+		args = append(args, strings.TrimSpace(sourcePath))
 	}
 	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
 	if err != nil {

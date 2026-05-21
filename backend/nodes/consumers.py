@@ -1392,9 +1392,14 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                             snapshot.total_size = snapshot.total_size or backup_task.backed_up_size
                             snapshot.file_count = snapshot.file_count or backup_task.backed_up_files
                             snapshot.metadata = metadata
+                            snapshot.snapshot_status = BackupSnapshot.STATUS_AVAILABLE
+                            snapshot.missing_count = 0
+                            snapshot.pruned_at = None
+                            snapshot.last_synced_at = timezone.now()
                             snapshot.save(update_fields=[
                                 'repository', 'version', 'storage_path', 'manifest_path',
-                                'total_size', 'file_count', 'metadata',
+                                'total_size', 'file_count', 'metadata', 'snapshot_status',
+                                'missing_count', 'pruned_at', 'last_synced_at',
                             ])
                         try:
                             dispatch_snapshot_reconciliation(backup_task)
@@ -1485,9 +1490,14 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                             snapshot.total_size = snapshot.total_size or backup_task.backed_up_size
                             snapshot.file_count = snapshot.file_count or backup_task.backed_up_files
                             snapshot.metadata = metadata
+                            snapshot.snapshot_status = BackupSnapshot.STATUS_AVAILABLE
+                            snapshot.missing_count = 0
+                            snapshot.pruned_at = None
+                            snapshot.last_synced_at = timezone.now()
                             snapshot.save(update_fields=[
                                 'repository', 'version', 'storage_path', 'manifest_path',
-                                'total_size', 'file_count', 'metadata',
+                                'total_size', 'file_count', 'metadata', 'snapshot_status',
+                                'missing_count', 'pruned_at', 'last_synced_at',
                             ])
                             BackupTaskRun.objects.filter(proxy_task=task).update(
                                 status=BackupTaskRun.STATUS_PARTIAL,

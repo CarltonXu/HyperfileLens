@@ -2,40 +2,23 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
-  ArrowPathIcon,
-  BeakerIcon,
   BellIcon,
   CheckCircleIcon,
   EnvelopeIcon,
   GlobeAltIcon,
-  MagnifyingGlassIcon,
-  PencilSquareIcon,
   PlusIcon,
-  PowerIcon,
-  TrashIcon,
   XCircleIcon,
   XMarkIcon,
   ChatBubbleLeftRightIcon,
-  EyeIcon,
 } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
-import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
-
-interface NotificationChannel {
-  id: string;
-  name: string;
-  type: string;
-  enabled: boolean;
-  config: Record<string, any>;
-  created_at: string;
-  updated_at: string;
-}
-
-interface TestResult {
-  success: boolean;
-  message?: string;
-}
+import NotificationChannelTable from "@/components/alerts/NotificationChannelTable.vue";
+import NotificationChannelToolbar from "@/components/alerts/NotificationChannelToolbar.vue";
+import type {
+  NotificationChannel,
+  NotificationChannelTestResult,
+} from "@/types/alerts";
 
 const channels = ref<NotificationChannel[]>([]);
 const { t, locale } = useI18n();
@@ -47,7 +30,7 @@ const showCreateModal = ref(false);
 const editingChannel = ref<NotificationChannel | null>(null);
 const saving = ref(false);
 const testing = ref(false);
-const testResult = ref<TestResult | null>(null);
+const testResult = ref<NotificationChannelTestResult | null>(null);
 const showDetailsModal = ref(false);
 const detailsLoading = ref(false);
 const channelDetails = ref<any>(null);
@@ -616,239 +599,28 @@ onMounted(fetchChannels);
       </button>
     </div>
 
-    <!-- Filters -->
-    <div class="rounded-xl border border-border bg-card overflow-hidden">
-      <div class="flex flex-wrap gap-3 p-4">
-        <div class="relative flex-1 min-w-[200px]">
-          <MagnifyingGlassIcon
-            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted"
-          />
-          <input
-            v-model="filters.search"
-            class="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            :placeholder="t('alertsCenter.channels.searchPlaceholder')"
-          />
-        </div>
-        <select
-          v-model="filters.type"
-          class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-        >
-          <option value="">{{ t("alertsCenter.common.allTypes") }}</option>
-          <option value="email">{{ t("alertsCenter.values.email") }}</option>
-          <option value="webhook">
-            {{ t("alertsCenter.values.webhook") }}
-          </option>
-          <option value="dingtalk">
-            {{ t("alertsCenter.values.dingtalk") }}
-          </option>
-          <option value="wecom">{{ t("alertsCenter.values.wecom") }}</option>
-        </select>
-        <select
-          v-model="filters.enabled"
-          class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-        >
-          <option value="">{{ t("alertsCenter.common.allStatus") }}</option>
-          <option value="true">{{ t("alertsCenter.values.enabled") }}</option>
-          <option value="false">{{ t("alertsCenter.values.disabled") }}</option>
-        </select>
-        <button
-          @click="fetchChannels"
-          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-hover transition-colors"
-        >
-          <ArrowPathIcon :class="['h-4 w-4', loading && 'animate-spin']" />
-          {{ t("alertsCenter.common.refresh") }}
-        </button>
-      </div>
-    </div>
+    <NotificationChannelToolbar
+      v-model:search="filters.search"
+      v-model:type="filters.type"
+      v-model:enabled="filters.enabled"
+      :loading="loading"
+      @refresh="fetchChannels"
+    />
 
-    <!-- Channel Table -->
-    <div
+    <NotificationChannelTable
       v-if="filteredChannels.length > 0"
-      class="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
-    >
-      <div class="overflow-x-auto">
-        <table
-          class="w-full table-fixed text-left text-sm"
-          :style="{ minWidth: notificationChannelTable.tableMinWidth.value }"
-        >
-          <colgroup>
-            <col
-              v-for="column in notificationChannelColumns"
-              :key="column.key"
-              :style="notificationChannelTable.columnStyle(column.key)"
-            />
-          </colgroup>
-          <thead class="border-b border-border bg-background-secondary">
-            <tr>
-              <ResizableSortableTh
-                v-for="column in notificationChannelColumns"
-                :key="column.key"
-                :column-key="column.key"
-                :label="column.label"
-                :style-value="notificationChannelTable.columnStyle(column.key)"
-                :sortable="column.sortable !== false"
-                :active="notificationChannelTable.sort.value.key === column.key"
-                :align="column.align"
-                :sort-icon="notificationChannelTable.getSortIcon(column.key)"
-                :resizing="
-                  notificationChannelTable.resizingColumn.value === column.key
-                "
-                @sort="
-                  notificationChannelTable.toggleSort(
-                    $event as NotificationChannelColumnKey,
-                  )
-                "
-                @resize-start="
-                  (key, event) =>
-                    notificationChannelTable.startResize(
-                      key as NotificationChannelColumnKey,
-                      event,
-                    )
-                "
-                @resize-reset="
-                  notificationChannelTable.resetColumnWidth(
-                    $event as NotificationChannelColumnKey,
-                  )
-                "
-              />
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border">
-            <tr
-              v-for="channel in notificationChannelTable.sortedRows.value"
-              :key="channel.id"
-              class="hover:bg-hover transition-colors"
-            >
-              <!-- Name -->
-              <td
-                class="px-4 py-4"
-                :style="notificationChannelTable.columnStyle('name')"
-              >
-                <div class="flex items-center gap-2">
-                  <component
-                    :is="channelIcons[channel.type]"
-                    class="h-4 w-4 text-foreground-secondary"
-                  />
-                  <span class="font-medium text-foreground">{{
-                    channel.name
-                  }}</span>
-                </div>
-              </td>
-              <!-- Type -->
-              <td
-                class="px-4 py-4"
-                :style="notificationChannelTable.columnStyle('type')"
-              >
-                <span
-                  class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium"
-                  :class="channelColors[channel.type]"
-                >
-                  {{ t(`alertsCenter.values.${channel.type}`) }}
-                </span>
-              </td>
-              <!-- Status -->
-              <td
-                class="px-4 py-4"
-                :style="notificationChannelTable.columnStyle('enabled')"
-              >
-                <span
-                  class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
-                  :class="
-                    channel.enabled
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-                      : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-500/10 dark:text-zinc-400'
-                  "
-                >
-                  <span
-                    :class="[
-                      'h-1.5 w-1.5 rounded-full',
-                      channel.enabled ? 'bg-emerald-500' : 'bg-zinc-500',
-                    ]"
-                  />
-                  {{
-                    channel.enabled
-                      ? t("alertsCenter.values.enabled")
-                      : t("alertsCenter.values.disabled")
-                  }}
-                </span>
-              </td>
-              <!-- Target -->
-              <td
-                :style="notificationChannelTable.columnStyle('target')"
-                class="max-w-[300px] truncate px-4 py-4 text-foreground-secondary"
-              >
-                {{ getChannelTarget(channel) }}
-              </td>
-              <!-- Updated At -->
-              <td
-                class="px-4 py-4 text-foreground-secondary"
-                :style="notificationChannelTable.columnStyle('updated_at')"
-              >
-                {{
-                  new Date(
-                    channel.updated_at || channel.created_at,
-                  ).toLocaleString()
-                }}
-              </td>
-              <!-- Actions -->
-              <td
-                class="px-4 py-4"
-                :style="notificationChannelTable.columnStyle('actions')"
-              >
-                <div class="flex justify-end gap-1">
-                  <button
-                    @click="testExistingChannel(channel)"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors"
-                    :title="t('alertsCenter.common.test')"
-                  >
-                    <BeakerIcon class="h-4 w-4" />
-                  </button>
-                  <button
-                    @click="toggleChannel(channel)"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors"
-                    :title="
-                      channel.enabled
-                        ? t('alertsCenter.common.disabled')
-                        : t('alertsCenter.values.enabled')
-                    "
-                  >
-                    <PowerIcon
-                      :class="[
-                        'h-4 w-4',
-                        channel.enabled
-                          ? 'text-emerald-500'
-                          : 'text-foreground-muted',
-                      ]"
-                    />
-                  </button>
-                  <button
-                    @click="viewDetails(channel)"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors"
-                    :title="t('alertsCenter.common.viewDetails')"
-                  >
-                    <EyeIcon class="h-4 w-4" />
-                  </button>
-                  <button
-                    @click="openEditModal(channel)"
-                    class="rounded-lg p-2 text-foreground-secondary hover:bg-hover hover:text-foreground transition-colors"
-                    :title="$t('common.edit')"
-                  >
-                    <PencilSquareIcon class="h-4 w-4" />
-                  </button>
-                  <button
-                    @click="deleteChannel(channel)"
-                    class="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                    :title="$t('common.delete')"
-                  >
-                    <TrashIcon class="h-4 w-4" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+      :channels="notificationChannelTable.sortedRows.value"
+      :columns="notificationChannelColumns"
+      :table="notificationChannelTable"
+      :channel-icons="channelIcons"
+      :channel-colors="channelColors"
+      :get-channel-target="getChannelTarget"
+      @test="testExistingChannel"
+      @toggle="toggleChannel"
+      @details="viewDetails"
+      @edit="openEditModal"
+      @delete="deleteChannel"
+    />
 
     <!-- Empty State -->
     <div

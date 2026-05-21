@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from backup_tasks.models import BackupSnapshot, BackupTask
 from backup_tasks.services.execution import (
+    build_source_resource_config,
     build_repository_config,
     resolve_source_path,
     select_execution_node,
@@ -49,6 +50,7 @@ def dispatch_snapshot_reconciliation(task: BackupTask) -> tuple[ProxyTask | None
             "repository_id": str(task.target_repository_id),
             "source_resource_id": str(task.source_resource_id),
             "source_path": source_path,
+            "source_resource": build_source_resource_config(task.source_resource),
             "repository": build_repository_config(task.target_repository),
             "password": password,
             "task_id": "",
@@ -186,24 +188,34 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
         except json.JSONDecodeError:
             raw_snapshots = []
     now = timezone.now()
-    seen_ids: set[str] = set()
+    available_seen_ids: set[str] = set()
     seen_snapshots = 0
-    expected_source_path = _normalize_source_path((proxy_task.parameters or {}).get("source_path"))
+    skipped_source_mismatch = 0
+    expected_source_path = _normalize_source_path(
+        result.get("source_path") or (proxy_task.parameters or {}).get("source_path")
+    )
 
     with transaction.atomic():
+        existing_snapshot_ids = _existing_snapshot_ids(task)
         for item in raw_snapshots or []:
             if not isinstance(item, dict):
                 continue
             snapshot_id = str(item.get("id") or "").strip()
             if not snapshot_id:
                 continue
+            available_seen_ids.add(snapshot_id)
             source = item.get("source") or {}
             source_path = _normalize_source_path(source.get("path") if source else "")
-            if expected_source_path and source_path and source_path != expected_source_path:
-                continue
             root_entry = item.get("rootEntry") or {}
             root_object_id = str(root_entry.get("obj") or "").strip()
-            seen_ids.update(_snapshot_identity_keys(snapshot_id, root_object_id))
+            if (
+                expected_source_path
+                and source_path
+                and source_path != expected_source_path
+                and snapshot_id not in existing_snapshot_ids
+            ):
+                skipped_source_mismatch += 1
+                continue
             seen_snapshots += 1
             stats = item.get("stats") or {}
             snapshot_time = _parse_snapshot_time(item)
@@ -217,15 +229,17 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
                 "kopia_end_time": item.get("endTime") or "",
                 "last_seen_at": now.isoformat(),
             }
-            identity_query = Q(storage_path=snapshot_id) | Q(metadata__snapshot_id=snapshot_id)
-            if root_object_id:
-                identity_query |= Q(manifest_path=root_object_id) | Q(metadata__root_object_id=root_object_id)
             snapshot = (
-                BackupSnapshot.objects.filter(identity_query, task=task)
+                BackupSnapshot.objects.filter(
+                    Q(storage_path=snapshot_id) | Q(metadata__snapshot_id=snapshot_id),
+                    task=task,
+                )
                 .exclude(metadata__no_changes=True)
                 .order_by("-created_at")
                 .first()
             )
+            if not snapshot:
+                snapshot = _find_legacy_snapshot_by_root_object(task, root_object_id)
             if not snapshot:
                 snapshot = BackupSnapshot.objects.create(
                     task=task,
@@ -263,14 +277,19 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
 
         existing = BackupSnapshot.objects.filter(task=task).exclude(metadata__no_changes=True)
         missing_count = 0
+        if not available_seen_ids:
+            return {
+                "seen": seen_snapshots,
+                "missing": missing_count,
+                "available_seen": len(available_seen_ids),
+                "skipped_source_mismatch": skipped_source_mismatch,
+            }
         for snapshot in existing:
             identity_keys = _snapshot_identity_keys(
                 snapshot.storage_path,
-                snapshot.manifest_path,
                 (snapshot.metadata or {}).get("snapshot_id"),
-                (snapshot.metadata or {}).get("root_object_id"),
             )
-            if identity_keys & seen_ids:
+            if identity_keys & available_seen_ids:
                 if (
                     snapshot.snapshot_status != BackupSnapshot.STATUS_AVAILABLE
                     or snapshot.missing_count
@@ -294,7 +313,12 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
             snapshot.save(update_fields=["missing_count", "last_synced_at", "snapshot_status", "pruned_at"])
             missing_count += 1
 
-    return {"seen": seen_snapshots, "missing": missing_count}
+    return {
+        "seen": seen_snapshots,
+        "missing": missing_count,
+        "available_seen": len(available_seen_ids),
+        "skipped_source_mismatch": skipped_source_mismatch,
+    }
 
 
 def _normalize_source_path(path: Any) -> str:
@@ -308,6 +332,40 @@ def _normalize_source_path(path: Any) -> str:
 
 def _snapshot_identity_keys(*values: Any) -> set[str]:
     return {str(value).strip() for value in values if str(value or "").strip()}
+
+
+def _existing_snapshot_ids(task: BackupTask) -> set[str]:
+    ids: set[str] = set()
+    for snapshot in BackupSnapshot.objects.filter(task=task).exclude(metadata__no_changes=True):
+        ids.update(_snapshot_identity_keys(
+            snapshot.storage_path,
+            (snapshot.metadata or {}).get("snapshot_id"),
+        ))
+    return ids
+
+
+def _find_legacy_snapshot_by_root_object(task: BackupTask, root_object_id: str) -> BackupSnapshot | None:
+    """Find old records that stored only the Kopia root object, not the snapshot manifest ID."""
+    if not root_object_id:
+        return None
+    candidates = (
+        BackupSnapshot.objects.filter(
+            Q(storage_path=root_object_id)
+            | Q(manifest_path=root_object_id)
+            | Q(metadata__root_object_id=root_object_id),
+            task=task,
+        )
+        .exclude(metadata__no_changes=True)
+        .order_by("-created_at")
+    )
+    for snapshot in candidates:
+        metadata = snapshot.metadata or {}
+        if str(metadata.get("snapshot_id") or "").strip():
+            continue
+        if snapshot.storage_path and snapshot.storage_path != root_object_id:
+            continue
+        return snapshot
+    return None
 
 
 def _parse_snapshot_time(item: dict[str, Any]):

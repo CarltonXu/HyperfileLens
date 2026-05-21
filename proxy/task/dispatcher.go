@@ -974,6 +974,7 @@ func (d *Dispatcher) listSnapshots(msg ws.Message) {
 	password := getString(msg.Payload, "password", "")
 	repoConfig := getMap(msg.Payload, "repository")
 	sourcePath := getString(msg.Payload, "source_path", "")
+	sourceConfig := getMap(msg.Payload, "source_resource")
 
 	logger.Debug("Snapshot list start", nil)
 	logger.Debug("Listing Kopia snapshots...", nil)
@@ -983,6 +984,14 @@ func (d *Dispatcher) listSnapshots(msg ws.Message) {
 			d.sendTaskFailed(msg.ID, taskID, err.Error())
 			return
 		}
+	}
+	if len(sourceConfig) > 0 {
+		resolvedSourcePath, err := d.resolveSnapshotListSourcePath(taskID, sourcePath, sourceConfig)
+		if err != nil {
+			d.sendTaskFailed(msg.ID, taskID, err.Error())
+			return
+		}
+		sourcePath = resolvedSourcePath
 	}
 
 	snapshots, err := d.kopia.ListSnapshotsForSource(password, sourcePath)
@@ -1021,6 +1030,24 @@ func (d *Dispatcher) listSnapshots(msg ws.Message) {
 	})
 
 	logger.Debug("Snapshot list end", nil)
+}
+
+func (d *Dispatcher) resolveSnapshotListSourcePath(taskID, sourcePath string, sourceConfig map[string]interface{}) (string, error) {
+	sourceType := getString(sourceConfig, "type", getString(sourceConfig, "resource_type", ""))
+	switch sourceType {
+	case "", "local":
+		return sourcePath, nil
+	case "nas", "nfs", "cifs":
+		mountPath, _, err := d.resolveStableSourceMountPath(taskID, sourceConfig)
+		if err != nil {
+			return "", err
+		}
+		remotePath := getString(sourceConfig, "export_path", getString(sourceConfig, "share", ""))
+		configuredMountPoint := getString(sourceConfig, "mount_point", "")
+		return resolveMountedSourcePath(sourcePath, mountPath, remotePath, configuredMountPoint), nil
+	default:
+		return sourcePath, nil
+	}
 }
 
 func (d *Dispatcher) deleteSnapshots(msg ws.Message) {
