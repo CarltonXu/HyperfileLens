@@ -113,7 +113,7 @@ install_dependencies() {
         fuse \
         fuse3 \
         libfuse2 \
-        libfuse3-4 \
+        libfuse3-3 \
         nfs-common \
         cifs-utils \
         curl \

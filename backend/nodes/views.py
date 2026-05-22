@@ -227,13 +227,17 @@ class ProxyViewSet(viewsets.ModelViewSet):
         serializer.save()
 
     @extend_schema(
-        summary='Get installation command',
-        description='Generate installation command for a specific OS.',
+        summary='Create proxy installation command',
+        description='Create a pending proxy and return its installation command.',
         request=InstallCommandSerializer,
         responses={200: InstallCommandResponseSerializer}
     )
-    @action(detail=False, methods=['post'])
-    def generate_install(self, request):
+    @action(detail=False, methods=['post'], url_path='install_command')
+    def create_install_command(self, request):
+        """Create a pending proxy and return its installation command."""
+        return self._create_install_command_response(request)
+
+    def _create_install_command_response(self, request):
         """
         Generate installation command for a new proxy.
 
@@ -389,6 +393,41 @@ class ProxyViewSet(viewsets.ModelViewSet):
             'api_token': proxy.api_token,
             'install_command': install_command,
             'windows_command': windows_command,
+        })
+
+    @action(detail=True, methods=['get'])
+    def install_command(self, request, pk=None):
+        """Return a freshly generated install command for a proxy."""
+        proxy = self.get_object()
+        server_url = get_public_control_plane_url(request)
+        install_command = self._build_install_command(
+            server_url=server_url,
+            role=proxy.role,
+            proxy_id=proxy.id,
+            install_token=proxy.install_token,
+            os_type=proxy.target_os or 'linux',
+            name=proxy.name
+        )
+        windows_command = self._build_install_command(
+            server_url=server_url,
+            role=proxy.role,
+            proxy_id=proxy.id,
+            install_token=proxy.install_token,
+            os_type='windows',
+            name=proxy.name
+        )
+        proxy.install_command = install_command
+        proxy.save(update_fields=['install_command'])
+
+        return Response({
+            'proxy_id': proxy.id,
+            'install_token': proxy.install_token,
+            'api_token': proxy.api_token,
+            'install_command': install_command,
+            'windows_command': windows_command,
+            'server_url': server_url,
+            'script_url': f'{server_url}/downloads/install-proxy.sh',
+            'install_token_used': proxy.install_token_used,
         })
 
     def _generate_config_yaml(self, server_url, role, install_token, name, labels):
@@ -1223,7 +1262,7 @@ logging:
             'api_token': proxy.api_token,
             'name': proxy.name,
             'role': proxy.role,
-            'server_url': request.build_absolute_uri('/').rstrip('/'),
+            'server_url': get_public_control_plane_url(request),
             'message': 'Registration successful'
         })
 

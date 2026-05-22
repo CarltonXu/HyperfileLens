@@ -100,7 +100,6 @@ const installResult = ref<{
   expires_at: string;
 } | null>(null);
 const isGeneratingInstall = ref(false);
-const commandCopied = ref(false);
 
 // Detail Drawer
 const showDetailDrawer = ref(false);
@@ -721,12 +720,12 @@ function removeLabel(label: string) {
   );
 }
 
-async function generateInstallCommand() {
+async function createInstallCommand() {
   if (!installData.value.name) return;
 
   isGeneratingInstall.value = true;
   try {
-    const res = await proxiesApi.generateInstall({
+    const res = await proxiesApi.createInstallCommand({
       name: installData.value.name,
       role: installData.value.role,
       os: installData.value.os,
@@ -752,23 +751,66 @@ async function generateInstallCommand() {
 
 async function copyCommand(command: string) {
   try {
-    await navigator.clipboard.writeText(command);
-    commandCopied.value = true;
-    setTimeout(() => {
-      commandCopied.value = false;
-    }, 2000);
+    await copyText(command);
+    appStore.showToast({
+      type: "success",
+      title: t("common.copied"),
+      message: t("common.commandCopiedToClipboard"),
+      duration: 2000,
+    });
   } catch (error) {
     console.error("Failed to copy:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: t("common.copyFailedToClipboard"),
+    });
   }
 }
 
 async function copyToClipboard(text: string, label: string = "Text") {
   try {
-    await navigator.clipboard.writeText(text);
-    // Could add toast notification here
-    console.log(`${label} copied to clipboard`);
+    await copyText(text);
+    appStore.showToast({
+      type: "success",
+      title: t("common.copied"),
+      message:
+        label === "Command"
+          ? t("common.commandCopiedToClipboard")
+          : t("common.itemCopiedToClipboard", { item: label }),
+      duration: 2000,
+    });
   } catch (error) {
     console.error("Failed to copy:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: t("common.copyFailedToClipboard"),
+    });
+  }
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    const copied = document.execCommand("copy");
+    if (!copied) throw new Error("copy command failed");
+  } finally {
+    document.body.removeChild(textarea);
   }
 }
 
@@ -914,10 +956,17 @@ function closeDetailDrawer() {
 }
 
 async function viewInstallInfo(proxy: ProxyNode) {
-  // Fetch fresh proxy data with install info
+  // Fetch fresh proxy data and regenerate the install command from current settings.
   try {
-    const response = await proxiesApi.detail(proxy.id);
-    selectedProxy.value = response.data;
+    const [detailResponse, installResponse] = await Promise.all([
+      proxiesApi.detail(proxy.id),
+      proxiesApi.installCommand(proxy.id),
+    ]);
+    selectedProxy.value = {
+      ...detailResponse.data,
+      ...installResponse.data,
+      id: detailResponse.data.id,
+    };
     showInstallInfoModal.value = true;
     openMenuId.value = null;
   } catch (error) {
@@ -1233,12 +1282,11 @@ onUnmounted(() => {
       :install-data="installData"
       :install-result="installResult"
       :is-generating-install="isGeneratingInstall"
-      :command-copied="commandCopied"
       :command="getCommandForOS()"
       @close="showInstallWizard = false"
       @add-label="addLabel"
       @remove-label="removeLabel"
-      @generate="generateInstallCommand"
+      @generate="createInstallCommand"
       @download-config="downloadConfig"
       @copy-command="copyCommand"
       @done="

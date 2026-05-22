@@ -62,7 +62,7 @@ class GatewayViewSet(viewsets.ModelViewSet):
         """Return appropriate serializer based on action."""
         if self.action == 'create':
             return GatewayCreateSerializer
-        if self.action == 'generate_install':
+        if self.action == 'create_install_command':
             return GatewayInstallSerializer
         return GatewaySerializer
     
@@ -151,8 +151,12 @@ logging:
             }
         )}
     )
-    @action(detail=False, methods=['post'])
-    def generate_install(self, request):
+    @action(detail=False, methods=['post'], url_path='install_command')
+    def create_install_command(self, request):
+        """Create a pending gateway and return its installation command."""
+        return self._create_install_command_response(request)
+
+    def _create_install_command_response(self, request):
         """
         Generate installation command for a new gateway.
         
@@ -270,6 +274,17 @@ logging:
     def install_command(self, request, pk=None):
         """Get installation command for a gateway."""
         gateway = self.get_object()
+        token_update_fields = []
+        if not gateway.api_token:
+            gateway.api_token = secrets.token_urlsafe(32)
+            token_update_fields.append('api_token')
+        if not gateway.install_token and not gateway.install_token_used:
+            gateway.install_token = secrets.token_urlsafe(32)
+            token_update_fields.append('install_token')
+        if token_update_fields:
+            token_update_fields.append('updated_at')
+            gateway.save(update_fields=token_update_fields)
+
         server_url = get_public_control_plane_url(request)
         install_command = self._build_install_command(
             server_url=server_url,
@@ -282,6 +297,7 @@ logging:
         
         return Response({
             'install_command': install_command,
+            'api_token': gateway.api_token,
             'server_url': server_url,
             'script_url': f'{server_url}/downloads/install-gateway.sh',
             'install_token_used': gateway.install_token_used,
@@ -338,12 +354,34 @@ logging:
     
     @action(detail=True, methods=['post'])
     def regenerate_token(self, request, pk=None):
-        """Regenerate API token for a gateway."""
+        """Regenerate API and install tokens for a gateway."""
         gateway = self.get_object()
-        new_token = gateway.generate_api_token()
+        gateway.api_token = secrets.token_urlsafe(32)
+        gateway.install_token = secrets.token_urlsafe(32)
+        gateway.install_token_used = False
+
+        server_url = get_public_control_plane_url(request)
+        install_command = self._build_install_command(
+            server_url=server_url,
+            gateway_id=gateway.id,
+            install_token=gateway.install_token,
+            name=gateway.name
+        )
+        gateway.install_command = install_command
+        gateway.save(update_fields=[
+            'api_token',
+            'install_token',
+            'install_token_used',
+            'install_command',
+            'updated_at',
+        ])
         
         return Response({
-            'api_token': new_token
+            'api_token': gateway.api_token,
+            'install_command': install_command,
+            'server_url': server_url,
+            'script_url': f'{server_url}/downloads/install-gateway.sh',
+            'install_token_used': gateway.install_token_used,
         })
     
     @action(detail=False, methods=['get'])

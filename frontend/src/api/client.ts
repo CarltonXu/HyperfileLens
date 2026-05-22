@@ -49,6 +49,24 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    const requestUrl = originalRequest.url || "";
+    const isAuthRequest =
+      requestUrl.includes("/api/v1/accounts/login/") ||
+      requestUrl.includes("/api/v1/accounts/register") ||
+      requestUrl.includes("/api/v1/accounts/forgot-password/") ||
+      requestUrl.includes("/api/v1/accounts/verify-reset-code/") ||
+      requestUrl.includes("/api/v1/accounts/reset-password/") ||
+      requestUrl.includes("/api/v1/accounts/mfa/");
+
+    if (error.response?.status === 401 && isAuthRequest) {
+      return Promise.reject(error);
+    }
+
+    if (error.response?.status === 401 && window.location.pathname === "/login") {
+      localStorage.removeItem("token");
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       localStorage.removeItem("token");

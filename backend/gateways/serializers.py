@@ -63,8 +63,11 @@ class GatewayCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Gateway
-        fields = ['name', 'description', 'ssh_port', 'mount_base_path', 
-                  'max_concurrent_mounts', 'ai_enabled', 'tags', 'labels']
+        fields = [
+            'id', 'name', 'description', 'ssh_port', 'mount_base_path',
+            'max_concurrent_mounts', 'ai_enabled', 'tags', 'labels'
+        ]
+        read_only_fields = ['id']
     
     def create(self, validated_data):
         """Create a new gateway with auto-generated tokens."""

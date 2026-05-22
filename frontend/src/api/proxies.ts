@@ -28,15 +28,18 @@ export const proxiesApi = {
   setStatus: (id: number | string, status: string) =>
     api.post(`/api/v1/proxies/${id}/set_status/`, { status }),
 
-  generateInstall: (data: {
+  createInstallCommand: (data: {
     name: string;
     role: "agent" | "sync";
     os: string;
     labels?: string[] | Record<string, string>;
-  }) => api.post("/api/v1/proxies/generate_install/", data),
+  }) => api.post("/api/v1/proxies/install_command/", data),
 
   regenerateToken: (id: number | string) =>
     api.post(`/api/v1/proxies/${id}/regenerate_token/`),
+
+  installCommand: (id: number | string) =>
+    api.get(`/api/v1/proxies/${id}/install_command/`),
 
   register: (data: {
     token: string;

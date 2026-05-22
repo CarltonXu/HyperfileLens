@@ -17,7 +17,6 @@ defineProps<{
   gateway: Gateway;
   installCommand: string;
   isLoading: boolean;
-  commandCopied: boolean;
 }>();
 
 defineEmits<{
@@ -72,7 +71,7 @@ const { t } = useI18n();
               class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-500"
             >
               <ClipboardDocumentIcon class="w-3.5 h-3.5" />
-              {{ commandCopied ? t("common.copied") : t("common.copy") }}
+              {{ t("common.copy") }}
             </button>
           </div>
         </div>

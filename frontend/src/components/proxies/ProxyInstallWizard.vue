@@ -41,7 +41,6 @@ const props = defineProps<{
   installData: InstallData;
   installResult: InstallResult | null;
   isGeneratingInstall: boolean;
-  commandCopied: boolean;
   command: string;
 }>();
 
@@ -377,7 +376,7 @@ function selectRole(role: "agent" | "sync") {
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-500"
                   >
                     <ClipboardDocumentIcon class="w-3.5 h-3.5" />
-                    {{ commandCopied ? t("common.copied") : t("common.copy") }}
+                    {{ t("common.copy") }}
                   </button>
                 </div>
               </div>

@@ -21,59 +21,72 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="flex items-center gap-4 mb-6">
-    <div class="flex-1 relative">
-      <MagnifyingGlassIcon
-        class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
-      />
-      <input
-        v-model="searchQuery"
-        type="text"
-        :placeholder="t('gateways.searchPlaceholder')"
-        class="w-full pl-10 pr-4 py-2 surface-card border border-border rounded-lg text-foreground placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
-      />
-    </div>
-    <select
-      v-model="selectedStatus"
-      class="px-4 py-2 surface-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
-    >
-      <option value="all">{{ t("gateways.allStatus") }}</option>
-      <option value="online">{{ t("gateways.statusOnline") }}</option>
-      <option value="offline">{{ t("gateways.statusOffline") }}</option>
-      <option value="pending">{{ t("gateways.statusPending") }}</option>
-      <option value="error">{{ t("gateways.statusError") }}</option>
-    </select>
-    <button
-      @click="$emit('refresh')"
-      class="p-2 text-foreground-secondary hover:text-foreground hover:bg-hover rounded-lg"
-    >
-      <ArrowPathIcon class="w-5 h-5" />
-    </button>
-    <div class="flex rounded-lg border border-border overflow-hidden">
-      <button
-        @click="viewMode = 'card'"
-        :class="[
-          'p-2 transition-colors',
-          viewMode === 'card'
-            ? 'bg-primary text-primary-foreground'
-            : 'surface-card text-foreground-secondary hover:bg-hover',
-        ]"
-        :title="t('repository.viewModes.card')"
+  <div class="bg-card rounded-xl border border-border p-4 shadow-sm">
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="relative flex-1 min-w-[200px]">
+        <MagnifyingGlassIcon
+          class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-muted"
+        />
+        <input
+          v-model="searchQuery"
+          type="text"
+          :placeholder="t('common.search')"
+          class="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        />
+      </div>
+      <select
+        v-model="selectedStatus"
+        class="px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
       >
-        <Squares2X2Icon class="w-5 h-5" />
-      </button>
+        <option value="all" class="bg-background">
+          {{ t("common.status") }}: {{ t("common.all") }}
+        </option>
+        <option value="online" class="bg-background">
+          {{ t("gateways.statusOnline") }}
+        </option>
+        <option value="offline" class="bg-background">
+          {{ t("gateways.statusOffline") }}
+        </option>
+        <option value="pending" class="bg-background">
+          {{ t("gateways.statusPending") }}
+        </option>
+        <option value="error" class="bg-background">
+          {{ t("gateways.statusError") }}
+        </option>
+      </select>
       <button
-        @click="viewMode = 'list'"
-        :class="[
-          'p-2 transition-colors',
-          viewMode === 'list'
-            ? 'bg-primary text-primary-foreground'
-            : 'surface-card text-foreground-secondary hover:bg-hover',
-        ]"
-        :title="t('repository.viewModes.list')"
+        class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover transition-colors"
+        @click="$emit('refresh')"
       >
-        <Bars3Icon class="w-5 h-5" />
+        <ArrowPathIcon class="w-4 h-4" />
+        {{ t("common.refresh") }}
       </button>
+      <div class="flex items-center gap-1 border border-border rounded-lg p-1">
+        <button
+          :class="[
+            'p-2 rounded-md transition-colors',
+            viewMode === 'card'
+              ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+              : 'text-foreground-muted hover:text-foreground-secondary hover:bg-hover',
+          ]"
+          :title="t('repository.viewModes.card')"
+          @click="viewMode = 'card'"
+        >
+          <Squares2X2Icon class="w-4 h-4" />
+        </button>
+        <button
+          :class="[
+            'p-2 rounded-md transition-colors',
+            viewMode === 'list'
+              ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+              : 'text-foreground-muted hover:text-foreground-secondary hover:bg-hover',
+          ]"
+          :title="t('repository.viewModes.list')"
+          @click="viewMode = 'list'"
+        >
+          <Bars3Icon class="w-4 h-4" />
+        </button>
+      </div>
     </div>
   </div>
 </template>

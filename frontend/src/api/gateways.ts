@@ -35,14 +35,14 @@ export const gatewaysApi = {
 
   stats: () => api.get("/api/v1/gateways/stats/"),
 
-  generateInstall: (data: {
+  createInstallCommand: (data: {
     name: string;
     description?: string;
     ai_enabled?: boolean;
     tags?: Record<string, unknown>;
     labels?: string[];
     server_url?: string;
-  }) => api.post("/api/v1/gateways/generate_install/", data),
+  }) => api.post("/api/v1/gateways/install_command/", data),
 
   installCommand: (id: string) =>
     api.get(`/api/v1/gateways/${id}/install_command/`),

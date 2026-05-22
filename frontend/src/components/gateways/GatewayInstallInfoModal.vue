@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import {
+  ArrowPathIcon,
   DocumentDuplicateIcon,
   ExclamationTriangleIcon,
+  KeyIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
 
@@ -14,13 +16,15 @@ interface Gateway {
 defineProps<{
   gateway: Gateway;
   installCommand: string;
+  apiToken: string;
+  installTokenUsed: boolean;
   loading: boolean;
-  commandCopied: boolean;
 }>();
 
 defineEmits<{
   close: [];
-  copy: [];
+  copy: [text: string, label: string];
+  regenerateToken: [];
 }>();
 
 const { t } = useI18n();
@@ -94,15 +98,101 @@ const { t } = useI18n();
                 :disabled="!installCommand || loading"
                 class="p-1.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 hover:text-white transition-colors disabled:opacity-50"
                 :title="t('common.copy')"
-                @click="$emit('copy')"
+                @click="$emit('copy', installCommand, 'Command')"
               >
                 <DocumentDuplicateIcon class="w-4 h-4" />
               </button>
             </div>
           </div>
-          <p v-if="commandCopied" class="text-xs text-emerald-600">
-            {{ t("common.copied") }}
-          </p>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <span
+              class="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-sm font-medium"
+            >
+              2
+            </span>
+            <h3 class="font-medium text-foreground">
+              {{ t("gateways.installInfo.credentials") }}
+            </h3>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-background-secondary rounded-lg p-4">
+              <div class="flex items-center justify-between mb-2">
+                <span
+                  class="text-xs font-medium text-foreground-secondary uppercase"
+                >
+                  {{ t("gateways.installInfo.gatewayId") }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between">
+                <code class="text-sm text-foreground break-all">{{
+                  gateway.id
+                }}</code>
+                <button
+                  class="ml-2 p-1 hover:bg-slate-200 rounded text-foreground-muted hover:text-foreground-secondary"
+                  @click="$emit('copy', gateway.id, 'Gateway ID')"
+                >
+                  <DocumentDuplicateIcon class="w-4 h-4" />
+                </button>
+              </div>
+              <p class="text-xs text-foreground-muted mt-2">
+                {{ t("gateways.installInfo.gatewayIdDesc") }}
+              </p>
+            </div>
+
+            <div class="bg-background-secondary rounded-lg p-4">
+              <div class="flex items-center justify-between mb-2">
+                <span
+                  class="text-xs font-medium text-foreground-secondary uppercase"
+                >
+                  {{ t("gateways.installInfo.apiToken") }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between">
+                <code class="text-sm text-foreground break-all">{{
+                  apiToken || "N/A"
+                }}</code>
+                <button
+                  v-if="apiToken"
+                  class="ml-2 p-1 hover:bg-slate-200 rounded text-foreground-muted hover:text-foreground-secondary"
+                  @click="$emit('copy', apiToken, 'API Token')"
+                >
+                  <DocumentDuplicateIcon class="w-4 h-4" />
+                </button>
+              </div>
+              <p class="text-xs text-foreground-muted mt-2">
+                {{ t("gateways.installInfo.apiTokenDesc") }}
+              </p>
+            </div>
+          </div>
+
+          <div class="bg-background-secondary rounded-lg p-4">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <KeyIcon class="w-4 h-4 text-foreground-muted" />
+                <span class="text-sm font-medium text-foreground">
+                  {{ t("gateways.installInfo.installToken") }}
+                </span>
+              </div>
+              <span
+                :class="[
+                  'text-xs font-medium px-2 py-1 rounded',
+                  installTokenUsed
+                    ? 'bg-slate-200 text-foreground-secondary'
+                    : 'bg-emerald-100 text-emerald-700',
+                ]"
+              >
+                {{
+                  installTokenUsed
+                    ? t("gateways.installInfo.tokenUsed")
+                    : t("gateways.installInfo.tokenAvailable")
+                }}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div class="bg-blue-50 rounded-lg p-4">
@@ -117,7 +207,14 @@ const { t } = useI18n();
         </div>
       </div>
 
-      <div class="flex items-center justify-end p-5 border-t border-border">
+      <div class="flex items-center justify-between p-5 border-t border-border">
+        <button
+          class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg hover:bg-amber-100 transition-colors"
+          @click="$emit('regenerateToken')"
+        >
+          <ArrowPathIcon class="w-4 h-4" />
+          {{ t("gateways.actions.regenerateToken") }}
+        </button>
         <button
           class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
           @click="$emit('close')"

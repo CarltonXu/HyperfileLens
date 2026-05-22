@@ -9,9 +9,15 @@ Core configuration module for Django settings, Celery, and periodic task registr
 import os
 from pathlib import Path
 import dj_database_url
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load local environment files before reading settings. Docker Compose injects
+# real environment variables, and python-dotenv keeps those values by default.
+load_dotenv(BASE_DIR.parent / '.env')
+load_dotenv(BASE_DIR / '.env')
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get(
@@ -186,9 +192,13 @@ PUBLIC_CONTROL_PLANE_URL = os.environ.get(
     os.environ.get('CONTROL_PLANE_PUBLIC_URL', os.environ.get('INSTALL_SERVER_URL', ''))
 ).rstrip('/')
 INSTALL_DOWNLOADS_URL = '/downloads/'
-INSTALL_DOWNLOADS_ROOT = Path(
-    os.environ.get('INSTALL_DOWNLOADS_ROOT', STATIC_ROOT / 'downloads')
-)
+_source_downloads_root = BASE_DIR / 'static' / 'downloads'
+if os.environ.get('INSTALL_DOWNLOADS_ROOT'):
+    INSTALL_DOWNLOADS_ROOT = Path(os.environ['INSTALL_DOWNLOADS_ROOT'])
+elif _source_downloads_root.exists() and not (STATIC_ROOT / 'downloads').exists():
+    INSTALL_DOWNLOADS_ROOT = _source_downloads_root
+else:
+    INSTALL_DOWNLOADS_ROOT = STATIC_ROOT / 'downloads'
 
 # Media files
 MEDIA_URL = '/media/'
@@ -266,6 +276,11 @@ CSRF_COOKIE_HTTPONLY = os.environ.get('CSRF_COOKIE_HTTPONLY', 'false').lower() i
 SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'false').lower() in ('true', '1', 'yes')
 
 # Logging Configuration
+_configured_log_file = Path(os.environ.get('LOG_FILE', BASE_DIR / 'logs' / 'app.log'))
+if _configured_log_file.is_absolute() and not _configured_log_file.parent.exists():
+    _configured_log_file = BASE_DIR / 'logs' / _configured_log_file.name
+_configured_log_file.parent.mkdir(parents=True, exist_ok=True)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -286,7 +301,7 @@ LOGGING = {
         },
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.environ.get('LOG_FILE', BASE_DIR / 'logs' / 'app.log'),
+            'filename': _configured_log_file,
             'maxBytes': 1024 * 1024 * 10,  # 10MB
             'backupCount': 5,
             'formatter': 'verbose',

@@ -8,8 +8,11 @@ import {
   ArrowPathIcon,
   ChatBubbleLeftRightIcon,
   ClipboardDocumentIcon,
+  CpuChipIcon,
   EllipsisVerticalIcon,
   ExclamationTriangleIcon,
+  MapPinIcon,
+  CircleStackIcon,
   ServerIcon,
 } from "@heroicons/vue/24/outline";
 
@@ -151,100 +154,134 @@ function emitStatusUpdate(gateway: any, status: string) {
 
   <div
     v-else-if="viewMode === 'card'"
-    class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+    class="space-y-4"
   >
-    <div
-      v-for="gateway in filteredGateways"
-      :key="gateway.id"
-      class="bg-card rounded-xl border border-border p-5 hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer transition-all"
-      @click="$emit('detail', gateway)"
-    >
-      <div class="flex items-start justify-between mb-4">
-        <div class="flex items-center gap-3">
-          <div
-            :class="[
-              'w-10 h-10 rounded-lg flex items-center justify-center',
-              gateway.is_online
-                ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                : 'bg-background-tertiary',
-            ]"
-          >
-            <ServerIcon
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div
+        v-for="gateway in filteredGateways"
+        :key="gateway.id"
+        class="bg-card rounded-xl border border-border p-5 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all group cursor-pointer"
+        @click="$emit('detail', gateway)"
+      >
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div
               :class="[
-                'w-5 h-5',
+                'w-11 h-11 rounded-xl flex items-center justify-center',
                 gateway.is_online
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-slate-400',
+                  ? 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                  : 'bg-gradient-to-br from-slate-400 to-slate-600',
               ]"
-            />
+            >
+              <ServerIcon class="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3
+                class="font-semibold text-foreground group-hover:text-indigo-600 transition-colors"
+              >
+                {{ gateway.name }}
+              </h3>
+              <span
+                :class="[
+                  'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mt-1',
+                  statusColors[gateway.status],
+                ]"
+              >
+                {{ getStatusLabel(gateway.status) }}
+              </span>
+            </div>
           </div>
-          <div>
-            <h3 class="font-semibold text-foreground">{{ gateway.name }}</h3>
-            <p class="text-sm text-foreground-secondary">
-              {{ gateway.hostname || gateway.internal_ip || "-" }}
+          <div class="relative" @click.stop>
+            <button
+              class="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-hover rounded-lg transition-colors"
+              @click="openActionMenu($event, gateway)"
+            >
+              <EllipsisVerticalIcon class="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-3 text-sm">
+          <div class="flex items-center gap-2 text-foreground-secondary">
+            <MapPinIcon class="w-4 h-4 flex-shrink-0" />
+            <span class="truncate">{{
+              gateway.hostname || gateway.internal_ip || "-"
+            }}</span>
+          </div>
+          <div class="flex items-center gap-2 text-foreground-secondary">
+            <CircleStackIcon class="w-4 h-4 flex-shrink-0" />
+            <span>{{ t("gateways.activeMounts") }}: {{ gateway.active_mounts }}</span>
+          </div>
+          <div class="flex items-center gap-2 text-foreground-secondary">
+            <CpuChipIcon class="w-4 h-4 flex-shrink-0" />
+            <span>
+              {{ gateway.os_version || gateway.kopia_version || "Unknown" }}
+              {{
+                gateway.cpu_cores
+                  ? `(${gateway.cpu_cores} ${t("gateways.cores")})`
+                  : ""
+              }}
+            </span>
+          </div>
+        </div>
+
+        <div
+          v-if="gateway.cpu_usage !== null"
+          class="mt-4 grid grid-cols-3 gap-2 text-center"
+        >
+          <div class="bg-background-secondary rounded-lg p-2">
+            <p class="text-xs text-foreground-secondary">CPU</p>
+            <p class="text-sm font-medium text-foreground">
+              {{ gateway.cpu_usage?.toFixed(1) }}%
+            </p>
+          </div>
+          <div class="bg-background-secondary rounded-lg p-2">
+            <p class="text-xs text-foreground-secondary">
+              {{ t("gateways.memory") }}
+            </p>
+            <p class="text-sm font-medium text-foreground">
+              {{ gateway.memory_usage?.toFixed(1) }}%
+            </p>
+          </div>
+          <div class="bg-background-secondary rounded-lg p-2">
+            <p class="text-xs text-foreground-secondary">
+              {{ t("gateways.disk") }}
+            </p>
+            <p class="text-sm font-medium text-foreground">
+              {{ gateway.disk_usage?.toFixed(1) }}%
             </p>
           </div>
         </div>
-        <span
-          :class="[
-            'px-2 py-1 text-xs font-medium rounded-full',
-            statusColors[gateway.status],
-          ]"
-        >
-          {{ getStatusLabel(gateway.status) }}
-        </span>
-      </div>
 
-      <div class="space-y-2 text-sm">
         <div
-          class="flex items-center justify-between text-foreground-secondary"
+          class="flex items-center justify-between mt-4 pt-4 border-t border-border"
         >
-          <span>{{ t("gateways.activeMounts") }}</span>
-          <span class="font-medium text-foreground-secondary">{{
-            gateway.active_mounts
-          }}</span>
+          <div
+            v-if="gateway.ai_enabled"
+            class="flex items-center gap-2 text-sm text-violet-600 dark:text-violet-400"
+          >
+            <ChatBubbleLeftRightIcon class="w-4 h-4" />
+            <span>{{ t("gateways.aiEnabled") }}</span>
+          </div>
+          <span v-else />
+          <button
+            v-if="!gateway.is_online"
+            class="text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 flex items-center gap-1"
+            @click.stop="$emit('installInfo', gateway)"
+          >
+            <ExclamationTriangleIcon class="w-4 h-4" />
+            {{ t("gateways.actions.viewInstall") }}
+          </button>
         </div>
-        <div
-          class="flex items-center justify-between text-foreground-secondary"
-        >
-          <span>{{ t("gateways.cpuCores") }}</span>
-          <span class="font-medium text-foreground-secondary">{{
-            gateway.cpu_cores || "-"
-          }}</span>
-        </div>
-        <div
-          v-if="gateway.kopia_version"
-          class="flex items-center justify-between text-foreground-secondary"
-        >
-          <span>{{ t("gateways.kopiaVersion") }}</span>
-          <span class="font-medium text-foreground-secondary">{{
-            gateway.kopia_version
-          }}</span>
-        </div>
-      </div>
-
-      <div v-if="gateway.ai_enabled" class="mt-4 pt-4 border-t border-border">
-        <div
-          class="flex items-center gap-2 text-sm text-violet-600 dark:text-violet-400"
-        >
-          <ChatBubbleLeftRightIcon class="w-4 h-4" />
-          <span>{{ t("gateways.aiEnabled") }}</span>
-        </div>
-      </div>
-
-      <div
-        v-if="!gateway.is_online"
-        class="mt-4 pt-4 border-t border-border flex justify-end"
-      >
-        <button
-          class="text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 flex items-center gap-1"
-          @click.stop="$emit('installInfo', gateway)"
-        >
-          <ExclamationTriangleIcon class="w-4 h-4" />
-          {{ t("gateways.actions.viewInstall") }}
-        </button>
       </div>
     </div>
+
+    <Pagination
+      v-if="totalItems > pageSize"
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :total-items="totalItems"
+    />
   </div>
 
   <div v-else class="bg-card rounded-xl border border-border overflow-hidden">

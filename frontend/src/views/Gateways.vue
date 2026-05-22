@@ -136,8 +136,9 @@ const isLoadingDetail = ref(false);
 const showInstallInfoModal = ref(false);
 const installInfoGateway = ref<Gateway | null>(null);
 const installInfoCommand = ref("");
+const installInfoApiToken = ref("");
+const installInfoTokenUsed = ref(false);
 const isLoadingInstallInfoCommand = ref(false);
-const installInfoCommandCopied = ref(false);
 
 // Edit Modal
 const showEditModal = ref(false);
@@ -376,9 +377,20 @@ async function copyWizardCommand() {
   if (!wizardInstallCommand.value) return;
 
   try {
-    await navigator.clipboard.writeText(wizardInstallCommand.value);
+    await copyText(wizardInstallCommand.value);
+    appStore.showToast({
+      type: "success",
+      title: t("common.copied"),
+      message: t("common.commandCopiedToClipboard"),
+      duration: 2000,
+    });
   } catch (error) {
     console.error("Failed to copy:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: t("common.copyFailedToClipboard"),
+    });
   }
 }
 
@@ -422,12 +434,15 @@ async function viewGatewayDetail(gateway: Gateway) {
 async function viewInstallInfo(gateway: Gateway) {
   installInfoGateway.value = gateway;
   installInfoCommand.value = "";
-  installInfoCommandCopied.value = false;
+  installInfoApiToken.value = "";
+  installInfoTokenUsed.value = false;
   showInstallInfoModal.value = true;
   isLoadingInstallInfoCommand.value = true;
   try {
     const res = await gatewaysApi.installCommand(gateway.id);
     installInfoCommand.value = res.data.install_command || "";
+    installInfoApiToken.value = res.data.api_token || "";
+    installInfoTokenUsed.value = Boolean(res.data.install_token_used);
   } catch (error) {
     console.error("Failed to get install command:", error);
     appStore.showToast({
@@ -490,8 +505,34 @@ async function submitEdit() {
 }
 
 async function handleRegenerateToken(gateway: Gateway) {
+  if (!confirm(t("gateways.actions.regenerateTokenConfirm"))) return;
+
   try {
     await gatewaysApi.regenerateToken(gateway.id);
+    appStore.showToast({
+      type: "success",
+      title: t("common.success"),
+      message: t("gateways.tokenRegenerated"),
+    });
+  } catch (error) {
+    console.error("Failed to regenerate token:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(error, t("common.actionFailed")),
+    });
+  }
+}
+
+async function regenerateInstallInfoToken() {
+  if (!installInfoGateway.value) return;
+  if (!confirm(t("gateways.actions.regenerateTokenConfirm"))) return;
+
+  try {
+    const res = await gatewaysApi.regenerateToken(installInfoGateway.value.id);
+    installInfoCommand.value = res.data.install_command || "";
+    installInfoApiToken.value = res.data.api_token || "";
+    installInfoTokenUsed.value = Boolean(res.data.install_token_used);
     appStore.showToast({
       type: "success",
       title: t("common.success"),
@@ -554,17 +595,51 @@ async function confirmDelete() {
   }
 }
 
-async function copyInstallInfoCommand() {
-  if (!installInfoCommand.value) return;
+async function copyInstallInfoText(text: string, label: string = "Text") {
+  if (!text) return;
 
   try {
-    await navigator.clipboard.writeText(installInfoCommand.value);
-    installInfoCommandCopied.value = true;
-    setTimeout(() => {
-      installInfoCommandCopied.value = false;
-    }, 2000);
+    await copyText(text);
+    appStore.showToast({
+      type: "success",
+      title: t("common.copied"),
+      message:
+        label === "Command"
+          ? t("common.commandCopiedToClipboard")
+          : t("common.itemCopiedToClipboard", { item: label }),
+      duration: 2000,
+    });
   } catch (error) {
     console.error("Failed to copy:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: t("common.copyFailedToClipboard"),
+    });
+  }
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    const copied = document.execCommand("copy");
+    if (!copied) throw new Error("copy command failed");
+  } finally {
+    document.body.removeChild(textarea);
   }
 }
 
@@ -664,7 +739,7 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold text-foreground">
           {{ t("gateways.title") }}
@@ -675,9 +750,9 @@ onMounted(() => {
       </div>
       <button
         @click="showCreateModal = true"
-        class="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
       >
-        <PlusIcon class="w-5 h-5" />
+        <PlusIcon class="w-4 h-4" />
         {{ t("gateways.createGateway") }}
       </button>
     </div>
@@ -752,10 +827,12 @@ onMounted(() => {
       v-if="showInstallInfoModal && installInfoGateway"
       :gateway="installInfoGateway"
       :install-command="installInfoCommand"
+      :api-token="installInfoApiToken"
+      :install-token-used="installInfoTokenUsed"
       :loading="isLoadingInstallInfoCommand"
-      :command-copied="installInfoCommandCopied"
       @close="showInstallInfoModal = false"
-      @copy="copyInstallInfoCommand"
+      @copy="copyInstallInfoText"
+      @regenerate-token="regenerateInstallInfoToken"
     />
 
     <!-- Detail Drawer -->

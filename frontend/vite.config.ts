@@ -21,6 +21,14 @@ export default defineConfig({
       '/ws': {
         target: process.env.VITE_WS_BASE_URL || 'ws://localhost:8000',
         ws: true
+      },
+      '/downloads': {
+        target: process.env.VITE_API_BASE_URL || 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/static': {
+        target: process.env.VITE_API_BASE_URL || 'http://localhost:8000',
+        changeOrigin: true
       }
     }
   },
