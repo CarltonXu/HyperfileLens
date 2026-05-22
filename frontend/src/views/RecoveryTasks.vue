@@ -24,39 +24,26 @@ import RecoveryTaskDetailModal from "@/components/recovery-tasks/RecoveryTaskDet
 import RecoveryTaskListView from "@/components/recovery-tasks/RecoveryTaskListView.vue";
 import RecoveryTaskStats from "@/components/recovery-tasks/RecoveryTaskStats.vue";
 import RecoveryTaskToolbar from "@/components/recovery-tasks/RecoveryTaskToolbar.vue";
+import RecoveryBasicInfoForm from "@/components/recovery-tasks/RecoveryBasicInfoForm.vue";
+import RecoveryOptionsSelector from "@/components/recovery-tasks/RecoveryOptionsSelector.vue";
 import RecoveryPointSelector from "@/components/recovery-tasks/RecoveryPointSelector.vue";
+import RecoveryScopeSelector from "@/components/recovery-tasks/RecoveryScopeSelector.vue";
+import RecoveryTargetSelector from "@/components/recovery-tasks/RecoveryTargetSelector.vue";
 import RecoveryWizardReviewAside from "@/components/recovery-tasks/RecoveryWizardReviewAside.vue";
 import RecoveryWizardStepper from "@/components/recovery-tasks/RecoveryWizardStepper.vue";
 import {
   PlusIcon,
-  ArrowPathIcon,
   CheckCircleIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   BoltIcon,
   PauseIcon,
   XCircleIcon,
-  ServerIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  DocumentIcon,
-  FolderIcon,
-  FolderOpenIcon,
-  ShieldCheckIcon,
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
 const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
-
-const vIndeterminate = {
-  mounted(el: HTMLInputElement, binding: { value: boolean }) {
-    el.indeterminate = Boolean(binding.value);
-  },
-  updated(el: HTMLInputElement, binding: { value: boolean }) {
-    el.indeterminate = Boolean(binding.value);
-  },
-};
 
 const isLoading = ref(true);
 const tasks = ref<RecoveryTask[]>([]);
@@ -83,7 +70,6 @@ const snapshotNextPage = ref<number | null>(null);
 const recoverySnapshotFiles = ref<any[]>([]);
 const recoverySnapshotFilesLoading = ref(false);
 const recoverySnapshotFilesError = ref("");
-const expandedRecoverySnapshotPaths = ref<Set<string>>(new Set());
 const loadingRecoverySnapshotPaths = ref<Set<string>>(new Set());
 
 // Pagination
@@ -378,7 +364,6 @@ watch(
   () => {
     recoverySnapshotFiles.value = [];
     recoverySnapshotFilesError.value = "";
-    expandedRecoverySnapshotPaths.value = new Set();
     loadingRecoverySnapshotPaths.value = new Set();
     newRecovery.value.selected_paths = [];
   },
@@ -407,10 +392,6 @@ const filteredSnapshots = computed(() => {
 
 const selectedTargetNode = computed(() =>
   nodes.value.find((node) => String(node.id) === String(newRecovery.value.node)),
-);
-
-const selectedRecoveryPaths = computed(
-  () => new Set(newRecovery.value.selected_paths || []),
 );
 
 const selectedRecoveryFileStats = computed(() => {
@@ -585,14 +566,9 @@ async function loadRecoverySnapshotFiles(path = "") {
     const files = response.data.results || response.data || [];
     if (!path) {
       recoverySnapshotFiles.value = normalizeRecoverySnapshotFiles(files, "");
-      expandedRecoverySnapshotPaths.value = new Set();
       loadingRecoverySnapshotPaths.value = new Set();
     } else {
       mergeRecoverySnapshotChildren(path, files);
-      expandedRecoverySnapshotPaths.value = new Set([
-        ...expandedRecoverySnapshotPaths.value,
-        path,
-      ]);
     }
   } catch (error) {
     const message = getApiErrorMessage(
@@ -667,109 +643,6 @@ function mergeRecoverySnapshotChildren(parentPath: string, files: any[]) {
   };
   withoutOldChildren.splice(parentIndex + 1, 0, ...children);
   recoverySnapshotFiles.value = withoutOldChildren;
-}
-
-function visibleRecoverySnapshotFiles() {
-  return recoverySnapshotFiles.value.filter((file) => {
-    if (!file.parent_path) return true;
-    const ancestors = file.parent_path.split("/").filter(Boolean);
-    let current = "";
-    for (const part of ancestors) {
-      current = current ? `${current}/${part}` : part;
-      if (!expandedRecoverySnapshotPaths.value.has(current)) return false;
-    }
-    return true;
-  });
-}
-
-async function toggleRecoverySnapshotDirectory(file: any) {
-  if (!file.is_dir) return;
-  const path = file.relative_path;
-  const next = new Set(expandedRecoverySnapshotPaths.value);
-  if (next.has(path)) {
-    next.delete(path);
-    expandedRecoverySnapshotPaths.value = next;
-    return;
-  }
-  if (!file.children_loaded) {
-    await loadRecoverySnapshotFiles(path);
-    return;
-  }
-  next.add(path);
-  expandedRecoverySnapshotPaths.value = next;
-}
-
-function toggleRecoveryPathSelection(file: any) {
-  const path = file.relative_path;
-  const next = new Set(newRecovery.value.selected_paths || []);
-  const currentlySelected = getRecoverySelectionState(file) === "checked";
-  if (currentlySelected) {
-    removeRecoveryPathAndDescendants(next, path);
-  } else {
-    removeRecoveryDescendants(next, path);
-    next.add(path);
-  }
-  newRecovery.value.selected_paths = [...next];
-}
-
-function removeRecoveryPathAndDescendants(selected: Set<string>, path: string) {
-  selected.delete(path);
-  for (const item of [...selected]) {
-    if (item.startsWith(`${path}/`)) selected.delete(item);
-  }
-  const ancestor = findSelectedAncestor(path, selected);
-  if (ancestor) {
-    selected.delete(ancestor);
-    const descendants = recoverySnapshotFiles.value.filter((file) =>
-      file.relative_path?.startsWith(`${ancestor}/`),
-    );
-    for (const file of descendants) {
-      if (
-        file.relative_path !== path &&
-        !file.relative_path.startsWith(`${path}/`)
-      ) {
-        selected.add(file.relative_path);
-      }
-    }
-  }
-}
-
-function removeRecoveryDescendants(selected: Set<string>, path: string) {
-  for (const item of [...selected]) {
-    if (item.startsWith(`${path}/`)) selected.delete(item);
-  }
-}
-
-function findSelectedAncestor(path: string, selected: Set<string>) {
-  const parts = path.split("/").filter(Boolean);
-  while (parts.length > 1) {
-    parts.pop();
-    const ancestor = parts.join("/");
-    if (selected.has(ancestor)) return ancestor;
-  }
-  return "";
-}
-
-function hasSelectedAncestor(path: string) {
-  return Boolean(findSelectedAncestor(path, selectedRecoveryPaths.value));
-}
-
-function getRecoverySelectionState(file: any): "checked" | "partial" | "none" {
-  const path = file.relative_path;
-  const selected = selectedRecoveryPaths.value;
-  if (selected.has(path) || hasSelectedAncestor(path)) return "checked";
-  if (!file.is_dir) return "none";
-  const descendants = recoverySnapshotFiles.value.filter((item) =>
-    item.relative_path?.startsWith(`${path}/`),
-  );
-  if (
-    descendants.some(
-      (item) => selected.has(item.relative_path) || hasSelectedAncestor(item.relative_path),
-    )
-  ) {
-    return "partial";
-  }
-  return "none";
 }
 
 async function openTaskDetails(task: RecoveryTask) {
@@ -999,46 +872,11 @@ onMounted(() => {
 
           <div class="p-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
             <div class="space-y-5 min-h-[420px]">
-              <section
+              <RecoveryBasicInfoForm
                 v-if="createStep === 0"
-                class="rounded-lg border border-border bg-background-secondary/40 p-4"
-              >
-                <div class="flex items-start gap-3 mb-4">
-                  <FolderOpenIcon class="w-5 h-5 text-emerald-600 mt-0.5" />
-                  <div>
-                    <h3 class="text-sm font-semibold text-foreground">
-                      {{ t("recoveryTasks.wizard.basic") }}
-                    </h3>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.wizard.basicHelp") }}
-                    </p>
-                  </div>
-                </div>
-                <div class="space-y-4">
-                  <div>
-                    <label class="block text-sm font-medium text-foreground-secondary mb-1">
-                      {{ t("common.name") }}
-                    </label>
-                    <input
-                      v-model="newRecovery.name"
-                      type="text"
-                      :placeholder="t('recoveryTasks.form.namePlaceholder')"
-                      class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </div>
-                  <div>
-                    <label class="block text-sm font-medium text-foreground-secondary mb-1">
-                      {{ t("common.description") }}
-                    </label>
-                    <textarea
-                      v-model="newRecovery.description"
-                      rows="4"
-                      :placeholder="t('recoveryTasks.form.descriptionPlaceholder')"
-                      class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </div>
-                </div>
-              </section>
+                v-model:name="newRecovery.name"
+                v-model:description="newRecovery.description"
+              />
 
               <RecoveryPointSelector
                 v-if="createStep === 1"
@@ -1057,368 +895,34 @@ onMounted(() => {
                 @load-more="loadMoreSnapshots"
               />
 
-              <section
+              <RecoveryScopeSelector
                 v-if="createStep === 2"
-                class="rounded-lg border border-border bg-background-secondary/40 p-4"
-              >
-                <div class="flex items-start gap-3 mb-4">
-                  <FolderOpenIcon class="w-5 h-5 text-emerald-600 mt-0.5" />
-                  <div>
-                    <h3 class="text-sm font-semibold text-foreground">
-                      {{ t("recoveryTasks.scope.title") }}
-                    </h3>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.wizard.scopeHelp") }}
-                    </p>
-                  </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label class="flex items-start gap-3 rounded-lg border border-emerald-500/40 bg-emerald-50/60 dark:bg-emerald-950/20 p-3">
-                    <input
-                      v-model="newRecovery.restore_scope"
-                      type="radio"
-                      value="entire_snapshot"
-                      class="mt-1 text-emerald-600"
-                    />
-                    <span>
-                      <span class="block text-sm font-medium text-foreground">
-                        {{ t("recoveryTasks.scope.entire") }}
-                      </span>
-                      <span class="block text-xs text-foreground-secondary mt-1">
-                        {{ t("recoveryTasks.scope.entireHelp") }}
-                      </span>
-                    </span>
-                  </label>
-                  <label
-                    :class="[
-                      'flex items-start gap-3 rounded-lg border p-3 cursor-pointer',
-                      newRecovery.restore_scope === 'selected_paths'
-                        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20'
-                        : 'border-border bg-card hover:bg-hover',
-                    ]"
-                  >
-                    <input
-                      v-model="newRecovery.restore_scope"
-                      type="radio"
-                      value="selected_paths"
-                      class="mt-1 text-emerald-600"
-                    />
-                    <span>
-                      <span class="block text-sm font-medium text-foreground">
-                        {{ t("recoveryTasks.scope.selected") }}
-                      </span>
-                      <span class="block text-xs text-foreground-secondary mt-1">
-                        {{ t("recoveryTasks.scope.selectedHelp") }}
-                      </span>
-                    </span>
-                  </label>
-                </div>
-                <div
-                  v-if="newRecovery.restore_scope === 'selected_paths'"
-                  class="mt-5 rounded-lg border border-border bg-card overflow-hidden"
-                >
-                  <div class="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
-                    <div>
-                      <h4 class="text-sm font-semibold text-foreground">
-                        {{ t("recoveryTasks.scope.fileTreeTitle") }}
-                      </h4>
-                      <p class="text-xs text-foreground-secondary mt-1">
-                        {{ t("recoveryTasks.scope.fileTreeHelp") }}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      @click="loadRecoverySnapshotFiles()"
-                      class="inline-flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg hover:bg-hover"
-                    >
-                      <ArrowPathIcon
-                        :class="[
-                          'w-4 h-4',
-                          recoverySnapshotFilesLoading ? 'animate-spin' : '',
-                        ]"
-                      />
-                      {{ t("common.refresh") }}
-                    </button>
-                  </div>
-                  <div class="px-4 py-2 border-b border-border bg-background-secondary/40 flex items-center justify-between text-xs text-foreground-secondary">
-                    <span>
-                      {{ (newRecovery.selected_paths || []).length }}
-                      {{ t("recoveryTasks.scope.selectedCount") }}
-                    </span>
-                    <button
-                      v-if="(newRecovery.selected_paths || []).length"
-                      type="button"
-                      class="text-emerald-600 hover:text-emerald-700"
-                      @click="newRecovery.selected_paths = []"
-                    >
-                      {{ t("common.clear") || "Clear" }}
-                    </button>
-                  </div>
-                  <div
-                    v-if="recoverySnapshotFilesLoading"
-                    class="p-8 flex justify-center"
-                  >
-                    <div class="w-7 h-7 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
-                  </div>
-                  <div
-                    v-else-if="recoverySnapshotFilesError"
-                    class="p-6 text-center"
-                  >
-                    <ExclamationTriangleIcon class="w-8 h-8 text-red-500 mx-auto mb-3" />
-                    <p class="text-sm font-medium text-foreground">
-                      {{ t("recoveryTasks.messages.snapshotFilesLoadFailed") }}
-                    </p>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ recoverySnapshotFilesError }}
-                    </p>
-                  </div>
-                  <div
-                    v-else-if="recoverySnapshotFiles.length === 0"
-                    class="p-8 text-center"
-                  >
-                    <FolderIcon class="w-8 h-8 text-slate-400 mx-auto mb-3" />
-                    <p class="text-sm font-medium text-foreground">
-                      {{ t("recoveryTasks.scope.noFilesTitle") }}
-                    </p>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.scope.noFilesDescription") }}
-                    </p>
-                    <button
-                      type="button"
-                      @click="loadRecoverySnapshotFiles()"
-                      class="mt-4 inline-flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg hover:bg-hover"
-                    >
-                      <ArrowPathIcon class="w-4 h-4" />
-                      {{ t("recoveryTasks.scope.loadFiles") }}
-                    </button>
-                  </div>
-                  <div v-else class="max-h-[360px] overflow-y-auto py-1">
-                    <div
-                      v-for="file in visibleRecoverySnapshotFiles()"
-                      :key="file.relative_path || file.id"
-                      class="grid grid-cols-[minmax(0,1fr)_120px] gap-4 px-4 py-1.5 hover:bg-hover"
-                    >
-                      <div
-                        class="flex items-center gap-1.5 min-w-0"
-                        :style="{ paddingLeft: `${(file.depth || 0) * 20}px` }"
-                      >
-                        <button
-                          type="button"
-                          class="w-5 h-5 inline-flex items-center justify-center rounded hover:bg-background-tertiary shrink-0"
-                          :class="file.is_dir ? 'visible' : 'invisible'"
-                          @click="toggleRecoverySnapshotDirectory(file)"
-                        >
-                          <ChevronDownIcon
-                            v-if="
-                              file.is_dir &&
-                              expandedRecoverySnapshotPaths.has(file.relative_path)
-                            "
-                            class="w-4 h-4 text-foreground-secondary"
-                          />
-                          <ChevronRightIcon
-                            v-else
-                            class="w-4 h-4 text-foreground-secondary"
-                          />
-                        </button>
-                        <ArrowPathIcon
-                          v-if="loadingRecoverySnapshotPaths.has(file.relative_path)"
-                          class="w-4 h-4 animate-spin text-emerald-600 shrink-0"
-                        />
-                        <input
-                          type="checkbox"
-                          v-indeterminate="getRecoverySelectionState(file) === 'partial'"
-                          class="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500 shrink-0"
-                          :checked="getRecoverySelectionState(file) === 'checked'"
-                          @change="toggleRecoveryPathSelection(file)"
-                        />
-                        <FolderIcon
-                          v-if="file.is_dir"
-                          class="w-4 h-4 text-amber-500 shrink-0"
-                        />
-                        <DocumentIcon
-                          v-else
-                          class="w-4 h-4 text-foreground-secondary shrink-0"
-                        />
-                        <button
-                          type="button"
-                          class="text-left text-sm text-foreground truncate hover:text-emerald-600"
-                          @click="
-                            file.is_dir
-                              ? toggleRecoverySnapshotDirectory(file)
-                              : undefined
-                          "
-                        >
-                          {{ file.file_name || file.relative_path }}
-                        </button>
-                      </div>
-                      <span class="text-sm text-foreground-secondary text-right tabular-nums">
-                        {{ file.is_dir ? "-" : formatBytes(file.size || 0) }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </section>
+                v-model:restore-scope="newRecovery.restore_scope"
+                v-model:selected-paths="newRecovery.selected_paths"
+                :files="recoverySnapshotFiles"
+                :loading="recoverySnapshotFilesLoading"
+                :error="recoverySnapshotFilesError"
+                :loading-paths="loadingRecoverySnapshotPaths"
+                :format-bytes="formatBytes"
+                @load-files="loadRecoverySnapshotFiles"
+              />
 
-              <section
+              <RecoveryTargetSelector
                 v-if="createStep === 3"
-                class="rounded-lg border border-border bg-background-secondary/40 p-4"
-              >
-                <div class="flex items-start gap-3 mb-4">
-                  <ServerIcon class="w-5 h-5 text-emerald-600 mt-0.5" />
-                  <div>
-                    <h3 class="text-sm font-semibold text-foreground">
-                      {{ t("recoveryTasks.sections.target") }}
-                    </h3>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.sections.targetHelp") }}
-                    </p>
-                  </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm font-medium text-foreground-secondary mb-1">
-                      {{ t("recoveryTasks.form.targetNode") }}
-                    </label>
-                    <select
-                      v-model="newRecovery.node"
-                      class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option class="bg-background" value="">
-                        {{ t("common.select") || "Select" }}
-                      </option>
-                      <option
-                        class="bg-background"
-                        v-for="node in nodes"
-                        :key="node.id"
-                        :value="node.id"
-                      >
-                        {{ node.name }} · {{ node.status }}
-                      </option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-sm font-medium text-foreground-secondary mb-1">
-                      {{ t("recoveryTasks.form.type") }}
-                    </label>
-                    <select
-                      v-model="newRecovery.recovery_type"
-                      class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option class="bg-background" value="new_location">
-                        {{ t("recoveryTasks.types.new_location") }}
-                      </option>
-                      <option class="bg-background" value="original">
-                        {{ t("recoveryTasks.types.original") }}
-                      </option>
-                    </select>
-                  </div>
-                </div>
-                <div class="mt-4">
-                  <label class="block text-sm font-medium text-foreground-secondary mb-1">
-                    {{ t("recoveryTasks.form.targetPath") }}
-                  </label>
-                  <input
-                    v-model="newRecovery.target_path"
-                    type="text"
-                    :placeholder="t('recoveryTasks.form.targetPathPlaceholder')"
-                    class="w-full px-3 py-2 font-mono text-sm border border-border rounded-lg bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <p class="text-xs text-foreground-secondary mt-1">
-                    {{ t("recoveryTasks.form.targetPathHelp") }}
-                  </p>
-                </div>
-              </section>
+                v-model:selected-node="newRecovery.node"
+                v-model:recovery-type="newRecovery.recovery_type"
+                v-model:target-path="newRecovery.target_path"
+                :nodes="nodes"
+              />
 
-              <section
+              <RecoveryOptionsSelector
                 v-if="createStep === 4"
-                class="rounded-lg border border-border bg-background-secondary/40 p-4"
-              >
-                <div class="flex items-start gap-3 mb-4">
-                  <ShieldCheckIcon class="w-5 h-5 text-emerald-600 mt-0.5" />
-                  <div>
-                    <h3 class="text-sm font-semibold text-foreground">
-                      {{ t("recoveryTasks.sections.options") }}
-                    </h3>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.sections.optionsHelp") }}
-                    </p>
-                  </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm font-medium text-foreground-secondary mb-1">
-                      {{ t("recoveryTasks.form.conflictPolicy") }}
-                    </label>
-                    <select
-                      v-model="newRecovery.conflict_policy"
-                      class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option class="bg-background" value="skip">
-                        {{ t("recoveryTasks.conflict.skip") }}
-                      </option>
-                      <option class="bg-background" value="overwrite">
-                        {{ t("recoveryTasks.conflict.overwrite") }}
-                      </option>
-                    </select>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.form.conflictHelp") }}
-                    </p>
-                  </div>
-                  <div>
-                    <label class="block text-sm font-medium text-foreground-secondary mb-1">
-                      {{ t("recoveryTasks.form.priority") }}
-                    </label>
-                    <select
-                      v-model="newRecovery.priority"
-                      class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option class="bg-background" value="low">Low</option>
-                      <option class="bg-background" value="normal">Normal</option>
-                      <option class="bg-background" value="high">High</option>
-                      <option class="bg-background" value="critical">Critical</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="mt-5 rounded-lg border border-border bg-card p-4">
-                  <h4 class="text-sm font-semibold text-foreground mb-3">
-                    {{ t("recoveryTasks.review.title") }}
-                  </h4>
-                  <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <dt class="text-xs text-foreground-secondary">
-                        {{ t("common.name") }}
-                      </dt>
-                      <dd class="font-medium text-foreground mt-1">
-                        {{ newRecovery.name || "-" }}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt class="text-xs text-foreground-secondary">
-                        {{ t("recoveryTasks.form.snapshot") }}
-                      </dt>
-                      <dd class="font-medium text-foreground mt-1 break-all">
-                        {{ selectedSnapshot?.name || selectedSnapshot?.id || "-" }}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt class="text-xs text-foreground-secondary">
-                        {{ t("recoveryTasks.form.targetNode") }}
-                      </dt>
-                      <dd class="font-medium text-foreground mt-1">
-                        {{ selectedTargetNode?.name || "-" }}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt class="text-xs text-foreground-secondary">
-                        {{ t("recoveryTasks.form.targetPath") }}
-                      </dt>
-                      <dd class="font-mono text-xs text-foreground mt-1 break-all">
-                        {{ newRecovery.target_path || "-" }}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-              </section>
+                v-model:conflict-policy="newRecovery.conflict_policy"
+                v-model:priority="newRecovery.priority"
+                :recovery="newRecovery"
+                :selected-snapshot="selectedSnapshot"
+                :selected-target-node="selectedTargetNode"
+              />
             </div>
 
             <RecoveryWizardReviewAside
