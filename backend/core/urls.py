@@ -44,10 +44,12 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.INSTALL_DOWNLOADS_URL, document_root=settings.INSTALL_DOWNLOADS_ROOT)
     # Also serve from source static directory in development
     urlpatterns += static(settings.STATIC_URL, document_root=os.path.join(settings.BASE_DIR, 'static'))
 else:
     # Serve static files in production (needed for install scripts)
     urlpatterns += [
         path('static/<path:path>', serve, {'document_root': settings.STATIC_ROOT}),
+        path('downloads/<path:path>', serve, {'document_root': settings.INSTALL_DOWNLOADS_ROOT}),
     ]

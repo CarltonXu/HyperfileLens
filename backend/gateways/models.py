@@ -354,29 +354,17 @@ class Gateway(models.Model):
         if not self.install_token:
             self.generate_install_token()
         
-        # Get server URL from settings
-        from django.conf import settings
-        server_url = getattr(settings, 'GATEWAY_SERVER_URL', 'http://localhost:8000')
-        
-        return f'''# Gateway Installation Script for Ubuntu 22.04
-# Run this script on your Ubuntu 22.04 server
+        from core.install_distribution import (
+            build_gateway_install_command,
+            get_public_control_plane_url,
+        )
 
-# 1. Update system
-sudo apt update && sudo apt upgrade -y
-
-# 2. Install dependencies
-sudo apt install -y curl wget unzip
-
-# 3. Download and install the Gateway agent
-curl -sSL https://get.hyperfilelens.com/install-gateway.sh | bash -s -- \\
-  --server {server_url} \\
-  --token {self.install_token} \\
-  --name "{self.name}"
-
-# After installation, the gateway will automatically register with the control plane.
-# You can check the status with:
-# systemctl status hyperfilelens-gateway
-'''
+        return build_gateway_install_command(
+            server_url=get_public_control_plane_url(),
+            gateway_id=self.id,
+            install_token=self.install_token,
+            name=self.name,
+        )
 
     def to_dict(self):
         """Convert gateway to dictionary representation."""

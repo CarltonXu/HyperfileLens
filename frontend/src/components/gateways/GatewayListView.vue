@@ -9,6 +9,7 @@ import {
   ChatBubbleLeftRightIcon,
   ClipboardDocumentIcon,
   EllipsisVerticalIcon,
+  ExclamationTriangleIcon,
   ServerIcon,
 } from "@heroicons/vue/24/outline";
 
@@ -86,6 +87,7 @@ const emit = defineEmits<{
   edit: [gateway: any];
   regenerateToken: [gateway: any];
   updateStatus: [gateway: any, status: string];
+  installInfo: [gateway: any];
 }>();
 
 const { t } = useI18n();
@@ -194,13 +196,17 @@ function emitStatusUpdate(gateway: any, status: string) {
       </div>
 
       <div class="space-y-2 text-sm">
-        <div class="flex items-center justify-between text-foreground-secondary">
+        <div
+          class="flex items-center justify-between text-foreground-secondary"
+        >
           <span>{{ t("gateways.activeMounts") }}</span>
           <span class="font-medium text-foreground-secondary">{{
             gateway.active_mounts
           }}</span>
         </div>
-        <div class="flex items-center justify-between text-foreground-secondary">
+        <div
+          class="flex items-center justify-between text-foreground-secondary"
+        >
           <span>{{ t("gateways.cpuCores") }}</span>
           <span class="font-medium text-foreground-secondary">{{
             gateway.cpu_cores || "-"
@@ -224,6 +230,19 @@ function emitStatusUpdate(gateway: any, status: string) {
           <ChatBubbleLeftRightIcon class="w-4 h-4" />
           <span>{{ t("gateways.aiEnabled") }}</span>
         </div>
+      </div>
+
+      <div
+        v-if="!gateway.is_online"
+        class="mt-4 pt-4 border-t border-border flex justify-end"
+      >
+        <button
+          class="text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 flex items-center gap-1"
+          @click.stop="$emit('installInfo', gateway)"
+        >
+          <ExclamationTriangleIcon class="w-4 h-4" />
+          {{ t("gateways.actions.viewInstall") }}
+        </button>
       </div>
     </div>
   </div>
@@ -289,7 +308,9 @@ function emitStatusUpdate(gateway: any, status: string) {
                   <span class="block truncate font-medium text-foreground">
                     {{ gateway.name }}
                   </span>
-                  <span class="block truncate text-xs text-foreground-secondary">
+                  <span
+                    class="block truncate text-xs text-foreground-secondary"
+                  >
                     {{ gateway.description || gateway.id }}
                   </span>
                 </span>
@@ -356,6 +377,14 @@ function emitStatusUpdate(gateway: any, status: string) {
             >
               <div class="flex justify-end gap-1">
                 <button
+                  v-if="!gateway.is_online"
+                  @click="$emit('installInfo', gateway)"
+                  class="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 rounded"
+                  :title="t('gateways.actions.viewInstall')"
+                >
+                  <ExclamationTriangleIcon class="w-4 h-4" />
+                </button>
+                <button
                   @click="$emit('detail', gateway)"
                   class="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-hover rounded"
                   :title="t('common.details')"
@@ -397,6 +426,7 @@ function emitStatusUpdate(gateway: any, status: string) {
     @detail="(gateway) => emitMenuAction('detail', gateway)"
     @edit="(gateway) => emitMenuAction('edit', gateway)"
     @regenerate-token="(gateway) => emitMenuAction('regenerateToken', gateway)"
+    @install-info="$emit('installInfo', $event)"
     @update-status="emitStatusUpdate"
     @delete="(gateway) => emitMenuAction('delete', gateway)"
   />

@@ -10,8 +10,11 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.utils import timezone
-from django.conf import settings
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
+from core.install_distribution import (
+    build_gateway_install_command,
+    get_public_control_plane_url,
+)
 
 from .models import Gateway
 from .serializers import (
@@ -82,12 +85,8 @@ class GatewayViewSet(viewsets.ModelViewSet):
     
     def _generate_install_command(self, gateway):
         """Generate installation command for the gateway."""
-        server_url = getattr(settings, 'GATEWAY_SERVER_URL', None)
-        if not server_url:
-            server_url = self.request.build_absolute_uri('/').rstrip('/')
-        
         install_command = self._build_install_command(
-            server_url=server_url,
+            server_url=get_public_control_plane_url(self.request),
             gateway_id=gateway.id,
             install_token=gateway.install_token,
             name=gateway.name
@@ -99,26 +98,12 @@ class GatewayViewSet(viewsets.ModelViewSet):
     
     def _build_install_command(self, server_url, gateway_id, install_token, name):
         """Build the installation command string for Ubuntu 22.04."""
-        return f'''# Gateway Installation Script for Ubuntu 22.04
-# Run this script on your Ubuntu 22.04 server
-
-# 1. Update system
-sudo apt update && sudo apt upgrade -y
-
-# 2. Install dependencies
-sudo apt install -y curl wget unzip python3 python3-pip python3-venv
-
-# 3. Download and run the Gateway installer
-curl -sSL {server_url}/static/downloads/install-gateway.sh | bash -s -- \\
-  --gateway-id {gateway_id} \\
-  --server {server_url} \\
-  --token {install_token} \\
-  --name "{name}"
-
-# After installation, the gateway will automatically register with the control plane.
-# You can check the status with:
-# systemctl status hyperfilelens-gateway
-'''
+        return build_gateway_install_command(
+            server_url=server_url,
+            gateway_id=gateway_id,
+            install_token=install_token,
+            name=name,
+        )
     
     def _build_config_yaml(self, server_url, gateway_id, install_token, name):
         """Generate config YAML for manual installation."""
@@ -200,11 +185,8 @@ logging:
             tenant=getattr(request.user, 'tenant', None),
         )
         
-        # Get server URL
-        server_url = data.get('server_url') or getattr(
-            settings, 'GATEWAY_SERVER_URL',
-            request.build_absolute_uri('/').rstrip('/')
-        )
+        # Get public server URL
+        server_url = data.get('server_url') or get_public_control_plane_url(request)
         
         # Build commands
         install_command = self._build_install_command(
@@ -288,24 +270,21 @@ logging:
     def install_command(self, request, pk=None):
         """Get installation command for a gateway."""
         gateway = self.get_object()
-        
-        # Generate command if not exists
-        if not gateway.install_command:
-            server_url = getattr(settings, 'GATEWAY_SERVER_URL', None)
-            if not server_url:
-                server_url = request.build_absolute_uri('/').rstrip('/')
-            
-            install_command = self._build_install_command(
-                server_url=server_url,
-                gateway_id=gateway.id,
-                install_token=gateway.install_token,
-                name=gateway.name
-            )
-            gateway.install_command = install_command
-            gateway.save(update_fields=['install_command'])
+        server_url = get_public_control_plane_url(request)
+        install_command = self._build_install_command(
+            server_url=server_url,
+            gateway_id=gateway.id,
+            install_token=gateway.install_token,
+            name=gateway.name
+        )
+        gateway.install_command = install_command
+        gateway.save(update_fields=['install_command'])
         
         return Response({
-            'install_command': gateway.install_command
+            'install_command': install_command,
+            'server_url': server_url,
+            'script_url': f'{server_url}/downloads/install-gateway.sh',
+            'install_token_used': gateway.install_token_used,
         })
     
     @action(detail=True, methods=['post'])

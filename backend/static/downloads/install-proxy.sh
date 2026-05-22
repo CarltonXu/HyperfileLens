@@ -143,19 +143,19 @@ detect_os() {
 get_system_info() {
     # Get hostname
     HOSTNAME=$(hostname)
-
+    
     # Get internal IP
     INTERNAL_IP=$(hostname -I | awk '{print $1}')
-
+    
     # Get CPU cores
     CPU_CORES=$(nproc 2>/dev/null || echo "1")
-
+    
     # Get total memory in bytes
     MEMORY_TOTAL=$(awk '/MemTotal/ {print $2*1024}' /proc/meminfo 2>/dev/null || echo "0")
-
+    
     # Get total disk space in bytes (root partition)
     DISK_TOTAL=$(df -B1 / | awk 'NR==2 {print $2}' 2>/dev/null || echo "0")
-
+    
     log_info "System: $CPU_CORES cores, $((MEMORY_TOTAL/1024/1024))MB RAM, $((DISK_TOTAL/1024/1024/1024))GB disk"
 }
 
@@ -189,7 +189,7 @@ install_kopia() {
     esac
     
     # Use GitHub releases for direct download
-    KOPIA_VERSION="0.18.0"
+    KOPIA_VERSION="0.22.3"
     KOPIA_DEB="kopia_${KOPIA_VERSION}_linux_${KOPIA_ARCH}.deb"
     KOPIA_URL="https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/${KOPIA_DEB}"
     
@@ -248,9 +248,9 @@ download_proxy() {
     BINARY_NAME="hyperfilelens-proxy-${OS_TYPE}-${ARCH}"
     PACKAGE_URL="${SERVER_URL}/downloads/packages/proxy/${BINARY_NAME}.tar.gz"
     LEGACY_DOWNLOAD_URL="${SERVER_URL}/downloads/packages/proxy/${BINARY_NAME}"
-
+    
     log_info "Downloading from: $PACKAGE_URL"
-
+    
     TMP_DIR="$(mktemp -d)"
     if curl -sSL --fail "$PACKAGE_URL" | tar xz -C "$TMP_DIR"; then
         if [[ -f "$TMP_DIR/hyperfilelens-proxy" ]]; then

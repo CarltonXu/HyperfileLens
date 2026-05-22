@@ -2,6 +2,7 @@
 import { useI18n } from "vue-i18n";
 import {
   ArrowPathIcon,
+  ExclamationTriangleIcon,
   InformationCircleIcon,
   PauseIcon,
   PencilIcon,
@@ -28,6 +29,7 @@ defineEmits<{
   edit: [gateway: Gateway];
   regenerateToken: [gateway: Gateway];
   updateStatus: [gateway: Gateway, status: string];
+  installInfo: [gateway: Gateway];
   delete: [gateway: Gateway];
 }>();
 
@@ -50,6 +52,17 @@ const { t } = useI18n();
       >
         <InformationCircleIcon class="w-4 h-4" />
         {{ t("gateways.actions.viewDetails") }}
+      </button>
+      <button
+        v-if="!gateway.is_online"
+        class="w-full px-4 py-2 text-left text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 flex items-center gap-2"
+        @click="
+          $emit('installInfo', gateway);
+          $emit('close');
+        "
+      >
+        <ExclamationTriangleIcon class="w-4 h-4" />
+        {{ t("gateways.actions.viewInstall") }}
       </button>
       <button
         class="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-hover flex items-center gap-2"

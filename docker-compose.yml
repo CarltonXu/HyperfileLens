@@ -54,6 +54,7 @@ services:
       DJANGO_TIME_ZONE: ${DJANGO_TIME_ZONE:-UTC}
       STATIC_ROOT: ${STATIC_ROOT:-/app/staticfiles}
       MEDIA_ROOT: ${MEDIA_ROOT:-/app/media}
+      PUBLIC_CONTROL_PLANE_URL: ${PUBLIC_CONTROL_PLANE_URL:-}
       LOG_FILE: ${LOG_FILE:-/app/logs/app.log}
       SESSION_COOKIE_AGE: ${SESSION_COOKIE_AGE:-86400}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
@@ -94,6 +95,7 @@ services:
       DJANGO_TIME_ZONE: ${DJANGO_TIME_ZONE:-UTC}
       STATIC_ROOT: ${STATIC_ROOT:-/app/staticfiles}
       MEDIA_ROOT: ${MEDIA_ROOT:-/app/media}
+      PUBLIC_CONTROL_PLANE_URL: ${PUBLIC_CONTROL_PLANE_URL:-}
       LOG_FILE: ${LOG_FILE:-/app/logs/app.log}
       SESSION_COOKIE_AGE: ${SESSION_COOKIE_AGE:-86400}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
@@ -192,7 +194,7 @@ services:
     container_name: hyperfilelens-gateway-agent
     restart: unless-stopped
     environment:
-      SERVER_URL: ${GATEWAY_SERVER_URL:-http://control:8000}
+      SERVER_URL: ${PUBLIC_CONTROL_PLANE_URL:?PUBLIC_CONTROL_PLANE_URL is required}
       WS_PROTOCOL: ${GATEWAY_WS_PROTOCOL:-ws}
       GATEWAY_ID: ${GATEWAY_ID:-}
       INSTALL_TOKEN: ${GATEWAY_INSTALL_TOKEN:-}
@@ -219,7 +221,7 @@ services:
     container_name: hyperfilelens-proxy-agent
     restart: unless-stopped
     environment:
-      SERVER_URL: ${PROXY_SERVER_URL:-http://control:8000}
+      SERVER_URL: ${PUBLIC_CONTROL_PLANE_URL:?PUBLIC_CONTROL_PLANE_URL is required}
       API_TOKEN: ${PROXY_API_TOKEN:-}
       PROXY_ROLE: ${PROXY_ROLE:-agent}
     volumes:

@@ -2970,6 +2970,7 @@ export default {
     deactivate: "停用",
     actions: {
       viewDetails: "查看详情",
+      viewInstall: "查看安装命令",
       edit: "编辑",
       regenerateToken: "重新生成令牌",
       setMaintenance: "设为维护",
@@ -3025,6 +3026,7 @@ export default {
       resourceUsage: "资源使用情况",
       recentHeartbeats: "最近心跳",
       time: "时间",
+      empty: "暂无监控数据",
     },
 
     // Install
@@ -3041,13 +3043,22 @@ export default {
       downloadConfig: "下载配置",
       noCommand: "暂无安装命令",
       loadCommand: "加载命令",
-      checklist: {
-        title: "安装检查清单",
-        ubuntu2204: "目标服务器已安装 Ubuntu 22.04 LTS",
-        sudoAccess: "具备 sudo 权限用于安装软件包",
-        networkAccess: "可访问控制端服务地址",
-        sshAccess: "具备 SSH 访问权限用于故障排查",
-      },
+      checklist: "安装检查清单",
+      checklistUbuntu2204: "目标服务器已安装 Ubuntu 22.04 LTS",
+      checklistSudoAccess: "具备 sudo 权限用于安装软件包",
+      checklistNetworkAccess: "可访问控制端服务地址",
+      checklistSshAccess: "具备 SSH 访问权限用于故障排查",
+    },
+    installInfo: {
+      title: "安装命令",
+      warning: "网关尚未在线",
+      warningDesc: "此网关尚未连接。请复制以下命令在目标服务器上执行。",
+      installCommand: "安装命令",
+      noCommand: "暂无安装命令",
+      help: "安装说明",
+      helpStep1: "复制安装命令并在目标服务器上执行",
+      helpStep2: "安装完成后网关会自动连接到控制端",
+      helpStep3: "安装令牌为一次性使用，安装成功后将自动失效",
     },
 
     // Mounts

@@ -14,9 +14,9 @@ import GatewayCreateModal from "@/components/gateways/GatewayCreateModal.vue";
 import GatewayDetailDrawer from "@/components/gateways/GatewayDetailDrawer.vue";
 import GatewayEditModal from "@/components/gateways/GatewayEditModal.vue";
 import GatewayDeleteConfirmModal from "@/components/gateways/GatewayDeleteConfirmModal.vue";
+import GatewayInstallInfoModal from "@/components/gateways/GatewayInstallInfoModal.vue";
 import GatewayInstallWizardModal from "@/components/gateways/GatewayInstallWizardModal.vue";
 import GatewayOverviewTab from "@/components/gateways/GatewayOverviewTab.vue";
-import GatewayInstallTab from "@/components/gateways/GatewayInstallTab.vue";
 import GatewayMountsTab from "@/components/gateways/GatewayMountsTab.vue";
 import GatewayMonitoringTab from "@/components/gateways/GatewayMonitoringTab.vue";
 import { PlusIcon } from "@heroicons/vue/24/outline";
@@ -129,13 +129,15 @@ const isLoadingWizardCommand = ref(false);
 // Detail Drawer
 const showDetailDrawer = ref(false);
 const selectedGateway = ref<Gateway | null>(null);
-const detailTab = ref<"overview" | "install" | "mounts" | "monitoring">(
-  "overview",
-);
+const detailTab = ref<"overview" | "mounts" | "monitoring">("overview");
 const isLoadingDetail = ref(false);
-const installCommand = ref("");
-const isLoadingCommand = ref(false);
-const commandCopied = ref(false);
+
+// Install command modal
+const showInstallInfoModal = ref(false);
+const installInfoGateway = ref<Gateway | null>(null);
+const installInfoCommand = ref("");
+const isLoadingInstallInfoCommand = ref(false);
+const installInfoCommandCopied = ref(false);
 
 // Edit Modal
 const showEditModal = ref(false);
@@ -375,10 +377,6 @@ async function copyWizardCommand() {
 
   try {
     await navigator.clipboard.writeText(wizardInstallCommand.value);
-    commandCopied.value = true;
-    setTimeout(() => {
-      commandCopied.value = false;
-    }, 2000);
   } catch (error) {
     console.error("Failed to copy:", error);
   }
@@ -417,9 +415,29 @@ async function viewGatewayDetail(gateway: Gateway) {
   selectedGateway.value = gateway;
   detailTab.value = "overview";
   showDetailDrawer.value = true;
-  installCommand.value = "";
   mountsData.value = [];
   monitoringData.value = [];
+}
+
+async function viewInstallInfo(gateway: Gateway) {
+  installInfoGateway.value = gateway;
+  installInfoCommand.value = "";
+  installInfoCommandCopied.value = false;
+  showInstallInfoModal.value = true;
+  isLoadingInstallInfoCommand.value = true;
+  try {
+    const res = await gatewaysApi.installCommand(gateway.id);
+    installInfoCommand.value = res.data.install_command || "";
+  } catch (error) {
+    console.error("Failed to get install command:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(error, t("common.actionFailed")),
+    });
+  } finally {
+    isLoadingInstallInfoCommand.value = false;
+  }
 }
 
 async function loadMountsData() {
@@ -536,28 +554,14 @@ async function confirmDelete() {
   }
 }
 
-async function loadInstallCommand() {
-  if (!selectedGateway.value) return;
-
-  isLoadingCommand.value = true;
-  try {
-    const res = await gatewaysApi.installCommand(selectedGateway.value.id);
-    installCommand.value = res.data.install_command;
-  } catch (error) {
-    console.error("Failed to get install command:", error);
-  } finally {
-    isLoadingCommand.value = false;
-  }
-}
-
-async function copyCommand() {
-  if (!installCommand.value) return;
+async function copyInstallInfoCommand() {
+  if (!installInfoCommand.value) return;
 
   try {
-    await navigator.clipboard.writeText(installCommand.value);
-    commandCopied.value = true;
+    await navigator.clipboard.writeText(installInfoCommand.value);
+    installInfoCommandCopied.value = true;
     setTimeout(() => {
-      commandCopied.value = false;
+      installInfoCommandCopied.value = false;
     }, 2000);
   } catch (error) {
     console.error("Failed to copy:", error);
@@ -613,9 +617,6 @@ const monitoringStats = computed(() => {
 
 // Watch tab changes
 watch(detailTab, (newTab) => {
-  if (newTab === "install" && selectedGateway.value?.status === "pending") {
-    loadInstallCommand();
-  }
   if (newTab === "mounts") {
     loadMountsData();
   }
@@ -706,6 +707,7 @@ onMounted(() => {
       @detail="viewGatewayDetail"
       @delete="deleteGateway"
       @edit="openEditModal"
+      @install-info="viewInstallInfo"
       @regenerate-token="handleRegenerateToken"
       @update-status="handleUpdateStatus"
     />
@@ -746,6 +748,16 @@ onMounted(() => {
       @copy-command="copyWizardCommand"
     />
 
+    <GatewayInstallInfoModal
+      v-if="showInstallInfoModal && installInfoGateway"
+      :gateway="installInfoGateway"
+      :install-command="installInfoCommand"
+      :loading="isLoadingInstallInfoCommand"
+      :command-copied="installInfoCommandCopied"
+      @close="showInstallInfoModal = false"
+      @copy="copyInstallInfoCommand"
+    />
+
     <!-- Detail Drawer -->
     <GatewayDetailDrawer
       v-if="showDetailDrawer && selectedGateway"
@@ -761,18 +773,6 @@ onMounted(() => {
       <GatewayOverviewTab
         v-if="detailTab === 'overview' && selectedGateway"
         :gateway="selectedGateway"
-      />
-
-      <!-- Install Tab -->
-      <GatewayInstallTab
-        v-else-if="detailTab === 'install' && selectedGateway"
-        :gateway="selectedGateway"
-        :install-command="installCommand"
-        :is-loading="isLoadingCommand"
-        :command-copied="commandCopied"
-        @load-command="loadInstallCommand"
-        @copy-command="copyCommand"
-        @download-config="() => {}"
       />
 
       <!-- Mounts Tab -->

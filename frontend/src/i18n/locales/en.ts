@@ -3089,6 +3089,7 @@ export default {
     deactivate: "Deactivate",
     actions: {
       viewDetails: "View Details",
+      viewInstall: "View Install Command",
       edit: "Edit",
       regenerateToken: "Regenerate Token",
       setMaintenance: "Set Maintenance",
@@ -3144,6 +3145,7 @@ export default {
       resourceUsage: "Resource Usage",
       recentHeartbeats: "Recent Heartbeats",
       time: "Time",
+      empty: "No monitoring data available",
     },
 
     // Install
@@ -3156,19 +3158,31 @@ export default {
       "The gateway will automatically connect to the control plane after installation.",
     alreadyInstalled: "This gateway has already been installed.",
     install: {
-      pendingNote: "This gateway is pending installation. Run the install command below to set up the gateway.",
+      pendingNote:
+        "This gateway is pending installation. Run the install command below to set up the gateway.",
       installCommand: "Installation Command",
-      securityNote: "Keep your installation token secure. It can only be used once.",
+      securityNote:
+        "Keep your installation token secure. It can only be used once.",
       downloadConfig: "Download Config",
       noCommand: "No installation command available",
       loadCommand: "Load Command",
-      checklist: {
-        title: "Installation Checklist",
-        ubuntu2204: "Ubuntu 22.04 LTS installed on target server",
-        sudoAccess: "Sudo access to install packages",
-        networkAccess: "Network access to control plane",
-        sshAccess: "SSH access for troubleshooting",
-      },
+      checklist: "Installation Checklist",
+      checklistUbuntu2204: "Ubuntu 22.04 LTS installed on target server",
+      checklistSudoAccess: "Sudo access to install packages",
+      checklistNetworkAccess: "Network access to control plane",
+      checklistSshAccess: "SSH access for troubleshooting",
+    },
+    installInfo: {
+      title: "Install Command",
+      warning: "Gateway is not online",
+      warningDesc:
+        "This gateway has not connected yet. Copy the command below and run it on the target server.",
+      installCommand: "Install Command",
+      noCommand: "No install command available",
+      help: "Installation Notes",
+      helpStep1: "Copy the install command and run it on the target server",
+      helpStep2: "The gateway will automatically connect after installation",
+      helpStep3: "The installation token can only be used once",
     },
 
     // Mounts

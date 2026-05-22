@@ -6,7 +6,7 @@ import {
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
 
-type DetailTab = "overview" | "install" | "mounts" | "monitoring";
+type DetailTab = "overview" | "mounts" | "monitoring";
 
 interface Gateway {
   id: string;
@@ -81,7 +81,7 @@ function getStatusLabel(status: string): string {
                     statusColors[gateway?.status || 'pending'],
                   ]"
                 >
-                  {{ getStatusLabel(gateway?.status || 'pending') }}
+                  {{ getStatusLabel(gateway?.status || "pending") }}
                 </span>
                 <span
                   v-if="gateway?.is_online"
@@ -132,18 +132,6 @@ function getStatusLabel(status: string): string {
               ]"
             >
               {{ t(`gateways.tabs.${tab}`) }}
-            </button>
-            <button
-              v-if="gateway?.status === 'pending'"
-              @click="emit('update:detailTab', 'install')"
-              :class="[
-                'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
-                detailTab === 'install'
-                  ? 'border-violet-500 text-violet-600'
-                  : 'border-transparent text-foreground-secondary hover:text-foreground hover:border-slate-300 dark:hover:border-slate-600',
-              ]"
-            >
-              {{ t("gateways.tabs.install") }}
             </button>
           </nav>
         </div>

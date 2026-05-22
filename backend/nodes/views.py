@@ -15,8 +15,11 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django.utils import timezone
 from django.db.models import Count, Avg, Q
-from django.conf import settings
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
+from core.install_distribution import (
+    build_proxy_install_command,
+    get_public_control_plane_url,
+)
 
 from .models import ProxyNode, ProxyHeartbeat, ProxyTask, NodeConnection
 from .serializers import (
@@ -138,11 +141,6 @@ class ProxyViewSet(viewsets.ModelViewSet):
 
     def _generate_install_command(self, proxy, request):
         """Generate installation command for the proxy."""
-        # Get server URL from settings or request
-        server_url = getattr(settings, 'PROXY_SERVER_URL', None)
-        if not server_url:
-            server_url = request.build_absolute_uri('/').rstrip('/')
-
         # Get target OS from request or use saved value
         os_type = request.data.get('target_os', proxy.target_os or 'linux')
         
@@ -151,7 +149,7 @@ class ProxyViewSet(viewsets.ModelViewSet):
             proxy.target_os = os_type
 
         install_command = self._build_install_command(
-            server_url=server_url,
+            server_url=get_public_control_plane_url(request),
             role=proxy.role,
             proxy_id=proxy.id,
             install_token=proxy.install_token,
@@ -165,18 +163,14 @@ class ProxyViewSet(viewsets.ModelViewSet):
 
     def _build_install_command(self, server_url, role, proxy_id, install_token, os_type, name):
         """Build the installation command string."""
-        if os_type == 'windows':
-            return f'''# PowerShell (Run as Administrator)
-Invoke-WebRequest -Uri "{server_url}/static/downloads/install.ps1" -OutFile "install.ps1"
-./install.ps1 -ProxyId "{proxy_id}" -Role {role} -Server "{server_url}" -Token "{install_token}" -Name "{name}"'''
-        else:
-            return f'''# Linux/macOS
-curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
-  --proxy-id {proxy_id} \\
-  --role {role} \\
-  --server {server_url} \\
-  --token {install_token} \\
-  --name "{name}"'''
+        return build_proxy_install_command(
+            server_url=server_url,
+            role=role,
+            proxy_id=proxy_id,
+            install_token=install_token,
+            os_type=os_type,
+            name=name,
+        )
 
     def perform_destroy(self, instance):
         """Delete a proxy with audit logging."""
@@ -273,11 +267,8 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
             install_token=secrets.token_urlsafe(32)
         )
 
-        # Get server URL
-        server_url = data.get('server_url') or getattr(
-            settings, 'PROXY_SERVER_URL',
-            request.build_absolute_uri('/').rstrip('/')
-        )
+        # Get public server URL
+        server_url = data.get('server_url') or get_public_control_plane_url(request)
 
         # Build commands
         install_command = self._build_install_command(
@@ -364,11 +355,8 @@ curl -sSL {server_url}/static/downloads/install.sh | bash -s -- \\
         proxy.install_token_used = False
         proxy.save()
 
-        # Get server URL
-        server_url = getattr(
-            settings, 'PROXY_SERVER_URL',
-            request.build_absolute_uri('/').rstrip('/')
-        )
+        # Get public server URL
+        server_url = get_public_control_plane_url(request)
 
         # Build new commands
         install_command = self._build_install_command(
@@ -1261,10 +1249,8 @@ logging:
         proxy.api_token = secrets.token_urlsafe(32)
         proxy.install_token = secrets.token_urlsafe(32)
         
-        # Get server URL from settings or request
-        server_url = getattr(settings, 'PROXY_SERVER_URL', None)
-        if not server_url:
-            server_url = request.build_absolute_uri('/').rstrip('/')
+        # Get public server URL
+        server_url = get_public_control_plane_url(request)
         
         # Use saved target_os or default to linux
         os_type = proxy.target_os or 'linux'

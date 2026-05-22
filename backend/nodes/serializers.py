@@ -7,7 +7,10 @@ heartbeat tracking, and task assignment.
 
 from rest_framework import serializers
 from django.utils import timezone
-from django.conf import settings
+from core.install_distribution import (
+    build_proxy_install_command,
+    get_public_control_plane_url,
+)
 from .models import (
     ProxyNode, ProxyHeartbeat, ProxyTask, NodeConnection
 )
@@ -122,21 +125,14 @@ class ProxyNodeSerializer(serializers.ModelSerializer):
         
         request = self.context.get('request')
         if request:
-            server_url = request.build_absolute_uri('/').rstrip('/')
-            base_url = server_url.split('/api/')[0] if '/api/' in server_url else server_url
-            
-            if obj.target_os == 'windows':
-                return f'''# PowerShell (Run as Administrator)
-Invoke-WebRequest -Uri "{base_url}/static/downloads/install.ps1" -OutFile "install.ps1"
-./install.ps1 -ProxyId "{obj.id}" -Role {obj.role} -Server "{base_url}" -Token "{obj.install_token}" -Name "{obj.name}"'''
-            else:
-                return f'''# Linux/macOS
-curl -sSL {base_url}/static/downloads/install.sh | bash -s -- \\
-  --proxy-id {obj.id} \\
-  --role {obj.role} \\
-  --server {base_url} \\
-  --token {obj.install_token} \\
-  --name "{obj.name}"'''
+            return build_proxy_install_command(
+                server_url=get_public_control_plane_url(request),
+                role=obj.role,
+                proxy_id=obj.id,
+                install_token=obj.install_token,
+                os_type=obj.target_os or 'linux',
+                name=obj.name,
+            )
         return None
 
 

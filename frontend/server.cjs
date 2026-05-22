@@ -119,8 +119,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Proxy static files (downloads) to backend
-  if (req.url.startsWith('/static/')) {
+  // Proxy static files and install downloads to backend.
+  if (req.url.startsWith('/static/') || req.url.startsWith('/downloads/')) {
     proxyRequest(req, res);
     return;
   }

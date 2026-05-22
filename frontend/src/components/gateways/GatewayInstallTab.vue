@@ -116,7 +116,7 @@ const { t } = useI18n();
               <CheckCircleIcon class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
             <span class="text-foreground-secondary">
-              {{ t("gateways.install.checklist.ubuntu2204") }}
+              {{ t("gateways.install.checklistUbuntu2204") }}
             </span>
           </li>
           <li class="flex items-center gap-3">
@@ -126,7 +126,7 @@ const { t } = useI18n();
               <CheckCircleIcon class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
             <span class="text-foreground-secondary">
-              {{ t("gateways.install.checklist.sudoAccess") }}
+              {{ t("gateways.install.checklistSudoAccess") }}
             </span>
           </li>
           <li class="flex items-center gap-3">
@@ -136,7 +136,7 @@ const { t } = useI18n();
               <CheckCircleIcon class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
             <span class="text-foreground-secondary">
-              {{ t("gateways.install.checklist.networkAccess") }}
+              {{ t("gateways.install.checklistNetworkAccess") }}
             </span>
           </li>
           <li class="flex items-center gap-3">
@@ -146,7 +146,7 @@ const { t } = useI18n();
               <CheckCircleIcon class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
             <span class="text-foreground-secondary">
-              {{ t("gateways.install.checklist.sshAccess") }}
+              {{ t("gateways.install.checklistSshAccess") }}
             </span>
           </li>
         </ul>

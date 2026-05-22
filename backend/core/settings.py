@@ -177,6 +177,19 @@ STATIC_URL = '/static/'
 STATIC_ROOT = Path(os.environ.get('STATIC_ROOT', BASE_DIR / 'staticfiles'))
 STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
 
+# Public install distribution.
+# This must be the externally reachable Nginx/Ingress/LB URL used by target
+# proxy and gateway machines. Do not set this to backend-only addresses such as
+# localhost:8000 or control:8000 in production.
+PUBLIC_CONTROL_PLANE_URL = os.environ.get(
+    'PUBLIC_CONTROL_PLANE_URL',
+    os.environ.get('CONTROL_PLANE_PUBLIC_URL', os.environ.get('INSTALL_SERVER_URL', ''))
+).rstrip('/')
+INSTALL_DOWNLOADS_URL = '/downloads/'
+INSTALL_DOWNLOADS_ROOT = Path(
+    os.environ.get('INSTALL_DOWNLOADS_ROOT', STATIC_ROOT / 'downloads')
+)
+
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))

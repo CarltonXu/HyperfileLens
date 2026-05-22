@@ -157,6 +157,15 @@ staticfiles/
 static/
 !backend/static/
 !backend/static/.gitkeep
+!backend/static/downloads/
+!backend/static/downloads/install-proxy.sh
+!backend/static/downloads/install-gateway.sh
+!backend/static/downloads/packages/
+backend/static/downloads/packages/**
+!backend/static/downloads/packages/proxy/
+!backend/static/downloads/packages/proxy/.gitkeep
+!backend/static/downloads/packages/gateway/
+!backend/static/downloads/packages/gateway/.gitkeep
 
 # Coverage
 htmlcov/
