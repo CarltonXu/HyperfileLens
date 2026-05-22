@@ -1452,6 +1452,19 @@ export default {
       loadFiles: "加载文件",
     },
 
+    snapshotFilters: {
+      data: "有数据",
+      noChange: "No-change",
+      allRecoverable: "全部可恢复",
+    },
+
+    snapshots: {
+      data: "有数据",
+      noChange: "No-change",
+      empty: "空快照",
+      loadMore: "加载更多快照",
+    },
+
     conflict: {
       skip: "跳过已存在文件",
       overwrite: "覆盖已存在文件",

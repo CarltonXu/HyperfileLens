@@ -56,6 +56,10 @@ export const backupTasksApi = {
   listSnapshots: (params?: {
     node?: number | string;
     repository?: number | string;
+    search?: string;
+    status?: string;
+    snapshot_status?: string;
+    snapshot_kind?: string;
     page?: number;
     page_size?: number;
   }) => api.get("/api/v1/backup-tasks/snapshots/", { params }),

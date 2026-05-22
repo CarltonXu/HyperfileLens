@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from django.db.models import Sum, Count
+from django.db.models import Q, Sum, Count
 
 from core.permissions import IsAdminOrOperator
 from licenses.quota import QuotaCheckMixin
@@ -845,6 +845,36 @@ class BackupSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         repository_id = self.request.query_params.get('repository')
         if repository_id:
             queryset = queryset.filter(repository_id=repository_id)
+
+        snapshot_status = self.request.query_params.get('snapshot_status') or self.request.query_params.get('status')
+        if snapshot_status and snapshot_status != 'all':
+            queryset = queryset.filter(snapshot_status=snapshot_status)
+
+        snapshot_kind = self.request.query_params.get('snapshot_kind') or self.request.query_params.get('kind')
+        if snapshot_kind == 'data':
+            queryset = queryset.filter(
+                Q(total_size__gt=0) | Q(file_count__gt=0)
+            )
+        elif snapshot_kind == 'no_change':
+            queryset = queryset.filter(
+                Q(metadata__no_changes=True) | Q(metadata__last_no_changes=True)
+            )
+        elif snapshot_kind == 'empty':
+            queryset = queryset.filter(total_size=0, file_count=0).exclude(
+                Q(metadata__no_changes=True) | Q(metadata__last_no_changes=True)
+            )
+
+        search = (self.request.query_params.get('search') or '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search)
+                | Q(version__icontains=search)
+                | Q(storage_path__icontains=search)
+                | Q(manifest_path__icontains=search)
+                | Q(kopia_snapshot_id__icontains=search)
+                | Q(kopia_root_object_id__icontains=search)
+                | Q(task__name__icontains=search)
+            )
         
         return queryset.order_by('-created_at')
     

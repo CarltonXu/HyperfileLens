@@ -114,14 +114,21 @@ export interface RecoveryTaskUpdateData {
 
 export interface SnapshotInfo {
   id: string
+  task?: string
+  task_name?: string
   name?: string
   source_path?: string
-  snapshot_time: string
+  snapshot_time?: string
+  created_at?: string
   files_total?: number
   size_bytes?: number
   total_size?: number
   file_count?: number
   description?: string
+  metadata?: Record<string, any>
+  snapshot_status?: string
+  retention_reasons?: string[]
+  last_synced_at?: string
   tags?: Record<string, any>
   manifests?: SnapshotManifest[]
 }

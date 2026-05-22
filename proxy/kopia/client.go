@@ -624,6 +624,64 @@ func (c *Client) Restore(taskID, snapshotID, targetPath, password string, overwr
 	}, nil
 }
 
+// RestoreObject restores a Kopia object tree to a target path.
+func (c *Client) RestoreObject(taskID, objectID, targetPath, password string, overwrite bool) (*RestoreResult, error) {
+	startedAt := time.Now()
+	ctx, done := c.registerTaskContext(taskID)
+	defer done()
+	logger.Debug("Starting Kopia object restore", map[string]interface{}{
+		"task_id":     taskID,
+		"object_id":   objectID,
+		"target_path": targetPath,
+		"overwrite":   overwrite,
+		"password":    "[REDACTED]",
+	})
+
+	args := []string{"restore", objectID, targetPath}
+	if password != "" {
+		args = append(args, "--password", password)
+	}
+	if !overwrite {
+		args = append(args, "--skip-existing")
+	}
+
+	output, err := exec.CommandContext(ctx, c.binaryPath, args...).CombinedOutput()
+	if err != nil {
+		logger.Error("Kopia object restore failed", map[string]interface{}{
+			"task_id":     taskID,
+			"object_id":   objectID,
+			"target_path": targetPath,
+			"error":       err.Error(),
+			"output":      string(output),
+		})
+		return nil, fmt.Errorf("kopia object restore failed: %w, output: %s", err, string(output))
+	}
+
+	logger.Info("Object restore completed successfully", map[string]interface{}{
+		"task_id":     taskID,
+		"object_id":   objectID,
+		"target_path": targetPath,
+		"output":      string(output),
+	})
+
+	stats := parseRestoreStats(string(output))
+	return &RestoreResult{
+		TaskID:         taskID,
+		SnapshotID:     objectID,
+		TargetPath:     targetPath,
+		Output:         string(output),
+		RestoredFiles:  stats.RestoredFiles,
+		TotalFiles:     stats.RestoredFiles,
+		RestoredSize:   stats.RestoredSize,
+		TotalSize:      stats.RestoredSize,
+		SpeedMBps:      stats.SpeedMBps,
+		DirectoryCount: stats.DirectoryCount,
+		SymlinkCount:   stats.SymlinkCount,
+		StartedAt:      startedAt,
+		FinishedAt:     time.Now(),
+	}, nil
+}
+
 // RestoreSelected restores selected files or directories from a Kopia root object.
 func (c *Client) RestoreSelected(taskID, objectID, targetPath, password string, overwrite bool, restorePaths []string) (*RestoreResult, error) {
 	startedAt := time.Now()

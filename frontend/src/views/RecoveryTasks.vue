@@ -24,11 +24,11 @@ import RecoveryTaskDetailModal from "@/components/recovery-tasks/RecoveryTaskDet
 import RecoveryTaskListView from "@/components/recovery-tasks/RecoveryTaskListView.vue";
 import RecoveryTaskStats from "@/components/recovery-tasks/RecoveryTaskStats.vue";
 import RecoveryTaskToolbar from "@/components/recovery-tasks/RecoveryTaskToolbar.vue";
+import RecoveryPointSelector from "@/components/recovery-tasks/RecoveryPointSelector.vue";
 import RecoveryWizardReviewAside from "@/components/recovery-tasks/RecoveryWizardReviewAside.vue";
 import RecoveryWizardStepper from "@/components/recovery-tasks/RecoveryWizardStepper.vue";
 import {
   PlusIcon,
-  MagnifyingGlassIcon,
   ArrowPathIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -37,7 +37,6 @@ import {
   PauseIcon,
   XCircleIcon,
   ServerIcon,
-  CircleStackIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   DocumentIcon,
@@ -75,6 +74,12 @@ const runsLoading = ref(false);
 const selectedStatus = ref<string>("all");
 const searchQuery = ref("");
 const snapshotSearchQuery = ref("");
+const snapshotKindFilter = ref("data");
+const snapshotsLoading = ref(false);
+const snapshotsLoadingMore = ref(false);
+const snapshotPage = ref(1);
+const snapshotTotal = ref(0);
+const snapshotNextPage = ref<number | null>(null);
 const recoverySnapshotFiles = ref<any[]>([]);
 const recoverySnapshotFilesLoading = ref(false);
 const recoverySnapshotFilesError = ref("");
@@ -291,20 +296,82 @@ async function fetchSnapshots() {
   if (!newRecovery.value.repository) {
     snapshots.value = [];
     newRecovery.value.snapshot_id = "";
+    snapshotPage.value = 1;
+    snapshotTotal.value = 0;
+    snapshotNextPage.value = null;
     return;
   }
+  snapshotsLoading.value = true;
+  snapshotPage.value = 1;
   try {
     const response = await backupTasksApi.listSnapshots({
       repository: newRecovery.value.repository,
+      search: snapshotSearchQuery.value.trim() || undefined,
+      snapshot_status: "available",
+      snapshot_kind:
+        snapshotKindFilter.value === "all" ? undefined : snapshotKindFilter.value,
+      page: 1,
       page_size: 50,
     });
     snapshots.value = response.data.results || response.data;
+    snapshotTotal.value = response.data.count ?? snapshots.value.length;
+    snapshotNextPage.value = response.data.next ? 2 : null;
   } catch (error) {
     console.error("Failed to fetch snapshots:", error);
+  } finally {
+    snapshotsLoading.value = false;
   }
 }
 
-watch(() => newRecovery.value.repository, fetchSnapshots);
+async function loadMoreSnapshots() {
+  if (!newRecovery.value.repository || !snapshotNextPage.value || snapshotsLoadingMore.value) {
+    return;
+  }
+  const page = snapshotNextPage.value;
+  snapshotsLoadingMore.value = true;
+  try {
+    const response = await backupTasksApi.listSnapshots({
+      repository: newRecovery.value.repository,
+      search: snapshotSearchQuery.value.trim() || undefined,
+      snapshot_status: "available",
+      snapshot_kind:
+        snapshotKindFilter.value === "all" ? undefined : snapshotKindFilter.value,
+      page,
+      page_size: 50,
+    });
+    const nextResults = response.data.results || response.data || [];
+    const existingIds = new Set(snapshots.value.map((snap) => snap.id));
+    snapshots.value = [
+      ...snapshots.value,
+      ...nextResults.filter((snap: SnapshotInfo) => !existingIds.has(snap.id)),
+    ];
+    snapshotTotal.value = response.data.count ?? snapshots.value.length;
+    snapshotPage.value = page;
+    snapshotNextPage.value = response.data.next ? page + 1 : null;
+  } catch (error) {
+    console.error("Failed to load more snapshots:", error);
+  } finally {
+    snapshotsLoadingMore.value = false;
+  }
+}
+
+watch(
+  () => newRecovery.value.repository,
+  () => {
+    newRecovery.value.snapshot_id = "";
+    snapshotSearchQuery.value = "";
+    fetchSnapshots();
+  },
+);
+
+let snapshotSearchTimer: number | null = null;
+watch([snapshotSearchQuery, snapshotKindFilter], () => {
+  if (!newRecovery.value.repository) return;
+  if (snapshotSearchTimer) clearTimeout(snapshotSearchTimer);
+  snapshotSearchTimer = window.setTimeout(() => {
+    fetchSnapshots();
+  }, 250);
+});
 
 watch(
   () => newRecovery.value.snapshot_id,
@@ -335,20 +402,7 @@ const selectedSnapshot = computed(() =>
 );
 
 const filteredSnapshots = computed(() => {
-  const query = snapshotSearchQuery.value.trim().toLowerCase();
-  if (!query) return snapshots.value;
-  return snapshots.value.filter((snap) => {
-    const fields = [
-      snap.id,
-      snap.name,
-      snap.source_path,
-      snap.description,
-      snap.snapshot_time,
-    ];
-    return fields.some((field) =>
-      String(field || "").toLowerCase().includes(query),
-    );
-  });
+  return snapshots.value;
 });
 
 const selectedTargetNode = computed(() =>
@@ -986,137 +1040,22 @@ onMounted(() => {
                 </div>
               </section>
 
-              <section
+              <RecoveryPointSelector
                 v-if="createStep === 1"
-                class="rounded-lg border border-border bg-background-secondary/40 p-4"
-              >
-                <div class="flex items-start gap-3 mb-4">
-                  <CircleStackIcon class="w-5 h-5 text-emerald-600 mt-0.5" />
-                  <div>
-                    <h3 class="text-sm font-semibold text-foreground">
-                      {{ t("recoveryTasks.sections.source") }}
-                    </h3>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.sections.sourceHelp") }}
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-foreground-secondary mb-1">
-                    {{ t("recoveryTasks.form.repository") }}
-                  </label>
-                  <select
-                    v-model="newRecovery.repository"
-                    class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option class="bg-background" value="">
-                      {{ t("common.select") || "Select" }}
-                    </option>
-                    <option
-                      class="bg-background"
-                      v-for="repo in repositories"
-                      :key="repo.id"
-                      :value="repo.id"
-                    >
-                      {{ repo.name }}
-                    </option>
-                  </select>
-                </div>
-                <div class="mt-4">
-                  <div class="flex items-center justify-between gap-3 mb-2">
-                    <label class="block text-sm font-medium text-foreground-secondary">
-                      {{ t("recoveryTasks.form.snapshot") }}
-                    </label>
-                    <span class="text-xs text-foreground-secondary">
-                      {{ filteredSnapshots.length }} / {{ snapshots.length }}
-                    </span>
-                  </div>
-                  <div class="relative mb-3">
-                    <MagnifyingGlassIcon
-                      class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
-                    />
-                    <input
-                      v-model="snapshotSearchQuery"
-                      type="text"
-                      :placeholder="t('recoveryTasks.form.snapshotSearchPlaceholder')"
-                      class="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </div>
-
-                  <div
-                    v-if="!newRecovery.repository"
-                    class="rounded-lg border border-dashed border-border p-8 text-center"
-                  >
-                    <CircleStackIcon class="w-8 h-8 text-slate-400 mx-auto mb-3" />
-                    <p class="text-sm font-medium text-foreground">
-                      {{ t("recoveryTasks.empty.selectRepositoryTitle") }}
-                    </p>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.empty.selectRepositoryDescription") }}
-                    </p>
-                  </div>
-                  <div
-                    v-else-if="filteredSnapshots.length === 0"
-                    class="rounded-lg border border-dashed border-border p-8 text-center"
-                  >
-                    <ClockIcon class="w-8 h-8 text-slate-400 mx-auto mb-3" />
-                    <p class="text-sm font-medium text-foreground">
-                      {{ t("recoveryTasks.empty.noSnapshotsTitle") }}
-                    </p>
-                    <p class="text-xs text-foreground-secondary mt-1">
-                      {{ t("recoveryTasks.empty.noSnapshotsDescription") }}
-                    </p>
-                  </div>
-                  <div
-                    v-else
-                    class="max-h-[360px] overflow-y-auto pr-1 space-y-2"
-                  >
-                    <button
-                      v-for="snap in filteredSnapshots"
-                      :key="snap.id"
-                      type="button"
-                      @click="newRecovery.snapshot_id = snap.id"
-                      :class="[
-                        'w-full text-left rounded-lg border p-4 transition-colors',
-                        newRecovery.snapshot_id === snap.id
-                          ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/20'
-                          : 'border-border bg-card hover:bg-hover',
-                      ]"
-                    >
-                      <div class="flex items-start justify-between gap-4">
-                        <div class="min-w-0">
-                          <div class="flex items-center gap-2">
-                            <span
-                              v-if="newRecovery.snapshot_id === snap.id"
-                              class="w-2 h-2 rounded-full bg-emerald-500"
-                            />
-                            <p class="text-sm font-semibold text-foreground truncate">
-                              {{ snap.name || snap.id }}
-                            </p>
-                          </div>
-                          <p class="text-xs text-foreground-secondary mt-1 font-mono truncate">
-                            {{ snap.source_path || snap.id }}
-                          </p>
-                        </div>
-                        <div class="text-right shrink-0">
-                          <p class="text-sm font-medium text-foreground">
-                            {{ formatBytes(snap.total_size || snap.size_bytes || 0) }}
-                          </p>
-                          <p class="text-xs text-foreground-secondary mt-1">
-                            {{ snap.file_count || snap.files_total || 0 }}
-                            {{ t("recoveryTasks.progress.files") }}
-                          </p>
-                        </div>
-                      </div>
-                      <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-foreground-secondary">
-                        <span>{{ formatDateTime(snap.snapshot_time) }}</span>
-                        <span class="truncate">{{ snap.description || "-" }}</span>
-                        <span class="font-mono truncate">{{ snap.id }}</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </section>
+                v-model:selected-repository="newRecovery.repository"
+                v-model:selected-snapshot-id="newRecovery.snapshot_id"
+                v-model:snapshot-search-query="snapshotSearchQuery"
+                v-model:snapshot-kind-filter="snapshotKindFilter"
+                :repositories="repositories"
+                :snapshots="filteredSnapshots"
+                :snapshot-total="snapshotTotal"
+                :snapshots-loading="snapshotsLoading"
+                :snapshots-loading-more="snapshotsLoadingMore"
+                :has-more-snapshots="Boolean(snapshotNextPage)"
+                :format-bytes="formatBytes"
+                :format-date-time="formatDateTime"
+                @load-more="loadMoreSnapshots"
+              />
 
               <section
                 v-if="createStep === 2"

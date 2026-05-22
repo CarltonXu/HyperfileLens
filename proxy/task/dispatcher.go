@@ -768,6 +768,8 @@ func (d *Dispatcher) executeRestore(msg ws.Message) {
 	var err error
 	if restoreScope == "selected_paths" {
 		result, err = d.kopia.RestoreSelected(taskID, objectID, targetPath, password, overwrite, restorePaths)
+	} else if objectID != "" {
+		result, err = d.kopia.RestoreObject(taskID, objectID, targetPath, password, overwrite)
 	} else {
 		result, err = d.kopia.Restore(taskID, snapshotID, targetPath, password, overwrite)
 	}

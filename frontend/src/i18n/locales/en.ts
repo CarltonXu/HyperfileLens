@@ -1521,6 +1521,19 @@ export default {
       loadFiles: "Load Files",
     },
 
+    snapshotFilters: {
+      data: "Data",
+      noChange: "No-change",
+      allRecoverable: "All recoverable",
+    },
+
+    snapshots: {
+      data: "Data",
+      noChange: "No-change",
+      empty: "Empty",
+      loadMore: "Load more snapshots",
+    },
+
     conflict: {
       skip: "Skip existing files",
       overwrite: "Overwrite existing files",
