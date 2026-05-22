@@ -58,9 +58,8 @@ HyperFileLens is an AI-powered data protection and file intelligence platform fo
 ### 1. Prerequisites
 
 - Linux host with Docker and Docker Compose plugin.
-- Open inbound ports for the console and API, by default:
-  - Frontend: `5001`
-  - Backend API/WebSocket: `8000`
+- Open one inbound HTTP port for the web console, API, WebSocket, and install
+  downloads. The default compose deployment exposes Nginx on `5001`.
 
 ### 2. Configure environment
 
@@ -76,11 +75,11 @@ Edit `.env` for your host:
 SECRET_KEY=replace-with-a-long-random-secret
 DEBUG=false
 ALLOWED_HOSTS=10.147.18.11,localhost,127.0.0.1,control
-CSRF_TRUSTED_ORIGINS=http://10.147.18.11:5001,http://10.147.18.11:8000
-CORS_ALLOWED_ORIGINS=http://10.147.18.11:5001,http://10.147.18.11:8000
+CSRF_TRUSTED_ORIGINS=http://10.147.18.11:5001
+CORS_ALLOWED_ORIGINS=http://10.147.18.11:5001
+PUBLIC_CONTROL_PLANE_URL=http://10.147.18.11:5001
 POSTGRES_PASSWORD=replace-with-a-strong-password
-BACKEND_PORT=8000
-FRONTEND_PORT=5001
+PUBLIC_HTTP_PORT=5001
 ```
 
 ### 3. Start the platform
@@ -96,7 +95,9 @@ The default compose stack starts:
 - Backend Control Plane with Daphne ASGI server
 - Celery worker
 - Celery beat
-- Frontend static server with `/api/*` proxying to the backend
+- Frontend static server
+- Nginx public entrypoint for frontend, `/api/*`, `/ws/*`, `/static/*`,
+  `/media/*`, and `/downloads/*`
 
 Create an administrator:
 
@@ -107,9 +108,10 @@ docker compose exec control python manage.py createsuperuser
 Access:
 
 ```text
-Frontend: http://<host-ip>:5001
-Backend API: http://<host-ip>:8000/api/v1/
-API docs: http://<host-ip>:8000/api/docs/
+Console: http://<host-ip>:5001
+Backend API: http://<host-ip>:5001/api/v1/
+API docs: http://<host-ip>:5001/api/docs/
+Install downloads: http://<host-ip>:5001/downloads/
 ```
 
 ### 4. Common operations
@@ -134,7 +136,6 @@ Use this when the control-plane host should also run a Gateway Agent.
 2. Copy the generated `gateway_id` and install token into `.env`:
 
 ```env
-GATEWAY_SERVER_URL=http://control:8000
 GATEWAY_WS_PROTOCOL=ws
 GATEWAY_ID=<gateway-id>
 GATEWAY_INSTALL_TOKEN=<install-token>
@@ -155,7 +156,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-SERVER_URL=http://<control-plane-ip>:8000 \
+SERVER_URL=http://<control-plane-ip>:5001 \
 GATEWAY_ID=<gateway-id> \
 INSTALL_TOKEN=<install-token> \
 GATEWAY_NAME=gateway-01 \
@@ -179,7 +180,7 @@ version: "1.0.0"
 role: "agent" # or "sync"
 
 server:
-  url: "http://<control-plane-ip>:8000"
+  url: "http://<control-plane-ip>:5001"
   api_token: "<proxy-api-token>"
   ws_protocol: "ws"
 
@@ -200,7 +201,6 @@ Run:
 For a local lab Proxy in compose:
 
 ```env
-PROXY_SERVER_URL=http://control:8000
 PROXY_API_TOKEN=<proxy-api-token>
 PROXY_ROLE=agent
 PROXY_SOURCE_PATH=/data
@@ -316,9 +316,12 @@ HyperFileLens/
 ## Deployment notes
 
 - Backend must run as ASGI (`daphne core.asgi:application`) because Proxy and Gateway use WebSocket connections.
-- The default frontend server proxies `/api/*` and `/static/*` to the backend. In Docker, this proxy target is `control:8000`.
+- The default Docker deployment exposes only Nginx. Backend and frontend
+  containers stay on the internal compose network, and Nginx routes `/api/*`,
+  `/ws/*`, `/static/*`, `/media/*`, and `/downloads/*`.
 - Do not deploy the old FastAPI Gateway as the primary Gateway service. The current Gateway execution path is the Python WebSocket Gateway Agent.
-- For production, put a reverse proxy such as Nginx or Traefik in front of frontend/backend and switch WebSocket URLs to `wss`.
+- For HTTPS production, terminate TLS at Nginx, Ingress, or a load balancer,
+  set `PUBLIC_CONTROL_PLANE_URL=https://<your-domain>`, and use `wss`.
 
 ## License
 

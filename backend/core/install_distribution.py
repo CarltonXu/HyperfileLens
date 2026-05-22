@@ -51,9 +51,16 @@ def build_proxy_install_command(
     """Build the proxy install command using the standard public script path."""
     server_url = _strip_trailing_slash(server_url)
     if os_type == "windows":
-        return f'''# PowerShell (Run as Administrator)
-Invoke-WebRequest -Uri "{server_url}/downloads/install-proxy.ps1" -OutFile "install-proxy.ps1"
-./install-proxy.ps1 -ProxyId "{proxy_id}" -Role {role} -Server "{server_url}" -Token "{install_token}" -Name "{name}"'''
+        return (
+            "# Windows installer is not published yet.\n"
+            "# Use a Linux/macOS proxy host with the standard installer:\n"
+            f"curl -sSL {server_url}{PROXY_INSTALL_SCRIPT} | bash -s -- \\\n"
+            f"  --proxy-id {proxy_id} \\\n"
+            f"  --role {role} \\\n"
+            f"  --server {server_url} \\\n"
+            f"  --token {install_token} \\\n"
+            f'  --name "{name}"'
+        )
 
     return f'''# Linux/macOS
 curl -sSL {server_url}{PROXY_INSTALL_SCRIPT} | bash -s -- \\
