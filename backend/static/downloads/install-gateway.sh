@@ -311,8 +311,11 @@ EOF
     cat > "${CONFIG_DIR}/env" << EOF
 SERVER_URL=${SERVER_URL}
 INSTALL_TOKEN=${INSTALL_TOKEN}
+API_TOKEN=
 GATEWAY_ID=${GATEWAY_ID}
 GATEWAY_NAME=${GATEWAY_NAME:-$(hostname)}
+CONFIG_PATH=${CONFIG_DIR}/config.yaml
+CONFIG_ENV_PATH=${CONFIG_DIR}/env
 EOF
     
     systemctl daemon-reload

@@ -150,19 +150,21 @@ class GatewayConsumer(AsyncWebsocketConsumer):
         install_token = data.get('install_token')
         gateway_info = data.get('gateway_info', {})
 
-        success = await self.complete_registration(install_token, gateway_info)
+        result = await self.complete_registration(install_token, gateway_info)
 
-        if success:
+        if result.get('success'):
             await self.send(text_data=json.dumps({
                 'type': 'register_ack',
                 'status': 'success',
-                'gateway_id': self.gateway_id
+                'gateway_id': self.gateway_id,
+                'api_token': result.get('api_token'),
+                'install_token_used': True,
             }))
         else:
             await self.send(text_data=json.dumps({
                 'type': 'register_ack',
                 'status': 'failed',
-                'message': 'Invalid install token or gateway already registered'
+                'message': result.get('message') or 'Invalid install token or gateway already registered'
             }))
 
     async def handle_heartbeat(self, data):
@@ -659,6 +661,17 @@ class GatewayConsumer(AsyncWebsocketConsumer):
         from gateways.models import Gateway
         try:
             gateway = Gateway.objects.get(id=self.gateway_id)
+            auth_header = ''
+            for name, value in self.scope.get('headers', []):
+                if name == b'authorization':
+                    auth_header = value.decode()
+                    break
+            api_token = auth_header[6:].strip() if auth_header.startswith('Token ') else ''
+
+            if gateway.install_token_used:
+                return bool(api_token and api_token == gateway.api_token)
+            if api_token:
+                return api_token == gateway.api_token
             return True
         except Gateway.DoesNotExist:
             return False
@@ -687,10 +700,29 @@ class GatewayConsumer(AsyncWebsocketConsumer):
         from gateways.models import Gateway
         try:
             gateway = Gateway.objects.get(id=self.gateway_id)
+
+            # Treat repeated registration from an authenticated, already
+            # registered gateway as idempotent.
+            already_registered = gateway.install_token_used and not gateway.install_token
+            if already_registered:
+                gateway.hostname = gateway_info.get('hostname', gateway.hostname)
+                gateway.internal_ip = gateway_info.get('ip_address') or gateway.internal_ip
+                gateway.version = gateway_info.get('version', gateway.version)
+                gateway.os_version = gateway_info.get('os', gateway.os_version)
+                gateway.capabilities = gateway_info.get('capabilities', gateway.capabilities)
+                gateway.kopia_version = gateway_info.get('kopia_version', gateway.kopia_version)
+                gateway.status = Gateway.GatewayStatus.ACTIVE
+                gateway.last_heartbeat = timezone.now()
+                gateway.save(update_fields=[
+                    'hostname', 'internal_ip', 'version', 'os_version',
+                    'capabilities', 'kopia_version', 'status',
+                    'last_heartbeat', 'updated_at',
+                ])
+                return {'success': True, 'api_token': gateway.api_token}
             
             # Verify install token
-            if gateway.install_token != install_token:
-                return False
+            if not install_token or gateway.install_token != install_token:
+                return {'success': False, 'message': 'Invalid install token'}
             
             # Update gateway info
             gateway.hostname = gateway_info.get('hostname', gateway.hostname)
@@ -703,6 +735,8 @@ class GatewayConsumer(AsyncWebsocketConsumer):
             gateway.memory_total = int(float(gateway_info.get('memory_gb') or 0) * 1024 * 1024 * 1024)
             gateway.disk_total = int(float(gateway_info.get('disk_gb') or 0) * 1024 * 1024 * 1024)
             gateway.status = Gateway.GatewayStatus.ACTIVE
+            if not gateway.api_token:
+                gateway.generate_api_token()
             gateway.install_token = ''
             gateway.install_token_used = True
             gateway.registered_at = timezone.now()
@@ -711,9 +745,9 @@ class GatewayConsumer(AsyncWebsocketConsumer):
             
             # Audit log
             AuditService.log_gateway_register(gateway)
-            return True
+            return {'success': True, 'api_token': gateway.api_token}
         except Gateway.DoesNotExist:
-            return False
+            return {'success': False, 'message': 'Gateway not found'}
 
     @database_sync_to_async
     def update_gateway_heartbeat(self, metrics, mounts):
@@ -728,6 +762,12 @@ class GatewayConsumer(AsyncWebsocketConsumer):
                 gateway.cpu_usage = metrics.get('cpu_usage', 0)
                 gateway.memory_usage = metrics.get('memory_usage', 0)
                 gateway.disk_usage = metrics.get('disk_usage', 0)
+                gateway.network_bytes_sent = metrics.get('network_bytes_sent', gateway.network_bytes_sent)
+                gateway.network_bytes_recv = metrics.get('network_bytes_recv', gateway.network_bytes_recv)
+                gateway.cpu_cores = metrics.get('cpu_cores') or gateway.cpu_cores
+                gateway.memory_total = metrics.get('memory_total') or gateway.memory_total
+                gateway.disk_total = metrics.get('disk_total') or gateway.disk_total
+            gateway.active_mounts = len(mounts)
             
             gateway.save()
             
@@ -737,8 +777,11 @@ class GatewayConsumer(AsyncWebsocketConsumer):
                 cpu_usage=metrics.get('cpu_usage', 0),
                 memory_usage=metrics.get('memory_usage', 0),
                 disk_usage=metrics.get('disk_usage', 0),
-                mount_count=len(mounts),
-                active_mounts=mounts
+                active_mounts=len(mounts),
+                network_bytes_sent=metrics.get('network_bytes_sent', 0),
+                network_bytes_recv=metrics.get('network_bytes_recv', 0),
+                load_average=metrics.get('load_average'),
+                process_count=metrics.get('process_count')
             )
         except Gateway.DoesNotExist:
             pass
@@ -753,6 +796,12 @@ class GatewayConsumer(AsyncWebsocketConsumer):
             gateway.cpu_usage = metrics.get('cpu_usage', 0)
             gateway.memory_usage = metrics.get('memory_usage', 0)
             gateway.disk_usage = metrics.get('disk_usage', 0)
+            gateway.active_mounts = metrics.get('mount_count', metrics.get('active_mounts', 0))
+            gateway.network_bytes_sent = metrics.get('network_bytes_sent', gateway.network_bytes_sent)
+            gateway.network_bytes_recv = metrics.get('network_bytes_recv', gateway.network_bytes_recv)
+            gateway.cpu_cores = metrics.get('cpu_cores') or gateway.cpu_cores
+            gateway.memory_total = metrics.get('memory_total') or gateway.memory_total
+            gateway.disk_total = metrics.get('disk_total') or gateway.disk_total
             gateway.save()
             
             GatewayHeartbeat.objects.create(
@@ -760,8 +809,11 @@ class GatewayConsumer(AsyncWebsocketConsumer):
                 cpu_usage=metrics.get('cpu_usage', 0),
                 memory_usage=metrics.get('memory_usage', 0),
                 disk_usage=metrics.get('disk_usage', 0),
-                mount_count=metrics.get('mount_count', 0),
-                active_mounts=metrics.get('active_mounts', [])
+                active_mounts=metrics.get('mount_count', metrics.get('active_mounts', 0)),
+                network_bytes_sent=metrics.get('network_bytes_sent', 0),
+                network_bytes_recv=metrics.get('network_bytes_recv', 0),
+                load_average=metrics.get('load_average'),
+                process_count=metrics.get('process_count')
             )
         except Gateway.DoesNotExist:
             pass

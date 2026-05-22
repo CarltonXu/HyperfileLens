@@ -22,6 +22,7 @@ class GatewaySerializer(serializers.ModelSerializer):
             'cpu_cores', 'memory_total', 'disk_total',
             'cpu_usage', 'memory_usage', 'disk_usage', 'active_mounts',
             'mount_base_path', 'max_concurrent_mounts',
+            'network_bytes_sent', 'network_bytes_recv', 'network_interfaces',
             # Kopia Server
             'kopia_server_status', 'kopia_server_port', 'kopia_server_tls',
             # AI & Index

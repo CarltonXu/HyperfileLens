@@ -119,7 +119,10 @@ gateway:
 server:
   url: "{server_url}"
   ws_url: "{server_url.replace('http://', 'ws://').replace('https://', 'wss://')}"
-  api_token: "{install_token}"
+  api_token: ""
+
+install:
+  token: "{install_token}"
 
 paths:
   kopia: "/usr/local/bin/kopia"
@@ -478,6 +481,8 @@ logging:
             'active_mounts': hb.active_mounts,
             'network_bytes_sent': hb.network_bytes_sent,
             'network_bytes_recv': hb.network_bytes_recv,
+            'load_average': hb.load_average,
+            'process_count': hb.process_count,
         } for hb in heartbeats]
         
         return Response({

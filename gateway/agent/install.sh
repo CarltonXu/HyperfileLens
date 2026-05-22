@@ -21,7 +21,7 @@ SERVER_URL=""
 INSTALL_TOKEN=""
 GATEWAY_NAME=""
 GATEWAY_ID=""
-KOPIA_VERSION="0.18.2"
+KOPIA_VERSION="0.22.3"
 INSTALL_DIR="/opt/hyperfilelens/gateway"
 CONFIG_DIR="/etc/hyperfilelens/gateway"
 LOG_DIR="/var/log/hyperfilelens"
@@ -110,9 +110,9 @@ install_dependencies() {
         python3 \
         python3-pip \
         python3-venv \
-        fuse \
+        python3-psutil \
+        python3-websockets \
         fuse3 \
-        libfuse2 \
         libfuse3-3 \
         nfs-common \
         cifs-utils \
@@ -131,19 +131,20 @@ install_kopia() {
     if command -v kopia &> /dev/null; then
         CURRENT_VERSION=$(kopia version 2>/dev/null | head -1 || echo "unknown")
         echo -e "${YELLOW}Kopia already installed: $CURRENT_VERSION${NC}"
-        read -p "Reinstall? [y/N] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            return
-        fi
+        echo -e "${GREEN}Using existing Kopia installation.${NC}"
+        return
     fi
     
-    # Download Kopia
     ARCH=$(dpkg --print-architecture)
-    KOPIA_URL="https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/kopia_${KOPIA_VERSION}_linux_${ARCH}.deb"
+    KOPIA_PACKAGE="kopia_${KOPIA_VERSION}_linux_${ARCH}.deb"
+    LOCAL_KOPIA_URL="${SERVER_URL}/downloads/packages/kopia/${KOPIA_PACKAGE}"
+    FALLBACK_KOPIA_URL="https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/${KOPIA_PACKAGE}"
     
     cd /tmp
-    wget -q "$KOPIA_URL" -O kopia.deb
+    if ! curl -fsSL "$LOCAL_KOPIA_URL" -o kopia.deb; then
+        echo -e "${YELLOW}Kopia package not found on control plane, falling back to GitHub.${NC}"
+        curl -fsSL "$FALLBACK_KOPIA_URL" -o kopia.deb
+    fi
     dpkg -i kopia.deb || apt-get install -f -y
     rm -f kopia.deb
     
@@ -163,32 +164,84 @@ setup_virtualenv() {
     mkdir -p "$DATA_DIR/repository"
     mkdir -p "$DATA_DIR/index"
     
-    # Create virtual environment
-    python3 -m venv "$INSTALL_DIR/venv"
-    
-    # Install Python dependencies
-    "$INSTALL_DIR/venv/bin/pip" install --upgrade pip
-    "$INSTALL_DIR/venv/bin/pip" install \
-        websockets \
-        psutil \
-        pyyaml \
-        aiohttp \
-        python-dateutil \
-        requests
+    # Recreate the venv so it can use the distro Python packages installed by apt.
+    rm -rf "$INSTALL_DIR/venv"
+    python3 -m venv --system-site-packages "$INSTALL_DIR/venv"
     
     echo -e "${GREEN}Virtual environment created.${NC}"
+}
+
+# Install Python dependencies
+install_python_dependencies() {
+    echo -e "${BLUE}Checking Python dependencies...${NC}"
+
+    ARCH="$(dpkg --print-architecture)"
+    WHEEL_DIR="$INSTALL_DIR/agent/wheels/linux-${ARCH}"
+
+    if ! "$INSTALL_DIR/venv/bin/python" - <<'PY'
+import psutil
+PY
+    then
+        echo -e "${RED}Missing Python dependency: psutil. Expected python3-psutil from apt.${NC}"
+        exit 1
+    fi
+
+    if "$INSTALL_DIR/venv/bin/python" - <<'PY'
+from importlib import metadata
+
+version = metadata.version("websockets")
+major = int(version.split(".", 1)[0])
+if major < 12 or major >= 13:
+    raise SystemExit(1)
+PY
+    then
+        echo -e "${GREEN}Python dependencies are available from system packages.${NC}"
+        return
+    fi
+
+    if [[ -d "$WHEEL_DIR" ]]; then
+        "$INSTALL_DIR/venv/bin/pip" install --no-index --find-links "$WHEEL_DIR" "websockets>=12,<13"
+        "$INSTALL_DIR/venv/bin/python" - <<'PY'
+import psutil
+import websockets
+PY
+        echo -e "${GREEN}Python dependencies installed from bundled wheels.${NC}"
+        return
+    fi
+
+    echo -e "${RED}Missing compatible websockets package and no bundled wheel found for ${ARCH}.${NC}"
+    exit 1
 }
 
 # Install Gateway Agent
 install_agent() {
     echo -e "${BLUE}Installing Gateway Agent...${NC}"
     
-    # Copy agent files
-    cp -r "$(dirname "$0")/agent" "$INSTALL_DIR/" 2>/dev/null || {
-        # If running from curl, download from server
+    local script_dir=""
+    if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    fi
+
+    if [[ -n "$script_dir" ]] && [[ -f "${script_dir}/agent/client.py" ]]; then
+        cp -r "${script_dir}/agent" "$INSTALL_DIR/"
+    else
         echo -e "${YELLOW}Downloading agent files...${NC}"
-        curl -sSL "${SERVER_URL}/downloads/packages/gateway/hyperfilelens-gateway-linux-amd64.tar.gz" | tar xz -C "$INSTALL_DIR"
-    }
+        ARCH="$(dpkg --print-architecture)"
+        case "$ARCH" in
+            amd64|arm64)
+                ;;
+            *)
+                echo -e "${RED}Unsupported architecture: $ARCH${NC}"
+                exit 1
+                ;;
+        esac
+        curl -fsSL "${SERVER_URL}/downloads/packages/gateway/hyperfilelens-gateway-linux-${ARCH}.tar.gz" | tar xz -C "$INSTALL_DIR"
+    fi
+
+    if [[ ! -f "$INSTALL_DIR/agent/client.py" ]] || [[ ! -f "$INSTALL_DIR/agent/requirements.txt" ]]; then
+        echo -e "${RED}Gateway package is incomplete. Missing agent/client.py or agent/requirements.txt.${NC}"
+        exit 1
+    fi
     
     # Create config
     if [[ ! -f "$CONFIG_DIR/config.yaml" ]]; then
@@ -258,8 +311,11 @@ EOF
     cat > "${CONFIG_DIR}/env" << EOF
 SERVER_URL=${SERVER_URL}
 INSTALL_TOKEN=${INSTALL_TOKEN}
+API_TOKEN=
 GATEWAY_ID=${GATEWAY_ID}
 GATEWAY_NAME=${GATEWAY_NAME:-$(hostname)}
+CONFIG_PATH=${CONFIG_DIR}/config.yaml
+CONFIG_ENV_PATH=${CONFIG_DIR}/env
 EOF
     
     systemctl daemon-reload
@@ -308,6 +364,7 @@ main() {
     install_kopia
     setup_virtualenv
     install_agent
+    install_python_dependencies
     create_service
     start_service
     

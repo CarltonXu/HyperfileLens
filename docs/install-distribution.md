@@ -25,6 +25,7 @@ Nginx should expose these paths:
 /downloads/packages/proxy/hyperfilelens-proxy-linux-arm64.tar.gz
 /downloads/packages/gateway/hyperfilelens-gateway-linux-amd64.tar.gz
 /downloads/packages/gateway/hyperfilelens-gateway-linux-arm64.tar.gz
+/downloads/packages/kopia/kopia_0.22.3_linux_amd64.deb
 ```
 
 The source directory in this repository is:
@@ -60,6 +61,20 @@ Gateway package:
 hyperfilelens-gateway-linux-amd64.tar.gz
   agent/
     ...
+```
+
+Build gateway packages:
+
+```bash
+bash scripts/build-gateway-package.sh
+```
+
+This publishes:
+
+```text
+backend/static/downloads/install-gateway.sh
+backend/static/downloads/packages/gateway/hyperfilelens-gateway-linux-amd64.tar.gz
+backend/static/downloads/packages/gateway/hyperfilelens-gateway-linux-arm64.tar.gz
 ```
 
 The installer scripts may keep legacy fallback behavior during migration, but

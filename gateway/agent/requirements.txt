@@ -1,20 +1,6 @@
 # HyperFileLens Gateway Agent Requirements
+#
+# Keep this list minimal. The installer is designed to work without PyPI access.
 
-# WebSocket
-websockets>=12.0
-
-# System monitoring
+websockets>=12,<13
 psutil>=5.9.0
-
-# Configuration
-pyyaml>=6.0
-
-# HTTP client
-aiohttp>=3.9.0
-requests>=2.31.0
-
-# Date utilities
-python-dateutil>=2.8.0
-
-# Async support
-asyncio-compat>=0.1.0; python_version < '3.10'
