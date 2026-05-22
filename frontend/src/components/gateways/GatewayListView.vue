@@ -1,13 +1,15 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import Pagination from "@/components/Pagination.vue";
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
+import GatewayActionMenu from "@/components/gateways/GatewayActionMenu.vue";
 import {
   ArrowPathIcon,
   ChatBubbleLeftRightIcon,
   ClipboardDocumentIcon,
+  EllipsisVerticalIcon,
   ServerIcon,
-  TrashIcon,
 } from "@heroicons/vue/24/outline";
 
 type Gateway = {
@@ -78,12 +80,61 @@ defineProps<{
   formatDate: (date: string) => string;
 }>();
 
-defineEmits<{
-  detail: [gateway: Gateway];
-  delete: [gateway: Gateway];
+const emit = defineEmits<{
+  detail: [gateway: any];
+  delete: [gateway: any];
+  edit: [gateway: any];
+  regenerateToken: [gateway: any];
+  updateStatus: [gateway: any, status: string];
 }>();
 
 const { t } = useI18n();
+
+// Action menu state
+const actionMenu = ref<{
+  open: boolean;
+  gateway: Gateway | null;
+  position: { x: number; y: number };
+}>({
+  open: false,
+  gateway: null,
+  position: { x: 0, y: 0 },
+});
+
+function openActionMenu(event: MouseEvent, gateway: Gateway) {
+  event.stopPropagation();
+  const target = event.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  actionMenu.value = {
+    open: true,
+    gateway,
+    position: {
+      x: rect.right - 180,
+      y: rect.bottom + 4,
+    },
+  };
+}
+
+function closeActionMenu() {
+  actionMenu.value.open = false;
+  actionMenu.value.gateway = null;
+}
+
+function emitMenuAction(
+  event: "detail" | "delete" | "edit" | "regenerateToken",
+  gateway: any,
+) {
+  if (event === "detail") emit("detail", gateway);
+  if (event === "delete") emit("delete", gateway);
+  if (event === "edit") emit("edit", gateway);
+  if (event === "regenerateToken") emit("regenerateToken", gateway);
+  closeActionMenu();
+}
+
+function emitStatusUpdate(gateway: any, status: string) {
+  emit("updateStatus", gateway, status);
+  closeActionMenu();
+}
 </script>
 
 <template>
@@ -312,11 +363,11 @@ const { t } = useI18n();
                   <ClipboardDocumentIcon class="w-4 h-4" />
                 </button>
                 <button
-                  @click="$emit('delete', gateway)"
-                  class="p-1.5 text-foreground-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-                  :title="t('common.delete')"
+                  @click="openActionMenu($event, gateway)"
+                  class="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-hover rounded"
+                  :title="t('common.actions')"
                 >
-                  <TrashIcon class="w-4 h-4" />
+                  <EllipsisVerticalIcon class="w-4 h-4" />
                 </button>
               </div>
             </td>
@@ -332,4 +383,21 @@ const { t } = useI18n();
       :total-items="totalItems"
     />
   </div>
+
+  <!-- Action Menu -->
+  <GatewayActionMenu
+    v-if="actionMenu.open && actionMenu.gateway"
+    :gateway="actionMenu.gateway"
+    :open="actionMenu.open"
+    :menu-style="{
+      left: `${actionMenu.position.x}px`,
+      top: `${actionMenu.position.y}px`,
+    }"
+    @close="closeActionMenu"
+    @detail="(gateway) => emitMenuAction('detail', gateway)"
+    @edit="(gateway) => emitMenuAction('edit', gateway)"
+    @regenerate-token="(gateway) => emitMenuAction('regenerateToken', gateway)"
+    @update-status="emitStatusUpdate"
+    @delete="(gateway) => emitMenuAction('delete', gateway)"
+  />
 </template>

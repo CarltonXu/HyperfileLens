@@ -2968,7 +2968,37 @@ export default {
     // Actions
     activate: "激活",
     deactivate: "停用",
-    delete: "删除",
+    actions: {
+      viewDetails: "查看详情",
+      edit: "编辑",
+      regenerateToken: "重新生成令牌",
+      setMaintenance: "设为维护",
+      activate: "激活",
+      delete: "删除",
+    },
+
+    // Form
+    form: {
+      name: "名称",
+      description: "描述",
+      sshPort: "SSH 端口",
+      mountBasePath: "挂载基础路径",
+      maxConcurrentMounts: "最大并发挂载数",
+      aiEnabled: "启用 AI 洞察",
+    },
+
+    // Edit
+    edit: {
+      title: "编辑网关",
+    },
+
+    // Delete Confirm
+    delete: {
+      title: "删除网关",
+      message: "确定要删除此网关吗？",
+      warning: "此操作无法撤销。",
+      confirm: "删除",
+    },
 
     // Tabs
     tabs: {
@@ -2985,6 +3015,17 @@ export default {
     cpuUsage: "CPU 使用率",
     memoryUsage: "内存使用率",
     diskUsage: "磁盘使用率",
+    monitoring: {
+      title: "资源监控",
+      cpu: "CPU",
+      memory: "内存",
+      disk: "磁盘",
+      avg: "平均",
+      max: "最大",
+      resourceUsage: "资源使用情况",
+      recentHeartbeats: "最近心跳",
+      time: "时间",
+    },
 
     // Install
     installInstructions: "在 Ubuntu 22.04 服务器上运行以下命令安装并注册网关。",
@@ -2993,6 +3034,35 @@ export default {
     copied: "已复制！",
     installNote: "网关安装完成后将自动连接到控制端。",
     alreadyInstalled: "此网关已完成安装。",
+    install: {
+      pendingNote: "此网关待安装。运行下方安装命令来设置网关。",
+      installCommand: "安装命令",
+      securityNote: "请妥善保管安装令牌，仅可使用一次。",
+      downloadConfig: "下载配置",
+      noCommand: "暂无安装命令",
+      loadCommand: "加载命令",
+      checklist: {
+        title: "安装检查清单",
+        ubuntu2204: "目标服务器已安装 Ubuntu 22.04 LTS",
+        sudoAccess: "具备 sudo 权限用于安装软件包",
+        networkAccess: "可访问控制端服务地址",
+        sshAccess: "具备 SSH 访问权限用于故障排查",
+      },
+    },
+
+    // Mounts
+    mounts: {
+      active: "活跃",
+      maximum: "最大",
+      basePath: "基础路径",
+      title: "活跃挂载",
+      empty: "此网关暂无活跃挂载",
+    },
+
+    // Status labels
+    statusActive: "已激活",
+    statusInactive: "已停用",
+    tokenRegenerated: "令牌重新生成成功",
 
     // Install Wizard
     installWizard: {

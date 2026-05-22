@@ -3087,7 +3087,37 @@ export default {
     // Actions
     activate: "Activate",
     deactivate: "Deactivate",
-    delete: "Delete",
+    actions: {
+      viewDetails: "View Details",
+      edit: "Edit",
+      regenerateToken: "Regenerate Token",
+      setMaintenance: "Set Maintenance",
+      activate: "Activate",
+      delete: "Delete",
+    },
+
+    // Form
+    form: {
+      name: "Name",
+      description: "Description",
+      sshPort: "SSH Port",
+      mountBasePath: "Mount Base Path",
+      maxConcurrentMounts: "Max Concurrent Mounts",
+      aiEnabled: "Enable AI Insights",
+    },
+
+    // Edit
+    edit: {
+      title: "Edit Gateway",
+    },
+
+    // Delete Confirm
+    delete: {
+      title: "Delete Gateway",
+      message: "Are you sure you want to delete this gateway?",
+      warning: "This action cannot be undone.",
+      confirm: "Delete",
+    },
 
     // Tabs
     tabs: {
@@ -3104,6 +3134,17 @@ export default {
     cpuUsage: "CPU Usage",
     memoryUsage: "Memory Usage",
     diskUsage: "Disk Usage",
+    monitoring: {
+      title: "Resource Monitoring",
+      cpu: "CPU",
+      memory: "Memory",
+      disk: "Disk",
+      avg: "Avg",
+      max: "Max",
+      resourceUsage: "Resource Usage",
+      recentHeartbeats: "Recent Heartbeats",
+      time: "Time",
+    },
 
     // Install
     installInstructions:
@@ -3114,6 +3155,35 @@ export default {
     installNote:
       "The gateway will automatically connect to the control plane after installation.",
     alreadyInstalled: "This gateway has already been installed.",
+    install: {
+      pendingNote: "This gateway is pending installation. Run the install command below to set up the gateway.",
+      installCommand: "Installation Command",
+      securityNote: "Keep your installation token secure. It can only be used once.",
+      downloadConfig: "Download Config",
+      noCommand: "No installation command available",
+      loadCommand: "Load Command",
+      checklist: {
+        title: "Installation Checklist",
+        ubuntu2204: "Ubuntu 22.04 LTS installed on target server",
+        sudoAccess: "Sudo access to install packages",
+        networkAccess: "Network access to control plane",
+        sshAccess: "SSH access for troubleshooting",
+      },
+    },
+
+    // Mounts
+    mounts: {
+      active: "Active",
+      maximum: "Maximum",
+      basePath: "Base Path",
+      title: "Active Mounts",
+      empty: "No active mounts on this gateway",
+    },
+
+    // Status labels
+    statusActive: "Active",
+    statusInactive: "Inactive",
+    tokenRegenerated: "Token regenerated successfully",
 
     // Install Wizard
     installWizard: {

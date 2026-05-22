@@ -8,24 +8,26 @@ import type { Repository } from "@/types/repository";
 import type { ProxyNode } from "@/types/proxy";
 import RepositoryCardView from "@/components/repository/RepositoryCardView.vue";
 import RepositoryDetailModal from "@/components/repository/RepositoryDetailModal.vue";
+import RepositoryFormModal from "@/components/repository/RepositoryFormModal.vue";
 import RepositoryListView from "@/components/repository/RepositoryListView.vue";
-import RepositoryLocalConfigSection from "@/components/repository/RepositoryLocalConfigSection.vue";
-import RepositoryNasConfigSection from "@/components/repository/RepositoryNasConfigSection.vue";
-import RepositoryS3ConfigSection from "@/components/repository/RepositoryS3ConfigSection.vue";
 import RepositoryStats from "@/components/repository/RepositoryStats.vue";
 import RepositoryTestResultModal from "@/components/repository/RepositoryTestResultModal.vue";
 import RepositoryToolbar from "@/components/repository/RepositoryToolbar.vue";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
+import { useRepositoryFormatting } from "@/features/repository/useRepositoryFormatting";
+import { useRepositoryLocalBrowser } from "@/features/repository/useRepositoryLocalBrowser";
+import { useRepositoryS3Buckets } from "@/features/repository/useRepositoryS3Buckets";
+import { useRepositoryActions } from "@/features/repository/useRepositoryActions";
 import {
   PlusIcon,
-  CircleStackIcon,
   CloudIcon,
   ServerIcon,
   FolderIcon,
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
+const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 const VIEW_MODE_STORAGE_KEY = "hyperfilelens:repository:viewMode";
 
@@ -41,26 +43,24 @@ function getStoredViewMode(): "card" | "list" {
 const isLoading = ref(true);
 const repositories = ref<Repository[]>([]);
 const nodes = ref<ProxyNode[]>([]);
+const {
+  formatBytes,
+  getProgressColor,
+  getRepoTypeIcon,
+  getRepoTypeColor,
+  getRepoTypeLabel,
+  getNodeName,
+  getNode,
+  getNodeStatus,
+} = useRepositoryFormatting(t, nodes);
 const searchQuery = ref("");
 const typeFilter = ref("");
 const showCreateModal = ref(false);
 const showDetailModal = ref(false);
-const showTestResultModal = ref(false);
 const selectedRepo = ref<Repository | null>(null);
-const selectedTestResult = ref<{
-  success: boolean;
-  message: string;
-  details?: any;
-} | null>(null);
 const isEditMode = ref(false);
 const editingRepoId = ref<string | null>(null);
-
-// Connection test states
-const testingConnection = ref<string | null>(null);
 const creatingBucket = ref(false);
-const connectionTestResult = ref<
-  Record<string, { success: boolean; message: string; details?: any }>
->({});
 
 // View mode
 const viewMode = ref<"card" | "list">(getStoredViewMode());
@@ -136,278 +136,6 @@ const newRepo = ref({
 
 // Form validation errors
 const formErrors = ref<Record<string, string>>({});
-
-// S3 Bucket related states
-const s3BucketList = ref<
-  Array<{ name: string; creation_date?: string; size?: number }>
->([]);
-const isLoadingBuckets = ref(false);
-const bucketListError = ref("");
-const checkingBucketName = ref(false);
-const bucketNameAvailable = ref<boolean | null>(null);
-const bucketNameMessage = ref("");
-
-// Bucket name validation rules (S3 standard)
-const BUCKET_NAME_RULES = {
-  minLength: 3,
-  maxLength: 63,
-  // Must start and end with letter or number
-  // Can contain lowercase letters, numbers, hyphens, and periods
-  pattern: /^[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/,
-  // Cannot be IP address format
-  ipPattern: /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
-  // Cannot contain consecutive periods or hyphens next to periods
-  consecutivePattern: /\.\.|\.-|-\./,
-};
-
-// Validate bucket name according to S3 rules
-function validateBucketName(name: string): { valid: boolean; message: string } {
-  if (!name) {
-    return { valid: false, message: t("repository.s3.bucketNameRequired") };
-  }
-
-  if (name.length < BUCKET_NAME_RULES.minLength) {
-    return {
-      valid: false,
-      message: t("repository.s3.bucketNameTooShort", {
-        min: BUCKET_NAME_RULES.minLength,
-      }),
-    };
-  }
-
-  if (name.length > BUCKET_NAME_RULES.maxLength) {
-    return {
-      valid: false,
-      message: t("repository.s3.bucketNameTooLong", {
-        max: BUCKET_NAME_RULES.maxLength,
-      }),
-    };
-  }
-
-  // Check for valid characters (lowercase letters, numbers, hyphens, periods)
-  if (!/^[a-z0-9.-]+$/.test(name)) {
-    return { valid: false, message: t("repository.s3.bucketNameInvalidChars") };
-  }
-
-  // Check start and end
-  if (!/^[a-z0-9]/.test(name) || !/[a-z0-9]$/.test(name)) {
-    return { valid: false, message: t("repository.s3.bucketNameStartEnd") };
-  }
-
-  // Check for IP address format
-  if (BUCKET_NAME_RULES.ipPattern.test(name)) {
-    return { valid: false, message: t("repository.s3.bucketNameIPFormat") };
-  }
-
-  // Check for consecutive periods or hyphens next to periods
-  if (BUCKET_NAME_RULES.consecutivePattern.test(name)) {
-    return { valid: false, message: t("repository.s3.bucketNameConsecutive") };
-  }
-
-  return { valid: true, message: "" };
-}
-
-// Fetch S3 bucket list
-async function fetchBucketList() {
-  const { endpoint, access_key, secret_key, use_tls } = newRepo.value.s3_config;
-
-  // Check required fields first
-  if (!endpoint || !access_key || !secret_key) {
-    bucketListError.value = t("repository.s3.fillCredentialsFirst");
-    return;
-  }
-
-  // Validate endpoint format
-  try {
-    const url = new URL(endpoint);
-    if (!url.hostname) {
-      bucketListError.value = t("repository.s3.invalidEndpoint");
-      return;
-    }
-  } catch {
-    bucketListError.value = t("repository.s3.invalidEndpoint");
-    return;
-  }
-
-  isLoadingBuckets.value = true;
-  bucketListError.value = "";
-  s3BucketList.value = [];
-
-  try {
-    const response = await repositoriesApi.listBuckets({
-      endpoint,
-      region: newRepo.value.s3_config.region || undefined,
-      access_key,
-      secret_key,
-      use_tls,
-      filter_by_region: true, // Filter buckets by configured region
-    });
-
-    if (response.data.buckets) {
-      s3BucketList.value = response.data.buckets;
-    }
-
-    // Show suggestion if no buckets match the configured region
-    if (response.data.suggestion && response.data.matched_count === 0) {
-      bucketListError.value = response.data.suggestion;
-    }
-  } catch (error: any) {
-    console.error("[S3] Failed to fetch bucket list:", error);
-
-    // Handle timeout specifically
-    if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-      bucketListError.value = t("repository.s3.connectionTimeout");
-      return;
-    }
-
-    // Handle network errors
-    if (
-      error.code === "ERR_NETWORK" ||
-      error.message?.includes("Network Error")
-    ) {
-      bucketListError.value = t("repository.s3.networkError");
-      return;
-    }
-
-    // Extract detailed error message from backend
-    const errorData = error.response?.data || {};
-    let errorMessage = t("repository.s3.fetchBucketsFailed");
-
-    if (errorData.message) {
-      errorMessage = errorData.message;
-    }
-
-    // Add hint if available
-    if (errorData.hint) {
-      errorMessage += ` ${errorData.hint}`;
-    }
-
-    // Add error code for debugging
-    if (errorData.error_code) {
-      console.error(
-        `[S3] Error code: ${errorData.error_code}, HTTP: ${errorData.http_status}`,
-      );
-      errorMessage += ` (${errorData.error_code})`;
-    }
-
-    // Add details
-    if (errorData.details) {
-      console.error(`[S3] Details: ${errorData.details}`);
-    }
-
-    bucketListError.value = errorMessage;
-  } finally {
-    isLoadingBuckets.value = false;
-  }
-}
-
-// Check bucket name availability
-async function checkBucketNameAvailability() {
-  const { endpoint, access_key, secret_key, bucket, use_tls } =
-    newRepo.value.s3_config;
-
-  // Validate bucket name format first
-  const validation = validateBucketName(bucket);
-  if (!validation.valid) {
-    bucketNameAvailable.value = false;
-    bucketNameMessage.value = validation.message;
-    return;
-  }
-
-  // Check required fields
-  if (!endpoint || !access_key || !secret_key) {
-    bucketNameMessage.value = t("repository.s3.fillCredentialsFirst");
-    return;
-  }
-
-  checkingBucketName.value = true;
-  bucketNameMessage.value = "";
-
-  try {
-    const response = await repositoriesApi.checkBucketName({
-      endpoint,
-      region: newRepo.value.s3_config.region || undefined,
-      access_key,
-      secret_key,
-      bucket_name: bucket,
-      use_tls,
-    });
-
-    bucketNameAvailable.value = response.data.available;
-    bucketNameMessage.value = response.data.message;
-  } catch (error: any) {
-    console.error("[S3] Failed to check bucket name:", error);
-
-    const errorData = error.response?.data || {};
-    let errorMessage = t("repository.s3.checkBucketFailed");
-
-    if (errorData.message) {
-      errorMessage = errorData.message;
-    }
-
-    if (errorData.hint) {
-      errorMessage += ` ${errorData.hint}`;
-    }
-
-    if (errorData.error_code) {
-      console.error(`[S3] Error code: ${errorData.error_code}`);
-    }
-
-    bucketNameAvailable.value = false;
-    bucketNameMessage.value = errorMessage;
-  } finally {
-    checkingBucketName.value = false;
-  }
-}
-
-// Watch bucket mode changes
-watch(
-  () => newRepo.value.s3_config.bucket_mode,
-  () => {
-    // Reset bucket related states
-    newRepo.value.s3_config.bucket = "";
-    s3BucketList.value = [];
-    bucketListError.value = "";
-    bucketNameAvailable.value = null;
-    bucketNameMessage.value = "";
-    clearError("bucket");
-  },
-);
-
-// Watch bucket name changes for new bucket mode
-watch(
-  () => newRepo.value.s3_config.bucket,
-  (newName) => {
-    if (newRepo.value.s3_config.bucket_mode === "new") {
-      // Reset availability status when name changes
-      bucketNameAvailable.value = null;
-      bucketNameMessage.value = "";
-
-      // Real-time validation
-      if (newName) {
-        const validation = validateBucketName(newName);
-        if (!validation.valid) {
-          bucketNameMessage.value = validation.message;
-        }
-      }
-    }
-  },
-);
-
-// Watch credentials changes to reset bucket list
-watch(
-  [
-    () => newRepo.value.s3_config.endpoint,
-    () => newRepo.value.s3_config.access_key,
-    () => newRepo.value.s3_config.secret_key,
-  ],
-  () => {
-    s3BucketList.value = [];
-    bucketListError.value = "";
-    bucketNameAvailable.value = null;
-    bucketNameMessage.value = "";
-  },
-);
 
 // Validate form before submission
 function validateForm(): boolean {
@@ -520,16 +248,29 @@ function clearError(field: string) {
   delete formErrors.value[field];
 }
 
+const {
+  s3BucketList,
+  isLoadingBuckets,
+  bucketListError,
+  checkingBucketName,
+  bucketNameAvailable,
+  bucketNameMessage,
+  fetchBucketList,
+  checkBucketNameAvailability,
+  resetBucketState,
+} = useRepositoryS3Buckets({
+  t,
+  newRepo,
+  clearError,
+});
+
 // Reset form to initial state
 function resetForm() {
   isEditMode.value = false;
   editingRepoId.value = null;
   formErrors.value = {};
-  connectionTestResult.value = {};
-  s3BucketList.value = [];
-  bucketListError.value = "";
-  bucketNameAvailable.value = null;
-  bucketNameMessage.value = "";
+  resetConnectionResults();
+  resetBucketState();
 
   // Reset form data
   newRepo.value = {
@@ -565,10 +306,7 @@ function resetForm() {
   };
 
   // Reset local directory browsing
-  selectedProxy.value = null;
-  proxyDirectories.value = [];
-  currentPath.value = "";
-  localPathCheckResult.value = null;
+  resetLocalBrowser();
 }
 
 // Available Sync Proxies (online + sync role)
@@ -578,119 +316,26 @@ const availableSyncProxies = computed(() => {
   );
 });
 
-// Selected proxy for local filesystem
-const selectedProxy = ref<ProxyNode | null>(null);
-const proxyDirectories = ref<string[]>([]);
-const isLoadingDirectories = ref(false);
-const currentPath = ref("");
-const checkingLocalPath = ref(false);
-const localPathCheckResult = ref<{
-  success: boolean;
-  path?: string;
-  message?: string;
-  error?: string;
-  exists?: boolean;
-  writable?: boolean;
-  write_test?: Record<string, any>;
-  space_info?: Record<string, any>;
-} | null>(null);
-
-// Fetch Sync Proxy directories
-async function fetchProxyDirectories(proxyId: string, path: string = "/") {
-  if (!proxyId) return;
-  isLoadingDirectories.value = true;
-  try {
-    const response = await nodesApi.getDirectories(proxyId, path);
-    proxyDirectories.value = response.data.directories || [];
-    currentPath.value = path;
-  } catch (error) {
-    console.error("Failed to fetch directories:", error);
-    proxyDirectories.value = [];
-    appStore.error(getApiErrorMessage(error));
-  } finally {
-    isLoadingDirectories.value = false;
-  }
-}
-
-// Handle proxy selection for local type
-function handleProxySelect(proxyId: string) {
-  newRepo.value.bound_node = proxyId;
-  localPathCheckResult.value = null;
-  selectedProxy.value =
-    availableSyncProxies.value.find((p) => p.id === proxyId) || null;
-  if (proxyId) {
-    fetchProxyDirectories(proxyId, "/");
-  } else {
-    proxyDirectories.value = [];
-    currentPath.value = "";
-  }
-}
-
-// Navigate to subdirectory
-function navigateToDirectory(dir: string) {
-  const newPath =
-    currentPath.value === "/" ? `/${dir}` : `${currentPath.value}/${dir}`;
-  fetchProxyDirectories(newRepo.value.bound_node!, newPath);
-}
-
-// Navigate up
-function navigateUp() {
-  if (currentPath.value === "/" || !currentPath.value) return;
-  const parts = currentPath.value.split("/").filter(Boolean);
-  parts.pop();
-  const newPath = parts.length === 0 ? "/" : "/" + parts.join("/");
-  fetchProxyDirectories(newRepo.value.bound_node!, newPath);
-}
-
-// Select current directory as backup path
-function selectCurrentPath() {
-  newRepo.value.local_config.path = currentPath.value;
-  localPathCheckResult.value = null;
-  clearError("path");
-}
-
-async function checkLocalPath() {
-  const proxyId = newRepo.value.bound_node;
-  const path = newRepo.value.local_config.path.trim();
-  if (!proxyId) {
-    formErrors.value.bound_node = t("repository.validation.proxyRequired");
-    return;
-  }
-  if (!path) {
-    formErrors.value.path = t("repository.validation.pathRequired");
-    return;
-  }
-
-  checkingLocalPath.value = true;
-  localPathCheckResult.value = null;
-  clearError("path");
-  try {
-    const response = await nodesApi.verifyPath(proxyId, path);
-    localPathCheckResult.value = response.data;
-    if (response.data.success === false || response.data.writable === false) {
-      appStore.error(
-        response.data.message ||
-          response.data.error ||
-          t("repository.local.pathCheckFailed"),
-      );
-    } else {
-      appStore.success(t("repository.local.pathCheckSuccess"));
-    }
-  } catch (error: any) {
-    const message =
-      error.response?.data?.message ||
-      error.response?.data?.error ||
-      getApiErrorMessage(error);
-    localPathCheckResult.value = {
-      success: false,
-      path,
-      error: message,
-    };
-    appStore.error(`${t("repository.local.pathCheckFailed")}: ${message}`);
-  } finally {
-    checkingLocalPath.value = false;
-  }
-}
+const {
+  proxyDirectories,
+  isLoadingDirectories,
+  currentPath,
+  checkingLocalPath,
+  localPathCheckResult,
+  handleProxySelect,
+  navigateToDirectory,
+  navigateUp,
+  selectCurrentPath,
+  checkLocalPath,
+  resetLocalBrowser,
+} = useRepositoryLocalBrowser({
+  t,
+  appStore,
+  newRepo,
+  formErrors,
+  availableSyncProxies,
+  clearError,
+});
 
 const filteredRepos = computed(() => {
   let result = repositories.value;
@@ -835,10 +480,7 @@ watch(
   () => newRepo.value.repo_type,
   () => {
     if (newRepo.value.repo_type !== "local") {
-      selectedProxy.value = null;
-      proxyDirectories.value = [];
-      currentPath.value = "";
-      localPathCheckResult.value = null;
+      resetLocalBrowser();
     }
   },
 );
@@ -881,8 +523,21 @@ async function fetchNodes() {
   }
 }
 
-// Get app store for toast
-const appStore = useAppStore();
+const {
+  showTestResultModal,
+  selectedTestResult,
+  testingConnection,
+  connectionTestResult,
+  deleteRepository,
+  testConnection,
+  initKopia,
+  saveKopiaPassword,
+  resetConnectionResults,
+} = useRepositoryActions({
+  t,
+  appStore,
+  fetchRepositories,
+});
 
 async function createRepository() {
   // Validate form first
@@ -1035,215 +690,6 @@ async function createRepository() {
   }
 }
 
-async function deleteRepository(repo: Repository) {
-  if (!confirm(t("repository.confirmDelete"))) return;
-  try {
-    await repositoriesApi.delete(repo.id);
-    await fetchRepositories();
-    appStore.success(t("repository.deleteSuccess"));
-  } catch (error) {
-    console.error("Failed to delete repository:", error);
-    appStore.error(t("repository.deleteFailed"));
-  }
-}
-
-async function testConnection(repo: Repository) {
-  testingConnection.value = repo.id;
-  connectionTestResult.value[repo.id] = { success: false, message: "" };
-
-  try {
-    const response = await repositoriesApi.testConnection(repo.id);
-    const result = response.data;
-
-    connectionTestResult.value[repo.id] = {
-      success: result.success,
-      message: result.message,
-      details: result.details,
-    };
-
-    if (result.success) {
-      // Build detailed success message
-      let detailsMsg = result.message;
-      const details = result.details || {};
-
-      if (details.connectivity) {
-        const conn = details.connectivity;
-        detailsMsg += ` | Response time: ${conn.response_time || 0}ms`;
-      }
-
-      if (details.write_test) {
-        const write = details.write_test;
-        if (write.writable !== undefined) {
-          detailsMsg += ` | Writable: ${write.writable ? "Yes" : "No"}`;
-        }
-        if (write.write_speed) {
-          detailsMsg += ` | Write speed: ${write.write_speed} MB/s`;
-        }
-        if (write.read_speed) {
-          detailsMsg += ` | Read speed: ${write.read_speed} MB/s`;
-        }
-      }
-
-      if (details.space_info) {
-        const space = details.space_info;
-        const totalGB = (space.total_bytes / 1024 / 1024 / 1024).toFixed(2);
-        const usedGB = (space.used_bytes / 1024 / 1024 / 1024).toFixed(2);
-        const freeGB = (space.free_bytes / 1024 / 1024 / 1024).toFixed(2);
-        detailsMsg += ` | Total: ${totalGB}GB | Used: ${usedGB}GB | Free: ${freeGB}GB`;
-      }
-
-      appStore.success(t("repository.connectionTestSuccess"));
-
-      // Show detailed result modal if there are details
-      if (
-        details &&
-        (details.connectivity || details.write_test || details.space_info)
-      ) {
-        selectedTestResult.value = {
-          success: true,
-          message: result.message,
-          details: details,
-        };
-        showTestResultModal.value = true;
-      }
-
-      console.log("[Test Connection] Details:", details);
-
-      // Auto-sync usage for S3 repositories (async, don't wait)
-      if (repo.repo_type === "s3") {
-        syncUsage(repo);
-      }
-    } else {
-      appStore.error(
-        `${t("repository.connectionTestFailed")}: ${result.message}`,
-      );
-    }
-
-    // Refresh repository data
-    await fetchRepositories();
-  } catch (error: any) {
-    console.error("Connection test failed:", error);
-    // 处理后端返回的错误信息
-    const errorData = error.response?.data || {};
-    const errorMsg =
-      errorData.message ||
-      errorData.detail ||
-      error.message ||
-      t("common.unknownError");
-    const errorCode = errorData.error_code || "";
-
-    connectionTestResult.value[repo.id] = {
-      success: false,
-      message: errorMsg,
-    };
-
-    // 根据错误代码显示不同的提示
-    let displayMsg = errorMsg;
-    if (errorCode === "NO_BOUND_NODE") {
-      displayMsg = t("repository.errors.noBoundNode");
-    } else if (errorCode === "NODE_NOT_ACTIVE") {
-      displayMsg = t("repository.errors.nodeNotActive");
-    } else if (errorCode === "MISSING_CONFIG") {
-      displayMsg = t("repository.errors.missingConfig");
-    } else if (errorCode === "ENDPOINT_UNREACHABLE") {
-      displayMsg = t("repository.errors.endpointUnreachable");
-    } else if (errorCode === "CONNECTION_TIMEOUT") {
-      displayMsg = t("repository.errors.connectionTimeout");
-    }
-
-    appStore.error(`${t("repository.connectionTestFailed")}: ${displayMsg}`);
-  } finally {
-    testingConnection.value = null;
-  }
-}
-
-async function initKopia(repo: Repository) {
-  if (!confirm(t("repository.confirmInitKopia"))) return;
-
-  const encryptionPassword = window.prompt(
-    t("repository.encryptionPasswordPrompt"),
-  );
-  if (!encryptionPassword) {
-    appStore.error(t("repository.validation.passwordRequired"));
-    return;
-  }
-
-  const confirmPassword = window.prompt(t("repository.confirmPasswordPrompt"));
-  if (encryptionPassword !== confirmPassword) {
-    appStore.error(t("repository.passwordMismatch"));
-    return;
-  }
-
-  try {
-    await repositoriesApi.initKopia(repo.id, {
-      encryption_password: encryptionPassword,
-      confirm_password: confirmPassword || "",
-    });
-    appStore.success(t("repository.kopiaInitializationStarted"));
-    await fetchRepositories();
-  } catch (error: any) {
-    console.error("Failed to initialize Kopia:", error);
-    const data = error.response?.data;
-    const errorMsg =
-      data?.message ||
-      data?.detail ||
-      data?.error ||
-      Object.values(data || {})
-        .flat()
-        .join(", ") ||
-      error.message;
-    appStore.error(`${t("repository.kopiaInitFailed")}: ${errorMsg}`);
-  }
-}
-
-async function saveKopiaPassword(repo: Repository) {
-  const encryptionPassword = window.prompt(
-    t("repository.encryptionPasswordPrompt"),
-  );
-  if (!encryptionPassword) {
-    appStore.error(t("repository.validation.passwordRequired"));
-    return;
-  }
-
-  const confirmPassword = window.prompt(t("repository.confirmPasswordPrompt"));
-  if (encryptionPassword !== confirmPassword) {
-    appStore.error(t("repository.passwordMismatch"));
-    return;
-  }
-
-  try {
-    await repositoriesApi.saveKopiaPassword(repo.id, {
-      encryption_password: encryptionPassword,
-      confirm_password: confirmPassword || "",
-    });
-    appStore.success(t("repository.kopiaPasswordSaved"));
-    await fetchRepositories();
-  } catch (error: any) {
-    console.error("Failed to save Kopia password:", error);
-    appStore.error(
-      getApiErrorMessage(error, t("repository.kopiaPasswordSaveFailed")),
-    );
-  }
-}
-
-// Sync repository usage
-async function syncUsage(repo: Repository) {
-  try {
-    const response = await repositoriesApi.syncUsage(repo.id);
-    if (response.data.success) {
-      const usage = response.data.usage;
-      console.log(
-        `[Usage Sync] ${repo.name}: ${usage.object_count} objects, ${usage.total_size_gb} GB`,
-      );
-      // Refresh repository data to show updated usage
-      await fetchRepositories();
-    }
-  } catch (error: any) {
-    console.error("Failed to sync usage:", error);
-    // Don't show error to user - this is a background operation
-  }
-}
-
 // 编辑仓库
 function openEditModal(repo: Repository) {
   isEditMode.value = true;
@@ -1296,86 +742,6 @@ function openEditModal(repo: Repository) {
   }
 
   showCreateModal.value = true;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB", "PB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-}
-
-function getProgressColor(quotaStatus: string): string {
-  // If quota is not enabled or unlimited, use default blue gradient
-  if (quotaStatus === "disabled" || quotaStatus === "unlimited") {
-    return "bg-gradient-to-r from-blue-500 to-cyan-500";
-  }
-
-  // Color based on quota status
-  switch (quotaStatus) {
-    case "critical":
-      return "bg-gradient-to-r from-red-500 to-red-600";
-    case "warning":
-      return "bg-gradient-to-r from-amber-500 to-orange-500";
-    case "ok":
-      return "bg-gradient-to-r from-blue-500 to-cyan-500";
-    default:
-      return "bg-gradient-to-r from-blue-500 to-cyan-500";
-  }
-}
-
-function getRepoTypeIcon(type: string) {
-  const icons: Record<string, any> = {
-    s3: CloudIcon,
-    local: FolderIcon,
-    nas: ServerIcon,
-    nfs: ServerIcon,
-    azure: CloudIcon,
-    gcs: CloudIcon,
-  };
-  return icons[type] || CircleStackIcon;
-}
-
-function getRepoTypeColor(type: string): string {
-  const colors: Record<string, string> = {
-    s3: "bg-orange-100 text-orange-600",
-    local: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
-    nas: "bg-purple-100 text-purple-600",
-    nfs: "bg-purple-100 text-purple-600",
-    azure: "bg-sky-100 text-sky-600",
-    gcs: "bg-red-100 text-red-600",
-  };
-  return colors[type] || "bg-background-tertiary/50 text-foreground-secondary";
-}
-
-function getRepoTypeLabel(type: string | undefined | null): string {
-  if (!type) return "-";
-  const labels: Record<string, string> = {
-    s3: "S3",
-    local: t("repository.types.local"),
-    nas: "NAS",
-    nfs: "NFS",
-    azure: "Azure",
-    gcs: "GCS",
-  };
-  return labels[type] || type?.toUpperCase() || "-";
-}
-
-function getNodeName(nodeId: string | null | undefined): string {
-  if (!nodeId) return t("sourceResources.noBoundNode");
-  const node = nodes.value.find((n: ProxyNode) => String(n.id) === nodeId);
-  return node?.name || nodeId;
-}
-
-function getNode(nodeId: string | null | undefined): ProxyNode | undefined {
-  if (!nodeId) return undefined;
-  return nodes.value.find((n: ProxyNode) => String(n.id) === nodeId);
-}
-
-function getNodeStatus(nodeId: string | null | undefined): string {
-  const node = getNode(nodeId);
-  return node?.status || "unknown";
 }
 
 onMounted(() => {
@@ -1471,259 +837,39 @@ onMounted(() => {
       @delete="deleteRepository"
     />
 
-    <!-- Create Modal -->
-    <Teleport to="body">
-      <div
-        v-if="showCreateModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      >
-        <div
-          class="absolute inset-0 bg-black/50"
-          @click="showCreateModal = false"
-        />
-        <div
-          class="relative modal-surface rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
-        >
-          <!-- Fixed Header -->
-          <div
-            class="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0"
-          >
-            <h2 class="text-lg font-semibold text-foreground">
-              {{
-                isEditMode
-                  ? t("repository.form.editRepository")
-                  : t("repository.form.addRepository")
-              }}
-            </h2>
-            <button
-              @click="
-                showCreateModal = false;
-                resetForm();
-              "
-              class="p-1 hover:bg-background-tertiary/50 rounded-lg"
-            >
-              <svg
-                class="w-5 h-5 text-foreground-muted"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <!-- Fixed Repository Type Selection -->
-          <div class="px-6 py-4 border-b border-border flex-shrink-0">
-            <label class="block text-sm font-medium text-foreground mb-3">{{
-              t("repository.form.repositoryType")
-            }}</label>
-            <div class="grid grid-cols-3 gap-3">
-              <button
-                v-for="type in repoTypes"
-                :key="type.value"
-                @click="!isEditMode && (newRepo.repo_type = type.value as any)"
-                :disabled="isEditMode"
-                :class="[
-                  'flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all',
-                  isEditMode ? 'cursor-not-allowed opacity-60' : '',
-                  newRepo.repo_type === type.value
-                    ? 'border-blue-500 dark:border-blue-400 bg-background/50 shadow-sm'
-                    : 'border-border bg-background/50 hover:border-border-secondary dark:hover:border-slate-500',
-                ]"
-              >
-                <div
-                  :class="[
-                    'w-9 h-9 rounded-lg flex items-center justify-center dark:bg-opacity-50',
-                    type.color === 'orange'
-                      ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
-                      : type.color === 'purple'
-                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
-                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-                  ]"
-                >
-                  <component :is="type.icon" class="w-5 h-5" />
-                </div>
-                <span
-                  class="text-xs font-medium text-foreground dark:text-slate-200"
-                  >{{ type.label }}</span
-                >
-              </button>
-            </div>
-          </div>
-
-          <!-- Scrollable Content Area -->
-          <div class="flex-1 overflow-y-auto p-6 space-y-4">
-            <!-- Basic Info -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-foreground mb-1"
-                  >{{ t("common.name") }} *</label
-                >
-                <input
-                  v-model="newRepo.name"
-                  type="text"
-                  :placeholder="t('repository.form.namePlaceholder')"
-                  :class="[
-                    'w-full px-3 py-2 text-sm border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2',
-                    formErrors.name
-                      ? 'border-red-300 focus:ring-red-500'
-                      : 'border-border focus:ring-blue-500',
-                  ]"
-                  @input="clearError('name')"
-                />
-                <p
-                  v-if="formErrors.name"
-                  class="mt-1 text-xs text-red-500 dark:text-red-400"
-                >
-                  {{ formErrors.name }}
-                </p>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-foreground mb-1">{{
-                  t("common.description")
-                }}</label>
-                <input
-                  v-model="newRepo.description"
-                  type="text"
-                  :placeholder="t('repository.form.descPlaceholder')"
-                  class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-foreground mb-1">
-                  {{ t("repository.form.storageQuota") }}
-                  <span class="text-xs text-foreground-muted font-normal ml-1"
-                    >({{ t("repository.form.quotaUnit") }})</span
-                  >
-                </label>
-                <input
-                  v-model.number="newRepo.quota"
-                  type="number"
-                  min="0"
-                  :placeholder="t('repository.form.quotaPlaceholder')"
-                  class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p class="mt-1 text-xs text-foreground-muted">
-                  {{ t("repository.form.quotaHint") }}
-                </p>
-              </div>
-
-              <!-- Quota Monitoring Toggle -->
-              <div>
-                <label
-                  class="flex items-center gap-2 text-sm font-medium text-foreground mb-2"
-                >
-                  <input
-                    v-model="newRepo.quota_enabled"
-                    type="checkbox"
-                    class="rounded border-border-secondary text-blue-600 focus:ring-blue-500"
-                  />
-                  {{ t("repository.form.quotaEnabled") }}
-                </label>
-                <div
-                  v-if="newRepo.quota_enabled"
-                  class="flex items-center gap-2 mt-2"
-                >
-                  <span class="text-sm text-foreground-secondary"
-                    >{{ t("repository.form.quotaThreshold") }}:</span
-                  >
-                  <input
-                    v-model.number="newRepo.quota_warning_threshold"
-                    type="number"
-                    min="50"
-                    max="100"
-                    class="w-16 px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span class="text-xs text-foreground-muted">%</span>
-                  <p class="text-xs text-foreground-muted">
-                    {{ t("repository.form.quotaThresholdHint") }}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <RepositoryS3ConfigSection
-              v-if="newRepo.repo_type === 's3'"
-              :new-repo="newRepo"
-              :form-errors="formErrors"
-              :available-sync-proxies="availableSyncProxies"
-              :is-edit-mode="isEditMode"
-              :s3-bucket-list="s3BucketList"
-              :is-loading-buckets="isLoadingBuckets"
-              :bucket-list-error="bucketListError"
-              :checking-bucket-name="checkingBucketName"
-              :bucket-name-available="bucketNameAvailable"
-              :bucket-name-message="bucketNameMessage"
-              @clear-error="clearError"
-              @fetch-bucket-list="fetchBucketList"
-              @check-bucket-name-availability="checkBucketNameAvailability"
-            />
-
-            <RepositoryNasConfigSection
-              v-if="newRepo.repo_type === 'nas'"
-              :new-repo="newRepo"
-              :form-errors="formErrors"
-              :available-sync-proxies="availableSyncProxies"
-              :is-edit-mode="isEditMode"
-              @clear-error="clearError"
-            />
-
-            <RepositoryLocalConfigSection
-              v-if="newRepo.repo_type === 'local'"
-              :new-repo="newRepo"
-              :form-errors="formErrors"
-              :available-sync-proxies="availableSyncProxies"
-              :proxy-directories="proxyDirectories"
-              :current-path="currentPath"
-              :is-loading-directories="isLoadingDirectories"
-              :checking-local-path="checkingLocalPath"
-              :local-path-check-result="localPathCheckResult"
-              :format-bytes="formatBytes"
-              @handle-proxy-select="handleProxySelect"
-              @check-local-path="checkLocalPath"
-              @clear-error="clearError"
-              @clear-local-path-check="localPathCheckResult = null"
-              @navigate-up="navigateUp"
-              @navigate-to-directory="navigateToDirectory"
-              @select-current-path="selectCurrentPath"
-            />
-          </div>
-
-          <!-- Fixed Footer -->
-          <div
-            class="px-6 py-4 rounded-2xl border-t border-border flex justify-end gap-3 flex-shrink-0 bg-card"
-          >
-            <button
-              @click="
-                showCreateModal = false;
-                resetForm();
-              "
-              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover/50 transition-colors"
-            >
-              {{ t("common.cancel") }}
-            </button>
-            <button
-              @click="createRepository"
-              :disabled="!isFormValid"
-              :class="[
-                'px-4 py-2 text-sm rounded-lg transition-colors',
-                isFormValid
-                  ? 'text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
-                  : 'text-foreground-secondary bg-slate-200 dark:bg-slate-600 cursor-not-allowed',
-              ]"
-            >
-              {{ isEditMode ? t("common.save") : t("common.create") }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <RepositoryFormModal
+      v-if="showCreateModal"
+      :is-edit-mode="isEditMode"
+      :new-repo="newRepo"
+      :form-errors="formErrors"
+      :repo-types="repoTypes"
+      :is-form-valid="isFormValid"
+      :available-sync-proxies="availableSyncProxies"
+      :s3-bucket-list="s3BucketList"
+      :is-loading-buckets="isLoadingBuckets"
+      :bucket-list-error="bucketListError"
+      :checking-bucket-name="checkingBucketName"
+      :bucket-name-available="bucketNameAvailable"
+      :bucket-name-message="bucketNameMessage"
+      :proxy-directories="proxyDirectories"
+      :current-path="currentPath"
+      :is-loading-directories="isLoadingDirectories"
+      :checking-local-path="checkingLocalPath"
+      :local-path-check-result="localPathCheckResult"
+      :format-bytes="formatBytes"
+      @close="showCreateModal = false"
+      @reset="resetForm"
+      @submit="createRepository"
+      @clear-error="clearError"
+      @fetch-bucket-list="fetchBucketList"
+      @check-bucket-name-availability="checkBucketNameAvailability"
+      @handle-proxy-select="handleProxySelect"
+      @check-local-path="checkLocalPath"
+      @clear-local-path-check="localPathCheckResult = null"
+      @navigate-up="navigateUp"
+      @navigate-to-directory="navigateToDirectory"
+      @select-current-path="selectCurrentPath"
+    />
 
     <RepositoryDetailModal
       v-if="showDetailModal && selectedRepo"

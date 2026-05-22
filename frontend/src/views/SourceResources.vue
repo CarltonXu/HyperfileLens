@@ -1,14 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import {
-  CloudIcon,
-  ComputerDesktopIcon,
-  FolderIcon,
-  PlusIcon,
-  ServerIcon,
-} from "@heroicons/vue/24/outline";
-import { nodesApi, sourceResourcesApi } from "@/api";
+import { PlusIcon } from "@heroicons/vue/24/outline";
 import Pagination from "@/components/Pagination.vue";
 import SourceResourceWizard from "@/components/SourceResourceWizard.vue";
 import SourceResourceCardView from "@/components/source-resources/SourceResourceCardView.vue";
@@ -20,12 +13,13 @@ import SourceResourceToolbar from "@/components/source-resources/SourceResourceT
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import { useAppStore } from "@/stores/app";
+import { useSourceResourceActions } from "@/features/source-resources/useSourceResourceActions";
+import { useSourceResourceFormatting } from "@/features/source-resources/useSourceResourceFormatting";
 import type {
   ResourceType,
   SourceResource,
   SourceResourceStats,
 } from "@/types/sourceResource";
-import { getApiErrorMessage } from "@/utils/errors";
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -34,8 +28,6 @@ const { getPageSize, setPageSize } = usePagination();
 const resources = ref<SourceResource[]>([]);
 const stats = ref<SourceResourceStats | null>(null);
 const nodes = ref<any[]>([]);
-const loading = ref(false);
-const error = ref<string | null>(null);
 
 const searchQuery = ref("");
 const typeFilter = ref("");
@@ -56,10 +48,40 @@ const viewMode = ref<"card" | "list">(
   })(),
 );
 
-const showDetailModal = ref(false);
-const showDeleteModal = ref(false);
-const showResourceWizard = ref(false);
 const selectedResource = ref<SourceResource | null>(null);
+
+const {
+  formatDate,
+  formatBytes,
+  getSourceConnection,
+  getUsagePercent,
+  getCapacityText,
+  getResourceIcon,
+  selectedResourceConfigRows,
+  selectedResourceStatsRows,
+} = useSourceResourceFormatting(t, selectedResource);
+
+const {
+  loading,
+  showDetailModal,
+  showDeleteModal,
+  showResourceWizard,
+  fetchData,
+  openCreateModal,
+  openDetailModal,
+  openEditModal,
+  openDeleteModal,
+  saveResourceFromWizard,
+  deleteResource,
+  testConnection,
+} = useSourceResourceActions({
+  t,
+  appStore,
+  resources,
+  stats,
+  nodes,
+  selectedResource,
+});
 
 watch(pageSize, (newSize) => {
   setPageSize(newSize, PAGE_STORAGE_KEY);
@@ -188,113 +210,6 @@ const sourceResourceTable = useResizableSortableTable<
   },
 });
 
-const selectedResourceConfigRows = computed(() => {
-  const resource = selectedResource.value;
-  if (!resource) return [];
-  const config = resource.config || {};
-  const credentials = resource.credentials || {};
-  const rows: Array<{ label: string; value: string }> = [];
-
-  if (resource.resource_type === "local") {
-    rows.push({
-      label: t("sourceResources.form.path"),
-      value: config.root_path || config.path || "-",
-    });
-  } else if (["nas", "nfs", "cifs"].includes(resource.resource_type)) {
-    rows.push(
-      {
-        label: t("sourceResources.form.server"),
-        value: config.server || "-",
-      },
-      {
-        label:
-          resource.resource_type === "cifs"
-            ? t("sourceResources.form.share")
-            : t("sourceResources.form.exportPath"),
-        value: config.share || config.export_path || "-",
-      },
-      {
-        label: t("sourceResources.form.mountOptions"),
-        value: config.mount_options || "-",
-      },
-      {
-        label: t("sourceResources.form.username"),
-        value: credentials.username || "-",
-      },
-    );
-  } else if (resource.resource_type === "s3") {
-    rows.push(
-      {
-        label: t("sourceResources.form.endpoint"),
-        value: config.endpoint || "-",
-      },
-      {
-        label: t("sourceResources.form.bucket"),
-        value: config.bucket || "-",
-      },
-      {
-        label: t("sourceResources.form.region"),
-        value: config.region || "-",
-      },
-      {
-        label: t("sourceResources.form.prefix"),
-        value: config.prefix || "-",
-      },
-      {
-        label: t("sourceResources.form.accessKey"),
-        value: maskValue(credentials.access_key),
-      },
-    );
-  }
-
-  return rows;
-});
-
-const selectedResourceStatsRows = computed(() => {
-  const resource = selectedResource.value;
-  if (!resource) return [];
-  return [
-    {
-      label: t("sourceResources.connection"),
-      value: getSourceConnection(resource),
-    },
-    {
-      label: t("sourceResources.details.totalSize"),
-      value: formatBytes(resource.total_size),
-    },
-    {
-      label: t("sourceResources.details.usedSize"),
-      value: formatBytes(resource.used_size),
-    },
-    {
-      label: t("sourceResources.details.freeSize"),
-      value: formatBytes(resource.free_size),
-    },
-    {
-      label: t("sourceResources.details.usage"),
-      value: resource.total_size
-        ? `${getUsagePercent(resource).toFixed(1)}%`
-        : "-",
-    },
-    {
-      label: t("sourceResources.details.fileCount"),
-      value: String(resource.file_count ?? 0),
-    },
-    {
-      label: t("sourceResources.lastConnectionTest"),
-      value: formatDate(resource.last_connection_test),
-    },
-    {
-      label: t("common.createdAt"),
-      value: formatDate(resource.created_at),
-    },
-    {
-      label: t("common.updatedAt"),
-      value: formatDate(resource.updated_at),
-    },
-  ];
-});
-
 const resourceTypes: { value: ResourceType; label: string }[] = [
   { value: "nas", label: "NAS Storage" },
   { value: "nfs", label: "NFS Share" },
@@ -304,212 +219,6 @@ const resourceTypes: { value: ResourceType; label: string }[] = [
   { value: "gcs", label: "Google Cloud Storage" },
   { value: "local", label: "Local Filesystem" },
 ];
-
-function normalizeResource(resource: any): SourceResource {
-  return {
-    ...resource,
-    total_size: resource.total_size ?? 0,
-    used_size: resource.used_size ?? 0,
-    free_size: resource.free_size ?? 0,
-    usage_percentage: resource.usage_percentage ?? 0,
-    bound_node:
-      resource.bound_node && typeof resource.bound_node === "object"
-        ? resource.bound_node
-        : resource.bound_node
-          ? {
-              id: resource.bound_node,
-              name: resource.bound_node_name || resource.bound_node,
-              hostname: "",
-              status: resource.bound_node_status || "",
-            }
-          : null,
-  };
-}
-
-function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleString();
-}
-
-function formatBytes(bytes?: number | null): string {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
-}
-
-function getSourceConnection(resource: SourceResource): string {
-  const config = resource.config || {};
-  if (resource.resource_type === "local") {
-    return config.root_path || config.path || "-";
-  }
-  if (resource.resource_type === "s3") {
-    return config.bucket || "-";
-  }
-  if (["nas", "nfs", "cifs"].includes(resource.resource_type)) {
-    const server = config.server || "";
-    const path = config.export_path || config.share || "";
-    if (server && path) return `${server}:${path}`;
-    return server || path || "-";
-  }
-  return config.path || config.endpoint || "-";
-}
-
-function getUsagePercent(resource: SourceResource): number {
-  if (
-    typeof resource.usage_percentage === "number" &&
-    resource.usage_percentage > 0
-  ) {
-    return Math.min(100, Math.max(0, resource.usage_percentage));
-  }
-  if (!resource.total_size) return 0;
-  return Math.min(
-    100,
-    Math.max(0, (resource.used_size / resource.total_size) * 100),
-  );
-}
-
-function getCapacityText(resource: SourceResource): string {
-  if (!resource.total_size) return "-";
-  return `${formatBytes(resource.used_size)} / ${formatBytes(resource.total_size)}`;
-}
-
-function maskValue(value?: string) {
-  if (!value) return "-";
-  if (value.length <= 8) return "****";
-  return `${value.slice(0, 4)}****${value.slice(-4)}`;
-}
-
-function getResourceIcon(type: ResourceType) {
-  switch (type) {
-    case "nas":
-      return ServerIcon;
-    case "nfs":
-    case "cifs":
-      return FolderIcon;
-    case "s3":
-    case "azure":
-    case "gcs":
-      return CloudIcon;
-    case "local":
-      return ComputerDesktopIcon;
-    default:
-      return FolderIcon;
-  }
-}
-
-async function fetchData() {
-  loading.value = true;
-  error.value = null;
-  try {
-    const [resourcesRes, statsRes, nodesRes] = await Promise.all([
-      sourceResourcesApi.list(),
-      sourceResourcesApi.stats(),
-      nodesApi.list({ page_size: 100 }),
-    ]);
-    const rawResources = resourcesRes.data.results || resourcesRes.data;
-    resources.value = rawResources.map(normalizeResource);
-    stats.value = statsRes.data;
-    nodes.value = nodesRes.data.results || nodesRes.data;
-  } catch (e: any) {
-    error.value = e.message;
-  } finally {
-    loading.value = false;
-  }
-}
-
-function openCreateModal() {
-  selectedResource.value = null;
-  showResourceWizard.value = true;
-}
-
-async function openDetailModal(resource: SourceResource) {
-  selectedResource.value = resource;
-  showDetailModal.value = true;
-  try {
-    const response = await sourceResourcesApi.detail(resource.id);
-    selectedResource.value = normalizeResource(response.data);
-  } catch {
-    // Keep list data visible if detail loading fails.
-  }
-}
-
-function openEditModal(resource: SourceResource) {
-  selectedResource.value = resource;
-  showResourceWizard.value = true;
-}
-
-function openDeleteModal(resource: SourceResource) {
-  selectedResource.value = resource;
-  showDeleteModal.value = true;
-}
-
-async function saveResourceFromWizard(payload: Record<string, any>) {
-  try {
-    if (selectedResource.value) {
-      const updatePayload = { ...payload };
-      delete updatePayload.resource_type;
-      if (
-        updatePayload.credentials &&
-        Object.keys(updatePayload.credentials).length === 0
-      ) {
-        delete updatePayload.credentials;
-      }
-      await sourceResourcesApi.update(selectedResource.value.id, updatePayload);
-      appStore.success(t("common.save"));
-    } else {
-      await sourceResourcesApi.create(payload);
-      appStore.success(t("common.create"));
-    }
-    showResourceWizard.value = false;
-    selectedResource.value = null;
-    fetchData();
-  } catch (e: any) {
-    error.value = getApiErrorMessage(e, t("common.saveFailed"));
-    appStore.showToast({
-      type: "error",
-      title: t("common.error"),
-      message: error.value,
-    });
-  }
-}
-
-async function deleteResource() {
-  if (!selectedResource.value) return;
-  try {
-    await sourceResourcesApi.delete(selectedResource.value.id);
-    showDeleteModal.value = false;
-    selectedResource.value = null;
-    fetchData();
-  } catch (e: any) {
-    error.value = e.message;
-  }
-}
-
-async function testConnection(resource: SourceResource) {
-  try {
-    const res = await sourceResourcesApi.testConnection(resource.id);
-    if (res.data.success) {
-      appStore.success(
-        res.data.message || t("sourceResources.wizard.draftCheckPassed"),
-      );
-    } else {
-      appStore.error(
-        res.data.message || t("sourceResources.wizard.draftCheckFailed"),
-      );
-    }
-    fetchData();
-  } catch (e: any) {
-    appStore.error(
-      getApiErrorMessage(e, t("sourceResources.wizard.draftCheckFailed")),
-    );
-  }
-}
 
 onMounted(fetchData);
 </script>

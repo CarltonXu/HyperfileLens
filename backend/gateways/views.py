@@ -250,7 +250,7 @@ logging:
             'hostname': old_instance.hostname,
             'status': old_instance.status,
             'description': old_instance.description,
-            'ai_insights_enabled': old_instance.ai_insights_enabled,
+            'ai_insights_enabled': old_instance.ai_enabled,
         }
         
         # Save the updated instance
@@ -263,7 +263,7 @@ logging:
             'hostname': instance.hostname,
             'status': instance.status,
             'description': instance.description,
-            'ai_insights_enabled': instance.ai_insights_enabled,
+            'ai_insights_enabled': instance.ai_enabled,
         }
         
         for field in old_data.keys():
