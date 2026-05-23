@@ -18,6 +18,7 @@ from .ai import AIClient
 from .config import GatewayConfig
 from .kopia import KopiaClient
 from .monitor import SystemMonitor
+from .storage import RepositoryStorageManager
 
 logger = logging.getLogger('gateway-agent')
 
@@ -33,6 +34,7 @@ class GatewayAgent:
         
         # Components
         self.kopia = KopiaClient(config)
+        self.storage = RepositoryStorageManager(config)
         self.monitor = SystemMonitor()
         self.ai = AIClient(config)
         
@@ -450,7 +452,11 @@ class GatewayAgent:
         try:
             if not job_id or not object_id:
                 raise ValueError('job_id and object_id are required')
-            connect_result = await self.kopia.connect_repository_config(repository, password)
+            repository_access = await self.storage.prepare(repository)
+            connect_result = await self.kopia.connect_repository_config(
+                repository_access.repository,
+                password,
+            )
             if connect_result.get('status') != 'success':
                 raise RuntimeError(connect_result.get('message') or 'repository connect failed')
 
@@ -568,21 +574,71 @@ class GatewayAgent:
     async def _handle_ai_query(self, data):
         """Handle AI query."""
         task_id = data.get('task_id')
+        query_id = data.get('query_id')
         query = data.get('query')
-        context = data.get('context')
-        repository_ids = data.get('repository_ids')
-        
-        # TODO: Implement AI query
-        
-        response = {
-            'type': 'ai_query_result',
-            'task_id': task_id,
-            'success': False,
-            'error': 'AI query not implemented',
-            'result': {}
-        }
-        
+        context = data.get('context') or {}
+        repository = data.get('repository') or {}
+        password = data.get('password') or ''
+        provider_config = data.get('ai_provider_config') or {}
+
+        try:
+            if not query:
+                raise ValueError('query is required')
+            if repository and password:
+                repository_access = await self.storage.prepare(repository)
+                connect_result = await self.kopia.connect_repository_config(repository_access.repository, password)
+                if connect_result.get('status') != 'success':
+                    raise RuntimeError(connect_result.get('message') or 'repository connect failed')
+                context['content_samples'] = await self._collect_query_content_samples(context)
+
+            result = await self.ai.answer_query(query, context, 'zh-CN', provider_config)
+            result['query_id'] = query_id
+            result['candidate_count'] = context.get('candidate_count') or len(context.get('candidate_files') or [])
+            response = {
+                'type': 'ai_query_result',
+                'task_id': task_id,
+                'success': True,
+                'result': result,
+            }
+        except Exception as e:
+            logger.error(f"AI query failed: {e}")
+            response = {
+                'type': 'ai_query_result',
+                'task_id': task_id,
+                'success': False,
+                'error': str(e),
+                'result': {'query_id': query_id},
+            }
+
         await self._ws.send(json.dumps(response))
+
+    async def _collect_query_content_samples(self, context: dict) -> list[dict]:
+        samples = []
+        text_extensions = {
+            '.txt', '.md', '.csv', '.json', '.yaml', '.yml', '.xml',
+            '.html', '.css', '.scss', '.js', '.ts', '.py', '.go', '.sh',
+            '.log', '.conf', '.ini',
+        }
+        for item in (context.get('candidate_files') or [])[:8]:
+            extension = (item.get('extension') or '').lower()
+            if extension and extension not in text_extensions:
+                continue
+            object_id = item.get('object_id')
+            path = item.get('path')
+            if not object_id or not path:
+                continue
+            text = await self.kopia.read_object_text(object_id, path, max_bytes=12000)
+            if not text.strip():
+                continue
+            samples.append({
+                'path': path,
+                'snapshot_name': item.get('snapshot_name'),
+                'repository_name': item.get('repository_name'),
+                'text': text[:12000],
+            })
+            if len(samples) >= 5:
+                break
+        return samples
 
     async def _handle_ai_summarize_snapshot(self, data):
         """Handle snapshot AI summary."""
@@ -591,6 +647,8 @@ class GatewayAgent:
         snapshot_context = data.get('snapshot_context') or {}
         language = data.get('language') or 'zh-CN'
         provider_config = data.get('ai_provider_config') or {}
+        repository = data.get('repository') or {}
+        password = data.get('password') or ''
         try:
             await self._ws.send(json.dumps({
                 'type': 'ai_summary_progress',
@@ -599,6 +657,12 @@ class GatewayAgent:
                 'status': 'running',
                 'progress': 20,
             }))
+            if repository and password:
+                repository_access = await self.storage.prepare(repository)
+                connect_result = await self.kopia.connect_repository_config(repository_access.repository, password)
+                if connect_result.get('status') != 'success':
+                    raise RuntimeError(connect_result.get('message') or 'repository connect failed')
+                snapshot_context['content_samples'] = await self._collect_query_content_samples(snapshot_context)
             result = await self.ai.summarize_snapshot(snapshot_context, language, provider_config)
             await self._ws.send(json.dumps({
                 'type': 'ai_summary_result',

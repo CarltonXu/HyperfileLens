@@ -51,14 +51,22 @@ def select_gateway(gateway_id=None, tenant=None):
     if tenant:
         queryset = queryset.filter(tenant=tenant)
     if gateway_id:
-        return queryset.get(id=gateway_id)
-    gateway = queryset.filter(status__in=[Gateway.GatewayStatus.ACTIVE, 'online']).order_by('-last_heartbeat').first()
-    if not gateway:
-        gateway = queryset.filter(status__in=[
-            Gateway.GatewayStatus.ACTIVE,
-            Gateway.GatewayStatus.PENDING,
-        ]).order_by('-last_heartbeat', '-created_at').first()
-    if not gateway:
+        gateway = queryset.get(id=gateway_id)
+        if not gateway.is_online():
+            raise ValueError('Selected Gateway is offline')
+        return gateway
+
+    excluded_statuses = [
+        Gateway.GatewayStatus.INACTIVE,
+        Gateway.GatewayStatus.ERROR,
+        Gateway.GatewayStatus.MAINTENANCE,
+    ]
+    candidates = queryset.exclude(status__in=excluded_statuses).order_by(
+        '-last_heartbeat',
+        '-created_at',
+    )
+    gateway = next((candidate for candidate in candidates if candidate.is_online()), None)
+    if gateway is None:
         raise ValueError('No available Gateway found')
     return gateway
 
@@ -113,6 +121,25 @@ def build_snapshot_ai_context(snapshot):
             'evidence': insight.evidence,
             'related_paths': insight.related_paths,
         })
+    candidate_files = []
+    text_extensions = {'.txt', '.md', '.csv', '.json', '.yaml', '.yml', '.xml', '.html', '.css', '.js', '.ts', '.py', '.go', '.sh', '.log'}
+    object_id = snapshot.kopia_root_object_id or snapshot.manifest_path or ''
+    for item in SnapshotFileIndex.objects.filter(snapshot=snapshot, is_directory=False).filter(
+        extension__in=text_extensions,
+    ).order_by('-size')[:20]:
+        candidate_files.append({
+            'path': item.path,
+            'name': item.name,
+            'extension': item.extension,
+            'category': item.category,
+            'size': item.size,
+            'modified_time': item.modified_time.isoformat() if item.modified_time else None,
+            'snapshot_id': str(snapshot.id),
+            'snapshot_name': snapshot.name,
+            'object_id': object_id,
+            'repository_id': str(snapshot.repository_id),
+            'repository_name': snapshot.repository.name if snapshot.repository_id else '',
+        })
     return {
         'snapshot': {
             'id': str(snapshot.id),
@@ -126,6 +153,8 @@ def build_snapshot_ai_context(snapshot):
             'repository_name': snapshot.repository.name if snapshot.repository_id else '',
         },
         'insights': insights,
+        'candidate_files': candidate_files,
+        'candidate_count': len(candidate_files),
     }
 
 
@@ -154,6 +183,8 @@ def dispatch_snapshot_ai_summary(snapshot, user, gateway_id=None, language='zh-C
         snapshot_context=build_snapshot_ai_context(snapshot),
         language=job.language,
         ai_provider_config=provider.to_gateway_config() if provider else None,
+        repository_config=build_repository_config(snapshot.repository),
+        repository_password=snapshot.repository.get_kopia_password(),
     )
     if provider:
         job.provider = provider.provider_type

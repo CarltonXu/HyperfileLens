@@ -2,9 +2,7 @@
 HyperFileLens Backend - AI Query Views
 """
 
-import requests
 from datetime import timedelta
-from django.conf import settings
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from rest_framework import viewsets, status
@@ -14,11 +12,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import AIProvider, AIQuery
 from .serializers import AIProviderSerializer, AIQuerySerializer, AIQueryCreateSerializer
-from .tasks import execute_ai_query
-
-
-# Gateway service URL (can be configured in settings)
-GATEWAY_URL = getattr(settings, 'GATEWAY_URL', 'http://localhost:8001')
+from .services import dispatch_ai_query
 
 
 def _format_bytes(value):
@@ -105,21 +99,33 @@ class AIQueryViewSet(viewsets.ModelViewSet):
         return queryset.filter(user=user)
     
     def create(self, request, *args, **kwargs):
-        """Create a new AI query and execute it asynchronously."""
-        serializer = self.get_serializer(data=request.data)
+        """Create a new AI query and dispatch it to an online Gateway."""
+        payload = request.data.copy()
+        if not payload.get('query_text') and payload.get('query'):
+            payload['query_text'] = payload.get('query')
+        serializer = self.get_serializer(data=payload)
         serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        snapshot_id = data.pop('snapshot_id', None)
+        repository_id = data.pop('repository_id', None)
+        gateway_id = data.pop('gateway_id', None)
         
-        # Create query instance
         query = AIQuery.objects.create(
             user=request.user,
-            tenant=request.user.tenant,
-            **serializer.validated_data
+            tenant=getattr(request.user, 'tenant', None),
+            **data
         )
+        try:
+            query = dispatch_ai_query(
+                query,
+                gateway_id=gateway_id,
+                snapshot_id=snapshot_id,
+                repository_id=repository_id,
+            )
+        except Exception as exc:
+            query.mark_failed(str(exc))
+            return Response(AIQuerySerializer(query).data, status=status.HTTP_400_BAD_REQUEST)
         
-        # Execute asynchronously
-        execute_ai_query.delay(str(query.id))
-        
-        # Return the created query
         return Response(
             AIQuerySerializer(query).data,
             status=status.HTTP_201_CREATED
@@ -136,12 +142,14 @@ class AIQueryViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Reset status and execute
         query.status = 'pending'
         query.error_message = ''
         query.save(update_fields=['status', 'error_message'])
-        
-        execute_ai_query.delay(str(query.id))
+        try:
+            dispatch_ai_query(query)
+        except Exception as exc:
+            query.mark_failed(str(exc))
+            return Response(AIQuerySerializer(query).data, status=status.HTTP_400_BAD_REQUEST)
         
         return Response({'message': 'Query retry started'})
     
@@ -200,88 +208,86 @@ class AIProviderViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def gateway_mount_status(request):
-    """Proxy: Get mount status from Gateway service."""
+    """Return Gateway availability for the AI Insights page."""
+    from insights.services import select_gateway
     try:
-        response = requests.get(f'{GATEWAY_URL}/mount/status', timeout=10)
-        return Response(response.json(), status=response.status_code)
-    except requests.exceptions.ConnectionError:
-        return Response({'error': 'Gateway service unavailable', 'mounted': False}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-    except requests.exceptions.Timeout:
-        return Response({'error': 'Gateway service timeout', 'mounted': False}, status=status.HTTP_504_GATEWAY_TIMEOUT)
-    except Exception as e:
-        return Response({'error': str(e), 'mounted': False}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        gateway = select_gateway(tenant=getattr(request.user, 'tenant', None))
+        return Response({'mounted': False, 'gateway_id': str(gateway.id), 'gateway_name': gateway.name, 'online': True})
+    except Exception as exc:
+        return Response({'error': str(exc), 'mounted': False, 'online': False}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def gateway_index_status(request):
-    """Proxy: Get index status from Gateway service."""
-    try:
-        response = requests.get(f'{GATEWAY_URL}/index/status', timeout=10)
-        return Response(response.json(), status=response.status_code)
-    except requests.exceptions.ConnectionError:
-        return Response({'error': 'Gateway service unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-    except requests.exceptions.Timeout:
-        return Response({'error': 'Gateway service timeout'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    """Return indexed snapshot/file counts."""
+    from insights.models import SnapshotFileIndex, SnapshotIndexJob
+    snapshot_ids = _tenant_snapshot_filter(request.user).values('id')
+    return Response({
+        'indexed_files': SnapshotFileIndex.objects.filter(snapshot_id__in=snapshot_ids).count(),
+        'running_jobs': SnapshotIndexJob.objects.filter(snapshot_id__in=snapshot_ids, status__in=['pending', 'dispatched', 'running']).count(),
+    })
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def gateway_ai_query(request):
-    """Proxy: Execute AI query through Gateway service."""
+    """Compatibility endpoint that now uses the WebSocket Gateway task model."""
+    payload = {
+        'query_text': request.data.get('query') or request.data.get('query_text') or '',
+        'query_type': request.data.get('query_type') or AIQuery.TYPE_SEARCH,
+        'target_paths': request.data.get('target_paths') or [],
+        'file_types': request.data.get('file_types') or [],
+        'repository_id': request.data.get('repository_id'),
+        'snapshot_id': request.data.get('snapshot_id'),
+        'gateway_id': request.data.get('gateway_id'),
+    }
+    serializer = AIQueryCreateSerializer(data=payload)
+    serializer.is_valid(raise_exception=True)
+    data = dict(serializer.validated_data)
+    snapshot_id = data.pop('snapshot_id', None)
+    repository_id = data.pop('repository_id', None)
+    gateway_id = data.pop('gateway_id', None)
+    query = AIQuery.objects.create(user=request.user, tenant=getattr(request.user, 'tenant', None), **data)
     try:
-        response = requests.post(
-            f'{GATEWAY_URL}/ai/query',
-            json=request.data,
-            timeout=60
-        )
-        return Response(response.json(), status=response.status_code)
-    except requests.exceptions.ConnectionError:
-        return Response({'error': 'Gateway service unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-    except requests.exceptions.Timeout:
-        return Response({'error': 'Gateway service timeout'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        query = dispatch_ai_query(query, gateway_id=gateway_id, snapshot_id=snapshot_id, repository_id=repository_id)
+    except Exception as exc:
+        query.mark_failed(str(exc))
+        return Response(AIQuerySerializer(query).data, status=status.HTTP_400_BAD_REQUEST)
+    return Response(AIQuerySerializer(query).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def gateway_rebuild_index(request):
-    """Proxy: Rebuild index through Gateway service."""
-    try:
-        response = requests.post(
-            f'{GATEWAY_URL}/index/rebuild',
-            json=request.data,
-            timeout=30
-        )
-        return Response(response.json(), status=response.status_code)
-    except requests.exceptions.ConnectionError:
-        return Response({'error': 'Gateway service unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-    except requests.exceptions.Timeout:
-        return Response({'error': 'Gateway service timeout'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return Response({'error': 'Use snapshot index endpoint for rebuild operations.'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def gateway_list_files(request):
-    """Proxy: List files from Gateway service."""
-    try:
-        response = requests.get(
-            f'{GATEWAY_URL}/files',
-            params=request.query_params,
-            timeout=30
-        )
-        return Response(response.json(), status=response.status_code)
-    except requests.exceptions.ConnectionError:
-        return Response({'error': 'Gateway service unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-    except requests.exceptions.Timeout:
-        return Response({'error': 'Gateway service timeout'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    """List indexed files from the platform index."""
+    limit = min(int(request.query_params.get('limit', 200)), 1000)
+    path = (request.query_params.get('path') or '').strip('/')
+    queryset = _indexed_files_queryset(request)
+    if path:
+        queryset = queryset.filter(path__startswith=path)
+    data = [
+        {
+            'id': str(item.id),
+            'path': item.path,
+            'name': item.name,
+            'size': item.size,
+            'category': item.category,
+            'extension': item.extension,
+            'snapshot_id': str(item.snapshot_id),
+            'snapshot_name': item.snapshot.name,
+            'repository_id': str(item.snapshot.repository_id),
+            'repository_name': item.snapshot.repository.name if item.snapshot.repository_id else '',
+        }
+        for item in queryset.order_by('path')[:limit]
+    ]
+    return Response({'results': data, 'count': len(data)})
 
 
 # ============== AI Insights Feature APIs ==============

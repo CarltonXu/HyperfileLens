@@ -44,7 +44,7 @@ def process_pending_queries():
     This is a safety net for queries that didn't get processed.
     """
     from ai_query.models import AIQuery
-    from ai_query.tasks import execute_ai_query
+    from ai_query.services import dispatch_ai_query
     
     # Find pending queries that have been pending for more than 5 minutes
     from django.utils import timezone
@@ -59,8 +59,11 @@ def process_pending_queries():
     
     count = 0
     for query in pending_queries:
-        execute_ai_query.delay(str(query.id))
-        count += 1
+        try:
+            dispatch_ai_query(query)
+            count += 1
+        except Exception as exc:
+            query.mark_failed(str(exc))
     
     if count > 0:
         logger.warning(f"Re-queued {count} stale pending queries")

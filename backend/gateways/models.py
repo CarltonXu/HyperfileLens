@@ -319,7 +319,8 @@ class Gateway(models.Model):
     def generate_install_token(self) -> str:
         """Generate a one-time installation token."""
         self.install_token = secrets.token_urlsafe(32)
-        self.save(update_fields=['install_token', 'updated_at'])
+        self.install_token_used = False
+        self.save(update_fields=['install_token', 'install_token_used', 'updated_at'])
         return self.install_token
 
     def generate_api_token(self) -> str:

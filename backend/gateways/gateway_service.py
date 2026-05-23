@@ -435,8 +435,17 @@ class GatewayService:
     # ==================== AI Query Operations ====================
 
     @classmethod
-    def ai_query(cls, gateway_id: str, query: str,
-                 context: dict = None, repository_ids: list = None) -> str:
+    def ai_query(
+        cls,
+        gateway_id: str,
+        query: str,
+        query_id: str = None,
+        context: dict = None,
+        repository_ids: list = None,
+        repository_config: dict = None,
+        repository_password: str = '',
+        ai_provider_config: dict = None,
+    ) -> str:
         """
         Send AI query to gateway.
         
@@ -451,9 +460,13 @@ class GatewayService:
         """
         command = {
             'type': 'ai_query',
+            'query_id': query_id,
             'query': query,
             'context': context,
-            'repository_ids': repository_ids
+            'repository_ids': repository_ids,
+            'repository': repository_config or {},
+            'password': repository_password or '',
+            'ai_provider_config': ai_provider_config or {},
         }
         
         task_id = cls.send_command(gateway_id, command)
@@ -472,6 +485,8 @@ class GatewayService:
         snapshot_context: dict,
         language: str = 'zh-CN',
         ai_provider_config: dict = None,
+        repository_config: dict = None,
+        repository_password: str = '',
     ) -> str:
         """Send snapshot AI summary command to gateway."""
         command = {
@@ -481,6 +496,8 @@ class GatewayService:
             'snapshot_context': snapshot_context,
             'language': language,
             'ai_provider_config': ai_provider_config or {},
+            'repository': repository_config or {},
+            'password': repository_password or '',
         }
         return cls.send_command(gateway_id, command)
 

@@ -153,6 +153,11 @@ class KopiaClient:
                 storage_path = repository.get('path') or repository.get('url') or self.config.repo_path
                 if storage_path.startswith('file://'):
                     storage_path = urlparse(storage_path).path
+                logger.info(
+                    "Connecting filesystem Kopia repository path=%s type=%s",
+                    storage_path,
+                    repo_type,
+                )
                 args = [
                     str(self.kopia_path), 'repository', 'connect', 'filesystem',
                     f'--path={storage_path}',
@@ -545,6 +550,33 @@ class KopiaClient:
                 'is_directory': mode.startswith('d'),
             })
         return entries
+
+    async def read_object_text(self, object_id: str, path: str = '', max_bytes: int = 20000) -> str:
+        """Read a bounded UTF-8 text sample from a Kopia object path."""
+        object_path = object_id.rstrip('/')
+        if path:
+            object_path = f"{object_path}/{path.strip('/')}"
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                str(self.kopia_path), 'show', object_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=20)
+            if proc.returncode != 0:
+                logger.debug(
+                    "Unable to read object text path=%s error=%s",
+                    object_path,
+                    stderr.decode(errors='ignore'),
+                )
+                return ''
+            return stdout[:max_bytes].decode('utf-8', errors='ignore')
+        except asyncio.TimeoutError:
+            logger.debug("Timed out reading object text path=%s", object_path)
+            return ''
+        except Exception as e:
+            logger.debug("Error reading object text path=%s error=%s", object_path, e)
+            return ''
     
     async def get_stats(self) -> dict:
         """Get repository statistics."""

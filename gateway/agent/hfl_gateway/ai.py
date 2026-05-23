@@ -28,6 +28,18 @@ class AIClient:
                 logger.warning(f"AI provider failed, falling back to local summary: {exc}")
         return self._local_summary(snapshot_context, language)
 
+    async def answer_query(self, query: str, context: dict, language: str = 'zh-CN', provider_config: Optional[dict] = None) -> dict:
+        provider_config = provider_config or {}
+        enabled = provider_config.get('enabled', self.config.ai_enabled)
+        provider = provider_config.get('provider') or self.config.ai_provider
+        api_key = provider_config.get('api_key') or self.config.ai_api_key
+        if enabled and api_key and provider in {'openai', 'openai_compatible'}:
+            try:
+                return await asyncio.to_thread(self._query_with_openai_compatible, query, context, language, provider_config)
+            except Exception as exc:
+                logger.warning(f"AI query provider failed, falling back to local answer: {exc}")
+        return self._local_query_answer(query, context, language)
+
     def _summarize_with_openai_compatible(self, snapshot_context: dict, language: str, provider_config: Optional[dict] = None) -> dict:
         provider_config = provider_config or {}
         prompt = self._build_prompt(snapshot_context, language)
@@ -67,6 +79,41 @@ class AIClient:
         result.setdefault('model', model)
         return result
 
+    def _query_with_openai_compatible(self, query: str, context: dict, language: str, provider_config: Optional[dict] = None) -> dict:
+        provider_config = provider_config or {}
+        provider = provider_config.get('provider') or self.config.ai_provider
+        base_url = provider_config.get('base_url') or self.config.ai_base_url
+        api_key = provider_config.get('api_key') or self.config.ai_api_key
+        model = provider_config.get('model') or self.config.ai_model
+        timeout = int(provider_config.get('timeout') or self.config.ai_timeout)
+        request = urllib.request.Request(
+            base_url.rstrip('/') + '/chat/completions',
+            data=json.dumps({
+                'model': model,
+                'messages': [
+                    {
+                        'role': 'system',
+                        'content': 'You answer questions about backup snapshot data. Return concise JSON only.',
+                    },
+                    {'role': 'user', 'content': self._build_query_prompt(query, context, language)},
+                ],
+                'temperature': 0.1,
+                'response_format': {'type': 'json_object'},
+            }).encode('utf-8'),
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+                **((provider_config.get('config') or {}).get('headers') or {}),
+            },
+            method='POST',
+        )
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode('utf-8'))
+        result = json.loads(data['choices'][0]['message']['content'])
+        result.setdefault('provider', provider)
+        result.setdefault('model', model)
+        return result
+
     def _build_prompt(self, snapshot_context: dict, language: str) -> str:
         compact = json.dumps(snapshot_context, ensure_ascii=False)[:24000]
         return f"""
@@ -82,6 +129,26 @@ Return JSON with keys:
 - related_paths: array of important paths
 
 Snapshot context:
+{compact}
+"""
+
+    def _build_query_prompt(self, query: str, context: dict, language: str) -> str:
+        compact = json.dumps(context, ensure_ascii=False)[:28000]
+        return f"""
+Language: {language}
+
+User question:
+{query}
+
+Use the indexed file metadata and any provided text samples from backup snapshots.
+Return JSON with keys:
+- answer
+- summary
+- confidence: number from 0 to 1
+- sources: array of {{path,snapshot_name,repository_name,reason}}
+- suggestions: array of follow-up questions or actions
+
+Context:
 {compact}
 """
 
@@ -133,4 +200,32 @@ Snapshot context:
             'provider': 'local',
             'model': 'rule-summary',
             'growth': growth,
+        }
+
+    def _local_query_answer(self, query: str, context: dict, language: str) -> dict:
+        candidates = context.get('candidate_files') or []
+        samples = context.get('content_samples') or []
+        sources = [
+            {
+                'path': item.get('path'),
+                'snapshot_name': item.get('snapshot_name'),
+                'repository_name': item.get('repository_name'),
+                'reason': 'Matched indexed metadata',
+            }
+            for item in candidates[:10]
+        ]
+        answer = f"Found {len(candidates)} indexed file candidates for: {query}"
+        if samples:
+            answer += f". Read {len(samples)} content samples from the snapshot for additional context."
+        return {
+            'answer': answer,
+            'summary': answer,
+            'confidence': 0.45 if candidates else 0.1,
+            'sources': sources,
+            'suggestions': [
+                'Index the target snapshot before asking content questions.',
+                'Narrow the query by snapshot, repository, path, or file type.',
+            ],
+            'provider': 'local',
+            'model': 'metadata-query',
         }

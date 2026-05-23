@@ -457,11 +457,13 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
         elif repo.repo_type in (Repository.TYPE_NAS, Repository.TYPE_NFS):
             server = config.get('server') or config.get('nas_server') or ''
             export_path = config.get('export_path') or config.get('path') or config.get('nas_path') or repo.path or ''
+            share = config.get('share') or export_path
             mount_type = config.get('mount_type') or config.get('nas_type') or 'nfs'
             mount_path = config.get('mount_path') or ''
             repository_config.update({
                 'path': mount_path or export_path,
                 'server': server,
+                'share': share,
                 'export_path': export_path,
                 'nas_server': server,
                 'nas_path': export_path,

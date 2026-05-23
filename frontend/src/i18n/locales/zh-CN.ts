@@ -2213,6 +2213,24 @@ export default {
       noResults: "未找到结果，请尝试不同的搜索词。",
     },
 
+    chat: {
+      title: "智库问答",
+      description:
+        "通过在线 Gateway 基于已索引备份元数据和可读取的快照内容样本进行问答。",
+      placeholder: "询问备份文件、路径、内容或风险...",
+      ask: "提问",
+      processing: "Gateway 正在分析备份数据...",
+      failed: "AI 查询失败",
+      noAnswer: "未返回答案。",
+      sources: "来源",
+      status: {
+        pending: "等待中",
+        processing: "处理中",
+        completed: "已完成",
+        failed: "失败",
+      },
+    },
+
     sensitive: {
       title: "敏感数据扫描",
       lastScan: "上次扫描",

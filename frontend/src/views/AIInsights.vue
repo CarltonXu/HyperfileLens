@@ -19,6 +19,7 @@ import {
   ServerIcon,
 } from "@heroicons/vue/24/outline";
 import { aiInsightsApi } from "@/api";
+import AIQueryPanel from "@/components/ai-insights/AIQueryPanel.vue";
 
 const route = useRoute();
 const { t, locale } = useI18n();
@@ -924,12 +925,7 @@ onMounted(() => {
 
       <!-- AI Chat (Placeholder) -->
       <div v-if="currentTab === 'chat'" class="space-y-6">
-        <div class="bg-card rounded-xl border border-border p-6">
-          <h3 class="text-lg font-semibold text-foreground mb-4">
-            {{ t("aiInsights.pageTitles.chat") }}
-          </h3>
-          <p class="text-slate-500">{{ t("common.comingSoon") }}</p>
-        </div>
+        <AIQueryPanel />
       </div>
     </div>
   </div>

@@ -978,8 +978,12 @@ class GatewayConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def store_ai_query_result(self, task_id, success, result, error):
         """Store AI query result."""
-        # TODO: Implement AI query result storage
-        pass
+        from ai_query.services import complete_ai_query
+        query_id = (result or {}).get('query_id')
+        if not query_id:
+            logger.warning("AI query result missing query_id task_id=%s", task_id)
+            return
+        complete_ai_query(query_id, success, result, error)
 
     @database_sync_to_async
     def store_gateway_stats(self, stats):

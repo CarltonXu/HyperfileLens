@@ -281,9 +281,12 @@ logging:
         if not gateway.api_token:
             gateway.api_token = secrets.token_urlsafe(32)
             token_update_fields.append('api_token')
-        if not gateway.install_token and not gateway.install_token_used:
+        if not gateway.install_token:
             gateway.install_token = secrets.token_urlsafe(32)
             token_update_fields.append('install_token')
+        if gateway.install_token_used:
+            gateway.install_token_used = False
+            token_update_fields.append('install_token_used')
         if token_update_fields:
             token_update_fields.append('updated_at')
             gateway.save(update_fields=token_update_fields)
@@ -300,6 +303,7 @@ logging:
         
         return Response({
             'install_command': install_command,
+            'install_token': gateway.install_token,
             'api_token': gateway.api_token,
             'server_url': server_url,
             'script_url': f'{server_url}/downloads/install-gateway.sh',
@@ -381,6 +385,7 @@ logging:
         
         return Response({
             'api_token': gateway.api_token,
+            'install_token': gateway.install_token,
             'install_command': install_command,
             'server_url': server_url,
             'script_url': f'{server_url}/downloads/install-gateway.sh',

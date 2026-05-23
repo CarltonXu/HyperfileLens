@@ -22,10 +22,14 @@ export const gateway = {
 
 export const aiInsightsApi = {
   query: (data: {
-    query: string;
+    query?: string;
+    query_text?: string;
+    query_type?: string;
     node?: number;
     repository?: number;
     snapshot_id?: string;
+    repository_id?: string;
+    gateway_id?: string;
   }) => api.post("/api/v1/ai-insights/queries/", data),
 
   gatewayQuery: (data: {
@@ -36,6 +40,8 @@ export const aiInsightsApi = {
 
   history: (params?: { page?: number; page_size?: number }) =>
     api.get("/api/v1/ai-insights/queries/", { params }),
+
+  getQuery: (id: number | string) => api.get(`/api/v1/ai-insights/queries/${id}/`),
 
   cancel: (id: number) => api.post(`/api/v1/ai-insights/queries/${id}/cancel/`),
 

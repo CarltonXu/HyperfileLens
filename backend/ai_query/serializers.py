@@ -44,11 +44,15 @@ class AIQuerySerializer(serializers.ModelSerializer):
 
 class AIQueryCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating AI queries."""
+    snapshot_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
+    repository_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
+    gateway_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
     
     class Meta:
         model = AIQuery
         fields = [
-            'query_text', 'query_type', 'target_paths', 'file_types'
+            'query_text', 'query_type', 'target_paths', 'file_types',
+            'snapshot_id', 'repository_id', 'gateway_id',
         ]
 
 

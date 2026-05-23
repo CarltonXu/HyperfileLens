@@ -2322,6 +2322,24 @@ export default {
       noResults: "No results found. Try a different search term.",
     },
 
+    chat: {
+      title: "AI Knowledge Chat",
+      description:
+        "Ask questions against indexed backup metadata and available snapshot content samples through an online Gateway.",
+      placeholder: "Ask about backed up files, paths, content, or risks...",
+      ask: "Ask",
+      processing: "Gateway is analyzing backup data...",
+      failed: "AI query failed",
+      noAnswer: "No answer returned.",
+      sources: "Sources",
+      status: {
+        pending: "Pending",
+        processing: "Processing",
+        completed: "Completed",
+        failed: "Failed",
+      },
+    },
+
     sensitive: {
       title: "Sensitive Data Scan",
       lastScan: "Last Scan",
