@@ -7,10 +7,10 @@ import GatewayActionMenu from "@/components/gateways/GatewayActionMenu.vue";
 import {
   ArrowPathIcon,
   ChatBubbleLeftRightIcon,
-  ClipboardDocumentIcon,
   CpuChipIcon,
   EllipsisVerticalIcon,
   ExclamationTriangleIcon,
+  EyeIcon,
   MapPinIcon,
   CircleStackIcon,
   ServerIcon,
@@ -56,7 +56,8 @@ type GatewayColumnKey =
   | "internal_ip"
   | "active_mounts"
   | "cpu_cores"
-  | "memory_total"
+  | "memory_usage"
+  | "disk_usage"
   | "kopia_version"
   | "last_heartbeat"
   | "actions";
@@ -140,6 +141,26 @@ function emitStatusUpdate(gateway: any, status: string) {
   emit("updateStatus", gateway, status);
   closeActionMenu();
 }
+
+function usageBarColor(value: number | null | undefined) {
+  if (value === null || value === undefined) return "bg-slate-300";
+  if (value > 80) return "bg-red-500";
+  if (value > 60) return "bg-amber-500";
+  return "bg-emerald-500";
+}
+
+function usageWidth(value: number | null | undefined) {
+  if (value === null || value === undefined) return "0%";
+  return `${Math.min(Math.max(value, 0), 100)}%`;
+}
+
+function displayStatusKey(gateway: Gateway): "online" | "offline" {
+  return gateway.is_online ? "online" : "offline";
+}
+
+function displayStatusLabel(gateway: Gateway): string {
+  return gateway.is_online ? t("gateways.online") : t("gateways.offline");
+}
 </script>
 
 <template>
@@ -152,10 +173,7 @@ function emitStatusUpdate(gateway: any, status: string) {
     <p class="text-foreground-secondary">{{ t("gateways.noGateways") }}</p>
   </div>
 
-  <div
-    v-else-if="viewMode === 'card'"
-    class="space-y-4"
-  >
+  <div v-else-if="viewMode === 'card'" class="space-y-4">
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       <div
         v-for="gateway in filteredGateways"
@@ -184,10 +202,10 @@ function emitStatusUpdate(gateway: any, status: string) {
               <span
                 :class="[
                   'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mt-1',
-                  statusColors[gateway.status],
+                  statusColors[displayStatusKey(gateway)],
                 ]"
               >
-                {{ getStatusLabel(gateway.status) }}
+                {{ displayStatusLabel(gateway) }}
               </span>
             </div>
           </div>
@@ -210,7 +228,10 @@ function emitStatusUpdate(gateway: any, status: string) {
           </div>
           <div class="flex items-center gap-2 text-foreground-secondary">
             <CircleStackIcon class="w-4 h-4 flex-shrink-0" />
-            <span>{{ t("gateways.activeMounts") }}: {{ gateway.active_mounts }}</span>
+            <span
+              >{{ t("gateways.activeMounts") }}:
+              {{ gateway.active_mounts }}</span
+            >
           </div>
           <div class="flex items-center gap-2 text-foreground-secondary">
             <CpuChipIcon class="w-4 h-4 flex-shrink-0" />
@@ -242,6 +263,13 @@ function emitStatusUpdate(gateway: any, status: string) {
             <p class="text-sm font-medium text-foreground">
               {{ gateway.memory_usage?.toFixed(1) }}%
             </p>
+            <div class="h-1.5 bg-slate-200 rounded-full overflow-hidden mt-2">
+              <div
+                class="h-full rounded-full transition-all"
+                :class="usageBarColor(gateway.memory_usage)"
+                :style="{ width: usageWidth(gateway.memory_usage) }"
+              />
+            </div>
           </div>
           <div class="bg-background-secondary rounded-lg p-2">
             <p class="text-xs text-foreground-secondary">
@@ -250,6 +278,13 @@ function emitStatusUpdate(gateway: any, status: string) {
             <p class="text-sm font-medium text-foreground">
               {{ gateway.disk_usage?.toFixed(1) }}%
             </p>
+            <div class="h-1.5 bg-slate-200 rounded-full overflow-hidden mt-2">
+              <div
+                class="h-full rounded-full transition-all"
+                :class="usageBarColor(gateway.disk_usage)"
+                :style="{ width: usageWidth(gateway.disk_usage) }"
+              />
+            </div>
           </div>
         </div>
 
@@ -360,10 +395,10 @@ function emitStatusUpdate(gateway: any, status: string) {
               <span
                 :class="[
                   'px-2 py-1 text-xs font-medium rounded-full',
-                  statusColors[gateway.status],
+                  statusColors[displayStatusKey(gateway)],
                 ]"
               >
-                {{ getStatusLabel(gateway.status) }}
+                {{ displayStatusLabel(gateway) }}
               </span>
             </td>
             <td
@@ -380,27 +415,73 @@ function emitStatusUpdate(gateway: any, status: string) {
             </td>
             <td
               class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-              :style="table.columnStyle('active_mounts')"
-            >
-              {{ gateway.active_mounts }}
-            </td>
-            <td
-              class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
               :style="table.columnStyle('cpu_cores')"
             >
               {{ gateway.cpu_cores || "-" }}
             </td>
             <td
-              class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
-              :style="table.columnStyle('memory_total')"
+              class="px-4 py-3 whitespace-nowrap"
+              :style="table.columnStyle('memory_usage')"
             >
-              {{ formatBytes(gateway.memory_total) }}
+              <div
+                v-if="
+                  gateway.memory_usage !== null &&
+                  gateway.memory_usage !== undefined
+                "
+                class="flex items-center gap-2"
+              >
+                <div
+                  class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden"
+                >
+                  <div
+                    class="h-full rounded-full transition-all"
+                    :class="usageBarColor(gateway.memory_usage)"
+                    :style="{ width: usageWidth(gateway.memory_usage) }"
+                  />
+                </div>
+                <span class="text-xs text-foreground-secondary w-10">
+                  {{ gateway.memory_usage?.toFixed(0) }}%
+                </span>
+              </div>
+              <span v-else class="text-foreground-muted">-</span>
+            </td>
+            <td
+              class="px-4 py-3 whitespace-nowrap"
+              :style="table.columnStyle('disk_usage')"
+            >
+              <div
+                v-if="
+                  gateway.disk_usage !== null &&
+                  gateway.disk_usage !== undefined
+                "
+                class="flex items-center gap-2"
+              >
+                <div
+                  class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden"
+                >
+                  <div
+                    class="h-full rounded-full transition-all"
+                    :class="usageBarColor(gateway.disk_usage)"
+                    :style="{ width: usageWidth(gateway.disk_usage) }"
+                  />
+                </div>
+                <span class="text-xs text-foreground-secondary w-10">
+                  {{ gateway.disk_usage?.toFixed(0) }}%
+                </span>
+              </div>
+              <span v-else class="text-foreground-muted">-</span>
             </td>
             <td
               class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
               :style="table.columnStyle('kopia_version')"
             >
               {{ gateway.kopia_version || "-" }}
+            </td>
+            <td
+              class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
+              :style="table.columnStyle('active_mounts')"
+            >
+              {{ gateway.active_mounts }}
             </td>
             <td
               class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
@@ -426,7 +507,7 @@ function emitStatusUpdate(gateway: any, status: string) {
                   class="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-hover rounded"
                   :title="t('common.details')"
                 >
-                  <ClipboardDocumentIcon class="w-4 h-4" />
+                  <EyeIcon class="w-4 h-4" />
                 </button>
                 <button
                   @click="openActionMenu($event, gateway)"

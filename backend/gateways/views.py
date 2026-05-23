@@ -431,6 +431,7 @@ logging:
                 network_bytes_recv=serializer.validated_data.get('network_bytes_recv', 0),
                 load_average=serializer.validated_data.get('load_average'),
                 process_count=serializer.validated_data.get('process_count'),
+                metadata=serializer.validated_data,
             )
             
             # Clean up old heartbeats (keep last 24 hours = 1440 records at 1-minute interval)
@@ -471,6 +472,70 @@ logging:
             gateway=gateway,
             timestamp__gte=cutoff
         ).order_by('timestamp')
+        heartbeat_rows = [hb for hb in heartbeats if hb.metadata]
+
+        network_io_data = []
+        disk_io_data = []
+        previous_disk_stats = {}
+        for hb in heartbeat_rows:
+            timestamp = hb.timestamp.isoformat()
+            metadata = hb.metadata or {}
+            interfaces_payload = metadata.get('network_interfaces') or {}
+            interfaces = interfaces_payload.get('interfaces') if isinstance(interfaces_payload, dict) else interfaces_payload
+            for ni in interfaces or []:
+                network_io_data.append({
+                    'timestamp': timestamp,
+                    'interface': ni.get('name'),
+                    'rx_bytes': ni.get('bytes_in', 0),
+                    'tx_bytes': ni.get('bytes_out', 0),
+                    'rx_packets': ni.get('packets_in', 0),
+                    'tx_packets': ni.get('packets_out', 0),
+                    'rx_drop': ni.get('drop_in', 0),
+                    'tx_drop': ni.get('drop_out', 0),
+                    'rx_errs': ni.get('errs_in', 0),
+                    'tx_errs': ni.get('errs_out', 0),
+                })
+            for disk in metadata.get('disk_io') or []:
+                disk_name = disk.get('name')
+                previous = previous_disk_stats.get(disk_name)
+                elapsed_seconds = (
+                    (hb.timestamp - previous['timestamp']).total_seconds()
+                    if previous else 0
+                )
+                read_count = disk.get('read_count', 0) or 0
+                write_count = disk.get('write_count', 0) or 0
+                read_bytes = disk.get('read_bytes', 0) or 0
+                write_bytes = disk.get('write_bytes', 0) or 0
+                if previous and elapsed_seconds > 0:
+                    read_iops = max(read_count - previous['read_count'], 0) / elapsed_seconds
+                    write_iops = max(write_count - previous['write_count'], 0) / elapsed_seconds
+                    read_kbps = max(read_bytes - previous['read_bytes'], 0) / 1024 / elapsed_seconds
+                    write_kbps = max(write_bytes - previous['write_bytes'], 0) / 1024 / elapsed_seconds
+                else:
+                    read_iops = 0
+                    write_iops = 0
+                    read_kbps = 0
+                    write_kbps = 0
+                disk_io_data.append({
+                    'timestamp': timestamp,
+                    'disk': disk_name,
+                    'read_bytes': read_bytes,
+                    'write_bytes': write_bytes,
+                    'read_count': read_count,
+                    'write_count': write_count,
+                    'io_time_ms': disk.get('io_time_ms', 0),
+                    'r_s': read_iops,
+                    'w_s': write_iops,
+                    'rkB_s': read_kbps,
+                    'wkB_s': write_kbps,
+                })
+                previous_disk_stats[disk_name] = {
+                    'timestamp': hb.timestamp,
+                    'read_count': read_count,
+                    'write_count': write_count,
+                    'read_bytes': read_bytes,
+                    'write_bytes': write_bytes,
+                }
         
         # Serialize heartbeat data
         data = [{
@@ -481,15 +546,51 @@ logging:
             'active_mounts': hb.active_mounts,
             'network_bytes_sent': hb.network_bytes_sent,
             'network_bytes_recv': hb.network_bytes_recv,
+            'network_packets_sent': (hb.metadata or {}).get('network_packets_sent', 0),
+            'network_packets_recv': (hb.metadata or {}).get('network_packets_recv', 0),
             'load_average': hb.load_average,
             'process_count': hb.process_count,
-        } for hb in heartbeats]
+            'memory_total': (hb.metadata or {}).get('memory_total'),
+            'memory_used': (hb.metadata or {}).get('memory_used'),
+            'memory_free': (hb.metadata or {}).get('memory_free'),
+            'disk_total': (hb.metadata or {}).get('disk_total'),
+            'disk_used': (hb.metadata or {}).get('disk_used'),
+            'disk_free': (hb.metadata or {}).get('disk_free'),
+            'cpu_cores': (hb.metadata or {}).get('cpu_cores'),
+            'cpu_physical': (hb.metadata or {}).get('cpu_physical'),
+            'uptime': (hb.metadata or {}).get('uptime'),
+            'network_interfaces': (hb.metadata or {}).get('network_interfaces'),
+            'disk_io': (hb.metadata or {}).get('disk_io', []),
+            'metadata': hb.metadata or {},
+        } for hb in heartbeat_rows]
+        latest = data[-1] if data else None
         
         return Response({
             'gateway_id': str(gateway.id),
             'gateway_name': gateway.name,
             'hours': hours,
             'data_points': len(data),
+            'current': {
+                'cpu_usage': gateway.cpu_usage,
+                'memory_usage': gateway.memory_usage,
+                'disk_usage': gateway.disk_usage,
+                'cpu_cores': gateway.cpu_cores,
+                'memory_total': gateway.memory_total,
+                'memory_total_gb': round(gateway.memory_total / (1024 ** 3), 2) if gateway.memory_total else None,
+                'disk_total': gateway.disk_total,
+                'disk_total_gb': round(gateway.disk_total / (1024 ** 3), 2) if gateway.disk_total else None,
+                'network_bytes_sent': gateway.network_bytes_sent,
+                'network_bytes_recv': gateway.network_bytes_recv,
+                'network_interfaces': (gateway.metadata or {}).get('metrics', {}).get('network_interfaces') or {'interfaces': gateway.network_interfaces or []},
+                'disk_io': (gateway.metadata or {}).get('metrics', {}).get('disk_io', []),
+                'process_count': (gateway.metadata or {}).get('metrics', {}).get('process_count'),
+                'uptime': (gateway.metadata or {}).get('metrics', {}).get('uptime'),
+                **((latest or {}).get('metadata') or {}),
+            },
+            'last_heartbeat': gateway.last_heartbeat.isoformat() if gateway.last_heartbeat else None,
+            'uptime_seconds': (gateway.metadata or {}).get('metrics', {}).get('uptime'),
+            'network_io': network_io_data,
+            'disk_io': disk_io_data,
             'data': data
         })
     

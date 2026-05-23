@@ -158,14 +158,32 @@ class GatewayAgent:
                         'load_average': metrics.get('load_average'),
                         'process_count': metrics.get('process_count'),
                         'cpu_cores': metrics.get('cpu_cores'),
+                        'cpu_physical': metrics.get('cpu_physical'),
                         'memory_total': metrics.get('memory_total'),
+                        'memory_used': metrics.get('memory_used'),
+                        'memory_free': metrics.get('memory_free'),
                         'disk_total': metrics.get('disk_total'),
+                        'disk_used': metrics.get('disk_used'),
+                        'disk_free': metrics.get('disk_free'),
+                        'network_packets_sent': metrics.get('network_packets_sent'),
+                        'network_packets_recv': metrics.get('network_packets_recv'),
+                        'network_interfaces': metrics.get('network_interfaces'),
+                        'disk_io': metrics.get('disk_io'),
+                        'uptime': metrics.get('uptime'),
                     },
                     'mounts': [m['mount_point'] for m in mounts]
                 }
                 
                 await self._ws.send(json.dumps(heartbeat))
-                logger.debug("Sent heartbeat")
+                logger.info(
+                    "Sent heartbeat cpu=%.1f%% memory=%.1f%% disk=%.1f%% mounts=%s interfaces=%s disk_io=%s",
+                    metrics.get('cpu_usage') or 0,
+                    metrics.get('memory_usage') or 0,
+                    metrics.get('disk_usage') or 0,
+                    len(mounts),
+                    len((metrics.get('network_interfaces') or {}).get('interfaces') or []),
+                    len(metrics.get('disk_io') or []),
+                )
                 
             except Exception as e:
                 logger.error(f"Heartbeat error: {e}")

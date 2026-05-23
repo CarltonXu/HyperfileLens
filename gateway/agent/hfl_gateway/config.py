@@ -52,26 +52,11 @@ def _load_simple_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
-def _env_int(name: str, default: int) -> int:
-    try:
-        return int(os.getenv(name, default))
-    except ValueError:
-        return default
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.lower() in ('1', 'true', 'yes')
-
-
 @dataclass
 class GatewayConfig:
     """Gateway Agent configuration."""
 
     config_path: str = os.getenv('CONFIG_PATH', '')
-    env_path: str = os.getenv('CONFIG_ENV_PATH', '/etc/hyperfilelens/gateway/env')
 
     server_url: str = 'http://localhost:8000'
     gateway_id: str = ''
@@ -116,7 +101,6 @@ class GatewayConfig:
         if selected_path and Path(selected_path).exists():
             cfg.config_path = selected_path
             cfg._apply_file(_load_simple_yaml(Path(selected_path)))
-        cfg._apply_environment()
         return cfg
 
     def _apply_file(self, data: dict[str, Any]) -> None:
@@ -157,31 +141,6 @@ class GatewayConfig:
         self.log_level = str(logging.get('level') or self.log_level).upper()
         self.log_file = str(logging.get('file') or self.log_file)
 
-    def _apply_environment(self) -> None:
-        self.server_url = os.getenv('SERVER_URL', self.server_url)
-        self.gateway_id = os.getenv('GATEWAY_ID', self.gateway_id)
-        self.api_token = os.getenv('API_TOKEN', self.api_token)
-        self.install_token = os.getenv('INSTALL_TOKEN', self.install_token)
-        self.ws_protocol = os.getenv('WS_PROTOCOL', self.ws_protocol)
-        self.reconnect_delay = _env_int('RECONNECT_DELAY', self.reconnect_delay)
-        self.heartbeat_interval = _env_int('HEARTBEAT_INTERVAL', self.heartbeat_interval)
-        self.name = os.getenv('GATEWAY_NAME', self.name)
-        self.kopia_path = os.getenv('KOPIA_PATH', self.kopia_path)
-        self.mount_base_path = os.getenv('MOUNT_BASE_PATH', self.mount_base_path)
-        self.max_concurrent_mounts = _env_int('MAX_MOUNTS', self.max_concurrent_mounts)
-        self.repo_path = os.getenv('REPO_PATH', self.repo_path)
-        self.repo_password = os.getenv('KOPIA_PASSWORD', self.repo_password)
-        self.index_enabled = _env_bool('INDEX_ENABLED', self.index_enabled)
-        self.index_path = os.getenv('INDEX_PATH', self.index_path)
-        self.ai_enabled = _env_bool('AI_ENABLED', self.ai_enabled)
-        self.ai_provider = os.getenv('AI_PROVIDER', self.ai_provider)
-        self.ai_base_url = os.getenv('AI_BASE_URL', os.getenv('AI_API_URL', self.ai_base_url))
-        self.ai_api_key = os.getenv('AI_API_KEY', self.ai_api_key)
-        self.ai_model = os.getenv('AI_MODEL', self.ai_model)
-        self.ai_timeout = _env_int('AI_TIMEOUT', self.ai_timeout)
-        self.log_level = os.getenv('LOG_LEVEL', self.log_level).upper()
-        self.log_file = os.getenv('LOG_FILE', self.log_file)
-
     def websocket_url(self) -> str:
         base = self.server_url.rstrip('/')
         if base.startswith('https://'):
@@ -195,39 +154,7 @@ class GatewayConfig:
             self.api_token = api_token
         if install_token is not None:
             self.install_token = install_token
-        self._write_env_file()
         self._write_config_file()
-
-    def _write_env_file(self) -> None:
-        path = Path(self.env_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        values = {
-            'SERVER_URL': self.server_url,
-            'INSTALL_TOKEN': self.install_token,
-            'API_TOKEN': self.api_token,
-            'GATEWAY_ID': self.gateway_id,
-            'GATEWAY_NAME': self.name,
-        }
-        existing: list[str] = []
-        seen: set[str] = set()
-        if path.exists():
-            existing = path.read_text().splitlines()
-        output: list[str] = []
-        for line in existing:
-            key = line.split('=', 1)[0] if '=' in line else ''
-            if key in values:
-                output.append(f'{key}={values[key]}')
-                seen.add(key)
-            else:
-                output.append(line)
-        for key, value in values.items():
-            if key not in seen:
-                output.append(f'{key}={value}')
-        path.write_text('\n'.join(output) + '\n')
-        try:
-            path.chmod(0o600)
-        except OSError:
-            pass
 
     def _write_config_file(self) -> None:
         if not self.config_path:

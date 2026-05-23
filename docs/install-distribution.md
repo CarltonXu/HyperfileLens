@@ -21,6 +21,7 @@ Nginx should expose these paths:
 ```text
 /downloads/install-proxy.sh
 /downloads/install-gateway.sh
+/downloads/uninstall.sh
 /downloads/packages/proxy/hyperfilelens-proxy-linux-amd64.tar.gz
 /downloads/packages/proxy/hyperfilelens-proxy-linux-arm64.tar.gz
 /downloads/packages/gateway/hyperfilelens-gateway-linux-amd64.tar.gz
@@ -44,6 +45,22 @@ The production Nginx config serves that directory as:
 
 ```text
 /downloads/ -> STATIC_ROOT/downloads/
+```
+
+## Uninstall
+
+Use the common uninstaller:
+
+```bash
+curl -sSL https://hfl.example.com/downloads/uninstall.sh | sudo bash -s -- --component proxy
+curl -sSL https://hfl.example.com/downloads/uninstall.sh | sudo bash -s -- --component gateway
+curl -sSL https://hfl.example.com/downloads/uninstall.sh | sudo bash -s -- --component all
+```
+
+By default, configuration, logs, and data are preserved. To remove them too:
+
+```bash
+curl -sSL https://hfl.example.com/downloads/uninstall.sh | sudo bash -s -- --component gateway --purge
 ```
 
 ## Package Contents

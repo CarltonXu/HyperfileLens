@@ -168,8 +168,22 @@ const monitoringData = ref<
     memory_usage: number | null;
     disk_usage: number | null;
     active_mounts: number;
+    network_bytes_sent?: number;
+    network_bytes_recv?: number;
+    network_packets_sent?: number;
+    network_packets_recv?: number;
+    memory_total?: number;
+    disk_total?: number;
+    cpu_cores?: number;
+    load_average?: number[];
+    process_count?: number;
+    network_interfaces?: any;
+    disk_io?: any[];
   }>
 >([]);
+const monitoringCurrent = ref<Record<string, any> | null>(null);
+const monitoringNetworkIo = ref<any[]>([]);
+const monitoringDiskIo = ref<any[]>([]);
 const isLoadingMonitoring = ref(false);
 const monitoringHours = ref(24);
 
@@ -178,7 +192,9 @@ const filteredGateways = computed(() => {
   let result = gateways.value;
 
   if (selectedStatus.value !== "all") {
-    result = result.filter((g) => g.status === selectedStatus.value);
+    result = result.filter((g) =>
+      selectedStatus.value === "online" ? g.is_online : !g.is_online,
+    );
   }
 
   if (searchQuery.value) {
@@ -201,7 +217,8 @@ type GatewayColumnKey =
   | "internal_ip"
   | "active_mounts"
   | "cpu_cores"
-  | "memory_total"
+  | "memory_usage"
+  | "disk_usage"
   | "kopia_version"
   | "last_heartbeat"
   | "actions";
@@ -209,7 +226,7 @@ type GatewayColumnKey =
 const gatewayColumns = computed(() => [
   {
     key: "name" as const,
-    label: t("gateways.gatewayName"),
+    label: t("common.name"),
     min: 240,
     max: 560,
   },
@@ -222,25 +239,25 @@ const gatewayColumns = computed(() => [
   },
   {
     key: "internal_ip" as const,
-    label: t("gateways.internalIp"),
+    label: t("gateways.ipAddress"),
     min: 150,
     max: 280,
   },
   {
-    key: "active_mounts" as const,
-    label: t("gateways.activeMounts"),
-    min: 150,
-    max: 260,
-  },
-  {
     key: "cpu_cores" as const,
-    label: t("gateways.cpuCores"),
+    label: t("gateways.cpu"),
     min: 130,
     max: 240,
   },
   {
-    key: "memory_total" as const,
-    label: t("gateways.memoryTotal"),
+    key: "memory_usage" as const,
+    label: t("gateways.memory"),
+    min: 150,
+    max: 260,
+  },
+  {
+    key: "disk_usage" as const,
+    label: t("gateways.disk"),
     min: 160,
     max: 280,
   },
@@ -249,6 +266,12 @@ const gatewayColumns = computed(() => [
     label: t("gateways.kopiaVersion"),
     min: 160,
     max: 300,
+  },
+  {
+    key: "active_mounts" as const,
+    label: t("gateways.activeMounts"),
+    min: 150,
+    max: 260,
   },
   {
     key: "last_heartbeat" as const,
@@ -271,10 +294,11 @@ const gatewayTable = useResizableSortableTable<Gateway, GatewayColumnKey>({
   columns: gatewayColumns,
   rows: filteredGateways,
   defaultSort: { key: "name" },
-  minTableWidth: 1350,
+  minTableWidth: 1500,
   getSortValue: (gateway, key) => {
-    if (key === "status") return getStatusLabel(gateway.status);
-    if (key === "memory_total") return gateway.memory_total || 0;
+    if (key === "status") return gateway.is_online ? "online" : "offline";
+    if (key === "memory_usage") return gateway.memory_usage ?? -1;
+    if (key === "disk_usage") return gateway.disk_usage ?? -1;
     if (key === "last_heartbeat") {
       return gateway.last_heartbeat
         ? new Date(gateway.last_heartbeat).getTime()
@@ -284,8 +308,19 @@ const gatewayTable = useResizableSortableTable<Gateway, GatewayColumnKey>({
     return (gateway as any)[key] ?? "";
   },
   getColumnText: (gateway, key) => {
-    if (key === "status") return getStatusLabel(gateway.status);
-    if (key === "memory_total") return formatBytes(gateway.memory_total);
+    if (key === "status") {
+      return gateway.is_online ? t("gateways.online") : t("gateways.offline");
+    }
+    if (key === "memory_usage") {
+      return gateway.memory_usage !== null && gateway.memory_usage !== undefined
+        ? `${gateway.memory_usage.toFixed(0)}%`
+        : "-";
+    }
+    if (key === "disk_usage") {
+      return gateway.disk_usage !== null && gateway.disk_usage !== undefined
+        ? `${gateway.disk_usage.toFixed(0)}%`
+        : "-";
+    }
     if (key === "last_heartbeat") return formatDate(gateway.last_heartbeat);
     if (key === "actions") return t("common.actions");
     return String((gateway as any)[key] ?? "");
@@ -657,9 +692,15 @@ async function loadMonitoringData() {
       monitoringHours.value,
     );
     monitoringData.value = res.data.data || [];
+    monitoringCurrent.value = res.data.current || null;
+    monitoringNetworkIo.value = res.data.network_io || [];
+    monitoringDiskIo.value = res.data.disk_io || [];
   } catch (error) {
     console.error("Failed to load monitoring data:", error);
     monitoringData.value = [];
+    monitoringCurrent.value = null;
+    monitoringNetworkIo.value = [];
+    monitoringDiskIo.value = [];
   } finally {
     isLoadingMonitoring.value = false;
   }
@@ -852,24 +893,27 @@ onMounted(() => {
         :gateway="selectedGateway"
       />
 
+      <!-- Monitoring Tab -->
+      <GatewayMonitoringTab
+        v-else-if="detailTab === 'monitoring' && selectedGateway"
+        :gateway="selectedGateway"
+        :monitoring-data="monitoringData"
+        :current="monitoringCurrent"
+        :network-io="monitoringNetworkIo"
+        :disk-io="monitoringDiskIo"
+        :is-loading="isLoadingMonitoring"
+        :time-range="monitoringHours"
+        :stats="monitoringStats"
+        @refresh="loadMonitoringData"
+        @update:time-range="(h) => (monitoringHours = h)"
+      />
+
       <!-- Mounts Tab -->
       <GatewayMountsTab
         v-else-if="detailTab === 'mounts' && selectedGateway"
         :gateway="selectedGateway"
         :mounts="mountsData"
         :is-loading="isLoadingMounts"
-      />
-
-      <!-- Monitoring Tab -->
-      <GatewayMonitoringTab
-        v-else-if="detailTab === 'monitoring' && selectedGateway"
-        :gateway="selectedGateway"
-        :monitoring-data="monitoringData"
-        :is-loading="isLoadingMonitoring"
-        :time-range="monitoringHours"
-        :stats="monitoringStats"
-        @refresh="loadMonitoringData"
-        @update:time-range="(h) => (monitoringHours = h)"
       />
     </GatewayDetailDrawer>
   </div>

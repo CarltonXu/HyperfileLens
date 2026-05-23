@@ -341,6 +341,25 @@ const router = createRouter({
 // Navigation guard
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
+  const isAuthRoute = ["Login", "Register", "ForgotPassword"].includes(
+    String(to.name),
+  );
+
+  if (isAuthRoute && authStore.token) {
+    if (!authStore.user) {
+      try {
+        await authStore.fetchUser();
+      } catch {
+        next();
+        return;
+      }
+    }
+
+    if (authStore.isAuthenticated) {
+      next({ name: "Dashboard" });
+      return;
+    }
+  }
 
   // Check if route requires authentication
   if (to.meta.requiresAuth !== false && !authStore.isAuthenticated) {
@@ -380,13 +399,6 @@ router.beforeEach(async (to, _from, next) => {
       return;
     }
   }
-
-  // If authenticated and trying to access login, redirect to dashboard
-  if (to.name === "Login" && authStore.isAuthenticated) {
-    next({ name: "Dashboard" });
-    return;
-  }
-
   next();
 });
 

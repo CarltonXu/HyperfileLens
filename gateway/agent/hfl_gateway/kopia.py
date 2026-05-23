@@ -57,11 +57,12 @@ class KopiaClient:
             )
             stdout, _ = await proc.communicate()
             if proc.returncode == 0:
-                # Parse version from output
-                output = stdout.decode()
+                output = stdout.decode().strip()
                 for line in output.split('\n'):
                     if 'kopia' in line.lower():
                         return line.strip()
+                if output:
+                    return output.splitlines()[0].strip()
             return None
         except Exception as e:
             logger.error(f"Failed to get Kopia version: {e}")

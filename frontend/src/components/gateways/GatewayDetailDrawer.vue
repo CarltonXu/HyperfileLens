@@ -31,19 +31,14 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const tabs: DetailTab[] = ["overview", "mounts", "monitoring"];
+const tabs: DetailTab[] = ["overview", "monitoring", "mounts"];
 
-function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    pending: t("gateways.statusPending"),
-    installing: t("gateways.statusInstalling"),
-    active: t("gateways.statusActive"),
-    inactive: t("gateways.statusInactive"),
-    offline: t("gateways.statusOffline"),
-    error: t("gateways.statusError"),
-    maintenance: t("gateways.statusMaintenance"),
-  };
-  return labels[status] || status;
+function displayStatusKey(gateway: Gateway | null): "online" | "offline" {
+  return gateway?.is_online ? "online" : "offline";
+}
+
+function displayStatusLabel(gateway: Gateway | null): string {
+  return gateway?.is_online ? t("gateways.online") : t("gateways.offline");
 }
 </script>
 
@@ -78,22 +73,10 @@ function getStatusLabel(status: string): string {
                 <span
                   :class="[
                     'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                    statusColors[gateway?.status || 'pending'],
+                    statusColors[displayStatusKey(gateway)],
                   ]"
                 >
-                  {{ getStatusLabel(gateway?.status || "pending") }}
-                </span>
-                <span
-                  v-if="gateway?.is_online"
-                  class="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-xs font-medium"
-                >
-                  {{ t("gateways.online") }}
-                </span>
-                <span
-                  v-else
-                  class="px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full text-xs font-medium"
-                >
-                  {{ t("gateways.offline") }}
+                  {{ displayStatusLabel(gateway) }}
                 </span>
               </div>
             </div>

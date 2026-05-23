@@ -47,12 +47,6 @@ const { t } = useI18n();
         <option value="offline" class="bg-background">
           {{ t("gateways.statusOffline") }}
         </option>
-        <option value="pending" class="bg-background">
-          {{ t("gateways.statusPending") }}
-        </option>
-        <option value="error" class="bg-background">
-          {{ t("gateways.statusError") }}
-        </option>
       </select>
       <button
         class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover transition-colors"

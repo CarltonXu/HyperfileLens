@@ -21,6 +21,11 @@ interface Gateway {
   cpu_usage: number;
   memory_usage: number;
   disk_usage: number;
+  network_bytes_sent?: number;
+  network_bytes_recv?: number;
+  heartbeat_interval?: number;
+  uptime_seconds?: number;
+  metadata?: Record<string, any>;
   active_mounts: number;
   max_concurrent_mounts: number;
   mount_base_path: string;
@@ -51,6 +56,28 @@ function formatBytes(bytes: number): string {
 function formatDate(dateStr: string): string {
   if (!dateStr) return "-";
   return new Date(dateStr).toLocaleString();
+}
+
+function formatUptime(seconds?: number | null): string {
+  if (!seconds) return "-";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function usageBarColor(value?: number | null): string {
+  if (value === null || value === undefined) return "bg-slate-300";
+  if (value > 80) return "bg-red-500";
+  if (value > 60) return "bg-amber-500";
+  return "bg-emerald-500";
+}
+
+function usageWidth(value?: number | null): string {
+  if (value === null || value === undefined) return "0%";
+  return `${Math.min(Math.max(value, 0), 100)}%`;
 }
 </script>
 
@@ -115,9 +142,7 @@ function formatDate(dateStr: string): string {
       </h3>
       <div class="grid grid-cols-3 gap-4">
         <div class="bg-background-secondary rounded-lg p-4">
-          <div
-            class="flex items-center gap-2 text-foreground-secondary mb-1"
-          >
+          <div class="flex items-center gap-2 text-foreground-secondary mb-1">
             <CpuChipIcon class="w-4 h-4" />
             <span class="text-sm">{{ t("gateways.cpu") }}</span>
           </div>
@@ -125,17 +150,12 @@ function formatDate(dateStr: string): string {
             {{ gateway.cpu_cores || "-" }}
             {{ t("gateways.cores") }}
           </p>
-          <p
-            v-if="gateway.cpu_usage"
-            class="text-sm text-foreground-secondary"
-          >
+          <p v-if="gateway.cpu_usage" class="text-sm text-foreground-secondary">
             {{ gateway.cpu_usage }}% {{ t("gateways.used") }}
           </p>
         </div>
         <div class="bg-background-secondary rounded-lg p-4">
-          <div
-            class="flex items-center gap-2 text-foreground-secondary mb-1"
-          >
+          <div class="flex items-center gap-2 text-foreground-secondary mb-1">
             <CircleStackIcon class="w-4 h-4" />
             <span class="text-sm">{{ t("gateways.memory") }}</span>
           </div>
@@ -143,16 +163,24 @@ function formatDate(dateStr: string): string {
             {{ gateway.memory_total ? formatBytes(gateway.memory_total) : "-" }}
           </p>
           <p
-            v-if="gateway.memory_usage"
+            v-if="
+              gateway.memory_usage !== null &&
+              gateway.memory_usage !== undefined
+            "
             class="text-sm text-foreground-secondary"
           >
-            {{ gateway.memory_usage }}% {{ t("gateways.used") }}
+            {{ gateway.memory_usage.toFixed(1) }}% {{ t("gateways.used") }}
           </p>
+          <div class="h-2 bg-slate-200 rounded-full overflow-hidden mt-2">
+            <div
+              class="h-full rounded-full transition-all"
+              :class="usageBarColor(gateway.memory_usage)"
+              :style="{ width: usageWidth(gateway.memory_usage) }"
+            />
+          </div>
         </div>
         <div class="bg-background-secondary rounded-lg p-4">
-          <div
-            class="flex items-center gap-2 text-foreground-secondary mb-1"
-          >
+          <div class="flex items-center gap-2 text-foreground-secondary mb-1">
             <CircleStackIcon class="w-4 h-4" />
             <span class="text-sm">{{ t("gateways.disk") }}</span>
           </div>
@@ -160,10 +188,56 @@ function formatDate(dateStr: string): string {
             {{ gateway.disk_total ? formatBytes(gateway.disk_total) : "-" }}
           </p>
           <p
-            v-if="gateway.disk_usage"
+            v-if="
+              gateway.disk_usage !== null && gateway.disk_usage !== undefined
+            "
             class="text-sm text-foreground-secondary"
           >
-            {{ gateway.disk_usage }}% {{ t("gateways.used") }}
+            {{ gateway.disk_usage.toFixed(1) }}% {{ t("gateways.used") }}
+          </p>
+          <div class="h-2 bg-slate-200 rounded-full overflow-hidden mt-2">
+            <div
+              class="h-full rounded-full transition-all"
+              :class="usageBarColor(gateway.disk_usage)"
+              :style="{ width: usageWidth(gateway.disk_usage) }"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Runtime -->
+    <div>
+      <h3 class="text-sm font-semibold text-foreground mb-3">
+        {{ t("gateways.runtimeInfo") }}
+      </h3>
+      <div class="grid grid-cols-3 gap-4">
+        <div class="bg-background-secondary rounded-lg p-4">
+          <p class="text-sm text-foreground-secondary">
+            {{ t("gateways.monitoring.uptime") }}
+          </p>
+          <p class="text-base font-medium text-foreground mt-1">
+            {{
+              formatUptime(
+                gateway.metadata?.metrics?.uptime || gateway.uptime_seconds,
+              )
+            }}
+          </p>
+        </div>
+        <div class="bg-background-secondary rounded-lg p-4">
+          <p class="text-sm text-foreground-secondary">
+            {{ t("gateways.monitoring.networkRecv") }}
+          </p>
+          <p class="text-base font-medium text-foreground mt-1">
+            {{ formatBytes(gateway.network_bytes_recv || 0) }}
+          </p>
+        </div>
+        <div class="bg-background-secondary rounded-lg p-4">
+          <p class="text-sm text-foreground-secondary">
+            {{ t("gateways.monitoring.networkSent") }}
+          </p>
+          <p class="text-base font-medium text-foreground mt-1">
+            {{ formatBytes(gateway.network_bytes_sent || 0) }}
           </p>
         </div>
       </div>
@@ -205,9 +279,7 @@ function formatDate(dateStr: string): string {
           class="flex items-center gap-2 text-violet-600 dark:text-violet-400 mb-2"
         >
           <ChatBubbleLeftRightIcon class="w-5 h-5" />
-          <span class="font-medium">{{
-            t("gateways.aiEnabled")
-          }}</span>
+          <span class="font-medium">{{ t("gateways.aiEnabled") }}</span>
         </div>
         <div class="grid grid-cols-2 gap-4 mt-3">
           <div>

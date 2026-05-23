@@ -464,6 +464,11 @@ class GatewayHeartbeat(models.Model):
         blank=True,
         help_text='Number of running processes'
     )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Detailed heartbeat metrics payload'
+    )
 
     class Meta:
         db_table = 'gateways_heartbeat'

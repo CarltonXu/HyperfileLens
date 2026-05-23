@@ -6,12 +6,15 @@ gateway communication, Kopia operations, and AI insights.
 """
 
 import json
+import logging
 import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from asgiref.sync import sync_to_async
 from audit_log.services import AuditService
+
+logger = logging.getLogger(__name__)
 
 
 class GatewayConsumer(AsyncWebsocketConsumer):
@@ -764,12 +767,28 @@ class GatewayConsumer(AsyncWebsocketConsumer):
                 gateway.disk_usage = metrics.get('disk_usage', 0)
                 gateway.network_bytes_sent = metrics.get('network_bytes_sent', gateway.network_bytes_sent)
                 gateway.network_bytes_recv = metrics.get('network_bytes_recv', gateway.network_bytes_recv)
+                gateway.network_interfaces = metrics.get('network_interfaces', {}).get('interfaces', gateway.network_interfaces)
                 gateway.cpu_cores = metrics.get('cpu_cores') or gateway.cpu_cores
                 gateway.memory_total = metrics.get('memory_total') or gateway.memory_total
                 gateway.disk_total = metrics.get('disk_total') or gateway.disk_total
+                gateway.metadata = {
+                    **(gateway.metadata or {}),
+                    'metrics': metrics,
+                }
             gateway.active_mounts = len(mounts)
             
             gateway.save()
+            logger.info(
+                "Gateway heartbeat gateway_id=%s cpu=%.1f memory=%.1f disk=%.1f mounts=%s interfaces=%s disk_io=%s metadata_keys=%s",
+                gateway.id,
+                metrics.get('cpu_usage', 0) or 0,
+                metrics.get('memory_usage', 0) or 0,
+                metrics.get('disk_usage', 0) or 0,
+                len(mounts),
+                len((metrics.get('network_interfaces') or {}).get('interfaces') or []),
+                len(metrics.get('disk_io') or []),
+                sorted(metrics.keys()),
+            )
             
             # Store heartbeat history
             GatewayHeartbeat.objects.create(
@@ -781,7 +800,8 @@ class GatewayConsumer(AsyncWebsocketConsumer):
                 network_bytes_sent=metrics.get('network_bytes_sent', 0),
                 network_bytes_recv=metrics.get('network_bytes_recv', 0),
                 load_average=metrics.get('load_average'),
-                process_count=metrics.get('process_count')
+                process_count=metrics.get('process_count'),
+                metadata=metrics,
             )
         except Gateway.DoesNotExist:
             pass
@@ -799,9 +819,14 @@ class GatewayConsumer(AsyncWebsocketConsumer):
             gateway.active_mounts = metrics.get('mount_count', metrics.get('active_mounts', 0))
             gateway.network_bytes_sent = metrics.get('network_bytes_sent', gateway.network_bytes_sent)
             gateway.network_bytes_recv = metrics.get('network_bytes_recv', gateway.network_bytes_recv)
+            gateway.network_interfaces = metrics.get('network_interfaces', {}).get('interfaces', gateway.network_interfaces)
             gateway.cpu_cores = metrics.get('cpu_cores') or gateway.cpu_cores
             gateway.memory_total = metrics.get('memory_total') or gateway.memory_total
             gateway.disk_total = metrics.get('disk_total') or gateway.disk_total
+            gateway.metadata = {
+                **(gateway.metadata or {}),
+                'metrics': metrics,
+            }
             gateway.save()
             
             GatewayHeartbeat.objects.create(
@@ -813,7 +838,8 @@ class GatewayConsumer(AsyncWebsocketConsumer):
                 network_bytes_sent=metrics.get('network_bytes_sent', 0),
                 network_bytes_recv=metrics.get('network_bytes_recv', 0),
                 load_average=metrics.get('load_average'),
-                process_count=metrics.get('process_count')
+                process_count=metrics.get('process_count'),
+                metadata=metrics,
             )
         except Gateway.DoesNotExist:
             pass
