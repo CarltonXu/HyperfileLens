@@ -173,6 +173,12 @@ class KopiaClient:
             )
             stdout, stderr = await proc.communicate()
             output = (stdout + stderr).decode()
+            logger.debug(
+                "Kopia repository connect completed type=%s returncode=%s output=%s",
+                repo_type,
+                proc.returncode,
+                self._truncate(output),
+            )
             if proc.returncode == 0 or 'already connected' in output.lower():
                 return {'status': 'success'}
             return {'status': 'error', 'message': output}
@@ -454,17 +460,26 @@ class KopiaClient:
             cmd_parts.extend(args)
         
         try:
+            logger.debug("Executing Kopia command args=%s", self._redact_args(cmd_parts))
             proc = await asyncio.create_subprocess_exec(
                 *cmd_parts,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await proc.communicate()
+            stdout_text = stdout.decode(errors='ignore')
+            stderr_text = stderr.decode(errors='ignore')
+            logger.debug(
+                "Kopia command completed returncode=%s stdout=%s stderr=%s",
+                proc.returncode,
+                self._truncate(stdout_text),
+                self._truncate(stderr_text),
+            )
             
             return {
                 'status': 'success' if proc.returncode == 0 else 'error',
-                'output': stdout.decode(),
-                'error': stderr.decode() if proc.returncode != 0 else None,
+                'output': stdout_text,
+                'error': stderr_text if proc.returncode != 0 else None,
                 'returncode': proc.returncode
             }
             
@@ -478,23 +493,40 @@ class KopiaClient:
 
     async def list_object(self, object_path: str) -> list[dict]:
         """List a Kopia object path."""
+        logger.debug("Listing Kopia object path=%s", object_path)
         json_result = await self._list_object_json(object_path)
         if json_result is not None:
+            logger.debug("Listed Kopia object path=%s format=json entries=%s", object_path, len(json_result))
             return json_result
-        return await self._list_object_text(object_path)
+        text_result = await self._list_object_text(object_path)
+        logger.debug("Listed Kopia object path=%s format=text entries=%s", object_path, len(text_result))
+        return text_result
 
     async def _list_object_json(self, object_path: str) -> Optional[list[dict]]:
+        args = [str(self.kopia_path), 'ls', '--json', '--long', object_path]
+        logger.debug("Executing Kopia ls json args=%s", self._redact_args(args))
         proc = await asyncio.create_subprocess_exec(
-            str(self.kopia_path), 'ls', '--json', '--long', object_path,
+            *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, _stderr = await proc.communicate()
+        stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
+            logger.debug(
+                "Kopia ls json failed path=%s returncode=%s stderr=%s",
+                object_path,
+                proc.returncode,
+                self._truncate(stderr.decode(errors='ignore')),
+            )
             return None
         try:
             payload = json.loads(stdout.decode() or '[]')
         except json.JSONDecodeError:
+            logger.debug(
+                "Kopia ls json parse failed path=%s stdout=%s",
+                object_path,
+                self._truncate(stdout.decode(errors='ignore')),
+            )
             return None
         if isinstance(payload, dict):
             items = payload.get('entries') or payload.get('items') or []
@@ -516,14 +548,25 @@ class KopiaClient:
         return result
 
     async def _list_object_text(self, object_path: str) -> list[dict]:
+        args = [str(self.kopia_path), 'ls', '--long', object_path]
+        logger.debug("Executing Kopia ls text args=%s", self._redact_args(args))
         proc = await asyncio.create_subprocess_exec(
-            str(self.kopia_path), 'ls', '--long', object_path,
+            *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
-            raise RuntimeError(stderr.decode() or stdout.decode())
+            stdout_text = stdout.decode(errors='ignore')
+            stderr_text = stderr.decode(errors='ignore')
+            logger.debug(
+                "Kopia ls text failed path=%s returncode=%s stdout=%s stderr=%s",
+                object_path,
+                proc.returncode,
+                self._truncate(stdout_text),
+                self._truncate(stderr_text),
+            )
+            raise RuntimeError(f"kopia ls failed path={object_path}: {stderr_text or stdout_text}")
         entries = []
         for raw in stdout.decode().splitlines():
             line = raw.strip()
@@ -577,6 +620,40 @@ class KopiaClient:
         except Exception as e:
             logger.debug("Error reading object text path=%s error=%s", object_path, e)
             return ''
+
+    @staticmethod
+    def _truncate(value: str, limit: int = 1200) -> str:
+        value = (value or '').strip()
+        if len(value) <= limit:
+            return value
+        return value[:limit] + '...<truncated>'
+
+    @staticmethod
+    def _redact_args(args: list[str]) -> list[str]:
+        redacted = []
+        skip_next = False
+        sensitive_flags = {
+            '--password',
+            '--access-key',
+            '--secret-access-key',
+            '--token',
+            '--server-control-password',
+        }
+        for arg in args:
+            if skip_next:
+                redacted.append('[REDACTED]')
+                skip_next = False
+                continue
+            if arg in sensitive_flags:
+                redacted.append(arg)
+                skip_next = True
+                continue
+            if any(arg.startswith(flag + '=') for flag in sensitive_flags):
+                key = arg.split('=', 1)[0]
+                redacted.append(f"{key}=[REDACTED]")
+                continue
+            redacted.append(arg)
+        return redacted
     
     async def get_stats(self) -> dict:
         """Get repository statistics."""

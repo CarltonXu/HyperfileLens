@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import timedelta
+import logging
 
 from django.db.models import Count, Sum
 from django.utils.dateparse import parse_datetime
@@ -12,6 +13,9 @@ from gateways.models import Gateway
 from ai_query.models import AIProvider
 
 from .models import SnapshotAIJob, SnapshotFileIndex, SnapshotIndexJob, SnapshotInsight
+
+
+logger = logging.getLogger(__name__)
 
 
 DOCUMENT_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.md', '.csv'}
@@ -88,6 +92,17 @@ def dispatch_snapshot_index(snapshot, user, gateway_id=None, force=False):
     kopia_snapshot_id = snapshot.kopia_snapshot_id or (snapshot.metadata or {}).get('referenced_snapshot_id', '')
     if not kopia_snapshot_id:
         raise ValueError('Snapshot ID is missing. Please resync snapshots before indexing')
+    logger.debug(
+        "Dispatching snapshot index snapshot_id=%s snapshot_name=%s task_id=%s repository_id=%s gateway_id=%s kopia_snapshot_id=%s object_id=%s force=%s",
+        snapshot.id,
+        snapshot.name,
+        snapshot.task_id,
+        snapshot.repository_id,
+        gateway.id,
+        kopia_snapshot_id,
+        object_id,
+        force,
+    )
     job = SnapshotIndexJob.objects.create(
         snapshot=snapshot,
         gateway=gateway,

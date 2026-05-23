@@ -28,6 +28,15 @@ class RepositoryStorageManager:
 
     async def prepare(self, repository: dict) -> RepositoryAccess:
         repo_type = (repository or {}).get('type') or 'filesystem'
+        logger.debug(
+            "Preparing repository storage id=%s type=%s path=%s server=%s export_path=%s mount_type=%s",
+            (repository or {}).get('id') or '',
+            repo_type,
+            (repository or {}).get('path') or '',
+            (repository or {}).get('server') or (repository or {}).get('nas_server') or '',
+            (repository or {}).get('export_path') or (repository or {}).get('nas_path') or '',
+            (repository or {}).get('mount_type') or (repository or {}).get('protocol') or '',
+        )
         if repo_type in ('nas', 'nfs', 'cifs', 'smb'):
             mount_path = await self.ensure_network_repository_mounted(repository)
             resolved = {
@@ -36,7 +45,19 @@ class RepositoryStorageManager:
                 'path': mount_path,
                 'mounted_path': mount_path,
             }
+            logger.debug(
+                "Repository storage prepared id=%s original_type=%s resolved_type=filesystem mounted_path=%s",
+                repository.get('id') or '',
+                repo_type,
+                mount_path,
+            )
             return RepositoryAccess(repository=resolved, mount_path=mount_path)
+        logger.debug(
+            "Repository storage does not require network mount id=%s type=%s path=%s",
+            (repository or {}).get('id') or '',
+            repo_type,
+            (repository or {}).get('path') or (repository or {}).get('url') or '',
+        )
         return RepositoryAccess(repository=repository)
 
     async def ensure_network_repository_mounted(self, repository: dict) -> str:
@@ -45,6 +66,11 @@ class RepositoryStorageManager:
             raise ValueError('repository id is required for network repository mount')
         mount_path = str(self.storage_base / f"repository-{repo_id[:8]}")
         Path(mount_path).mkdir(parents=True, exist_ok=True)
+        logger.debug(
+            "Ensuring network repository mount id=%s mount_path=%s",
+            repository.get('id') or '',
+            mount_path,
+        )
 
         if await self.is_mounted(mount_path):
             logger.info("Repository storage already mounted path=%s", mount_path)
@@ -59,6 +85,12 @@ class RepositoryStorageManager:
         ).lower()
         if mount_type == 'smb':
             mount_type = 'cifs'
+        logger.debug(
+            "Resolved repository mount type id=%s mount_type=%s mount_path=%s",
+            repository.get('id') or '',
+            mount_type,
+            mount_path,
+        )
 
         if mount_type == 'cifs':
             await self.mount_cifs(repository, mount_path)
@@ -70,6 +102,7 @@ class RepositoryStorageManager:
         return mount_path
 
     async def is_mounted(self, mount_path: str) -> bool:
+        logger.debug("Checking mount status path=%s", mount_path)
         proc = await asyncio.create_subprocess_exec(
             'findmnt',
             '-rn',
@@ -78,8 +111,16 @@ class RepositoryStorageManager:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await proc.communicate()
-        return proc.returncode == 0
+        stdout, stderr = await proc.communicate()
+        mounted = proc.returncode == 0
+        logger.debug(
+            "Mount status path=%s mounted=%s stdout=%s stderr=%s",
+            mount_path,
+            mounted,
+            stdout.decode(errors='ignore').strip(),
+            stderr.decode(errors='ignore').strip(),
+        )
+        return mounted
 
     async def mount_nfs(self, repository: dict, mount_path: str) -> None:
         server = repository.get('server') or repository.get('nas_server') or ''
@@ -98,6 +139,7 @@ class RepositoryStorageManager:
         if options:
             args.extend(['-o', options])
         args.extend([source, mount_path])
+        logger.debug("Mount NFS repository source=%s mount_path=%s options=%s", source, mount_path, options or '')
         await self.run_mount_command(args, mount_path)
 
     async def mount_cifs(self, repository: dict, mount_path: str) -> None:
@@ -125,6 +167,13 @@ class RepositoryStorageManager:
         if options:
             args.extend(['-o', ','.join(options)])
         args.extend([source, mount_path])
+        logger.debug(
+            "Mount CIFS repository source=%s mount_path=%s has_credentials=%s options=%s",
+            source,
+            mount_path,
+            bool(credential_file),
+            raw_options or '',
+        )
         await self.run_mount_command(args, mount_path)
 
     def write_cifs_credentials(self, repository: dict) -> str:
@@ -141,6 +190,7 @@ class RepositoryStorageManager:
             encoding='utf-8',
         )
         os.chmod(credential_file, 0o600)
+        logger.debug("Wrote CIFS credential file path=%s username_set=%s password_set=%s", credential_file, bool(username), bool(password))
         return str(credential_file)
 
     async def run_mount_command(self, args: list[str], mount_path: str) -> None:
@@ -152,6 +202,12 @@ class RepositoryStorageManager:
         )
         stdout, stderr = await proc.communicate()
         output = (stdout + stderr).decode().strip()
+        logger.debug(
+            "Mount command completed path=%s returncode=%s output=%s",
+            mount_path,
+            proc.returncode,
+            output,
+        )
         if proc.returncode != 0:
             raise RuntimeError(output or f"mount failed for {mount_path}")
         logger.info("Mounted repository storage path=%s", mount_path)

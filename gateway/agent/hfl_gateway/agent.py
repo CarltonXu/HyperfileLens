@@ -443,6 +443,8 @@ class GatewayAgent:
         task_id = data.get('task_id')
         job_id = data.get('job_id')
         object_id = data.get('object_id')
+        snapshot_id = data.get('snapshot_id')
+        kopia_snapshot_id = data.get('kopia_snapshot_id')
         repository = data.get('repository') or {}
         password = data.get('password') or ''
 
@@ -450,12 +452,38 @@ class GatewayAgent:
             await self._ws.send(json.dumps(message))
 
         try:
+            logger.debug(
+                "Snapshot indexing command received task_id=%s job_id=%s snapshot_id=%s kopia_snapshot_id=%s object_id=%s repository_id=%s repository_type=%s repository_path=%s",
+                task_id,
+                job_id,
+                snapshot_id,
+                kopia_snapshot_id,
+                object_id,
+                repository.get('id') or '',
+                repository.get('type') or '',
+                repository.get('path') or repository.get('url') or repository.get('export_path') or repository.get('nas_path') or '',
+            )
             if not job_id or not object_id:
                 raise ValueError('job_id and object_id are required')
             repository_access = await self.storage.prepare(repository)
+            logger.debug(
+                "Snapshot indexing repository access resolved task_id=%s job_id=%s mount_path=%s repository_type=%s repository_path=%s",
+                task_id,
+                job_id,
+                repository_access.mount_path or '',
+                repository_access.repository.get('type') or '',
+                repository_access.repository.get('path') or repository_access.repository.get('url') or '',
+            )
             connect_result = await self.kopia.connect_repository_config(
                 repository_access.repository,
                 password,
+            )
+            logger.debug(
+                "Snapshot indexing repository connect result task_id=%s job_id=%s status=%s message=%s",
+                task_id,
+                job_id,
+                connect_result.get('status'),
+                connect_result.get('message') or '',
             )
             if connect_result.get('status') != 'success':
                 raise RuntimeError(connect_result.get('message') or 'repository connect failed')
@@ -487,7 +515,33 @@ class GatewayAgent:
 
             async def walk(object_path: str, relative_path: str = ''):
                 nonlocal indexed_files, indexed_bytes, batch
-                entries = await self.kopia.list_object(object_path)
+                logger.debug(
+                    "Index walk list start job_id=%s object_path=%s relative_path=%s indexed_files=%s",
+                    job_id,
+                    object_path,
+                    relative_path or '/',
+                    indexed_files,
+                )
+                try:
+                    entries = await self.kopia.list_object(object_path)
+                except Exception as exc:
+                    logger.exception(
+                        "Index walk list failed job_id=%s object_path=%s relative_path=%s indexed_files=%s",
+                        job_id,
+                        object_path,
+                        relative_path or '/',
+                        indexed_files,
+                    )
+                    raise RuntimeError(
+                        f"failed to list snapshot object path={object_path} relative_path={relative_path or '/'}: {exc}"
+                    ) from exc
+                logger.debug(
+                    "Index walk list completed job_id=%s object_path=%s relative_path=%s entries=%s",
+                    job_id,
+                    object_path,
+                    relative_path or '/',
+                    len(entries),
+                )
                 for entry in entries:
                     name = entry['name']
                     child_relative = f"{relative_path.rstrip('/')}/{name}".strip('/')
@@ -520,10 +574,22 @@ class GatewayAgent:
                             'current_path': child_relative,
                         })
                     if entry.get('is_directory'):
+                        logger.debug(
+                            "Index walk descend job_id=%s child_object_path=%s child_relative=%s",
+                            job_id,
+                            f"{object_path.rstrip('/')}/{name}",
+                            child_relative,
+                        )
                         await walk(f"{object_path.rstrip('/')}/{name}", child_relative)
 
             await walk(object_id)
             await flush()
+            logger.debug(
+                "Snapshot indexing completed job_id=%s total_files=%s total_bytes=%s",
+                job_id,
+                indexed_files,
+                indexed_bytes,
+            )
             await send({
                 'type': 'index_completed',
                 'task_id': task_id,
@@ -536,7 +602,15 @@ class GatewayAgent:
                 'indexed_bytes': indexed_bytes,
             })
         except Exception as e:
-            logger.error(f"Snapshot indexing failed: {e}")
+            logger.exception(
+                "Snapshot indexing failed task_id=%s job_id=%s snapshot_id=%s kopia_snapshot_id=%s object_id=%s error=%s",
+                task_id,
+                job_id,
+                snapshot_id,
+                kopia_snapshot_id,
+                object_id,
+                e,
+            )
             await send({
                 'type': 'index_failed',
                 'task_id': task_id,
