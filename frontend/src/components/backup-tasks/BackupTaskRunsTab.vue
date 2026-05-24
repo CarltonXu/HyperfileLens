@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { ListBulletIcon } from "@heroicons/vue/24/outline";
+import {
+  ArrowTopRightOnSquareIcon,
+  ListBulletIcon,
+} from "@heroicons/vue/24/outline";
 
 defineProps<{
   runs: any[];
@@ -8,6 +11,10 @@ defineProps<{
   getStatusColor: (status: string) => string;
   formatDateTime: (value?: string | null) => string;
   runDuration: (run: any) => string;
+}>();
+
+const emit = defineEmits<{
+  openManagement: [run: any];
 }>();
 
 const { t } = useI18n();
@@ -40,7 +47,13 @@ const { t } = useI18n();
       <div
         v-for="run in runs"
         :key="run.id"
-        class="rounded-lg border border-border bg-card px-3 py-2.5 transition-colors hover:bg-hover"
+        class="cursor-pointer rounded-lg border border-border bg-card px-3 py-2.5 transition-colors hover:border-primary hover:bg-hover"
+        role="button"
+        tabindex="0"
+        :title="t('taskManagement.openTask')"
+        @click="emit('openManagement', run)"
+        @keydown.enter.prevent="emit('openManagement', run)"
+        @keydown.space.prevent="emit('openManagement', run)"
       >
         <div class="flex flex-col gap-2">
           <div class="flex items-start justify-between gap-3">
@@ -51,8 +64,13 @@ const { t } = useI18n();
                 <ListBulletIcon class="h-4 w-4" />
               </span>
               <div class="min-w-0">
-                <p class="truncate text-sm font-medium text-foreground">
+                <p
+                  class="inline-flex max-w-full items-center gap-1.5 truncate text-sm font-medium text-foreground"
+                >
                   {{ run.name }}
+                  <ArrowTopRightOnSquareIcon
+                    class="h-3.5 w-3.5 shrink-0 text-foreground-muted"
+                  />
                 </p>
                 <p class="mt-0.5 truncate text-xs text-foreground-secondary">
                   {{ formatDateTime(run.created_at) }}

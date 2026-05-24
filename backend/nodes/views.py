@@ -1540,6 +1540,54 @@ def build_global_task_items(request):
             'error_message': task.error_message,
         })
 
+    orphan_run_qs = BackupTaskRun.objects.select_related(
+        'task',
+        'selected_proxy',
+        'repository',
+        'source_resource',
+    ).filter(
+        proxy_task__isnull=True,
+    ).order_by('-created_at')
+    if not user.is_superuser:
+        if getattr(user, 'tenant', None):
+            orphan_run_qs = orphan_run_qs.filter(task__tenant=user.tenant)
+        else:
+            orphan_run_qs = orphan_run_qs.filter(task__user=user)
+
+    for run in orphan_run_qs:
+        started_at = run.started_at or run.dispatched_at
+        completed_at = run.completed_at
+        if started_at and completed_at:
+            duration_seconds = (completed_at - started_at).total_seconds()
+        elif started_at:
+            duration_seconds = (timezone.now() - started_at).total_seconds()
+        else:
+            duration_seconds = None
+
+        append_task({
+            'id': str(run.id),
+            'source': 'backup',
+            'name': f"Backup Run - {run.task.name}",
+            'task_type': run.task.task_type,
+            'status': run.status,
+            'progress': run.progress,
+            'message': run.message or run.error_message or 'Backup run is waiting for proxy dispatch',
+            'proxy_id': str(run.selected_proxy_id) if run.selected_proxy_id else None,
+            'proxy_name': run.selected_proxy.name if run.selected_proxy_id else '',
+            'repository_id': str(run.repository_id) if run.repository_id else None,
+            'source_resource_id': str(run.source_resource_id) if run.source_resource_id else None,
+            'created_at': run.created_at,
+            'started_at': started_at,
+            'completed_at': completed_at,
+            'duration_seconds': duration_seconds,
+            'parameters': run.parameters,
+            'result': run.result,
+            'error_message': run.error_message,
+            'run_id': str(run.id),
+            'proxy_task_id': None,
+            'management_kind': 'backup_run',
+        })
+
     backup_qs = BackupTask.objects.select_related('source_resource', 'target_repository', 'user').order_by('-created_at')
     if not user.is_superuser:
         if getattr(user, 'tenant', None):
@@ -1790,7 +1838,7 @@ class TaskManagementViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         """Cancel a task through the global task endpoint."""
-        from backup_tasks.models import BackupTask
+        from backup_tasks.models import BackupTask, BackupTaskRun
         from recovery_tasks.models import RecoveryTask
 
         def user_can_access_proxy_task(proxy_task):
@@ -1828,6 +1876,35 @@ class TaskManagementViewSet(viewsets.ViewSet):
             if task.proxy:
                 invalidate_cache(str(task.proxy.id))
             return Response(ProxyTaskSerializer(task).data)
+
+        backup_run = BackupTaskRun.objects.filter(id=pk).select_related('task', 'selected_proxy').first()
+        if backup_run:
+            backup_task = backup_run.task
+            if not request.user.is_superuser:
+                if getattr(request.user, 'tenant', None):
+                    if backup_task.tenant_id != request.user.tenant_id:
+                        return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+                elif backup_task.user_id != request.user.id:
+                    return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+            if backup_run.status not in ['pending', 'dispatched', 'running']:
+                return Response({'error': 'Task is not cancellable'}, status=status.HTTP_400_BAD_REQUEST)
+
+            now = timezone.now()
+            reason = request.data.get('reason', 'Task cancelled by user')
+            backup_run.status = BackupTaskRun.STATUS_CANCELLED
+            backup_run.message = reason
+            backup_run.completed_at = now
+            backup_run.save(update_fields=['status', 'message', 'completed_at'])
+            if backup_task.status in [BackupTask.STATUS_PENDING, BackupTask.STATUS_RUNNING]:
+                backup_task.status = BackupTask.STATUS_CANCELLED
+                backup_task.status_message = reason
+                backup_task.completed_at = now
+                backup_task.last_run_status = BackupTaskRun.STATUS_CANCELLED
+                backup_task.save(update_fields=[
+                    'status', 'status_message', 'completed_at',
+                    'last_run_status', 'updated_at',
+                ])
+            return Response({'message': 'Task cancelled', 'task_id': str(backup_run.id)})
 
         backup_task = BackupTask.objects.filter(id=pk).select_related('source_resource__bound_node').first()
         if backup_task:

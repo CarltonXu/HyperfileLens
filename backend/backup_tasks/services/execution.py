@@ -38,10 +38,14 @@ def dispatch_backup_task(task, *, trigger_type=BackupTaskRun.TRIGGER_MANUAL, for
     if not source_path:
         raise BackupTaskExecutionError('Backup task has no source path to execute')
 
-    repository_password = repository_password or task.target_repository.get_kopia_password()
+    if repository_password:
+        task.target_repository.set_kopia_password(repository_password)
+        task.target_repository.save(update_fields=['kopia_password', 'updated_at'])
+    else:
+        repository_password = task.target_repository.get_kopia_password()
     if not repository_password:
         raise BackupTaskExecutionError(
-            'Repository password is not saved. Please save the Kopia repository password before executing backup tasks.'
+            'Repository password is not saved or cannot be decrypted. Please re-save the Kopia repository password before executing scheduled backup tasks.'
         )
 
     effective_policy = build_effective_policy(task, source_path)
@@ -56,6 +60,7 @@ def dispatch_backup_task(task, *, trigger_type=BackupTaskRun.TRIGGER_MANUAL, for
         repository=task.target_repository,
         source_resource=task.source_resource,
     )
+    proxy_task = None
 
     try:
         proxy_task = create_repository_proxy_task(
@@ -91,7 +96,23 @@ def dispatch_backup_task(task, *, trigger_type=BackupTaskRun.TRIGGER_MANUAL, for
         run.completed_at = timezone.now()
         run.save(update_fields=['status', 'error_message', 'completed_at'])
         raise BackupTaskExecutionError(str(exc)) from exc
-    proxy_task.dispatch()
+    except Exception as exc:
+        run.status = BackupTaskRun.STATUS_FAILED
+        run.error_message = f'Failed to create proxy task: {exc}'
+        run.completed_at = timezone.now()
+        run.save(update_fields=['status', 'error_message', 'completed_at'])
+        raise BackupTaskExecutionError(run.error_message) from exc
+
+    try:
+        proxy_task.dispatch()
+    except Exception as exc:
+        proxy_task.fail(f'Failed to dispatch proxy task: {exc}')
+        run.status = BackupTaskRun.STATUS_FAILED
+        run.proxy_task = proxy_task
+        run.error_message = f'Failed to dispatch proxy task: {exc}'
+        run.completed_at = timezone.now()
+        run.save(update_fields=['status', 'proxy_task', 'error_message', 'completed_at'])
+        raise BackupTaskExecutionError(run.error_message) from exc
 
     payload = {
         'task_id': str(proxy_task.id),
@@ -125,27 +146,33 @@ def dispatch_backup_task(task, *, trigger_type=BackupTaskRun.TRIGGER_MANUAL, for
         'timestamp': timezone.now().isoformat(),
     }
 
-    sent = ProxyService.send_to_proxy(
-        str(execution_node.id),
-        {
-            'type': 'backup',
-            'id': str(proxy_task.id),
-            'timestamp': timezone.now().isoformat(),
-            'payload': payload,
-        },
-    )
+    try:
+        sent = ProxyService.send_to_proxy(
+            str(execution_node.id),
+            {
+                'type': 'backup',
+                'id': str(proxy_task.id),
+                'timestamp': timezone.now().isoformat(),
+                'payload': payload,
+            },
+        )
+    except Exception as exc:
+        sent = False
+        send_error = f'Failed to send backup command to proxy: {exc}'
+    else:
+        send_error = 'Failed to send backup command to proxy'
     if not sent:
-        proxy_task.fail('Failed to send backup command to proxy')
+        proxy_task.fail(send_error)
         run.status = BackupTaskRun.STATUS_FAILED
-        run.error_message = 'Failed to send backup command to proxy'
+        run.error_message = send_error
         run.proxy_task = proxy_task
         run.completed_at = timezone.now()
         run.save(update_fields=['status', 'error_message', 'proxy_task', 'completed_at'])
-        raise BackupTaskExecutionError('Failed to send backup command to proxy')
+        raise BackupTaskExecutionError(send_error)
 
     run.proxy_task = proxy_task
     run.status = BackupTaskRun.STATUS_DISPATCHED
-    run.parameters = payload
+    run.parameters = sanitize_task_payload(payload)
     run.dispatched_at = timezone.now()
     run.save(update_fields=['proxy_task', 'status', 'parameters', 'dispatched_at'])
 
@@ -163,6 +190,18 @@ def dispatch_backup_task(task, *, trigger_type=BackupTaskRun.TRIGGER_MANUAL, for
     ])
 
     return run, proxy_task
+
+
+def sanitize_task_payload(payload):
+    sanitized = copy.deepcopy(payload or {})
+    for key in ('password', 'repository_password', 'secret_key', 'access_key', 'api_key', 'token'):
+        if key in sanitized:
+            sanitized[key] = '[REDACTED]'
+    repository = sanitized.get('repository') or {}
+    for key in ('password', 'secret_key', 'access_key', 'api_key', 'token'):
+        if key in repository:
+            repository[key] = '[REDACTED]' if repository.get(key) else ''
+    return sanitized
 
 
 def select_execution_node(task):

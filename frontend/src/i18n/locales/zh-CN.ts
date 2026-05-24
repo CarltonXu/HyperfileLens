@@ -959,6 +959,7 @@ export default {
       partial: "部分成功",
       failed: "失败",
       cancelled: "已取消",
+      timeout: "超时",
     },
 
     form: {
@@ -2448,6 +2449,7 @@ export default {
     node: "节点",
     time: "时间",
     cancel: "取消任务",
+    openTask: "在任务管理中查看",
     confirmCancel: "确定要取消这个任务吗？",
     cancelReason: "用户手动取消任务",
     stats: {
@@ -2466,6 +2468,7 @@ export default {
       pending: "待处理",
       running: "运行中",
       completed: "已完成",
+      partial: "部分成功",
       failed: "失败",
       cancelled: "已取消",
       accepted: "已接受",

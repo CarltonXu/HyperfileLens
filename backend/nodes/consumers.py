@@ -1253,7 +1253,8 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                 task.status = ProxyTask.TaskStatus.FAILED
                 task.error_message = error or ''
             task.result = result
-            task.progress = 100
+            if not cancelled:
+                task.progress = 100
             task.completed_at = timezone.now()
             task.save()
             run = BackupTaskRun.objects.filter(proxy_task=task).first()
@@ -1284,7 +1285,7 @@ class ProxyConsumer(AsyncWebsocketConsumer):
                     backup_task = BackupTask.objects.get(id=backup_task_id)
                     if cancelled:
                         backup_task.status = BackupTask.STATUS_CANCELLED
-                        backup_task.progress = task.progress
+                        backup_task.progress = min(task.progress or backup_task.progress or 0, 99)
                         backup_task.status_message = error or 'Backup cancelled'
                         backup_task.last_run_status = BackupTaskRun.STATUS_CANCELLED
                         backup_task.completed_at = timezone.now()

@@ -104,7 +104,12 @@ class GatewayAgent:
                 async for message in ws:
                     await self._handle_message(message)
             finally:
+                self._connected = False
                 heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
     
     async def _register(self):
         """Send registration message."""
@@ -189,6 +194,13 @@ class GatewayAgent:
                 
             except Exception as e:
                 logger.error(f"Heartbeat error: {e}")
+                self._connected = False
+                if self._ws:
+                    try:
+                        await self._ws.close()
+                    except Exception:
+                        pass
+                break
             
             await asyncio.sleep(self.config.heartbeat_interval)
     
@@ -499,7 +511,15 @@ class GatewayAgent:
 
             indexed_files = 0
             indexed_bytes = 0
+            indexed_dirs = 0
+            failed_files = 0
+            failed_dirs = 0
+            failed_paths: list[dict] = []
             batch: list[dict] = []
+            last_progress_time = 0
+            progress_interval = 2  # seconds between progress updates
+            max_concurrent_dirs = 8  # limit concurrent directory processing
+            dir_semaphore: asyncio.Semaphore | None = None
 
             async def flush():
                 nonlocal batch
@@ -513,8 +533,34 @@ class GatewayAgent:
                 })
                 batch = []
 
+            async def send_progress():
+                nonlocal last_progress_time
+                import time
+                current_time = time.time()
+                if current_time - last_progress_time < progress_interval:
+                    return
+                last_progress_time = current_time
+                # Estimate progress based on indexed files vs a running estimate
+                # Since we don't know total ahead of time, use a sigmoid-like curve
+                # that approaches 100% as we process more, with diminishing returns
+                estimated_total = max(indexed_files * 1.5, indexed_dirs * 10)
+                progress = min(99, int((indexed_files / estimated_total) * 100)) if estimated_total > 0 else 1
+                await send({
+                    'type': 'index_progress',
+                    'task_id': task_id,
+                    'job_id': job_id,
+                    'status': 'running',
+                    'progress': max(progress, 1),
+                    'indexed_files': indexed_files,
+                    'indexed_bytes': indexed_bytes,
+                    'indexed_dirs': indexed_dirs,
+                    'failed_files': failed_files,
+                    'failed_dirs': failed_dirs,
+                    'current_path': '/',
+                })
+
             async def walk(object_path: str, relative_path: str = ''):
-                nonlocal indexed_files, indexed_bytes, batch
+                nonlocal indexed_files, indexed_bytes, indexed_dirs, failed_files, failed_dirs, failed_paths, batch, dir_semaphore
                 logger.debug(
                     "Index walk list start job_id=%s object_path=%s relative_path=%s indexed_files=%s",
                     job_id,
@@ -525,16 +571,31 @@ class GatewayAgent:
                 try:
                     entries = await self.kopia.list_object(object_path)
                 except Exception as exc:
-                    logger.exception(
-                        "Index walk list failed job_id=%s object_path=%s relative_path=%s indexed_files=%s",
+                    logger.warning(
+                        "Index walk list failed job_id=%s object_path=%s relative_path=%s indexed_files=%s error=%s",
                         job_id,
                         object_path,
                         relative_path or '/',
                         indexed_files,
+                        exc,
                     )
-                    raise RuntimeError(
-                        f"failed to list snapshot object path={object_path} relative_path={relative_path or '/'}: {exc}"
-                    ) from exc
+                    # Report failure but continue processing
+                    failed_dirs += 1
+                    failed_paths.append({
+                        'path': relative_path or '/',
+                        'object_path': object_path,
+                        'error': str(exc),
+                    })
+                    await send({
+                        'type': 'index_error',
+                        'task_id': task_id,
+                        'job_id': job_id,
+                        'error_type': 'directory_access_failed',
+                        'path': relative_path or '/',
+                        'object_path': object_path,
+                        'error': str(exc),
+                    })
+                    return
                 logger.debug(
                     "Index walk list completed job_id=%s object_path=%s relative_path=%s entries=%s",
                     job_id,
@@ -542,6 +603,10 @@ class GatewayAgent:
                     relative_path or '/',
                     len(entries),
                 )
+
+                # Collect subdirectory walks for concurrent processing
+                subdir_tasks: list[asyncio.Task] = []
+
                 for entry in entries:
                     name = entry['name']
                     child_relative = f"{relative_path.rstrip('/')}/{name}".strip('/')
@@ -549,46 +614,99 @@ class GatewayAgent:
                     if not entry.get('is_directory') and '.' in name:
                         extension = '.' + name.rsplit('.', 1)[-1].lower()
                     size = int(entry.get('size') or 0)
-                    indexed_files += 1
-                    indexed_bytes += size
-                    batch.append({
-                        'path': child_relative,
-                        'name': name,
-                        'extension': extension,
-                        'size': size,
-                        'modified_time': entry.get('modified_time'),
-                        'is_directory': bool(entry.get('is_directory')),
-                        'depth': child_relative.count('/'),
-                    })
-                    if len(batch) >= 500:
-                        await flush()
-                    if indexed_files % 1000 == 0:
+                    is_dir = entry.get('is_directory')
+                    try:
+                        if is_dir:
+                            indexed_dirs += 1
+                        else:
+                            indexed_files += 1
+                        indexed_bytes += size
+                        batch.append({
+                            'path': child_relative,
+                            'name': name,
+                            'extension': extension,
+                            'size': size,
+                            'modified_time': entry.get('modified_time'),
+                            'is_directory': bool(is_dir),
+                            'depth': child_relative.count('/'),
+                        })
+                    except Exception as exc:
+                        logger.warning(
+                            "Index file entry failed job_id=%s name=%s child_relative=%s error=%s",
+                            job_id,
+                            name,
+                            child_relative,
+                            exc,
+                        )
+                        failed_files += 1
+                        failed_paths.append({
+                            'path': child_relative,
+                            'object_path': f"{object_path.rstrip('/')}/{name}",
+                            'error': str(exc),
+                        })
                         await send({
-                            'type': 'index_progress',
+                            'type': 'index_error',
                             'task_id': task_id,
                             'job_id': job_id,
-                            'status': 'running',
-                            'progress': 50,
-                            'indexed_files': indexed_files,
-                            'indexed_bytes': indexed_bytes,
-                            'current_path': child_relative,
+                            'error_type': 'file_entry_failed',
+                            'path': child_relative,
+                            'error': str(exc),
                         })
-                    if entry.get('is_directory'):
+                        continue
+                    if len(batch) >= 500:
+                        await flush()
+                    await send_progress()
+                    if is_dir:
                         logger.debug(
                             "Index walk descend job_id=%s child_object_path=%s child_relative=%s",
                             job_id,
                             f"{object_path.rstrip('/')}/{name}",
                             child_relative,
                         )
-                        await walk(f"{object_path.rstrip('/')}/{name}", child_relative)
+                        # Create task for concurrent execution
+                        if dir_semaphore is None:
+                            dir_semaphore = asyncio.Semaphore(max_concurrent_dirs)
+
+                        async def walk_with_semaphore(obj_path: str, rel_path: str, sem: asyncio.Semaphore):
+                            async with sem:
+                                await walk(obj_path, rel_path)
+
+                        task = asyncio.create_task(
+                            walk_with_semaphore(
+                                f"{object_path.rstrip('/')}/{name}",
+                                child_relative,
+                                dir_semaphore,
+                            )
+                        )
+                        subdir_tasks.append(task)
+
+                # Process subdirectories concurrently
+                if subdir_tasks:
+                    await asyncio.gather(*subdir_tasks)
 
             await walk(object_id)
             await flush()
+            # Send final progress update
+            await send({
+                'type': 'index_progress',
+                'task_id': task_id,
+                'job_id': job_id,
+                'status': 'running',
+                'progress': 100,
+                'indexed_files': indexed_files,
+                'indexed_bytes': indexed_bytes,
+                'indexed_dirs': indexed_dirs,
+                'failed_files': failed_files,
+                'failed_dirs': failed_dirs,
+                'current_path': '/',
+            })
             logger.debug(
-                "Snapshot indexing completed job_id=%s total_files=%s total_bytes=%s",
+                "Snapshot indexing completed job_id=%s total_files=%s total_bytes=%s failed_files=%s failed_dirs=%s",
                 job_id,
                 indexed_files,
                 indexed_bytes,
+                failed_files,
+                failed_dirs,
             )
             await send({
                 'type': 'index_completed',
@@ -600,6 +718,11 @@ class GatewayAgent:
                 'indexed_files': indexed_files,
                 'total_bytes': indexed_bytes,
                 'indexed_bytes': indexed_bytes,
+                'indexed_dirs': indexed_dirs,
+                'failed_files': failed_files,
+                'failed_dirs': failed_dirs,
+                'failed_paths': failed_paths[:100],  # Send first 100 failures
+                'has_more_failures': len(failed_paths) > 100,
             })
         except Exception as e:
             logger.exception(

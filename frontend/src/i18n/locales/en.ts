@@ -983,6 +983,7 @@ export default {
       partial: "Partial Success",
       failed: "Failed",
       cancelled: "Cancelled",
+      timeout: "Timeout",
     },
 
     form: {
@@ -2559,6 +2560,7 @@ export default {
     node: "Node",
     time: "Time",
     cancel: "Cancel Task",
+    openTask: "View in Task Management",
     confirmCancel: "Are you sure you want to cancel this task?",
     cancelReason: "Task cancelled by user",
     stats: {
@@ -2577,6 +2579,7 @@ export default {
       pending: "Pending",
       running: "Running",
       completed: "Completed",
+      partial: "Partial Success",
       failed: "Failed",
       cancelled: "Cancelled",
       accepted: "Accepted",

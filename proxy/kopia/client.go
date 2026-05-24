@@ -219,6 +219,28 @@ func (c *Client) ConnectRepo(repoConfig map[string]interface{}, password string)
 	return nil
 }
 
+// CheckRepositoryClock validates repository maintenance metadata against the local clock.
+func (c *Client) CheckRepositoryClock(password string) error {
+	args := []string{"maintenance", "info", "--password", password}
+	logger.Debug("Executing kopia repository clock preflight", map[string]interface{}{
+		"args": sanitizeArgs(args),
+	})
+	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
+	outputText := string(output)
+	if IsClockSkewError(outputText) {
+		return FormatClockSkewError(outputText)
+	}
+	if err != nil {
+		logger.Warn("Kopia repository clock preflight failed without clock skew signature; continuing", map[string]interface{}{
+			"error":  err.Error(),
+			"output": outputText,
+		})
+		return nil
+	}
+	logger.Debug("Kopia repository clock preflight completed", nil)
+	return nil
+}
+
 // ApplyPolicy applies the resolved Kopia policy for a backup source before snapshot creation.
 func (c *Client) ApplyPolicy(effectivePolicy map[string]interface{}, sourcePath, password string) error {
 	if len(effectivePolicy) == 0 {
@@ -317,6 +339,9 @@ func (c *Client) ApplyPolicy(effectivePolicy map[string]interface{}, sourcePath,
 	})
 	output, err := exec.CommandContext(context.Background(), c.binaryPath, args...).CombinedOutput()
 	if err != nil {
+		if IsClockSkewError(string(output)) {
+			return FormatClockSkewError(string(output))
+		}
 		return fmt.Errorf("failed to apply Kopia policy: %w, output: %s", err, string(output))
 	}
 	return nil
@@ -430,13 +455,15 @@ func (c *Client) Backup(taskID, sourcePath, password string) (*BackupResult, err
 func (c *Client) BackupWithProgress(taskID, sourcePath, password string, onProgress func(BackupProgress)) (*BackupResult, error) {
 	startedAt := time.Now()
 	args := []string{"snapshot", "create", sourcePath}
+	ctx, cleanup := c.registerTaskContext(taskID)
+	defer cleanup()
 
 	logger.Debug("Executing kopia snapshot create with streaming progress", map[string]interface{}{
 		"task_id":     taskID,
 		"source_path": sourcePath,
 	})
 
-	cmd := exec.CommandContext(context.Background(), c.binaryPath, args...)
+	cmd := exec.CommandContext(ctx, c.binaryPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open kopia stdout: %w", err)
@@ -491,6 +518,16 @@ func (c *Client) BackupWithProgress(taskID, sourcePath, password string, onProgr
 	waitErr := cmd.Wait()
 	output := outputBuilder.String()
 	if waitErr != nil {
+		if ctx.Err() == context.Canceled {
+			logger.Info("Kopia backup cancelled", map[string]interface{}{
+				"task_id":     taskID,
+				"source_path": sourcePath,
+			})
+			return nil, ctx.Err()
+		}
+		if IsClockSkewError(output) {
+			return nil, FormatClockSkewError(output)
+		}
 		logger.Error("Kopia backup failed", map[string]interface{}{
 			"task_id":     taskID,
 			"source_path": sourcePath,
@@ -1543,6 +1580,43 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// IsClockSkewError detects Kopia repository/local clock skew failures.
+func IsClockSkewError(output string) bool {
+	lowered := strings.ToLower(output)
+	return strings.Contains(lowered, "clock skew detected") ||
+		strings.Contains(lowered, "local clock is out of sync with repository timestamp")
+}
+
+// FormatClockSkewError converts Kopia's maintenance clock skew output into a clear operator action.
+func FormatClockSkewError(output string) error {
+	localTime := firstRegexGroup(output, `local:\s*([^\n]+?)\s+repository:`)
+	repositoryTime := firstRegexGroup(output, `repository:\s*([^\n]+?)\s+skew:`)
+	skew := firstRegexGroup(output, `skew:\s*([^\)\n]+)`)
+	details := []string{
+		"Kopia repository clock skew detected.",
+		"The local node clock and repository maintenance timestamp differ by more than Kopia allows.",
+		"Synchronize time on all Proxy/Gateway/repository nodes with NTP/chrony, then retry the task.",
+	}
+	if localTime != "" {
+		details = append(details, "local="+strings.TrimSpace(localTime))
+	}
+	if repositoryTime != "" {
+		details = append(details, "repository="+strings.TrimSpace(repositoryTime))
+	}
+	if skew != "" {
+		details = append(details, "skew="+strings.TrimSpace(skew))
+	}
+	return fmt.Errorf(strings.Join(details, " "))
+}
+
+func firstRegexGroup(value, pattern string) string {
+	match := regexp.MustCompile(pattern).FindStringSubmatch(value)
+	if len(match) < 2 {
+		return ""
+	}
+	return match[1]
+}
+
 func (c *Client) registerTaskContext(taskID string) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.mu.Lock()
@@ -1565,8 +1639,15 @@ func (c *Client) Cancel(taskID string) {
 	cancel := c.taskCancels[taskID]
 	c.mu.Unlock()
 	if cancel != nil {
+		logger.Debug("Cancelling Kopia task context", map[string]interface{}{
+			"task_id": taskID,
+		})
 		cancel()
+		return
 	}
+	logger.Warn("No cancellable Kopia task context found", map[string]interface{}{
+		"task_id": taskID,
+	})
 }
 
 // SetCompression configures compression settings

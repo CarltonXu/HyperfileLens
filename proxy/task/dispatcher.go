@@ -415,6 +415,12 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 	progress.Progress = 25
 	d.sendTaskProgressWithDetails(msg.ID, progress)
 	result, err := d.kopia.BackupWithProgress(taskID, sourcePath, password, func(update kopia.BackupProgress) {
+		if d.isTaskCancelled(taskID) {
+			logger.Debug("Ignoring backup progress for cancelled task", map[string]interface{}{
+				"task_id": taskID,
+			})
+			return
+		}
 		progress.ProcessedFiles = update.ProcessedFiles
 		progress.TotalFiles = update.TotalFiles
 		progress.ProcessedBytes = update.ProcessedBytes
@@ -432,12 +438,25 @@ func (d *Dispatcher) executeBackup(msg ws.Message) {
 	})
 
 	if err != nil {
+		if d.isTaskCancelled(taskID) {
+			logger.Info("Backup task stopped after cancellation", map[string]interface{}{
+				"task_id": taskID,
+				"error":   err.Error(),
+			})
+			return
+		}
 		logger.Error("Backup failed", map[string]interface{}{
 			"error": err.Error(),
 		})
 		d.failTask(taskID, err.Error())
 		d.sendTaskFailed(msg.ID, taskID, err.Error())
 	} else {
+		if d.isTaskCancelled(taskID) {
+			logger.Info("Suppressing backup completion for cancelled task", map[string]interface{}{
+				"task_id": taskID,
+			})
+			return
+		}
 		progress.TotalFiles = result.TotalFiles
 		progress.ProcessedFiles = result.BackedUpFiles
 		progress.TotalBytes = result.TotalSize
@@ -564,7 +583,13 @@ func (d *Dispatcher) connectRepository(repoConfig map[string]interface{}, passwo
 	if err != nil {
 		return err
 	}
-	return d.kopia.ConnectRepo(kopiaConfig, password)
+	if err := d.kopia.ConnectRepo(kopiaConfig, password); err != nil {
+		return err
+	}
+	if err := d.kopia.CheckRepositoryClock(password); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *Dispatcher) prepareRepository(repoConfig map[string]interface{}) (map[string]interface{}, error) {
@@ -1361,6 +1386,13 @@ func (d *Dispatcher) cancelTask(msg ws.Message) {
 
 // Helper methods
 
+func (d *Dispatcher) isTaskCancelled(taskID string) bool {
+	d.tasksMu.RLock()
+	defer d.tasksMu.RUnlock()
+	status, exists := d.tasks[taskID]
+	return exists && status.Status == StatusCancelled
+}
+
 func (d *Dispatcher) setTask(status *Status) {
 	d.tasksMu.Lock()
 	d.tasks[status.TaskID] = status
@@ -1406,6 +1438,15 @@ func (d *Dispatcher) sendTaskStart(msgID, taskID, taskType string) {
 }
 
 func (d *Dispatcher) sendTaskProgress(msgID, taskID, taskType string, progress int, msg string) {
+	if d.isTaskCancelled(taskID) {
+		logger.Debug("Suppressing task progress for cancelled task", map[string]interface{}{
+			"task_id":   taskID,
+			"task_type": taskType,
+			"progress":  progress,
+			"message":   msg,
+		})
+		return
+	}
 	logger.Debug("Sending task progress", map[string]interface{}{
 		"task_id":   taskID,
 		"task_type": taskType,
@@ -1426,6 +1467,15 @@ func (d *Dispatcher) sendTaskProgress(msgID, taskID, taskType string, progress i
 }
 
 func (d *Dispatcher) sendTaskProgressWithDetails(msgID string, progress *Progress) {
+	if d.isTaskCancelled(progress.TaskID) {
+		logger.Debug("Suppressing detailed task progress for cancelled task", map[string]interface{}{
+			"task_id":   progress.TaskID,
+			"task_type": progress.TaskType,
+			"progress":  progress.Progress,
+			"message":   progress.Message,
+		})
+		return
+	}
 	logger.Debug("Sending task progress with details", map[string]interface{}{
 		"task_id":         progress.TaskID,
 		"task_type":       progress.TaskType,

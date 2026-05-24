@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import {
   ArrowPathIcon,
   CheckCircleIcon,
@@ -18,6 +19,7 @@ import { useResizableSortableTable } from "@/composables/useResizableSortableTab
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 
 const { t } = useI18n();
+const route = useRoute();
 const { getPageSize, setPageSize } = usePagination();
 
 interface ManagedTask {
@@ -54,6 +56,7 @@ const stats = ref({
 });
 const loading = ref(false);
 const cancellingTaskId = ref<string | null>(null);
+const openingTaskId = ref<string | null>(null);
 const selectedTask = ref<ManagedTask | null>(null);
 const search = ref("");
 const statusFilter = ref("");
@@ -226,8 +229,30 @@ async function fetchTasks() {
     tasks.value = listRes.data.results || listRes.data;
     pagination.value.count = listRes.data.count || tasks.value.length;
     stats.value = statsRes.data;
+    await openTaskFromRoute();
   } finally {
     loading.value = false;
+  }
+}
+
+async function openTaskFromRoute() {
+  const taskId = typeof route.query.task === "string" ? route.query.task : "";
+  if (!taskId || openingTaskId.value === taskId) return;
+
+  const visibleTask = tasks.value.find((task) => task.id === taskId);
+  if (visibleTask) {
+    selectedTask.value = visibleTask;
+    return;
+  }
+
+  openingTaskId.value = taskId;
+  try {
+    const response = await taskManagementApi.detail(taskId);
+    selectedTask.value = response.data;
+  } catch (error) {
+    console.error("Failed to open task from route:", error);
+  } finally {
+    openingTaskId.value = null;
   }
 }
 
@@ -315,6 +340,13 @@ function formatDuration(seconds?: number) {
   const rest = Math.floor(seconds % 60);
   return minutes > 0 ? `${minutes}m ${rest}s` : `${rest}s`;
 }
+
+watch(
+  () => route.query.task,
+  () => {
+    openTaskFromRoute();
+  },
+);
 
 onMounted(fetchTasks);
 </script>
@@ -470,7 +502,10 @@ onMounted(fetchTasks);
             <tr
               v-for="task in taskTable.sortedRows.value"
               :key="`${task.source}-${task.id}`"
-              class="hover:bg-hover cursor-pointer transition-colors"
+              :class="[
+                'hover:bg-hover cursor-pointer transition-colors',
+                selectedTask?.id === task.id && 'bg-primary/5',
+              ]"
               @click="selectedTask = task"
             >
               <td class="px-4 py-3" :style="taskTable.columnStyle('name')">

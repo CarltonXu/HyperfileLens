@@ -6,10 +6,14 @@ Repository is the target storage for backup data, managed by Kopia.
 """
 
 import uuid
+import logging
 from django.db import models
 from accounts.models import User
 from nodes.models import Node
 from common.encryption import encrypt_value, decrypt_value, is_encrypted
+
+
+logger = logging.getLogger(__name__)
 
 
 class Repository(models.Model):
@@ -363,10 +367,17 @@ class Repository(models.Model):
         """Return the decrypted Kopia repository password."""
         if not self.kopia_password:
             return ''
+        if not is_encrypted(self.kopia_password):
+            return self.kopia_password
         try:
             return decrypt_value(self.kopia_password)
-        except Exception:
-            return self.kopia_password
+        except Exception as exc:
+            logger.warning(
+                "Failed to decrypt Kopia repository password repository_id=%s: %s",
+                self.id,
+                exc,
+            )
+            return ''
     
     def sync_space_usage(self):
         """Synchronize space usage with actual storage."""

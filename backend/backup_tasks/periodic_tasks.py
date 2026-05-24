@@ -105,10 +105,12 @@ def _claim_due_backup_task(task, BackupTaskRun, ProxyTask, now):
         return None
 
     reconciled_runs = _reconcile_terminal_proxy_runs(task, BackupTaskRun, ProxyTask, now)
-    if reconciled_runs:
+    orphan_runs = _reconcile_orphan_active_runs(task, BackupTaskRun, now)
+    if reconciled_runs or orphan_runs:
         logger.info(
-            "Reconciled %s stale active backup run(s) before scheduling task %s",
+            "Reconciled %s terminal run(s) and %s orphan run(s) before scheduling task %s",
             reconciled_runs,
+            orphan_runs,
             task.id,
         )
 
@@ -127,6 +129,31 @@ def _claim_due_backup_task(task, BackupTaskRun, ProxyTask, now):
     task.next_run_time = task.calculate_next_run_time(base_time=now)
     task.save(update_fields=['next_run_time', 'updated_at'])
     return scheduled_for
+
+
+def _reconcile_orphan_active_runs(task, BackupTaskRun, now):
+    """Fail active business runs that never got a proxy task."""
+    active_statuses = [
+        BackupTaskRun.STATUS_PENDING,
+        BackupTaskRun.STATUS_DISPATCHED,
+        BackupTaskRun.STATUS_RUNNING,
+    ]
+    stale_before = now - timedelta(minutes=2)
+    runs = BackupTaskRun.objects.filter(
+        task=task,
+        status__in=active_statuses,
+        proxy_task__isnull=True,
+        created_at__lte=stale_before,
+    )
+    reconciled = 0
+    for run in runs:
+        run.status = BackupTaskRun.STATUS_FAILED
+        run.error_message = 'Backup run was not dispatched to a proxy task and was closed by scheduler reconciliation.'
+        run.message = run.error_message
+        run.completed_at = now
+        run.save(update_fields=['status', 'error_message', 'message', 'completed_at'])
+        reconciled += 1
+    return reconciled
 
 
 def _reconcile_terminal_proxy_runs(task, BackupTaskRun, ProxyTask, now):
@@ -158,6 +185,9 @@ def _reconcile_terminal_proxy_runs(task, BackupTaskRun, ProxyTask, now):
         update_fields = ['status', 'completed_at']
         run.status = run_status
         run.completed_at = proxy_task.completed_at or now
+        run.progress = min(proxy_task.progress or run.progress or 0, 99) if run_status == BackupTaskRun.STATUS_CANCELLED else proxy_task.progress
+        run.message = proxy_task.progress_message or proxy_task.error_message or run.message
+        update_fields.extend(['progress', 'message'])
         if proxy_task.error_message and not run.error_message:
             run.error_message = proxy_task.error_message
             update_fields.append('error_message')

@@ -203,13 +203,14 @@ class BackupTaskRunSerializer(serializers.ModelSerializer):
     repository_name = serializers.CharField(source='repository.name', read_only=True)
     source_resource_name = serializers.CharField(source='source_resource.name', read_only=True)
     proxy_task_id = serializers.SerializerMethodField()
+    management_task_id = serializers.SerializerMethodField()
     name = serializers.SerializerMethodField()
     duration_seconds = serializers.SerializerMethodField()
 
     class Meta:
         model = BackupTaskRun
         fields = [
-            'id', 'task', 'task_name', 'name', 'proxy_task_id', 'trigger_type', 'scheduled_for',
+            'id', 'task', 'task_name', 'name', 'proxy_task_id', 'management_task_id', 'trigger_type', 'scheduled_for',
             'status', 'progress', 'message', 'error_message',
             'selected_proxy', 'proxy_name', 'repository', 'repository_name',
             'source_resource', 'source_resource_name',
@@ -222,6 +223,9 @@ class BackupTaskRunSerializer(serializers.ModelSerializer):
 
     def get_proxy_task_id(self, obj):
         return str(obj.proxy_task_id) if obj.proxy_task_id else None
+
+    def get_management_task_id(self, obj):
+        return str(obj.proxy_task_id or obj.id)
 
     def get_name(self, obj):
         return f"Backup Run - {obj.task.name}"

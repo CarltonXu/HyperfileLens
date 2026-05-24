@@ -476,6 +476,16 @@ function openSelectedSnapshotInsights() {
   });
 }
 
+function openRunInTaskManagement(run: any) {
+  const taskId = run.management_task_id || run.proxy_task_id || run.id;
+  if (!taskId) return;
+  const route = router.resolve({
+    name: "EventLog",
+    query: { task: taskId },
+  });
+  window.open(route.href, "_blank", "noopener");
+}
+
 async function fetchStats() {
   try {
     const response = await backupTasksApi.stats();
@@ -820,6 +830,7 @@ onMounted(() => {
               :get-status-color="getStatusColor"
               :format-date-time="formatDateTime"
               :run-duration="runDuration"
+              @open-management="openRunInTaskManagement"
             />
           </div>
         </aside>
