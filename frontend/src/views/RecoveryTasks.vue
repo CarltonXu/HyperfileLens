@@ -837,7 +837,7 @@ onMounted(() => {
       </div>
       <button
         @click="openCreateRecovery"
-        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all shadow-md hover:shadow-lg"
+        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all shadow-md hover:shadow-lg border border-emerald-600"
       >
         <PlusIcon class="w-4 h-4" />
         {{ t("recoveryTasks.createTask") }}

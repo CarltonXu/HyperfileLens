@@ -969,7 +969,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Group Items -->
-            <div v-show="isGroupExpanded(group.id)" class="space-y-0.5">
+            <div v-show="isGroupExpanded(group.id)" class="ml-2 space-y-0.5">
               <div
                 v-for="item in group.items"
                 :key="item.path"
@@ -1074,7 +1074,7 @@ onUnmounted(() => {
             <div
               v-if="group.aiInsightsCategories"
               v-show="isGroupExpanded(group.id)"
-              class="space-y-2">
+              class="ml-2 space-y-2">
               <div
                 v-for="category in group.aiInsightsCategories"
                 :key="category.name"
@@ -1085,7 +1085,7 @@ onUnmounted(() => {
                   {{ category.name }}
                 </div>
                 <!-- Category Items (三级菜单) -->
-                <div class="space-y-0.5 ml-4">
+                <div class="ml-2 space-y-0.5">
                   <div
                     v-for="subItem in category.items"
                     :key="subItem.path"
@@ -1193,7 +1193,7 @@ onUnmounted(() => {
               </div>
 
               <!-- Regular Items -->
-              <div v-for="item in group.items" :key="item.path">
+              <div v-for="item in group.items" :key="item.path" class="ml-2">
                 <div class="relative group/popup-item">
                   <router-link
                     :to="item.path"
@@ -1294,7 +1294,7 @@ onUnmounted(() => {
               </div>
 
               <!-- AI Insights Categories in Popup -->
-              <div v-if="group.aiInsightsCategories">
+              <div v-if="group.aiInsightsCategories" class="ml-2">
                 <div
                   v-for="category in group.aiInsightsCategories"
                   :key="category.name">
@@ -1305,7 +1305,7 @@ onUnmounted(() => {
                   <div
                     v-for="subItem in category.items"
                     :key="subItem.path"
-                    class="relative group/popup-aiitem">
+                    class="relative ml-2 group/popup-aiitem">
                     <router-link
                       :to="subItem.path"
                       @click="hideGroupPopup"

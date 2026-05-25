@@ -1455,7 +1455,7 @@ export default {
   // Recovery Tasks
   recoveryTasks: {
     title: "Recovery Tasks",
-    subtitle: "Manage data recovery operations",
+    subtitle: "Create, manage and monitor data recovery tasks from backup snapshots to original or new locations",
     createTask: "Create Recovery Task",
 
     types: {

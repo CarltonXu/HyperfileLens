@@ -16,6 +16,7 @@ import {
   Cog6ToothIcon,
   DocumentTextIcon,
   EyeIcon,
+  ListBulletIcon,
   MagnifyingGlassIcon,
   PauseIcon,
   PencilSquareIcon,
@@ -573,26 +574,47 @@ onMounted(fetchPolicies);
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("policies.stats.total") }}
-        </p>
-        <p class="mt-1 text-xl font-bold text-foreground">
-          {{ policies.length }}
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+            <ListBulletIcon class="w-4 h-4 text-slate-600 dark:text-slate-400" />
+          </div>
+          <div>
+            <p class="text-xs text-foreground-secondary">
+              {{ t("policies.stats.total") }}
+            </p>
+            <p class="mt-1 text-xl font-bold text-foreground">
+              {{ policies.length }}
+            </p>
+          </div>
+        </div>
       </div>
       <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("policies.stats.enabled") }}
-        </p>
-        <p class="mt-1 text-xl font-bold text-emerald-600">
-          {{ enabledCount }}
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+            <ShieldCheckIcon class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <p class="text-xs text-foreground-secondary">
+              {{ t("policies.stats.enabled") }}
+            </p>
+            <p class="mt-1 text-xl font-bold text-emerald-600">
+              {{ enabledCount }}
+            </p>
+          </div>
+        </div>
       </div>
       <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("policies.retention.kopiaRetention") }}
-        </p>
-        <p class="mt-1 text-xl font-bold text-violet-600">Kopia</p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+            <DocumentTextIcon class="w-4 h-4 text-violet-600 dark:text-violet-400" />
+          </div>
+          <div>
+            <p class="text-xs text-foreground-secondary">
+              {{ t("policies.retention.kopiaRetention") }}
+            </p>
+            <p class="mt-1 text-xl font-bold text-violet-600">Kopia</p>
+          </div>
+        </div>
       </div>
     </div>
 

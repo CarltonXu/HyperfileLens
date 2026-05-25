@@ -1398,7 +1398,7 @@ export default {
   // Recovery Tasks
   recoveryTasks: {
     title: "恢复任务",
-    subtitle: "管理数据恢复操作",
+    subtitle: "创建、管理和监控数据恢复任务，从备份快照恢复到原始位置或新位置",
     createTask: "创建恢复任务",
 
     types: {

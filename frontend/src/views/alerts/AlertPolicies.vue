@@ -5,7 +5,10 @@ import { useI18n } from "vue-i18n";
 import {
   ArrowPathIcon,
   BellAlertIcon,
+  BellIcon,
   DocumentDuplicateIcon,
+  ExclamationTriangleIcon,
+  ListBulletIcon,
   MagnifyingGlassIcon,
   PencilSquareIcon,
   PlusIcon,
@@ -581,36 +584,64 @@ onMounted(async () => {
 
     <div class="grid gap-3 md:grid-cols-4">
       <div class="rounded-lg border border-border p-4 shadow-sm">
-        <p class="text-xs font-medium uppercase text-foreground-secondary">
-          {{ t("alertsCenter.common.policies") }}
-        </p>
-        <p class="mt-2 text-2xl font-semibold text-foreground">
-          {{ stats.total }}
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+            <BellAlertIcon class="w-4 h-4 text-slate-600 dark:text-slate-400" />
+          </div>
+          <div>
+            <p class="text-xs font-medium uppercase text-foreground-secondary">
+              {{ t("alertsCenter.common.policies") }}
+            </p>
+            <p class="mt-0.5 text-2xl font-semibold text-foreground">
+              {{ stats.total }}
+            </p>
+          </div>
+        </div>
       </div>
       <div class="rounded-lg border border-border p-4 shadow-sm">
-        <p class="text-xs font-medium uppercase text-foreground-secondary">
-          {{ t("alertsCenter.common.enabled") }}
-        </p>
-        <p class="mt-2 text-2xl font-semibold text-emerald-600">
-          {{ stats.enabled }}
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+            <PowerIcon class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <p class="text-xs font-medium uppercase text-foreground-secondary">
+              {{ t("alertsCenter.common.enabled") }}
+            </p>
+            <p class="mt-0.5 text-2xl font-semibold text-emerald-600">
+              {{ stats.enabled }}
+            </p>
+          </div>
+        </div>
       </div>
       <div class="rounded-lg border border-border p-4 shadow-sm">
-        <p class="text-xs font-medium uppercase text-foreground-secondary">
-          {{ t("alertsCenter.common.critical") }}
-        </p>
-        <p class="mt-2 text-2xl font-semibold text-red-600">
-          {{ stats.critical }}
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+            <ExclamationTriangleIcon class="w-4 h-4 text-red-600 dark:text-red-400" />
+          </div>
+          <div>
+            <p class="text-xs font-medium uppercase text-foreground-secondary">
+              {{ t("alertsCenter.common.critical") }}
+            </p>
+            <p class="mt-0.5 text-2xl font-semibold text-red-600">
+              {{ stats.critical }}
+            </p>
+          </div>
+        </div>
       </div>
       <div class="rounded-lg border border-border p-4 shadow-sm">
-        <p class="text-xs font-medium uppercase text-foreground-secondary">
-          {{ t("alertsCenter.common.linkedChannels") }}
-        </p>
-        <p class="mt-2 text-2xl font-semibold text-foreground">
-          {{ stats.channels }}
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+            <BellIcon class="w-4 h-4 text-violet-600 dark:text-violet-400" />
+          </div>
+          <div>
+            <p class="text-xs font-medium uppercase text-foreground-secondary">
+              {{ t("alertsCenter.common.linkedChannels") }}
+            </p>
+            <p class="mt-0.5 text-2xl font-semibold text-foreground">
+              {{ stats.channels }}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
 

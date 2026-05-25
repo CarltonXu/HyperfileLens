@@ -7,6 +7,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   EnvelopeIcon,
+  ListBulletIcon,
   MagnifyingGlassIcon,
   XCircleIcon,
 } from "@heroicons/vue/24/outline";
@@ -274,38 +275,64 @@ onMounted(() => {
 
     <div class="grid gap-3 md:grid-cols-4">
       <div class="rounded-lg border border-border bg-background p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("alertsCenter.logs.totalDeliveries") }}
-        </p>
-        <p class="mt-2 text-2xl font-semibold text-foreground">
-          {{ stats.total }}
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+            <ListBulletIcon class="w-4 h-4 text-slate-600 dark:text-slate-400" />
+          </div>
+          <div>
+            <p class="text-xs text-foreground-secondary">
+              {{ t("alertsCenter.logs.totalDeliveries") }}
+            </p>
+            <p class="mt-0.5 text-2xl font-semibold text-foreground">
+              {{ stats.total }}
+            </p>
+          </div>
+        </div>
       </div>
       <div class="rounded-lg border border-border bg-background p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("alertsCenter.logs.successfulDeliveries") }}
-        </p>
-        <p
-          class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400"
-        >
-          {{ stats.success }}
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+            <CheckCircleIcon class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <p class="text-xs text-foreground-secondary">
+              {{ t("alertsCenter.logs.successfulDeliveries") }}
+            </p>
+            <p class="mt-0.5 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+              {{ stats.success }}
+            </p>
+          </div>
+        </div>
       </div>
       <div class="rounded-lg border border-border bg-background p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("alertsCenter.logs.failedDeliveries") }}
-        </p>
-        <p class="mt-2 text-2xl font-semibold text-red-600 dark:text-red-400">
-          {{ stats.failed }}
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+            <XCircleIcon class="w-4 h-4 text-red-600 dark:text-red-400" />
+          </div>
+          <div>
+            <p class="text-xs text-foreground-secondary">
+              {{ t("alertsCenter.logs.failedDeliveries") }}
+            </p>
+            <p class="mt-0.5 text-2xl font-semibold text-red-600 dark:text-red-400">
+              {{ stats.failed }}
+            </p>
+          </div>
+        </div>
       </div>
       <div class="rounded-lg border border-border bg-background p-4 shadow-sm">
-        <p class="text-xs text-foreground-secondary">
-          {{ t("alertsCenter.channels.successRate") }}
-        </p>
-        <p class="mt-2 text-2xl font-semibold text-foreground">
-          {{ stats.success_rate }}%
-        </p>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+            <EnvelopeIcon class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <p class="text-xs text-foreground-secondary">
+              {{ t("alertsCenter.channels.successRate") }}
+            </p>
+            <p class="mt-0.5 text-2xl font-semibold text-foreground">
+              {{ stats.success_rate }}%
+            </p>
+          </div>
+        </div>
       </div>
     </div>
 
