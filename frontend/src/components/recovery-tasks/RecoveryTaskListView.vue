@@ -9,7 +9,6 @@ import {
   DocumentDuplicateIcon,
   EyeIcon,
   FolderIcon,
-  MapPinIcon,
   PauseIcon,
   PencilSquareIcon,
   PlayIcon,

@@ -1904,7 +1904,7 @@ func repositoryCommandArgs(action string, repoConfig map[string]interface{}, pas
 	}
 }
 
-func s3EndpointFromConfig(repoConfig map[string]interface{}, bucket string) string {
+func s3EndpointFromConfig(repoConfig map[string]interface{}, _ string) string {
 	endpoint := strings.TrimSpace(stringFromMap(repoConfig, "endpoint", ""))
 	if endpoint == "" {
 		return ""
@@ -1917,11 +1917,6 @@ func s3EndpointFromConfig(repoConfig map[string]interface{}, bucket string) stri
 		host = strings.Trim(endpoint, "/")
 	}
 
-	urlStyle := strings.ToLower(stringFromMap(repoConfig, "url_style", ""))
-	if urlStyle == "virtual" && bucket != "" && !strings.HasPrefix(host, bucket+".") && isCustomS3Endpoint(host) {
-		return bucket + "." + host
-	}
-
 	return host
 }
 
@@ -1932,12 +1927,6 @@ func boolFromMap(m map[string]interface{}, key string, fallback bool) bool {
 		}
 	}
 	return fallback
-}
-
-func isCustomS3Endpoint(host string) bool {
-	return !strings.Contains(host, "amazonaws.com") &&
-		!strings.Contains(host, "googleapis.com") &&
-		!strings.Contains(host, "aliyuncs.com")
 }
 
 func sanitizeArgs(args []string) []string {

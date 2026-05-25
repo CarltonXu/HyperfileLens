@@ -14,6 +14,7 @@ import {
   ShieldCheckIcon,
 } from "@heroicons/vue/24/outline";
 import { recoveryExportsApi } from "@/api";
+import BrandLogo from "@/components/BrandLogo.vue";
 
 const route = useRoute();
 const { t } = useI18n();
@@ -31,7 +32,10 @@ function formatBytes(value?: number | string | null) {
   const bytes = Number(value || 0);
   if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const index = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  );
   const size = bytes / 1024 ** index;
   return `${size.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
@@ -68,7 +72,10 @@ async function fetchInfo() {
       errorMessage.value = t("sharedRecoveryExport.invalidLink");
       return;
     }
-    const response = await recoveryExportsApi.publicInfo(exportId.value, token.value);
+    const response = await recoveryExportsApi.publicInfo(
+      exportId.value,
+      token.value,
+    );
     exportInfo.value = response.data;
   } catch (error: any) {
     errorMessage.value =
@@ -95,10 +102,14 @@ async function downloadExport() {
       password: password.value,
     });
     const blob = new Blob([response.data], {
-      type: String(response.headers["content-type"] || "application/octet-stream"),
+      type: String(
+        response.headers["content-type"] || "application/octet-stream",
+      ),
     });
     const filename =
-      filenameFromDisposition(String(response.headers["content-disposition"] || "")) ||
+      filenameFromDisposition(
+        String(response.headers["content-disposition"] || ""),
+      ) ||
       exportInfo.value.file_name ||
       `recovery-export-${exportId.value}.zip`;
     const url = window.URL.createObjectURL(blob);
@@ -126,34 +137,48 @@ onMounted(fetchInfo);
 <template>
   <div class="min-h-screen bg-background text-foreground">
     <header class="border-b border-border bg-card">
-      <div class="mx-auto flex max-w-5xl items-center justify-between px-5 py-4">
+      <div
+        class="mx-auto flex max-w-5xl items-center justify-between px-5 py-4"
+      >
         <div class="flex items-center gap-3">
-          <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
-            H
-          </div>
+          <BrandLogo variant="mark" size="sm" />
           <div>
             <p class="text-sm font-semibold text-foreground">HyperFileLens</p>
-            <p class="text-xs text-foreground-secondary">{{ t("sharedRecoveryExport.productSubtitle") }}</p>
+            <p class="text-xs text-foreground-secondary">
+              {{ t("sharedRecoveryExport.productSubtitle") }}
+            </p>
           </div>
         </div>
-        <span class="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-foreground-secondary">
+        <span
+          class="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-foreground-secondary"
+        >
           <ShieldCheckIcon class="h-4 w-4 text-emerald-500" />
           {{ t("sharedRecoveryExport.protected") }}
         </span>
       </div>
     </header>
 
-    <main class="mx-auto grid max-w-5xl gap-5 px-5 py-8 lg:grid-cols-[1fr_360px]">
+    <main
+      class="mx-auto grid max-w-5xl gap-5 px-5 py-8 lg:grid-cols-[1fr_360px]"
+    >
       <section class="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <div v-if="loading" class="py-16 text-center text-sm text-foreground-secondary">
+        <div
+          v-if="loading"
+          class="py-16 text-center text-sm text-foreground-secondary"
+        >
           {{ t("common.loading") }}
         </div>
 
-        <div v-else-if="errorMessage && !exportInfo" class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300">
+        <div
+          v-else-if="errorMessage && !exportInfo"
+          class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300"
+        >
           <div class="flex items-start gap-3">
             <ExclamationTriangleIcon class="mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <p class="font-medium">{{ t("sharedRecoveryExport.unavailable") }}</p>
+              <p class="font-medium">
+                {{ t("sharedRecoveryExport.unavailable") }}
+              </p>
               <p class="mt-1 text-sm">{{ errorMessage }}</p>
             </div>
           </div>
@@ -162,12 +187,25 @@ onMounted(fetchInfo);
         <template v-else-if="exportInfo">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div class="min-w-0">
-              <p class="text-xs font-medium uppercase tracking-wide text-primary">{{ t("sharedRecoveryExport.sharedPackage") }}</p>
-              <h1 class="mt-2 break-words text-2xl font-semibold text-foreground">
-                {{ exportInfo.name || exportInfo.file_name || t("sharedRecoveryExport.untitled") }}
+              <p
+                class="text-xs font-medium uppercase tracking-wide text-primary"
+              >
+                {{ t("sharedRecoveryExport.sharedPackage") }}
+              </p>
+              <h1
+                class="mt-2 break-words text-2xl font-semibold text-foreground"
+              >
+                {{
+                  exportInfo.name ||
+                  exportInfo.file_name ||
+                  t("sharedRecoveryExport.untitled")
+                }}
               </h1>
               <p class="mt-2 text-sm text-foreground-secondary">
-                {{ exportInfo.description || t("sharedRecoveryExport.defaultDescription") }}
+                {{
+                  exportInfo.description ||
+                  t("sharedRecoveryExport.defaultDescription")
+                }}
               </p>
             </div>
             <span
@@ -178,78 +216,140 @@ onMounted(fetchInfo);
                   : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
               ]"
             >
-              {{ exportInfo.is_downloadable ? t("sharedRecoveryExport.ready") : t("sharedRecoveryExport.notReady") }}
+              {{
+                exportInfo.is_downloadable
+                  ? t("sharedRecoveryExport.ready")
+                  : t("sharedRecoveryExport.notReady")
+              }}
             </span>
           </div>
 
           <div class="mt-5 grid gap-3 sm:grid-cols-3">
-            <div class="rounded-lg border border-border bg-background px-3 py-3">
-              <div class="flex items-center gap-2 text-xs text-foreground-muted">
+            <div
+              class="rounded-lg border border-border bg-background px-3 py-3"
+            >
+              <div
+                class="flex items-center gap-2 text-xs text-foreground-muted"
+              >
                 <ArchiveBoxIcon class="h-4 w-4" />
                 {{ t("sharedRecoveryExport.packageSize") }}
               </div>
-              <p class="mt-2 text-sm font-semibold text-foreground">{{ formatBytes(exportInfo.package_size) }}</p>
+              <p class="mt-2 text-sm font-semibold text-foreground">
+                {{ formatBytes(exportInfo.package_size) }}
+              </p>
             </div>
-            <div class="rounded-lg border border-border bg-background px-3 py-3">
-              <div class="flex items-center gap-2 text-xs text-foreground-muted">
+            <div
+              class="rounded-lg border border-border bg-background px-3 py-3"
+            >
+              <div
+                class="flex items-center gap-2 text-xs text-foreground-muted"
+              >
                 <FolderIcon class="h-4 w-4" />
                 {{ t("sharedRecoveryExport.selectedPaths") }}
               </div>
-              <p class="mt-2 text-sm font-semibold text-foreground">{{ exportInfo.selected_path_count || 0 }}</p>
+              <p class="mt-2 text-sm font-semibold text-foreground">
+                {{ exportInfo.selected_path_count || 0 }}
+              </p>
             </div>
-            <div class="rounded-lg border border-border bg-background px-3 py-3">
-              <div class="flex items-center gap-2 text-xs text-foreground-muted">
+            <div
+              class="rounded-lg border border-border bg-background px-3 py-3"
+            >
+              <div
+                class="flex items-center gap-2 text-xs text-foreground-muted"
+              >
                 <ClockIcon class="h-4 w-4" />
                 {{ t("sharedRecoveryExport.expiresAt") }}
               </div>
-              <p class="mt-2 text-sm font-semibold text-foreground">{{ formatDate(exportInfo.share_expires_at || exportInfo.expires_at) }}</p>
+              <p class="mt-2 text-sm font-semibold text-foreground">
+                {{
+                  formatDate(
+                    exportInfo.share_expires_at || exportInfo.expires_at,
+                  )
+                }}
+              </p>
             </div>
           </div>
 
           <div class="mt-5 grid gap-4 lg:grid-cols-2">
             <section class="rounded-lg border border-border bg-background p-4">
-              <h2 class="text-sm font-semibold text-foreground">{{ t("sharedRecoveryExport.snapshot") }}</h2>
+              <h2 class="text-sm font-semibold text-foreground">
+                {{ t("sharedRecoveryExport.snapshot") }}
+              </h2>
               <dl class="mt-3 space-y-3 text-sm">
                 <div>
-                  <dt class="text-xs text-foreground-muted">{{ t("sharedRecoveryExport.snapshotName") }}</dt>
-                  <dd class="mt-1 break-all text-foreground-secondary">{{ exportInfo.snapshot_name || "-" }}</dd>
+                  <dt class="text-xs text-foreground-muted">
+                    {{ t("sharedRecoveryExport.snapshotName") }}
+                  </dt>
+                  <dd class="mt-1 break-all text-foreground-secondary">
+                    {{ exportInfo.snapshot_name || "-" }}
+                  </dd>
                 </div>
                 <div>
-                  <dt class="text-xs text-foreground-muted">{{ t("sharedRecoveryExport.sourcePath") }}</dt>
-                  <dd class="mt-1 break-all text-foreground-secondary">{{ exportInfo.snapshot_source_path || "-" }}</dd>
+                  <dt class="text-xs text-foreground-muted">
+                    {{ t("sharedRecoveryExport.sourcePath") }}
+                  </dt>
+                  <dd class="mt-1 break-all text-foreground-secondary">
+                    {{ exportInfo.snapshot_source_path || "-" }}
+                  </dd>
                 </div>
                 <div>
-                  <dt class="text-xs text-foreground-muted">{{ t("sharedRecoveryExport.snapshotTime") }}</dt>
-                  <dd class="mt-1 text-foreground-secondary">{{ formatDate(exportInfo.snapshot_created_at) }}</dd>
+                  <dt class="text-xs text-foreground-muted">
+                    {{ t("sharedRecoveryExport.snapshotTime") }}
+                  </dt>
+                  <dd class="mt-1 text-foreground-secondary">
+                    {{ formatDate(exportInfo.snapshot_created_at) }}
+                  </dd>
                 </div>
               </dl>
             </section>
 
             <section class="rounded-lg border border-border bg-background p-4">
-              <h2 class="text-sm font-semibold text-foreground">{{ t("sharedRecoveryExport.package") }}</h2>
+              <h2 class="text-sm font-semibold text-foreground">
+                {{ t("sharedRecoveryExport.package") }}
+              </h2>
               <dl class="mt-3 space-y-3 text-sm">
                 <div>
-                  <dt class="text-xs text-foreground-muted">{{ t("sharedRecoveryExport.fileName") }}</dt>
-                  <dd class="mt-1 break-all text-foreground-secondary">{{ exportInfo.file_name || "-" }}</dd>
+                  <dt class="text-xs text-foreground-muted">
+                    {{ t("sharedRecoveryExport.fileName") }}
+                  </dt>
+                  <dd class="mt-1 break-all text-foreground-secondary">
+                    {{ exportInfo.file_name || "-" }}
+                  </dd>
                 </div>
                 <div>
-                  <dt class="text-xs text-foreground-muted">{{ t("sharedRecoveryExport.repository") }}</dt>
-                  <dd class="mt-1 text-foreground-secondary">{{ exportInfo.repository_name || "-" }}</dd>
+                  <dt class="text-xs text-foreground-muted">
+                    {{ t("sharedRecoveryExport.repository") }}
+                  </dt>
+                  <dd class="mt-1 text-foreground-secondary">
+                    {{ exportInfo.repository_name || "-" }}
+                  </dd>
                 </div>
                 <div>
-                  <dt class="text-xs text-foreground-muted">{{ t("sharedRecoveryExport.downloads") }}</dt>
-                  <dd class="mt-1 text-foreground-secondary">{{ exportInfo.download_count || 0 }}</dd>
+                  <dt class="text-xs text-foreground-muted">
+                    {{ t("sharedRecoveryExport.downloads") }}
+                  </dt>
+                  <dd class="mt-1 text-foreground-secondary">
+                    {{ exportInfo.download_count || 0 }}
+                  </dd>
                 </div>
               </dl>
             </section>
           </div>
 
-          <section class="mt-5 rounded-lg border border-border bg-background p-4">
+          <section
+            class="mt-5 rounded-lg border border-border bg-background p-4"
+          >
             <div class="mb-3 flex items-center justify-between">
-              <h2 class="text-sm font-semibold text-foreground">{{ t("sharedRecoveryExport.selectedPaths") }}</h2>
-              <span class="text-xs text-foreground-secondary">{{ exportInfo.selected_path_count || 0 }}</span>
+              <h2 class="text-sm font-semibold text-foreground">
+                {{ t("sharedRecoveryExport.selectedPaths") }}
+              </h2>
+              <span class="text-xs text-foreground-secondary">{{
+                exportInfo.selected_path_count || 0
+              }}</span>
             </div>
-            <div class="max-h-48 overflow-auto rounded-lg border border-border bg-card">
+            <div
+              class="max-h-48 overflow-auto rounded-lg border border-border bg-card"
+            >
               <p
                 v-for="path in exportInfo.selected_paths || []"
                 :key="path"
@@ -262,15 +362,23 @@ onMounted(fetchInfo);
         </template>
       </section>
 
-      <aside class="h-fit rounded-lg border border-border bg-card p-5 shadow-sm">
+      <aside
+        class="h-fit rounded-lg border border-border bg-card p-5 shadow-sm"
+      >
         <div class="flex items-center gap-2">
           <LockClosedIcon class="h-5 w-5 text-primary" />
-          <h2 class="text-base font-semibold text-foreground">{{ t("sharedRecoveryExport.downloadTitle") }}</h2>
+          <h2 class="text-base font-semibold text-foreground">
+            {{ t("sharedRecoveryExport.downloadTitle") }}
+          </h2>
         </div>
-        <p class="mt-2 text-sm text-foreground-secondary">{{ t("sharedRecoveryExport.downloadDescription") }}</p>
+        <p class="mt-2 text-sm text-foreground-secondary">
+          {{ t("sharedRecoveryExport.downloadDescription") }}
+        </p>
 
         <label class="mt-5 block">
-          <span class="text-sm font-medium text-foreground">{{ t("sharedRecoveryExport.password") }}</span>
+          <span class="text-sm font-medium text-foreground">{{
+            t("sharedRecoveryExport.password")
+          }}</span>
           <div class="relative mt-1">
             <input
               v-model="password"
@@ -282,7 +390,11 @@ onMounted(fetchInfo);
             <button
               type="button"
               class="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-foreground-muted hover:text-foreground"
-              :title="showPassword ? t('sharedRecoveryExport.hidePassword') : t('sharedRecoveryExport.showPassword')"
+              :title="
+                showPassword
+                  ? t('sharedRecoveryExport.hidePassword')
+                  : t('sharedRecoveryExport.showPassword')
+              "
               @click="showPassword = !showPassword"
             >
               <EyeSlashIcon v-if="showPassword" class="h-4 w-4" />
@@ -291,7 +403,10 @@ onMounted(fetchInfo);
           </div>
         </label>
 
-        <p v-if="errorMessage && exportInfo" class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300">
+        <p
+          v-if="errorMessage && exportInfo"
+          class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300"
+        >
           {{ errorMessage }}
         </p>
 
@@ -301,7 +416,11 @@ onMounted(fetchInfo);
           @click="downloadExport"
         >
           <ArrowDownTrayIcon class="h-4 w-4" />
-          {{ downloading ? t("sharedRecoveryExport.downloading") : t("sharedRecoveryExport.download") }}
+          {{
+            downloading
+              ? t("sharedRecoveryExport.downloading")
+              : t("sharedRecoveryExport.download")
+          }}
         </button>
       </aside>
     </main>

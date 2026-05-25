@@ -6,6 +6,7 @@ import { useAppStore } from "@/stores/app";
 import { useFavoritesStore } from "@/stores/favorites";
 import type { FavoriteItem } from "@/stores/favorites";
 import { useI18n } from "vue-i18n";
+import BrandLogo from "@/components/BrandLogo.vue";
 import ThemeSwitcher from "@/components/ThemeSwitcher.vue";
 import {
   HomeIcon,
@@ -922,50 +923,46 @@ onUnmounted(() => {
         'fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out',
         'bg-card border-r border-border',
         isCollapsed ? 'w-16' : 'w-64',
-      ]">
+      ]"
+    >
       <button
         type="button"
         :title="isCollapsed ? t('common.expand') : t('common.collapse')"
         :aria-label="isCollapsed ? t('common.expand') : t('common.collapse')"
         class="absolute -right-3 top-1/2 z-50 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground-muted shadow-sm transition-all hover:border-blue-300 hover:bg-hover hover:text-blue-600 dark:hover:border-blue-700 dark:hover:text-blue-400"
-        @click="toggleSidebar">
+        @click="toggleSidebar"
+      >
         <ChevronLeftIcon v-if="!isCollapsed" class="h-4 w-4" />
         <ChevronRightIcon v-else class="h-4 w-4" />
       </button>
 
       <!-- Logo -->
       <div
-        class="flex items-center justify-center h-16 px-4 border-b border-border">
-        <div class="flex items-center gap-2" v-if="!isCollapsed">
-          <div
-            class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <CloudArrowUpIcon class="w-5 h-5 text-white" />
-          </div>
-          <span class="font-bold text-foreground text-lg">HyperFileLens</span>
-        </div>
-        <div
-          v-else
-          class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-          <CloudArrowUpIcon class="w-5 h-5 text-white" />
-        </div>
+        class="flex items-center justify-center h-16 px-4 border-b border-border"
+      >
+        <BrandLogo v-if="!isCollapsed" variant="full" size="sm" />
+        <BrandLogo v-else variant="mark" size="sm" />
       </div>
 
       <!-- Navigation -->
       <nav
-        class="flex-1 px-2 py-4 space-y-1 overflow-y-auto h-[calc(100vh-8rem)]">
+        class="flex-1 px-2 py-4 space-y-1 overflow-y-auto h-[calc(100vh-8rem)]"
+      >
         <div v-for="group in navigationGroups" :key="group.id">
           <!-- Expanded state: show group header and items -->
           <div v-show="!isCollapsed">
             <!-- Group Header -->
             <div
               @click="toggleGroup(group.id)"
-              class="flex items-center justify-between px-3 py-2 text-xs font-semibold text-foreground-muted uppercase tracking-wider cursor-pointer hover:text-slate-500 dark:hover:text-slate-400">
+              class="flex items-center justify-between px-3 py-2 text-xs font-semibold text-foreground-muted uppercase tracking-wider cursor-pointer hover:text-slate-500 dark:hover:text-slate-400"
+            >
               <span>{{ group.title }}</span>
               <ChevronDownIcon
                 :class="[
                   'w-4 h-4 transition-transform duration-200',
                   isGroupExpanded(group.id) ? 'rotate-0' : '-rotate-90',
-                ]" />
+                ]"
+              />
             </div>
 
             <!-- Group Items -->
@@ -973,7 +970,8 @@ onUnmounted(() => {
               <div
                 v-for="item in group.items"
                 :key="item.path"
-                class="relative group/item">
+                class="relative group/item"
+              >
                 <router-link
                   :to="item.path"
                   :class="[
@@ -981,7 +979,8 @@ onUnmounted(() => {
                     item.current
                       ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                       : 'hover:bg-hover',
-                  ]">
+                  ]"
+                >
                   <component
                     :is="item.current ? item.iconSolid : item.icon"
                     :class="[
@@ -989,7 +988,8 @@ onUnmounted(() => {
                       item.current
                         ? 'text-blue-500 dark:text-blue-400'
                         : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400',
-                    ]" />
+                    ]"
+                  />
                   <span>{{ item.name }}</span>
                 </router-link>
                 <!-- Favorite Button -->
@@ -1005,21 +1005,25 @@ onUnmounted(() => {
                     isFavorite(item.path)
                       ? t('favorites.remove')
                       : t('favorites.add')
-                  ">
+                  "
+                >
                   <StarIcon
                     v-if="isFavorite(item.path)"
-                    class="w-4 h-4 fill-current" />
+                    class="w-4 h-4 fill-current"
+                  />
                   <StarIcon v-else class="w-4 h-4" />
                 </button>
 
                 <!-- Sub Items -->
                 <div
                   v-if="item.subItems && item.subItems.length > 0"
-                  class="ml-4 mt-1 space-y-0.5">
+                  class="ml-4 mt-1 space-y-0.5"
+                >
                   <div
                     v-for="subItem in item.subItems"
                     :key="subItem.path"
-                    class="relative group/subitem">
+                    class="relative group/subitem"
+                  >
                     <router-link
                       :to="subItem.path"
                       :class="[
@@ -1027,14 +1031,16 @@ onUnmounted(() => {
                         subItem.current
                           ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
                           : 'text-foreground-secondary hover:bg-hover hover:text-slate-700 dark:hover:text-slate-300',
-                      ]">
+                      ]"
+                    >
                       <span
                         class="w-1.5 h-1.5 rounded-full"
                         :class="
                           subItem.current
                             ? 'bg-blue-500'
                             : 'bg-slate-300 dark:bg-slate-600'
-                        "></span>
+                        "
+                      ></span>
                       {{ subItem.name }}
                     </router-link>
                     <!-- Favorite Button for Sub Item -->
@@ -1059,10 +1065,12 @@ onUnmounted(() => {
                         isFavorite(subItem.path)
                           ? t('favorites.remove')
                           : t('favorites.add')
-                      ">
+                      "
+                    >
                       <StarIcon
                         v-if="isFavorite(subItem.path)"
-                        class="w-3.5 h-3.5 fill-current" />
+                        class="w-3.5 h-3.5 fill-current"
+                      />
                       <StarIcon v-else class="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1074,14 +1082,17 @@ onUnmounted(() => {
             <div
               v-if="group.aiInsightsCategories"
               v-show="isGroupExpanded(group.id)"
-              class="ml-2 space-y-2">
+              class="ml-2 space-y-2"
+            >
               <div
                 v-for="category in group.aiInsightsCategories"
                 :key="category.name"
-                class="mt-2">
+                class="mt-2"
+              >
                 <!-- Category Label -->
                 <div
-                  class="px-3 py-1.5 text-xs font-semibold text-foreground-muted uppercase tracking-wider">
+                  class="px-3 py-1.5 text-xs font-semibold text-foreground-muted uppercase tracking-wider"
+                >
                   {{ category.name }}
                 </div>
                 <!-- Category Items (三级菜单) -->
@@ -1089,7 +1100,8 @@ onUnmounted(() => {
                   <div
                     v-for="subItem in category.items"
                     :key="subItem.path"
-                    class="relative group/aiitem">
+                    class="relative group/aiitem"
+                  >
                     <router-link
                       :to="subItem.path"
                       :class="[
@@ -1097,7 +1109,8 @@ onUnmounted(() => {
                         subItem.current
                           ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
                           : 'text-foreground-secondary hover:bg-hover hover:text-slate-700 dark:hover:text-slate-200',
-                      ]">
+                      ]"
+                    >
                       <component
                         :is="subItem.current ? subItem.iconSolid : subItem.icon"
                         :class="[
@@ -1105,7 +1118,8 @@ onUnmounted(() => {
                           subItem.current
                             ? 'text-blue-500 dark:text-blue-400'
                             : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-400',
-                        ]" />
+                        ]"
+                      />
                       {{ subItem.name }}
                     </router-link>
                     <!-- Favorite Button for AI Insights Item -->
@@ -1130,10 +1144,12 @@ onUnmounted(() => {
                         isFavorite(subItem.path)
                           ? t('favorites.remove')
                           : t('favorites.add')
-                      ">
+                      "
+                    >
                       <StarIcon
                         v-if="isFavorite(subItem.path)"
-                        class="w-3.5 h-3.5 fill-current" />
+                        class="w-3.5 h-3.5 fill-current"
+                      />
                       <StarIcon v-else class="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1144,7 +1160,8 @@ onUnmounted(() => {
             <!-- Divider -->
             <div
               v-if="group.id !== 'system'"
-              class="my-3 border-t border-border"></div>
+              class="my-3 border-t border-border"
+            ></div>
           </div>
 
           <!-- Collapsed state: show only group icon -->
@@ -1157,7 +1174,8 @@ onUnmounted(() => {
               isGroupActive(group)
                 ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                 : 'text-slate-500 hover:bg-hover',
-            ]">
+            ]"
+          >
             <component
               :is="getGroupIcon(group.id)"
               :class="[
@@ -1165,7 +1183,8 @@ onUnmounted(() => {
                 isGroupActive(group)
                   ? 'text-blue-500 dark:text-blue-400'
                   : 'text-slate-400',
-              ]" />
+              ]"
+            />
           </div>
         </div>
       </nav>
@@ -1177,18 +1196,21 @@ onUnmounted(() => {
         enter-to-class="opacity-100 translate-x-0"
         leave-active-class="transition ease-in duration-75"
         leave-from-class="opacity-100 translate-x-0"
-        leave-to-class="opacity-0 translate-x-2">
+        leave-to-class="opacity-0 translate-x-2"
+      >
         <div
           v-if="activePopup && isCollapsed"
           class="fixed left-16 z-50 w-56 popover-surface rounded-lg shadow-xl border border-border py-2"
           :style="{ top: popupPosition.top + 'px' }"
           @mouseenter="cancelHidePopup"
-          @mouseleave="hideGroupPopup">
+          @mouseleave="hideGroupPopup"
+        >
           <template v-for="group in navigationGroups" :key="group.id">
             <div v-if="group.id === activePopup">
               <!-- Popup Header -->
               <div
-                class="px-3 py-2 text-xs font-semibold text-foreground-muted uppercase tracking-wider border-b border-border">
+                class="px-3 py-2 text-xs font-semibold text-foreground-muted uppercase tracking-wider border-b border-border"
+              >
                 {{ group.title }}
               </div>
 
@@ -1203,7 +1225,8 @@ onUnmounted(() => {
                       item.current
                         ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                         : 'text-foreground-secondary hover:bg-hover',
-                    ]">
+                    ]"
+                  >
                     <component
                       :is="item.current ? item.iconSolid : item.icon"
                       :class="[
@@ -1211,7 +1234,8 @@ onUnmounted(() => {
                         item.current
                           ? 'text-blue-500 dark:text-blue-400'
                           : 'text-slate-400 group-hover:text-slate-500',
-                      ]" />
+                      ]"
+                    />
                     <span class="min-w-0 flex-1 truncate">{{ item.name }}</span>
                   </router-link>
                   <button
@@ -1226,10 +1250,12 @@ onUnmounted(() => {
                       isFavorite(item.path)
                         ? t('favorites.remove')
                         : t('favorites.add')
-                    ">
+                    "
+                  >
                     <StarIcon
                       v-if="isFavorite(item.path)"
-                      class="h-3.5 w-3.5 fill-current" />
+                      class="h-3.5 w-3.5 fill-current"
+                    />
                     <StarIcon v-else class="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -1237,11 +1263,13 @@ onUnmounted(() => {
                 <!-- Sub Items in Popup -->
                 <div
                   v-if="item.subItems && item.subItems.length > 0"
-                  class="ml-6">
+                  class="ml-6"
+                >
                   <div
                     v-for="subItem in item.subItems"
                     :key="subItem.path"
-                    class="relative group/popup-subitem">
+                    class="relative group/popup-subitem"
+                  >
                     <router-link
                       :to="subItem.path"
                       @click="hideGroupPopup"
@@ -1250,14 +1278,16 @@ onUnmounted(() => {
                         subItem.current
                           ? 'text-blue-600 dark:text-blue-400 font-medium'
                           : 'text-foreground-secondary hover:text-slate-700 dark:hover:text-slate-300',
-                      ]">
+                      ]"
+                    >
                       <span
                         class="w-1.5 h-1.5 rounded-full"
                         :class="
                           subItem.current
                             ? 'bg-blue-500'
                             : 'bg-slate-300 dark:bg-slate-600'
-                        "></span>
+                        "
+                      ></span>
                       <span class="min-w-0 flex-1 truncate">
                         {{ subItem.name }}
                       </span>
@@ -1283,10 +1313,12 @@ onUnmounted(() => {
                         isFavorite(subItem.path)
                           ? t('favorites.remove')
                           : t('favorites.add')
-                      ">
+                      "
+                    >
                       <StarIcon
                         v-if="isFavorite(subItem.path)"
-                        class="h-3.5 w-3.5 fill-current" />
+                        class="h-3.5 w-3.5 fill-current"
+                      />
                       <StarIcon v-else class="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -1297,15 +1329,18 @@ onUnmounted(() => {
               <div v-if="group.aiInsightsCategories" class="ml-2">
                 <div
                   v-for="category in group.aiInsightsCategories"
-                  :key="category.name">
+                  :key="category.name"
+                >
                   <div
-                    class="px-3 py-1.5 mt-2 text-xs font-semibold text-foreground-muted uppercase tracking-wider">
+                    class="px-3 py-1.5 mt-2 text-xs font-semibold text-foreground-muted uppercase tracking-wider"
+                  >
                     {{ category.name }}
                   </div>
                   <div
                     v-for="subItem in category.items"
                     :key="subItem.path"
-                    class="relative ml-2 group/popup-aiitem">
+                    class="relative ml-2 group/popup-aiitem"
+                  >
                     <router-link
                       :to="subItem.path"
                       @click="hideGroupPopup"
@@ -1314,7 +1349,8 @@ onUnmounted(() => {
                         subItem.current
                           ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                           : 'text-foreground-secondary hover:bg-hover',
-                      ]">
+                      ]"
+                    >
                       <component
                         :is="subItem.current ? subItem.iconSolid : subItem.icon"
                         :class="[
@@ -1322,7 +1358,8 @@ onUnmounted(() => {
                           subItem.current
                             ? 'text-blue-500 dark:text-blue-400'
                             : 'text-slate-400 group-hover:text-slate-500',
-                        ]" />
+                        ]"
+                      />
                       <span class="min-w-0 flex-1 truncate">
                         {{ subItem.name }}
                       </span>
@@ -1348,10 +1385,12 @@ onUnmounted(() => {
                         isFavorite(subItem.path)
                           ? t('favorites.remove')
                           : t('favorites.add')
-                      ">
+                      "
+                    >
                       <StarIcon
                         v-if="isFavorite(subItem.path)"
-                        class="h-3.5 w-3.5 fill-current" />
+                        class="h-3.5 w-3.5 fill-current"
+                      />
                       <StarIcon v-else class="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -1365,11 +1404,13 @@ onUnmounted(() => {
 
     <!-- Main Content -->
     <div
-      :class="['transition-all duration-300', isCollapsed ? 'ml-16' : 'ml-64']">
+      :class="['transition-all duration-300', isCollapsed ? 'ml-16' : 'ml-64']"
+    >
       <!-- Header -->
       <header class="sticky top-0 z-30 surface-card border-b border-border">
         <div
-          class="relative flex min-w-0 items-center justify-between h-16 px-6">
+          class="relative flex min-w-0 items-center justify-between h-16 px-6"
+        >
           <!-- Left side - empty or can show breadcrumbs -->
           <div class="hidden min-w-0 items-center gap-4 flex-1 lg:flex">
             <!-- Reserved for future use -->
@@ -1379,16 +1420,19 @@ onUnmounted(() => {
           <div
             class="absolute left-1/2 top-1/2 z-10 flex min-w-0 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
             @mouseenter="cancelFavoritesHide"
-            @mouseleave="hideFavoritesMenu">
+            @mouseleave="hideFavoritesMenu"
+          >
             <button
               type="button"
               class="inline-flex items-center gap-2 rounded-lg border border-border bg-background/70 px-3 py-1.5 text-sm text-foreground-secondary shadow-sm transition-colors hover:bg-hover hover:text-foreground"
               :title="t('favorites.quickAccess')"
-              @click="toggleFavoritesMenu">
+              @click="toggleFavoritesMenu"
+            >
               <StarIconSolid class="h-4 w-4 text-yellow-500" />
               <span class="font-medium">{{ t("favorites.quickAccess") }}</span>
               <span
-                class="rounded-full bg-background-secondary px-1.5 py-0.5 text-[11px] font-semibold text-foreground-muted">
+                class="rounded-full bg-background-secondary px-1.5 py-0.5 text-[11px] font-semibold text-foreground-muted"
+              >
                 {{ favoritesStore.favorites.length }}
               </span>
             </button>
@@ -1398,12 +1442,15 @@ onUnmounted(() => {
               enter-to-class="opacity-100 translate-y-0 scale-100"
               leave-active-class="transition ease-in duration-75"
               leave-from-class="opacity-100 translate-y-0 scale-100"
-              leave-to-class="opacity-0 translate-y-1 scale-95">
+              leave-to-class="opacity-0 translate-y-1 scale-95"
+            >
               <div
                 v-if="isFavoritesMenuOpen"
-                class="absolute left-1/2 top-full z-50 mt-3 w-[560px] -translate-x-1/2 rounded-xl border border-border popover-surface p-3 shadow-xl">
+                class="absolute left-1/2 top-full z-50 mt-3 w-[560px] -translate-x-1/2 rounded-xl border border-border popover-surface p-3 shadow-xl"
+              >
                 <div
-                  class="mb-3 flex items-start justify-between gap-4 border-b border-border pb-3">
+                  class="mb-3 flex items-start justify-between gap-4 border-b border-border pb-3"
+                >
                   <div class="min-w-0">
                     <p class="text-sm font-semibold text-foreground">
                       {{ t("favorites.quickAccess") }}
@@ -1413,14 +1460,16 @@ onUnmounted(() => {
                     </p>
                   </div>
                   <span
-                    class="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    class="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                  >
                     {{ favoritesStore.favorites.length }}
                   </span>
                 </div>
 
                 <div
                   v-if="localizedFavorites.length > 0"
-                  class="max-h-[420px] space-y-0 overflow-y-auto pr-1">
+                  class="max-h-[420px] space-y-0 overflow-y-auto pr-1"
+                >
                   <TransitionGroup
                     tag="div"
                     class="space-y-0"
@@ -1430,7 +1479,8 @@ onUnmounted(() => {
                     enter-to-class="opacity-100 translate-y-0"
                     leave-active-class="transition duration-100 ease-in"
                     leave-from-class="opacity-100"
-                    leave-to-class="opacity-0">
+                    leave-to-class="opacity-0"
+                  >
                     <section
                       v-for="group in groupedFavorites"
                       :key="group.id"
@@ -1448,7 +1498,8 @@ onUnmounted(() => {
                       @dragover.prevent="
                         previewFavoriteGroupDrop(group.id, $event)
                       "
-                      @drop.prevent="dropFavoriteGroup(group.id)">
+                      @drop.prevent="dropFavoriteGroup(group.id)"
+                    >
                       <div class="flex items-center gap-2 px-1">
                         <button
                           type="button"
@@ -1456,15 +1507,18 @@ onUnmounted(() => {
                           class="shrink-0 cursor-grab rounded-md border border-transparent p-1 text-foreground-muted transition-colors hover:border-border hover:bg-hover hover:text-foreground active:cursor-grabbing"
                           :title="t('favorites.dragGroup')"
                           @dragstart="startFavoriteGroupDrag(group.id, $event)"
-                          @dragend="endFavoriteGroupDrag">
+                          @dragend="endFavoriteGroupDrag"
+                        >
                           <Bars3Icon class="h-3.5 w-3.5" />
                         </button>
                         <p
-                          class="text-[11px] font-semibold uppercase tracking-wider text-foreground-muted">
+                          class="text-[11px] font-semibold uppercase tracking-wider text-foreground-muted"
+                        >
                           {{ group.title }}
                         </p>
                         <span
-                          class="rounded-full bg-background-secondary px-1.5 py-0.5 text-[10px] font-medium text-foreground-muted">
+                          class="rounded-full bg-background-secondary px-1.5 py-0.5 text-[10px] font-medium text-foreground-muted"
+                        >
                           {{ group.items.length }}
                         </span>
                         <span class="h-px flex-1 bg-border" />
@@ -1480,21 +1534,25 @@ onUnmounted(() => {
                               ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                               : 'text-foreground-secondary hover:bg-hover hover:text-foreground',
                           ]"
-                          @click="isFavoritesMenuOpen = false">
+                          @click="isFavoritesMenuOpen = false"
+                        >
                           <div
                             :class="[
                               'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
                               route.path === fav.path
                                 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300'
                                 : 'bg-background-secondary text-slate-500 dark:text-slate-400 group-hover/fav-card:text-slate-600 dark:group-hover/fav-card:text-slate-200',
-                            ]">
+                            ]"
+                          >
                             <component
                               :is="getIconComponent(fav.icon)"
-                              class="h-4 w-4" />
+                              class="h-4 w-4"
+                            />
                           </div>
                           <div class="min-w-0 flex-1 py-0.5">
                             <p
-                              class="whitespace-normal text-sm font-medium leading-5">
+                              class="whitespace-normal text-sm font-medium leading-5"
+                            >
                               {{ fav.name }}
                             </p>
                           </div>
@@ -1504,7 +1562,8 @@ onUnmounted(() => {
                             :title="$t('favorites.remove')"
                             @click.prevent.stop="
                               favoritesStore.removeFavorite(fav.id)
-                            ">
+                            "
+                          >
                             <StarIconSolid class="h-3.5 w-3.5" />
                           </button>
                         </router-link>
@@ -1515,7 +1574,8 @@ onUnmounted(() => {
 
                 <div
                   v-else
-                  class="rounded-lg border border-dashed border-border bg-background/40 px-4 py-8 text-center">
+                  class="rounded-lg border border-dashed border-border bg-background/40 px-4 py-8 text-center"
+                >
                   <StarIcon class="mx-auto h-7 w-7 text-foreground-muted" />
                   <p class="mt-2 text-sm font-medium text-foreground">
                     {{ t("favorites.emptyTitle") }}
@@ -1530,7 +1590,8 @@ onUnmounted(() => {
 
           <!-- Right side - Theme & Language -->
           <div
-            class="relative z-20 flex min-w-0 shrink-0 items-center gap-4 justify-end">
+            class="relative z-20 flex min-w-0 shrink-0 items-center gap-4 justify-end"
+          >
             <!-- Theme Switcher -->
             <ThemeSwitcher />
 
@@ -1538,7 +1599,8 @@ onUnmounted(() => {
             <div class="relative">
               <button
                 @click="toggleLangMenu"
-                class="flex items-center gap-2 p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200">
+                class="flex items-center gap-2 p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200"
+              >
                 <LanguageIcon class="w-5 h-5" />
                 <span class="text-sm">{{
                   locale === "zh-CN" ? "中文" : "EN"
@@ -1550,10 +1612,12 @@ onUnmounted(() => {
                 enter-to-class="opacity-100 scale-100"
                 leave-active-class="transition ease-in duration-75"
                 leave-from-class="opacity-100 scale-100"
-                leave-to-class="opacity-0 scale-95">
+                leave-to-class="opacity-0 scale-95"
+              >
                 <div
                   v-if="isLangMenuOpen"
-                  class="absolute right-0 mt-2 w-32 popover-surface rounded-lg shadow-lg border border-border py-1">
+                  class="absolute right-0 mt-2 w-32 popover-surface rounded-lg shadow-lg border border-border py-1"
+                >
                   <button
                     @click="setLocale('zh-CN')"
                     :class="[
@@ -1561,7 +1625,8 @@ onUnmounted(() => {
                       locale === 'zh-CN'
                         ? 'text-blue-600 dark:text-blue-400 font-medium'
                         : 'text-foreground-secondary',
-                    ]">
+                    ]"
+                  >
                     中文
                   </button>
                   <button
@@ -1571,7 +1636,8 @@ onUnmounted(() => {
                       locale === 'en'
                         ? 'text-blue-600 dark:text-blue-400 font-medium'
                         : 'text-foreground-secondary',
-                    ]">
+                    ]"
+                  >
                     English
                   </button>
                 </div>
@@ -1582,7 +1648,8 @@ onUnmounted(() => {
             <div class="relative">
               <button
                 @click="toggleUserMenu"
-                class="flex items-center gap-2 p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200">
+                class="flex items-center gap-2 p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200"
+              >
                 <UserCircleIcon class="w-6 h-6" />
                 <span class="text-sm font-medium">{{
                   authStore.user?.full_name || authStore.user?.email
@@ -1594,20 +1661,24 @@ onUnmounted(() => {
                 enter-to-class="opacity-100 scale-100"
                 leave-active-class="transition ease-in duration-75"
                 leave-from-class="opacity-100 scale-100"
-                leave-to-class="opacity-0 scale-95">
+                leave-to-class="opacity-0 scale-95"
+              >
                 <div
                   v-if="isUserMenuOpen"
-                  class="absolute right-0 mt-2 w-48 popover-surface rounded-lg shadow-lg border border-border py-1">
+                  class="absolute right-0 mt-2 w-48 popover-surface rounded-lg shadow-lg border border-border py-1"
+                >
                   <button
                     @click="openProfile"
-                    class="w-full px-4 py-2 text-left text-sm text-foreground-secondary hover:bg-hover flex items-center gap-2">
+                    class="w-full px-4 py-2 text-left text-sm text-foreground-secondary hover:bg-hover flex items-center gap-2"
+                  >
                     <Cog6ToothIcon class="w-4 h-4" />
                     {{ t("nav.settings") }}
                   </button>
                   <hr class="my-1 border-border" />
                   <button
                     @click="handleLogout"
-                    class="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
+                    class="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                  >
                     <ArrowRightStartOnRectangleIcon class="w-4 h-4" />
                     {{ t("common.logout") }}
                   </button>
@@ -1631,34 +1702,40 @@ onUnmounted(() => {
       enter-to-class="opacity-100 translate-x-0"
       leave-active-class="transition ease-in duration-200"
       leave-from-class="opacity-100 translate-x-0"
-      leave-to-class="opacity-0 translate-x-full">
+      leave-to-class="opacity-0 translate-x-full"
+    >
       <div
         v-if="showWelcome"
         v-show="welcomeVisible"
-        class="fixed top-20 right-6 z-50 w-80 popover-surface rounded-xl shadow-2xl border border-border overflow-hidden">
+        class="fixed top-20 right-6 z-50 w-80 popover-surface rounded-xl shadow-2xl border border-border overflow-hidden"
+      >
         <div class="bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <component
                 :is="getGreeting().icon"
-                :class="['w-5 h-5', getGreeting().color]" />
+                :class="['w-5 h-5', getGreeting().color]"
+              />
               <span class="text-white font-medium">{{
                 getGreeting().text
               }}</span>
             </div>
             <button
               @click="closeWelcome"
-              class="text-white/80 hover:text-white">
+              class="text-white/80 hover:text-white"
+            >
               <svg
                 class="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
-                viewBox="0 0 24 24">
+                viewBox="0 0 24 24"
+              >
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12" />
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -1666,7 +1743,8 @@ onUnmounted(() => {
         <div class="px-4 py-3">
           <div class="flex items-center gap-3">
             <div
-              class="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+              class="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg"
+            >
               {{
                 (authStore.user?.full_name ||
                   authStore.user?.email ||
@@ -1684,7 +1762,8 @@ onUnmounted(() => {
           </div>
         </div>
         <div
-          class="bg-background-secondary px-4 py-2 text-xs text-foreground-muted text-center">
+          class="bg-background-secondary px-4 py-2 text-xs text-foreground-muted text-center"
+        >
           HyperFileLens · {{ t("welcome.subtitle") }}
         </div>
       </div>

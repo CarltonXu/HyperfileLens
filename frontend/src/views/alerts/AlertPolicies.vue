@@ -10,7 +10,6 @@ import {
   ChevronRightIcon,
   DocumentDuplicateIcon,
   ExclamationTriangleIcon,
-  ListBulletIcon,
   MagnifyingGlassIcon,
   PencilSquareIcon,
   PlusIcon,
