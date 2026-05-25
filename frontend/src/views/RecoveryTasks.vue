@@ -173,31 +173,52 @@ type RecoveryTaskColumnKey =
   | "name"
   | "type"
   | "status"
+  | "snapshot"
+  | "repository"
+  | "recovery_target"
   | "progress"
   | "date"
   | "actions";
 
 const recoveryTaskColumns = computed(() => [
-  { key: "name" as const, label: t("common.name"), min: 240, max: 460 },
+  { key: "name" as const, label: t("common.name"), min: 200, max: 320 },
   {
     key: "type" as const,
     label: t("recoveryTasks.form.type"),
+    min: 120,
+    max: 160,
+  },
+  { key: "status" as const, label: t("common.status"), min: 120, max: 160 },
+  {
+    key: "snapshot" as const,
+    label: t("recoveryTasks.columns.snapshot"),
+    min: 200,
+    max: 300,
+  },
+  {
+    key: "repository" as const,
+    label: t("recoveryTasks.columns.repository"),
     min: 180,
     max: 280,
   },
-  { key: "status" as const, label: t("common.status"), min: 140, max: 220 },
+  {
+    key: "recovery_target" as const,
+    label: t("recoveryTasks.columns.recoveryTarget"),
+    min: 200,
+    max: 360,
+  },
   {
     key: "progress" as const,
     label: t("recoveryTasks.progress.progress"),
-    min: 150,
-    max: 240,
+    min: 200,
+    max: 320,
   },
-  { key: "date" as const, label: t("common.date"), min: 150, max: 260 },
+  { key: "date" as const, label: t("common.date"), min: 150, max: 200 },
   {
     key: "actions" as const,
     label: t("common.actions"),
     min: 130,
-    max: 200,
+    max: 160,
     sortable: false,
     align: "right" as const,
   },
@@ -211,11 +232,14 @@ const recoveryTaskTable = useResizableSortableTable<
   columns: recoveryTaskColumns,
   rows: filteredTasks,
   defaultSort: { key: "date", direction: "desc" },
-  minTableWidth: 1020,
+  minTableWidth: 1600,
   getSortValue: (task, key) => {
     if (key === "name") return task.name;
     if (key === "type") return task.recovery_type || "";
     if (key === "status") return task.status || "";
+    if (key === "snapshot") return task.snapshot_name || "";
+    if (key === "repository") return task.repository_name || "";
+    if (key === "recovery_target") return task.target_node_name || "";
     if (key === "progress") return task.progress || 0;
     if (key === "date")
       return task.created_at ? new Date(task.created_at).getTime() : 0;
@@ -226,6 +250,19 @@ const recoveryTaskTable = useResizableSortableTable<
     if (key === "type")
       return t(`recoveryTasks.types.${task.recovery_type || "original"}`);
     if (key === "status") return task.status || "";
+    if (key === "snapshot") return task.snapshot_name || "-";
+    if (key === "repository") {
+      // Show repository name with share path
+      const repoName = task.repository_name || "-";
+      const sharePath = task.snapshot_source_path || task.metadata?.source_path || "";
+      return sharePath ? `${repoName}: ${sharePath}` : repoName;
+    }
+    if (key === "recovery_target") {
+      // Show node name + target path
+      const nodeName = task.target_node_name || "-";
+      const targetPath = task.target_path || "";
+      return targetPath ? `${nodeName}: ${targetPath}` : nodeName;
+    }
     if (key === "progress") return String(task.progress || 0);
     if (key === "date") return formatDateTime(task.created_at);
     return "";

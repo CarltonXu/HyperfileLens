@@ -14,6 +14,10 @@ class RecoveryTaskSerializer(serializers.ModelSerializer):
         source='snapshot.name',
         read_only=True
     )
+    snapshot_id = serializers.UUIDField(
+        source='snapshot.id',
+        read_only=True
+    )
     target_node_name = serializers.CharField(
         source='target_node.name',
         read_only=True
@@ -67,7 +71,7 @@ class RecoveryTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecoveryTask
         fields = [
-            'id', 'name', 'description', 'snapshot', 'snapshot_name',
+            'id', 'name', 'description', 'snapshot', 'snapshot_id', 'snapshot_name',
             'target_node', 'target_node_name', 'target_node_status',
             'repository_id', 'repository_name', 'backup_task_name', 'snapshot_storage_path',
             'snapshot_manifest_path', 'snapshot_status', 'snapshot_size',

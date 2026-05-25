@@ -710,7 +710,6 @@ class ProxyTask(models.Model):
                     ])
                     & models.Q(task_type__in=[
                         'backup',
-                        'snapshot_list',
                     ])
                 ),
                 name='unique_active_repository_source_task',

@@ -1419,6 +1419,12 @@ export default {
       cancelled: "已取消",
     },
 
+    columns: {
+      snapshot: "快照",
+      repository: "存储仓库",
+      recoveryTarget: "恢复目标",
+    },
+
     form: {
       targetNode: "目标节点",
       repository: "存储仓库",
@@ -1529,6 +1535,7 @@ export default {
       speed: "速度",
       success: "成功",
       failed: "失败",
+      duration: "总用时",
     },
 
     actions: {

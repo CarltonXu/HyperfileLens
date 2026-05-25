@@ -246,29 +246,21 @@ def reconcile_snapshot_result(proxy_task: ProxyTask, result: dict[str, Any]) -> 
                 "kopia_end_time": item.get("endTime") or "",
                 "last_seen_at": now.isoformat(),
             }
-            snapshot = (
-                BackupSnapshot.objects.filter(
-                    kopia_snapshot_id=snapshot_id,
-                    task=task,
-                )
-                .exclude(metadata__no_changes=True)
-                .order_by("-created_at")
-                .first()
+            snapshot, _created = BackupSnapshot.objects.get_or_create(
+                task=task,
+                kopia_snapshot_id=snapshot_id,
+                defaults={
+                    "kopia_root_object_id": root_object_id,
+                    "storage_path": snapshot_id,
+                    "repository": task.target_repository,
+                    "name": f"snapshot-{snapshot_id[:12]}",
+                    "version": snapshot_id,
+                    "manifest_path": root_object_id,
+                    "total_size": int(stats.get("totalSize") or 0),
+                    "file_count": int(stats.get("fileCount") or 0),
+                    "metadata": {},
+                },
             )
-            if not snapshot:
-                snapshot = BackupSnapshot.objects.create(
-                    task=task,
-                    kopia_snapshot_id=snapshot_id,
-                    kopia_root_object_id=root_object_id,
-                    storage_path=snapshot_id,
-                    repository=task.target_repository,
-                    name=f"snapshot-{snapshot_id[:12]}",
-                    version=snapshot_id,
-                    manifest_path=root_object_id,
-                    total_size=int(stats.get("totalSize") or 0),
-                    file_count=int(stats.get("fileCount") or 0),
-                    metadata={},
-                )
             existing_metadata = snapshot.metadata or {}
             existing_metadata.update(metadata)
             snapshot.repository = task.target_repository

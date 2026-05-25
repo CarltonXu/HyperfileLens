@@ -1476,6 +1476,12 @@ export default {
       cancelled: "Cancelled",
     },
 
+    columns: {
+      snapshot: "Snapshot",
+      repository: "Repository",
+      recoveryTarget: "Recovery Target",
+    },
+
     form: {
       targetNode: "Target Node",
       repository: "Repository",
@@ -1600,6 +1606,7 @@ export default {
       speed: "Speed",
       success: "Success",
       failed: "Failed",
+      duration: "Duration",
     },
 
     actions: {
