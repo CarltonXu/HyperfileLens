@@ -999,8 +999,41 @@ class GatewayConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_pending_tasks(self):
         """Get pending tasks for gateway."""
-        # TODO: Implement task queue
-        return []
+        from insights.models import SnapshotIndexJob
+
+        jobs = list(
+            SnapshotIndexJob.objects.select_related('snapshot__repository')
+            .filter(
+                gateway_id=self.gateway_id,
+                status=SnapshotIndexJob.STATUS_DISPATCHED,
+                metadata__pending_delivery=True,
+            )
+            .order_by('created_at')[:5]
+        )
+        tasks = []
+        now = timezone.now().isoformat()
+        for job in jobs:
+            metadata = job.metadata or {}
+            command = dict(metadata.get('command') or {})
+            repository = job.snapshot.repository
+            password = repository.get_kopia_password()
+            if not command or not password:
+                job.status = SnapshotIndexJob.STATUS_FAILED
+                job.error_message = 'Unable to build pending Gateway index task'
+                job.completed_at = timezone.now()
+                job.metadata = {**metadata, 'pending_delivery': False}
+                job.save(update_fields=['status', 'error_message', 'completed_at', 'metadata', 'updated_at'])
+                continue
+            command['password'] = password
+            command['timestamp'] = now
+            tasks.append(command)
+            job.metadata = {
+                **metadata,
+                'pending_delivery': False,
+                'delivered_at': now,
+            }
+            job.save(update_fields=['metadata', 'updated_at'])
+        return tasks
 
     @database_sync_to_async
     def update_task_status(self, task_id, status, progress, message):

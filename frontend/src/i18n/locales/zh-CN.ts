@@ -163,6 +163,13 @@ export default {
     offline: "离线",
     view: "查看",
     checking: "检查中",
+    // 排序
+    newestFirst: "最新在前",
+    oldestFirst: "最旧在前",
+    statusDesc: "状态（降序）",
+    statusAsc: "状态（升序）",
+    progressDesc: "进度（降序）",
+    progressAsc: "进度（升序）",
   },
 
   // Favorites
@@ -923,6 +930,18 @@ export default {
     snapshots: "快照",
     noSnapshots: "暂无快照",
     noRuns: "暂无执行任务",
+
+    runs: {
+      errorDetails: "错误详情",
+      showError: "展开完整错误",
+      hideError: "收起错误",
+      copyError: "复制错误详情",
+      errorCopied: "错误详情已复制到剪贴板",
+      triggerType: "触发方式",
+      triggerManual: "手动",
+      triggerScheduled: "计划",
+      triggerRetry: "重试",
+    },
 
     emptyStates: {
       snapshotsTitle: "暂无可用快照",

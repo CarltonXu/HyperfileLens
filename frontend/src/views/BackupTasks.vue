@@ -72,6 +72,14 @@ const searchQuery = ref("");
 const detailAutoRefresh = ref(false);
 const detailRefreshInterval = ref(10);
 const detailRefreshTimer = ref<ReturnType<typeof setInterval> | null>(null);
+
+// Runs pagination and filters
+const runsCurrentPage = ref(1);
+const runsPageSize = ref(20);
+const runsTotalCount = ref(0);
+const runsStatusFilter = ref("all");
+const runsTriggerFilter = ref("all");
+const runsOrdering = ref("-created_at");
 const {
   snapshotHelpTooltip,
   snapshotHoverTooltip,
@@ -322,6 +330,21 @@ watch([selectedStatus, searchQuery], () => {
   currentPage.value = 1;
 });
 
+// Reset runs page when filters change
+watch([runsStatusFilter, runsTriggerFilter, runsOrdering], () => {
+  runsCurrentPage.value = 1;
+  if (detailTab.value === "tasks") {
+    loadTaskRuns();
+  }
+});
+
+// Reload runs when page size changes
+watch([runsPageSize], () => {
+  if (detailTab.value === "tasks") {
+    loadTaskRuns();
+  }
+});
+
 function stopDetailAutoRefresh() {
   if (detailRefreshTimer.value) {
     clearInterval(detailRefreshTimer.value);
@@ -418,10 +441,20 @@ async function loadTaskRuns() {
   if (!selectedTask.value) return;
   runsLoading.value = true;
   try {
-    const response = await backupTasksApi.runs(selectedTask.value.id, {
-      page_size: 100,
-    });
+    const params: any = {
+      page: runsCurrentPage.value,
+      page_size: runsPageSize.value,
+      ordering: runsOrdering.value,
+    };
+    if (runsStatusFilter.value !== 'all') {
+      params.status = runsStatusFilter.value;
+    }
+    if (runsTriggerFilter.value !== 'all') {
+      params.trigger_type = runsTriggerFilter.value;
+    }
+    const response = await backupTasksApi.runs(selectedTask.value.id, params);
     selectedTaskRuns.value = response.data.results || response.data || [];
+    runsTotalCount.value = response.data.count || response.data.length || 0;
   } catch (error) {
     console.error("Failed to fetch task runs:", error);
   } finally {
@@ -484,6 +517,37 @@ function openRunInTaskManagement(run: any) {
     query: { task: taskId },
   });
   window.open(route.href, "_blank", "noopener");
+}
+
+async function copyRunError(text: string) {
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      if (!copied) throw new Error("copy failed");
+    }
+    appStore.showToast({
+      type: "success",
+      title: t("common.copied"),
+      message: t("backupTasks.runs.errorCopied"),
+    });
+  } catch (error) {
+    console.error("Failed to copy run error:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: t("common.copyFailedToClipboard"),
+    });
+  }
 }
 
 async function fetchStats() {
@@ -825,12 +889,20 @@ onMounted(() => {
 
             <BackupTaskRunsTab
               v-else
+              v-model:current-page="runsCurrentPage"
+              v-model:page-size="runsPageSize"
+              v-model:status-filter="runsStatusFilter"
+              v-model:trigger-filter="runsTriggerFilter"
+              v-model:ordering="runsOrdering"
               :runs="selectedTaskRuns"
               :loading="runsLoading"
+              :total-count="runsTotalCount"
               :get-status-color="getStatusColor"
               :format-date-time="formatDateTime"
               :run-duration="runDuration"
               @open-management="openRunInTaskManagement"
+              @copy-error="copyRunError"
+              @reload="loadTaskRuns"
             />
           </div>
         </aside>

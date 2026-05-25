@@ -696,18 +696,56 @@ class BackupTaskViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def runs(self, request, pk=None):
-        """List execution runs for a backup task."""
-        task = self.get_object()
-        runs = BackupTaskRun.objects.filter(task=task).select_related(
+        """List execution runs for a backup task with filtering and pagination."""
+        # Use direct get to bypass get_queryset filters that might interfere
+        # (e.g., status filter would filter the task, not the runs)
+        try:
+            task = BackupTask.objects.get(pk=pk)
+        except BackupTask.DoesNotExist:
+            return Response(
+                {'detail': 'Not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        queryset = BackupTaskRun.objects.filter(task=task).select_related(
             'selected_proxy', 'repository', 'source_resource', 'proxy_task'
-        ).order_by('-created_at')
+        )
 
-        page = self.paginate_queryset(runs)
+        # Filter by status
+        status_filter = request.query_params.get('status')
+        if status_filter and status_filter != 'all':
+            queryset = queryset.filter(status=status_filter)
+
+        # Filter by trigger type
+        trigger_type = request.query_params.get('trigger_type')
+        if trigger_type and trigger_type != 'all':
+            queryset = queryset.filter(trigger_type=trigger_type)
+
+        # Filter by result (completed, failed, etc.)
+        result = request.query_params.get('result')
+        if result:
+            if result == 'success':
+                queryset = queryset.filter(status__in=[BackupTaskRun.STATUS_COMPLETED])
+            elif result == 'failure':
+                queryset = queryset.filter(status__in=[BackupTaskRun.STATUS_FAILED, BackupTaskRun.STATUS_TIMEOUT])
+            elif result == 'cancelled':
+                queryset = queryset.filter(status=BackupTaskRun.STATUS_CANCELLED)
+
+        # Ordering
+        ordering = request.query_params.get('ordering', '-created_at')
+        # Validate ordering fields to prevent SQL injection
+        valid_ordering_fields = ['created_at', '-created_at', 'status', '-status', 'progress', '-progress', 'trigger_type', '-trigger_type']
+        if ordering in valid_ordering_fields:
+            queryset = queryset.order_by(ordering)
+        else:
+            queryset = queryset.order_by('-created_at')
+
+        # Pagination
+        page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = BackupTaskRunSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        serializer = BackupTaskRunSerializer(runs, many=True)
+        serializer = BackupTaskRunSerializer(queryset, many=True)
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])

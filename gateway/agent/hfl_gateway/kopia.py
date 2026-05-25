@@ -510,7 +510,13 @@ class KopiaClient:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await proc.communicate()
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            logger.debug("Kopia ls json timed out path=%s", object_path)
+            return None
         if proc.returncode != 0:
             logger.debug(
                 "Kopia ls json failed path=%s returncode=%s stderr=%s",
@@ -555,7 +561,13 @@ class KopiaClient:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await proc.communicate()
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            logger.warning("Kopia ls text timed out path=%s", object_path)
+            raise RuntimeError(f"kopia ls timed out path={object_path}")
         if proc.returncode != 0:
             stdout_text = stdout.decode(errors='ignore')
             stderr_text = stderr.decode(errors='ignore')

@@ -18,6 +18,7 @@ from .services import (
     dispatch_snapshot_index,
     dispatch_snapshot_ai_summary,
     generate_snapshot_insights,
+    reconcile_stale_index_job,
 )
 
 
@@ -56,6 +57,7 @@ class SnapshotInsightsViewSet(viewsets.GenericViewSet):
         job = SnapshotIndexJob.objects.filter(snapshot=snapshot).order_by('-created_at').first()
         if not job:
             return Response({'status': 'not_indexed'})
+        job = reconcile_stale_index_job(job)
         return Response(SnapshotIndexJobSerializer(job).data)
 
     @action(detail=False, methods=['get'], url_path=r'snapshots/(?P<snapshot_id>[^/.]+)/files')

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
@@ -31,6 +31,7 @@ const aiJobs = ref<any[]>([]);
 const insights = ref<any[]>([]);
 const searchQuery = ref("");
 const searchResults = ref<any[]>([]);
+const indexPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
 
 function formatBytes(value?: number | string | null) {
   const bytes = Number(value || 0);
@@ -57,6 +58,41 @@ const coldDataInsight = computed(() => insightByType("cold_data"));
 const growthInsight = computed(() => insightByType("growth"));
 const aiSummaryInsight = computed(() => insightByType("ai_summary"));
 const latestAiJob = computed(() => aiJobs.value[0] || null);
+const activeIndexStatuses = new Set(["pending", "dispatched", "running"]);
+const indexJobActive = computed(() =>
+  activeIndexStatuses.has(indexJob.value?.status || ""),
+);
+
+function stopIndexPolling() {
+  if (indexPollTimer.value) {
+    clearInterval(indexPollTimer.value);
+    indexPollTimer.value = null;
+  }
+}
+
+function startIndexPolling() {
+  if (indexPollTimer.value) return;
+  indexPollTimer.value = setInterval(fetchIndexStatus, 3000);
+}
+
+async function fetchIndexStatus() {
+  try {
+    const response = await insightsApi.indexStatus(snapshotId.value);
+    indexJob.value = response.data?.status === "not_indexed" ? null : response.data;
+    if (!indexJobActive.value) {
+      stopIndexPolling();
+      const [insightsResponse, aiJobsResponse] = await Promise.all([
+        insightsApi.insights(snapshotId.value),
+        insightsApi.aiJobs(snapshotId.value),
+      ]);
+      insights.value = insightsResponse.data || [];
+      aiJobs.value = aiJobsResponse.data || [];
+    }
+  } catch (error) {
+    stopIndexPolling();
+    appStore.error(getApiErrorMessage(error, t("snapshotInsights.loadFailed")));
+  }
+}
 
 async function fetchAll() {
   loading.value = true;
@@ -71,6 +107,11 @@ async function fetchAll() {
     indexJob.value = statusResponse.data?.status === "not_indexed" ? null : statusResponse.data;
     insights.value = insightsResponse.data || [];
     aiJobs.value = aiJobsResponse.data || [];
+    if (indexJobActive.value) {
+      startIndexPolling();
+    } else {
+      stopIndexPolling();
+    }
   } catch (error) {
     appStore.error(getApiErrorMessage(error, t("snapshotInsights.loadFailed")));
   } finally {
@@ -83,6 +124,7 @@ async function startIndex(force = false) {
   try {
     const response = await insightsApi.indexSnapshot(snapshotId.value, { force });
     indexJob.value = response.data;
+    startIndexPolling();
     appStore.success(t("snapshotInsights.indexStarted"));
   } catch (error) {
     appStore.error(getApiErrorMessage(error, t("snapshotInsights.indexFailed")));
@@ -131,6 +173,7 @@ async function search() {
 }
 
 onMounted(fetchAll);
+onUnmounted(stopIndexPolling);
 </script>
 
 <template>

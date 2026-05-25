@@ -164,6 +164,13 @@ export default {
     offline: "Offline",
     view: "View",
     checking: "Checking",
+    // Sorting
+    newestFirst: "Newest first",
+    oldestFirst: "Oldest first",
+    statusDesc: "Status (desc)",
+    statusAsc: "Status (asc)",
+    progressDesc: "Progress (desc)",
+    progressAsc: "Progress (asc)",
   },
 
   // Favorites
@@ -946,6 +953,18 @@ export default {
     snapshots: "Snapshots",
     noSnapshots: "No snapshots yet",
     noRuns: "No task runs yet",
+
+    runs: {
+      errorDetails: "Error details",
+      showError: "Show full error",
+      hideError: "Collapse error",
+      copyError: "Copy error details",
+      errorCopied: "Error details copied to clipboard",
+      triggerType: "Trigger",
+      triggerManual: "Manual",
+      triggerScheduled: "Scheduled",
+      triggerRetry: "Retry",
+    },
 
     emptyStates: {
       snapshotsTitle: "No snapshots available",

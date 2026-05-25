@@ -50,7 +50,14 @@ export const backupTasksApi = {
   runMaintenance: (id: number | string, data?: { full?: boolean }) =>
     api.post(`/api/v1/backup-tasks/tasks/${id}/run-maintenance/`, data || {}),
 
-  runs: (id: number | string, params?: { page?: number; page_size?: number }) =>
+  runs: (id: number | string, params?: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+    trigger_type?: string;
+    result?: string;
+    ordering?: string;
+  }) =>
     api.get(`/api/v1/backup-tasks/tasks/${id}/runs/`, { params }),
 
   listSnapshots: (params?: {

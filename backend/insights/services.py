@@ -84,9 +84,29 @@ def dispatch_snapshot_index(snapshot, user, gateway_id=None, force=False):
         raise ValueError('Repository password is not saved')
 
     gateway = select_gateway(gateway_id, getattr(user, 'tenant', None))
+    active_statuses = [
+        SnapshotIndexJob.STATUS_PENDING,
+        SnapshotIndexJob.STATUS_DISPATCHED,
+        SnapshotIndexJob.STATUS_RUNNING,
+    ]
     if force:
+        SnapshotIndexJob.objects.filter(
+            snapshot=snapshot,
+            status__in=active_statuses,
+        ).update(
+            status=SnapshotIndexJob.STATUS_CANCELLED,
+            error_message='Superseded by a new index request',
+            completed_at=timezone.now(),
+        )
         SnapshotFileIndex.objects.filter(snapshot=snapshot).delete()
         SnapshotInsight.objects.filter(snapshot=snapshot).delete()
+    else:
+        existing = SnapshotIndexJob.objects.filter(
+            snapshot=snapshot,
+            status__in=active_statuses,
+        ).order_by('-created_at').first()
+        if existing:
+            return existing
 
     object_id = snapshot.kopia_root_object_id or snapshot.manifest_path or ''
     kopia_snapshot_id = snapshot.kopia_snapshot_id or (snapshot.metadata or {}).get('referenced_snapshot_id', '')
@@ -103,6 +123,15 @@ def dispatch_snapshot_index(snapshot, user, gateway_id=None, force=False):
         object_id,
         force,
     )
+    command = {
+        'type': 'index_snapshot',
+        'job_id': None,
+        'snapshot_id': str(snapshot.id),
+        'kopia_snapshot_id': kopia_snapshot_id,
+        'object_id': object_id,
+        'repository': build_repository_config(repository),
+        'password': password,
+    }
     job = SnapshotIndexJob.objects.create(
         snapshot=snapshot,
         gateway=gateway,
@@ -110,6 +139,7 @@ def dispatch_snapshot_index(snapshot, user, gateway_id=None, force=False):
         user=user,
         status=SnapshotIndexJob.STATUS_PENDING,
     )
+    command['job_id'] = str(job.id)
     task_id = GatewayService.index_snapshot(
         str(gateway.id),
         job_id=str(job.id),
@@ -121,7 +151,14 @@ def dispatch_snapshot_index(snapshot, user, gateway_id=None, force=False):
     )
     job.task_id = task_id
     job.status = SnapshotIndexJob.STATUS_DISPATCHED
-    job.save(update_fields=['task_id', 'status', 'updated_at'])
+    command['task_id'] = task_id
+    command.pop('password', None)
+    job.metadata = {
+        **(job.metadata or {}),
+        'pending_delivery': True,
+        'command': command,
+    }
+    job.save(update_fields=['task_id', 'status', 'metadata', 'updated_at'])
     return job
 
 
@@ -273,6 +310,12 @@ def fail_ai_job(job_id, error):
 
 def update_index_progress(job_id, payload):
     job = SnapshotIndexJob.objects.get(id=job_id)
+    if job.status in {
+        SnapshotIndexJob.STATUS_CANCELLED,
+        SnapshotIndexJob.STATUS_COMPLETED,
+        SnapshotIndexJob.STATUS_FAILED,
+    }:
+        return job
     status = payload.get('status') or SnapshotIndexJob.STATUS_RUNNING
     job.status = status
     job.progress = int(payload.get('progress') or job.progress or 0)
@@ -283,12 +326,24 @@ def update_index_progress(job_id, payload):
     job.current_path = payload.get('current_path') or payload.get('current_file') or job.current_path
     if status == SnapshotIndexJob.STATUS_RUNNING and not job.started_at:
         job.started_at = timezone.now()
+    if (job.metadata or {}).get('pending_delivery'):
+        job.metadata = {
+            **(job.metadata or {}),
+            'pending_delivery': False,
+            'delivered_at': timezone.now().isoformat(),
+        }
     job.save()
     return job
 
 
 def save_index_batch(job_id, files):
     job = SnapshotIndexJob.objects.select_related('snapshot').get(id=job_id)
+    if job.status in {
+        SnapshotIndexJob.STATUS_CANCELLED,
+        SnapshotIndexJob.STATUS_COMPLETED,
+        SnapshotIndexJob.STATUS_FAILED,
+    }:
+        return 0
     records = []
     now = timezone.now()
     for item in files or []:
@@ -333,6 +388,12 @@ def save_index_batch(job_id, files):
 def complete_index_job(job_id, payload=None):
     payload = payload or {}
     job = SnapshotIndexJob.objects.select_related('snapshot').get(id=job_id)
+    if job.status in {
+        SnapshotIndexJob.STATUS_CANCELLED,
+        SnapshotIndexJob.STATUS_COMPLETED,
+        SnapshotIndexJob.STATUS_FAILED,
+    }:
+        return job
     job.status = SnapshotIndexJob.STATUS_COMPLETED
     job.progress = 100
     job.indexed_files = int(payload.get('indexed_files') or SnapshotFileIndex.objects.filter(snapshot=job.snapshot).count())
@@ -351,6 +412,37 @@ def fail_index_job(job_id, error):
     job.error_message = str(error or 'Index failed')
     job.completed_at = timezone.now()
     job.save(update_fields=['status', 'error_message', 'completed_at', 'updated_at'])
+    return job
+
+
+def reconcile_stale_index_job(job):
+    if job.status not in {
+        SnapshotIndexJob.STATUS_PENDING,
+        SnapshotIndexJob.STATUS_DISPATCHED,
+        SnapshotIndexJob.STATUS_RUNNING,
+    }:
+        return job
+
+    now = timezone.now()
+    stale_after = timedelta(minutes=2) if job.status in {
+        SnapshotIndexJob.STATUS_PENDING,
+        SnapshotIndexJob.STATUS_DISPATCHED,
+    } else timedelta(minutes=10)
+    if job.updated_at and now - job.updated_at <= stale_after:
+        return job
+
+    job.status = SnapshotIndexJob.STATUS_FAILED
+    job.error_message = (
+        'Snapshot indexing did not receive progress from the Gateway before timeout. '
+        'Please check Gateway connectivity and retry.'
+    )
+    job.completed_at = now
+    job.metadata = {
+        **(job.metadata or {}),
+        'pending_delivery': False,
+        'stale_reconciled_at': now.isoformat(),
+    }
+    job.save(update_fields=['status', 'error_message', 'completed_at', 'metadata', 'updated_at'])
     return job
 
 

@@ -269,6 +269,16 @@ class GatewayAgent:
         pending_tasks = data.get('pending_tasks', [])
         if pending_tasks:
             logger.info(f"Pending tasks: {len(pending_tasks)}")
+        for task in pending_tasks:
+            if not isinstance(task, dict):
+                logger.warning("Ignoring invalid pending task payload: %s", task)
+                continue
+            logger.debug(
+                "Processing pending task type=%s task_id=%s",
+                task.get('type'),
+                task.get('task_id') or task.get('id'),
+            )
+            await self._handle_message(json.dumps(task))
     
     async def _handle_mount(self, data):
         """Handle mount command."""
