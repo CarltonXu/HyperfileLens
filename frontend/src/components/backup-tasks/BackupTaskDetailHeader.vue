@@ -159,7 +159,7 @@ const tabs = ["overview", "snapshots", "tasks"] as const;
       <button
         v-if="canRunTask(task)"
         @click="$emit('execute', task)"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 border border-emerald-700"
       >
         <PlayIcon class="w-3.5 h-3.5" />
         {{ t("backupTasks.actions.runNow") }}

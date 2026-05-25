@@ -942,7 +942,7 @@ export default {
   // Backup Tasks
   backupTasks: {
     title: "Backup Tasks",
-    subtitle: "Manage backup operations",
+    subtitle: "Create, manage and monitor backup tasks, track snapshot status and restore operations",
     createTask: "Create Backup Task",
     enabled: "Enabled",
     disabled: "Disabled",

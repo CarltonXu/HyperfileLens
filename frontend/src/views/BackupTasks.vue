@@ -720,7 +720,7 @@ onMounted(() => {
       </div>
       <button
         @click="showCreateModal = true"
-        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg border border-indigo-600"
       >
         <PlusIcon class="w-4 h-4" />
         {{ t("backupTasks.createTask") }}

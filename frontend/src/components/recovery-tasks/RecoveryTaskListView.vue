@@ -250,36 +250,21 @@ function formatDuration(startedAt?: string, completedAt?: string): string {
             <td class="px-4 py-4" :style="table.columnStyle('progress')">
               <div
                 v-if="task.status === 'running' || task.progress"
-                class="space-y-1.5">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-foreground"
-                    >{{ task.progress || 0 }}%</span
-                  >
-                  <span
-                    v-if="task.speed_mbps"
-                    class="text-xs text-foreground-muted">
-                    {{ task.speed_mbps.toFixed(1) }} MB/s
-                  </span>
+                class="space-y-1 min-w-[160px]">
+                <div class="flex items-center justify-between text-xs text-foreground-muted">
+                  <span class="font-medium text-foreground">{{ task.progress || 0 }}%</span>
+                  <span>{{ t("recoveryTasks.progress.duration") }}: {{ formatDuration(task.started_at, task.completed_at) }}</span>
                 </div>
-                <div
-                  class="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
+                <div class="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
                   <div
                     class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-300"
                     :style="{ width: `${task.progress || 0}%` }" />
                 </div>
-                <div
-                  class="grid grid-cols-3 gap-1 text-xs text-foreground-muted text-right">
-                  <span
-                    >{{ t("recoveryTasks.progress.size") }}: {{ formatBytes(task.restored_size) }} /
-                    {{ formatBytes(task.total_size) }}</span
-                  >
-                  <span
-                    >{{ t("recoveryTasks.progress.files") }}: {{ task.restored_files || 0 }} /
-                    {{ task.total_files || 0 }}</span
-                  >
-                  <span>{{ t("recoveryTasks.progress.duration") }}: {{
-                    formatDuration(task.started_at, task.completed_at)
-                  }}</span>
+                <div class="grid grid-cols-[1fr_auto_1fr] gap-x-2 text-xs text-foreground-muted">
+                  <span>{{ t("recoveryTasks.progress.size") }}: {{ formatBytes(task.restored_size) }}/{{ formatBytes(task.total_size) }}</span>
+                  <span class="text-center">{{ t("recoveryTasks.progress.files") }}: {{ task.restored_files || 0 }}/{{ task.total_files || 0 }}</span>
+                  <span class="text-right" v-if="task.speed_mbps">{{ task.speed_mbps.toFixed(1) }} MB/s</span>
+                  <span v-else></span>
                 </div>
               </div>
               <span v-else class="text-sm text-slate-400">-</span>

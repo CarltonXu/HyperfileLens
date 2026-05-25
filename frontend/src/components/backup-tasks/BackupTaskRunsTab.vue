@@ -285,7 +285,7 @@ watch(() => props.currentPage, () => {
                 <button
                   v-if="isLongError(run)"
                   type="button"
-                  class="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-700 transition-colors hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900/50"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-700 transition-colors hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900/50 border border-transparent hover:border-red-200"
                   :title="
                     isErrorExpanded(run)
                       ? t('backupTasks.runs.hideError')
@@ -302,7 +302,7 @@ watch(() => props.currentPage, () => {
                 </button>
                 <button
                   type="button"
-                  class="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-700 transition-colors hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900/50"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-700 transition-colors hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900/50 border border-transparent hover:border-red-200"
                   :title="t('backupTasks.runs.copyError')"
                   @click.stop="emit('copyError', errorText(run))"
                 >

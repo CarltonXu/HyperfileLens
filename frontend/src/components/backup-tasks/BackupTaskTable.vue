@@ -342,7 +342,7 @@ function progressPrimaryText(task: BackupTask) {
               <div class="flex items-center justify-end gap-2">
                 <button
                   v-if="canRunTask(task)"
-                  class="rounded-lg p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50"
+                  class="rounded-lg p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 border border-transparent hover:border-emerald-200"
                   :title="t('backupTasks.actions.runNow')"
                   @click="$emit('execute', task)"
                 >
@@ -350,10 +350,10 @@ function progressPrimaryText(task: BackupTask) {
                 </button>
                 <button
                   :class="[
-                    'rounded-lg p-1.5 transition-colors',
+                    'rounded-lg p-1.5 transition-colors border border-transparent hover:border',
                     task.is_enabled === false
-                      ? 'text-emerald-600 hover:bg-emerald-50'
-                      : 'text-amber-600 hover:bg-amber-50',
+                      ? 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200'
+                      : 'text-amber-600 hover:bg-amber-50 hover:border-amber-200',
                   ]"
                   :title="
                     task.is_enabled === false
@@ -366,14 +366,14 @@ function progressPrimaryText(task: BackupTask) {
                 </button>
                 <button
                   v-if="task.status === 'running'"
-                  class="rounded-lg p-1.5 text-red-600 transition-colors hover:bg-red-50"
+                  class="rounded-lg p-1.5 text-red-600 transition-colors hover:bg-red-50 border border-transparent hover:border-red-200"
                   :title="t('backupTasks.actions.cancel')"
                   @click="$emit('cancel', task)"
                 >
                   <StopIcon class="h-4 w-4" />
                 </button>
                 <button
-                  class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-background-tertiary"
+                  class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-background-tertiary border border-transparent hover:border-slate-300"
                   :title="t('common.details')"
                   @click="$emit('detail', task)"
                 >
@@ -381,14 +381,14 @@ function progressPrimaryText(task: BackupTask) {
                 </button>
                 <button
                   :disabled="task.status === 'running'"
-                  class="rounded-lg p-1.5 text-indigo-600 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-indigo-900/20"
+                  class="rounded-lg p-1.5 text-indigo-600 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-indigo-900/20 border border-transparent hover:border-indigo-200"
                   :title="t('backupTasks.edit.title')"
                   @click="$emit('edit', task)"
                 >
                   <PencilSquareIcon class="h-4 w-4" />
                 </button>
                 <button
-                  class="rounded-lg p-1.5 text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
+                  class="rounded-lg p-1.5 text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20 border border-transparent hover:border-red-200"
                   :title="t('backupTasks.actions.delete')"
                   @click="$emit('delete', task)"
                 >

@@ -919,7 +919,7 @@ export default {
   // Backup Tasks
   backupTasks: {
     title: "备份任务",
-    subtitle: "管理备份操作",
+    subtitle: "创建、管理和监控备份任务，跟踪快照状态和恢复操作",
     createTask: "创建备份任务",
     enabled: "已启用",
     disabled: "已停用",
