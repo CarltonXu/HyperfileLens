@@ -50,6 +50,7 @@ const emit = defineEmits<{
   previous: [];
   next: [];
   page: [page: number];
+  pageSizeChange: [size: number];
 }>();
 
 const { t } = useI18n();
@@ -300,8 +301,8 @@ const { t } = useI18n();
     </table>
 
     <div
-      v-if="pagination.total > pagination.pageSize"
-      class="flex items-center justify-between border-t border-border surface-card px-4 py-3 sm:px-6"
+      v-if="pagination.total > 0"
+      class="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 bg-card border-t border-border"
     >
       <div class="flex flex-1 justify-between sm:hidden">
         <button
@@ -332,7 +333,23 @@ const { t } = useI18n();
             {{ t("pagination.items") }}
           </p>
         </div>
-        <div>
+        <div class="flex items-center gap-4">
+          <!-- 每页条数选择 -->
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-foreground-secondary">{{
+              t("pagination.pageSize")
+            }}</span>
+            <select
+              :value="pagination.pageSize"
+              @change="emit('pageSizeChange', Number(($event.target as HTMLSelectElement).value))"
+              class="px-2 py-1 text-sm border border-border bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+          </div>
+
           <nav
             class="isolate inline-flex -space-x-px rounded-md shadow-sm"
             aria-label="Pagination"

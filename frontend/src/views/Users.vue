@@ -31,6 +31,7 @@
       @toggle-status="toggleUserStatus"
       @delete="openDeleteDialog"
       @page="goToPage"
+      @pageSizeChange="handlePageSizeChange"
     />
 
     <UserDialogs
@@ -291,6 +292,12 @@ async function fetchUsers() {
 function goToPage(page: number) {
   if (page < 1 || page > Math.ceil(totalCount.value / pageSize.value)) return;
   currentPage.value = page;
+  fetchUsers();
+}
+
+function handlePageSizeChange(newSize: number) {
+  pageSize.value = newSize;
+  currentPage.value = 1;
   fetchUsers();
 }
 

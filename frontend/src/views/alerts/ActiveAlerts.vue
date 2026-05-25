@@ -5,6 +5,8 @@ import {
   ArrowPathIcon,
   BellAlertIcon,
   CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   ClockIcon,
   EyeIcon,
   MagnifyingGlassIcon,
@@ -177,6 +179,43 @@ function applyFilters() {
   pagination.page = 1;
   fetchAlerts();
 }
+
+const totalPages = computed(() =>
+  Math.ceil(pagination.count / pagination.page_size),
+);
+
+const displayedPages = computed(() => {
+  const pages: number[] = [];
+  const start = Math.max(1, pagination.page - 2);
+  const end = Math.min(totalPages.value, pagination.page + 2);
+  for (let i = start; i <= end; i++) pages.push(i);
+  return pages;
+});
+
+const prevPage = () => {
+  if (pagination.page > 1) {
+    pagination.page--;
+    fetchAlerts();
+  }
+};
+
+const nextPage = () => {
+  if (pagination.page < totalPages.value) {
+    pagination.page++;
+    fetchAlerts();
+  }
+};
+
+const goToPage = (page: number) => {
+  pagination.page = page;
+  fetchAlerts();
+};
+
+const handlePageSizeChange = (newSize: number) => {
+  pagination.page_size = newSize;
+  pagination.page = 1;
+  fetchAlerts();
+};
 
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
@@ -487,6 +526,91 @@ onMounted(fetchAlerts);
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div
+      v-if="pagination.count > 0"
+      class="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 bg-card border-t border-border rounded-lg"
+    >
+      <div class="flex flex-1 justify-between sm:hidden">
+        <button
+          :disabled="pagination.page === 1"
+          class="relative inline-flex items-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="prevPage"
+        >
+          {{ t("common.previous") }}
+        </button>
+        <button
+          :disabled="pagination.page >= totalPages"
+          class="relative ml-3 inline-flex items-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="nextPage"
+        >
+          {{ t("common.next") }}
+        </button>
+      </div>
+      <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+        <div>
+          <p class="text-sm text-foreground-secondary">
+            {{ t("pagination.showing") }}
+            {{ (pagination.page - 1) * pagination.page_size + 1 }}
+            {{ t("pagination.to") }}
+            {{ Math.min(pagination.page * pagination.page_size, pagination.count) }}
+            {{ t("pagination.of") }} {{ pagination.count }}
+            {{ t("pagination.items") }}
+          </p>
+        </div>
+        <div class="flex items-center gap-4">
+          <!-- 每页条数选择 -->
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-foreground-secondary">{{
+              t("pagination.pageSize")
+            }}</span>
+            <select
+              :value="pagination.page_size"
+              @change="handlePageSizeChange(Number(($event.target as HTMLSelectElement).value))"
+              class="px-2 py-1 text-sm border border-border bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+          </div>
+
+          <nav
+            class="isolate inline-flex -space-x-px rounded-md shadow-sm"
+            aria-label="Pagination"
+          >
+            <button
+              :disabled="pagination.page === 1"
+              class="relative inline-flex items-center rounded-l-lg border border-border px-2 py-2 text-foreground-muted hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="prevPage"
+            >
+              <ChevronLeftIcon class="h-5 w-5" aria-hidden="true" />
+            </button>
+            <button
+              v-for="page in displayedPages"
+              :key="page"
+              :class="[
+                page === pagination.page
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-foreground ring-1 ring-inset ring-border hover:bg-hover',
+                'relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0',
+              ]"
+              @click="goToPage(page)"
+            >
+              {{ page }}
+            </button>
+            <button
+              :disabled="pagination.page >= totalPages"
+              class="relative inline-flex items-center rounded-r-lg border border-border px-2 py-2 text-foreground-muted hover:bg-hover focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="nextPage"
+            >
+              <ChevronRightIcon class="h-5 w-5" aria-hidden="true" />
+            </button>
+          </nav>
+        </div>
       </div>
     </div>
 

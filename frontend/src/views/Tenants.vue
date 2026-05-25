@@ -27,6 +27,7 @@
       @previous="prevPage"
       @next="nextPage"
       @page="goToPage"
+      @pageSizeChange="handlePageSizeChange"
     />
 
     <TenantFormDialog
@@ -433,6 +434,12 @@ const nextPage = () => {
 
 const goToPage = (page: number) => {
   pagination.value.page = page;
+  fetchTenants();
+};
+
+const handlePageSizeChange = (newSize: number) => {
+  pagination.value.pageSize = newSize;
+  pagination.value.page = 1;
   fetchTenants();
 };
 
