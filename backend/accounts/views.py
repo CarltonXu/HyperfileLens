@@ -228,10 +228,29 @@ class LoginView(APIView):
         """
         email = request.data.get('email')
         password = request.data.get('password')
+        captcha_key = request.data.get('captcha_key')
+        captcha_code = request.data.get('captcha_code')
 
         if not email or not password:
             return Response({
-                'error': 'Email and password are required.'
+                'error': 'Email and password are required.',
+                'code': 'missing_credentials',
+                'field': 'credentials',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not captcha_key or not captcha_code:
+            return Response({
+                'error': 'Captcha is required.',
+                'code': 'captcha_required',
+                'field': 'captcha',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        from .services import CaptchaService
+        if not CaptchaService.validate(captcha_key, captcha_code):
+            return Response({
+                'error': 'Invalid captcha code.',
+                'code': 'invalid_captcha',
+                'field': 'captcha',
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Use custom email authentication
@@ -247,7 +266,9 @@ class LoginView(APIView):
                 error_message='Invalid credentials'
             )
             return Response({
-                'error': 'Invalid credentials.'
+                'error': 'Invalid credentials.',
+                'code': 'invalid_credentials',
+                'field': 'credentials',
             }, status=status.HTTP_401_UNAUTHORIZED)
 
         if not user.is_active:
@@ -258,7 +279,9 @@ class LoginView(APIView):
                 error_message='User account is disabled'
             )
             return Response({
-                'error': 'User account is disabled.'
+                'error': 'User account is disabled.',
+                'code': 'account_disabled',
+                'field': 'credentials',
             }, status=status.HTTP_401_UNAUTHORIZED)
 
         # Update last login time - use update() to avoid model save issues with UUID

@@ -95,7 +95,14 @@ async function handleLogin() {
       router.push((route.query.redirect as string) || "/");
     }
   } catch (err: any) {
-    error.value = err.response?.data?.error || t("auth.invalidCredentials");
+    const errorCode = err.response?.data?.code;
+    if (errorCode === "invalid_captcha" || errorCode === "captcha_required") {
+      error.value = t("auth.invalidCaptcha");
+    } else if (errorCode === "account_disabled") {
+      error.value = t("auth.accountDisabled");
+    } else {
+      error.value = t("auth.invalidCredentials");
+    }
     refreshCaptcha();
     captcha.value = "";
   } finally {

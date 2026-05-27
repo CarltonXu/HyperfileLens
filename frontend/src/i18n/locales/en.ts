@@ -219,6 +219,7 @@ export default {
     loginSubtitle: "Sign in to your account to continue",
     registerSubtitle: "Start your free trial",
     invalidCredentials: "Invalid email or password",
+    accountDisabled: "This account is disabled",
     loginSuccess: "Login successful",
     logoutSuccess: "Logout successful",
     noAccount: "Don't have an account?",

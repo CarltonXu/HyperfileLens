@@ -345,19 +345,14 @@ router.beforeEach(async (to, _from, next) => {
     String(to.name),
   );
 
-  if (isAuthRoute && authStore.token) {
-    if (!authStore.user) {
-      try {
-        await authStore.fetchUser();
-      } catch {
-        next();
-        return;
-      }
-    }
-
+  if (isAuthRoute) {
     if (authStore.isAuthenticated) {
       next({ name: "Dashboard" });
       return;
+    }
+    if (authStore.token && !authStore.user) {
+      localStorage.removeItem("token");
+      authStore.token = null;
     }
   }
 

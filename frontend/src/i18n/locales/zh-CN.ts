@@ -217,6 +217,7 @@ export default {
     loginSubtitle: "登录您的账户以继续",
     registerSubtitle: "开始您的免费试用",
     invalidCredentials: "邮箱或密码错误",
+    accountDisabled: "此账户已被禁用",
     loginSuccess: "登录成功",
     logoutSuccess: "退出成功",
     noAccount: "还没有账户？",

@@ -20,8 +20,16 @@ const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   (config) => {
+    const requestUrl = config.url || "";
+    const isPublicAuthRequest =
+      requestUrl.includes("/api/v1/accounts/login/") ||
+      requestUrl.includes("/api/v1/accounts/register") ||
+      requestUrl.includes("/api/v1/accounts/forgot-password/") ||
+      requestUrl.includes("/api/v1/accounts/verify-reset-code/") ||
+      requestUrl.includes("/api/v1/accounts/reset-password/") ||
+      requestUrl.includes("/api/v1/accounts/mfa/");
     const token = localStorage.getItem("token");
-    if (token) {
+    if (token && !isPublicAuthRequest) {
       config.headers.Authorization = `Token ${token}`;
     }
 
@@ -62,7 +70,11 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (error.response?.status === 401 && window.location.pathname === "/login") {
+    const isAuthPage = ["/login", "/register", "/forgot-password"].includes(
+      window.location.pathname,
+    );
+
+    if (error.response?.status === 401 && isAuthPage) {
       localStorage.removeItem("token");
       return Promise.reject(error);
     }
