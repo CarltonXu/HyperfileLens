@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Handle,
   MarkerType,
@@ -28,6 +29,8 @@ import type { BackupTask } from "@/types/backup";
 import type { ProxyNode } from "@/types/proxy";
 import type { Repository } from "@/types/repository";
 import type { SourceResource } from "@/types/sourceResource";
+
+const { t } = useI18n();
 
 interface GatewayNode {
   id: string;
@@ -132,11 +135,15 @@ function isOnline(status?: string | null, explicit?: boolean): boolean {
 }
 
 function statusText(status?: string | null, explicit?: boolean): string {
-  if (isOnline(status, explicit)) return "Online";
-  if (status === "pending" || status === "installing") return "Pending";
-  if (status === "maintenance") return "Maintenance";
-  if (status === "error") return "Error";
-  return status || "Unknown";
+  if (isOnline(status, explicit)) return t("resourceTopology.status.online");
+  if (status === "pending" || status === "installing") {
+    return t("resourceTopology.status.pending");
+  }
+  if (status === "maintenance") {
+    return t("resourceTopology.status.maintenance");
+  }
+  if (status === "error") return t("resourceTopology.status.error");
+  return status || t("resourceTopology.status.unknown");
 }
 
 function statusTone(status?: string | null, explicit?: boolean): string {
@@ -177,7 +184,7 @@ function formatPercent(value?: number | null): string {
 }
 
 function proxyEndpoint(proxy: ProxyNode | null): string {
-  if (!proxy) return "No proxy selected";
+  if (!proxy) return t("resourceTopology.empty.noProxySelected");
   return (
     proxy.internal_ip || proxy.connection_ip || proxy.hostname || proxy.name
   );
@@ -211,13 +218,15 @@ function sourceEndpoint(source: SourceResource | null): string {
 }
 
 function sourceTopologyType(source: SourceResource | null): string {
-  if (!source) return "Source Resource";
-  if (source.resource_type === "local") return "Filesystem";
+  if (!source) return t("resourceTopology.types.sourceResource");
+  if (source.resource_type === "local") {
+    return t("resourceTopology.types.filesystem");
+  }
   if (["nas", "nfs", "cifs"].includes(source.resource_type)) {
-    return "NAS/NFS/CIFS";
+    return t("resourceTopology.types.networkStorage");
   }
   if (["s3", "azure", "gcs"].includes(source.resource_type)) {
-    return "Object Storage";
+    return t("resourceTopology.types.objectStorage");
   }
   return source.resource_type_display || source.resource_type.toUpperCase();
 }
@@ -253,16 +262,16 @@ function sourceCapacity(source: SourceResource | null): string {
 }
 
 function sourceAvailability(source: SourceResource | null): string {
-  if (!source) return "Unknown";
+  if (!source) return t("resourceTopology.status.unknown");
   if (source.status_display) return source.status_display;
   if (source.status === "active" || source.status === "connected") {
-    return "Available";
+    return t("resourceTopology.status.available");
   }
   if (source.status === "inactive" || source.status === "disconnected") {
-    return "Offline";
+    return t("resourceTopology.status.offline");
   }
-  if (source.status === "error") return "Error";
-  return source.status || "Unknown";
+  if (source.status === "error") return t("resourceTopology.status.error");
+  return source.status || t("resourceTopology.status.unknown");
 }
 
 function sourceLocalAddress(source: SourceResource | null): string {
@@ -312,7 +321,7 @@ function sourceIcon(source: SourceResource | null): any {
 }
 
 function repositoryEndpoint(repository: Repository | null): string {
-  if (!repository) return "No repository selected";
+  if (!repository) return t("resourceTopology.empty.noRepositorySelected");
   const config = repository.config || {};
   if (repository.repo_type === "local") return config.path || repository.name;
   if (repository.repo_type === "nas" || repository.repo_type === "nfs") {
@@ -332,27 +341,34 @@ function repositoryEndpoint(repository: Repository | null): string {
 }
 
 function repositoryTypeLabel(repository: Repository | null): string {
-  if (!repository) return "Target Repository";
+  if (!repository) return t("resourceTopology.types.targetRepository");
   if (repository.repo_type === "nas" || repository.repo_type === "nfs") {
     const nasType = repository.config?.nas_type?.toUpperCase();
-    return nasType ? `NAS / ${nasType}` : "NAS / NFS";
+    return nasType ? `NAS / ${nasType}` : t("resourceTopology.types.nasNfs");
   }
-  if (repository.repo_type === "s3") return "S3 Object Storage";
-  if (repository.repo_type === "azure") return "Azure Blob";
-  if (repository.repo_type === "gcs") return "Google Cloud Storage";
-  if (repository.repo_type === "local") return "Local Repository";
-  return repository.repo_type_display || "Target Repository";
+  if (repository.repo_type === "s3") return t("resourceTopology.types.s3");
+  if (repository.repo_type === "azure")
+    return t("resourceTopology.types.azure");
+  if (repository.repo_type === "gcs") return t("resourceTopology.types.gcs");
+  if (repository.repo_type === "local") {
+    return t("resourceTopology.types.localRepository");
+  }
+  return (
+    repository.repo_type_display || t("resourceTopology.types.targetRepository")
+  );
 }
 
 function repositoryTopologyType(repository: Repository | null): string {
-  if (!repository) return "Target Repository";
+  if (!repository) return t("resourceTopology.types.targetRepository");
   if (repository.repo_type === "nas" || repository.repo_type === "nfs") {
-    return "NAS/NFS/CIFS";
+    return t("resourceTopology.types.networkStorage");
   }
   if (["s3", "azure", "gcs"].includes(repository.repo_type)) {
-    return "Object Storage";
+    return t("resourceTopology.types.objectStorage");
   }
-  if (repository.repo_type === "local") return "Local Filesystem";
+  if (repository.repo_type === "local") {
+    return t("resourceTopology.types.localFilesystem");
+  }
   return repository.repo_type_display || repository.repo_type.toUpperCase();
 }
 
@@ -403,13 +419,18 @@ function repositoryCapacity(repository: Repository | null): string {
 }
 
 function repositoryAvailability(repository: Repository | null): string {
-  if (!repository) return "Unavailable";
+  if (!repository) return t("resourceTopology.status.unavailable");
   if (repository.status_display) return repository.status_display;
-  if (repository.status === "active") return "Available";
-  if (repository.status === "initializing") return "Initializing";
-  if (repository.status === "maintenance") return "Maintenance";
-  if (repository.status === "error") return "Error";
-  return repository.status || "Unknown";
+  if (repository.status === "active")
+    return t("resourceTopology.status.available");
+  if (repository.status === "initializing") {
+    return t("resourceTopology.status.initializing");
+  }
+  if (repository.status === "maintenance") {
+    return t("resourceTopology.status.maintenance");
+  }
+  if (repository.status === "error") return t("resourceTopology.status.error");
+  return repository.status || t("resourceTopology.status.unknown");
 }
 
 function repositoryIcon(repository: Repository | null): any {
@@ -481,17 +502,27 @@ const gateway = computed(
 );
 
 const executorRole = computed(() => {
-  if (props.topology?.executor_role === "agent") return "Agent Proxy";
-  if (props.topology?.executor_role === "sync") return "Sync Proxy";
-  if (executorProxy.value?.role === "agent") return "Agent Proxy";
-  if (executorProxy.value?.role === "sync") return "Sync Proxy";
-  return sourceIsNetwork.value ? "Sync Proxy" : "Agent Proxy";
+  if (props.topology?.executor_role === "agent") {
+    return t("resourceTopology.roles.agentProxy");
+  }
+  if (props.topology?.executor_role === "sync") {
+    return t("resourceTopology.roles.syncProxy");
+  }
+  if (executorProxy.value?.role === "agent") {
+    return t("resourceTopology.roles.agentProxy");
+  }
+  if (executorProxy.value?.role === "sync") {
+    return t("resourceTopology.roles.syncProxy");
+  }
+  return sourceIsNetwork.value
+    ? t("resourceTopology.roles.syncProxy")
+    : t("resourceTopology.roles.agentProxy");
 });
 
 const sourceCardTitle = computed(() => {
-  if (!props.source) return "Backup Source";
+  if (!props.source) return t("resourceTopology.nodes.backupSource");
   if (!sourceIsNetwork.value && executorProxy.value?.role === "agent") {
-    return "Source Path";
+    return t("resourceTopology.nodes.sourcePath");
   }
   return (
     props.source.resource_type_display ||
@@ -501,18 +532,18 @@ const sourceCardTitle = computed(() => {
 
 const repositoryCardTitle = computed(() => {
   const repository = resolvedRepository.value;
-  if (!repository) return "Target Repository";
+  if (!repository) return t("resourceTopology.types.targetRepository");
   return repositoryTypeLabel(repository);
 });
 
 const scenarioText = computed(() => {
   if (sourceIsNetwork.value && repositoryIsObject.value) {
-    return "Network source is read by Sync Proxy and written to object storage.";
+    return t("resourceTopology.scenarios.networkToObject");
   }
   if (!sourceIsNetwork.value && executorProxy.value?.role === "agent") {
-    return "Agent Proxy reads the local source and writes directly to the target repository.";
+    return t("resourceTopology.scenarios.agentLocal");
   }
-  return "Executor Proxy reads the source and writes backup snapshots to the target repository.";
+  return t("resourceTopology.scenarios.default");
 });
 
 const sourceHasDetails = computed(() =>
@@ -527,8 +558,8 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
     selectable: false,
     data: {
       kind: "source",
-      kicker: "Source",
-      title: props.source?.name || "No source selected",
+      kicker: t("resourceTopology.nodes.source"),
+      title: props.source?.name || t("resourceTopology.empty.noSourceSelected"),
       subtitle: sourceCardTitle.value,
       detail: sourceSharedPath(props.source),
       tone: statusTone(props.source?.status),
@@ -537,24 +568,24 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
         props.source?.resource_type === "local"
           ? [
               {
-                label: "Type",
-                value: "Filesystem",
+                label: t("resourceTopology.fields.type"),
+                value: t("resourceTopology.types.filesystem"),
               },
               {
-                label: "IP",
+                label: t("resourceTopology.fields.ip"),
                 value: sourceLocalAddress(props.source),
               },
               {
-                label: "Path",
+                label: t("resourceTopology.fields.path"),
                 value: sourceSharedPath(props.source),
                 wrap: true,
               },
               {
-                label: "Capacity",
+                label: t("resourceTopology.fields.capacity"),
                 value: sourceCapacity(props.source),
               },
               {
-                label: "Status",
+                label: t("resourceTopology.fields.status"),
                 value: sourceAvailability(props.source),
                 status: true,
               },
@@ -562,20 +593,20 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
           : ["nas", "nfs", "cifs"].includes(props.source?.resource_type || "")
             ? [
                 {
-                  label: "Type",
+                  label: t("resourceTopology.fields.type"),
                   value: sourceTopologyType(props.source),
                 },
                 {
-                  label: "Shared Path",
+                  label: t("resourceTopology.fields.sharedPath"),
                   value: sourceSharedPath(props.source),
                   wrap: true,
                 },
                 {
-                  label: "Capacity",
+                  label: t("resourceTopology.fields.capacity"),
                   value: sourceCapacity(props.source),
                 },
                 {
-                  label: "Status",
+                  label: t("resourceTopology.fields.status"),
                   value: sourceAvailability(props.source),
                   status: true,
                 },
@@ -598,7 +629,7 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
       title:
         executorProxy.value?.name ||
         resolvedTask.value?.execution_node_name ||
-        "Auto placement",
+        t("resourceTopology.empty.autoPlacement"),
       subtitle: proxyEndpoint(executorProxy.value),
       detail: statusText(
         executorProxy.value?.status,
@@ -616,19 +647,19 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
       service: true,
       details: [
         {
-          label: "IP",
+          label: t("resourceTopology.fields.ip"),
           value: proxyEndpoint(executorProxy.value),
         },
         {
-          label: "CPU",
+          label: t("resourceTopology.fields.cpu"),
           value: formatPercent(executorProxy.value?.cpu_usage),
         },
         {
-          label: "MEM",
+          label: t("resourceTopology.fields.mem"),
           value: formatPercent(executorProxy.value?.memory_usage),
         },
         {
-          label: "Status",
+          label: t("resourceTopology.fields.status"),
           value: statusText(
             executorProxy.value?.status,
             executorProxy.value?.is_online,
@@ -636,12 +667,12 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
           status: true,
         },
         {
-          label: "S-PATH",
+          label: t("resourceTopology.fields.sourcePathShort"),
           value: backupPath(props.source),
           wrap: true,
         },
         {
-          label: "T-PATH",
+          label: t("resourceTopology.fields.targetPathShort"),
           value: backupRepositoryPath(resolvedRepository.value),
           wrap: true,
         },
@@ -662,38 +693,38 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
     selectable: false,
     data: {
       kind: "repository",
-      kicker: "Target",
+      kicker: t("resourceTopology.nodes.target"),
       title:
         resolvedRepository.value?.name ||
         resolvedTask.value?.target_repository_name ||
-        "No repository selected",
+        t("resourceTopology.empty.noRepositorySelected"),
       subtitle: repositoryCardTitle.value,
       detail: repositorySharedPath(resolvedRepository.value),
       tone: statusTone(resolvedRepository.value?.status),
       icon: repositoryIcon(resolvedRepository.value),
       details: [
         {
-          label: "Type",
+          label: t("resourceTopology.fields.type"),
           value: repositoryTopologyType(resolvedRepository.value),
         },
         {
           label:
             resolvedRepository.value?.repo_type === "local"
-              ? "Path"
+              ? t("resourceTopology.fields.path")
               : ["s3", "azure", "gcs"].includes(
                     resolvedRepository.value?.repo_type || "",
                   )
-                ? "Endpoint"
-                : "Shared Path",
+                ? t("resourceTopology.fields.endpoint")
+                : t("resourceTopology.fields.sharedPath"),
           value: repositorySharedPath(resolvedRepository.value),
           wrap: true,
         },
         {
-          label: "Capacity",
+          label: t("resourceTopology.fields.capacity"),
           value: repositoryCapacity(resolvedRepository.value),
         },
         {
-          label: "Status",
+          label: t("resourceTopology.fields.status"),
           value: repositoryAvailability(resolvedRepository.value),
           status: true,
         },
@@ -712,37 +743,38 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
     selectable: false,
     data: {
       kind: "gateway",
-      kicker: "Gateway Node",
-      title: gateway.value?.name || "No Gateway connected",
+      kicker: t("resourceTopology.nodes.gatewayNode"),
+      title:
+        gateway.value?.name || t("resourceTopology.empty.noGatewayConnected"),
       subtitle:
         gateway.value?.internal_ip ||
         gateway.value?.hostname ||
-        "AI Insights reads repository snapshots",
+        t("resourceTopology.nodes.gatewaySubtitle"),
       detail: gateway.value
         ? statusText(gateway.value.status, gateway.value.is_online)
-        : "Missing",
+        : t("resourceTopology.status.missing"),
       tone: gateway.value
         ? statusTone(gateway.value.status, gateway.value.is_online)
         : "bad",
       icon: SparklesIcon,
       details: [
         {
-          label: "IP",
+          label: t("resourceTopology.fields.ip"),
           value: gateway.value?.internal_ip || gateway.value?.hostname || "-",
         },
         {
-          label: "CPU",
+          label: t("resourceTopology.fields.cpu"),
           value: formatPercent(gateway.value?.cpu_usage),
         },
         {
-          label: "MEM",
+          label: t("resourceTopology.fields.mem"),
           value: formatPercent(gateway.value?.memory_usage),
         },
         {
-          label: "Status",
+          label: t("resourceTopology.fields.status"),
           value: gateway.value
             ? statusText(gateway.value.status, gateway.value.is_online)
-            : "Offline",
+            : t("resourceTopology.status.offline"),
           status: true,
         },
       ],
@@ -761,7 +793,7 @@ const graphEdges = computed<Edge[]>(() => [
     target: "executor",
     sourceHandle: "right",
     targetHandle: "left",
-    label: "read source",
+    label: t("resourceTopology.edges.readSource"),
     type: "smoothstep",
     animated: true,
     markerEnd: MarkerType.ArrowClosed,
@@ -783,7 +815,7 @@ const graphEdges = computed<Edge[]>(() => [
     target: "repository",
     sourceHandle: "right",
     targetHandle: "left",
-    label: "write snapshots",
+    label: t("resourceTopology.edges.writeSnapshots"),
     type: "smoothstep",
     animated: true,
     markerEnd: MarkerType.ArrowClosed,
@@ -805,7 +837,7 @@ const graphEdges = computed<Edge[]>(() => [
     target: "repository",
     sourceHandle: "top",
     targetHandle: "bottom",
-    label: "AI Insights",
+    label: t("resourceTopology.edges.aiInsights"),
     type: "smoothstep",
     animated: true,
     markerEnd: MarkerType.ArrowClosed,
@@ -828,11 +860,15 @@ const graphEdges = computed<Edge[]>(() => [
   <section class="flow-topology" :class="{ compact }">
     <div class="flow-header">
       <div>
-        <h3>Data Flow Topology</h3>
+        <h3>{{ t("resourceTopology.title") }}</h3>
         <p>{{ scenarioText }}</p>
       </div>
       <div class="flow-badge">
-        {{ task ? "Backup Task" : "Source Resource" }}
+        {{
+          task
+            ? t("resourceTopology.badges.backupTask")
+            : t("resourceTopology.badges.sourceResource")
+        }}
       </div>
     </div>
 
@@ -896,11 +932,11 @@ const graphEdges = computed<Edge[]>(() => [
               v-if="data.viewUrl"
               class="node-view-button"
               type="button"
-              title="View resource details"
+              :title="t('resourceTopology.actions.viewResourceDetails')"
               @click.stop="openNodeDetail(data)"
             >
               <EyeIcon class="h-3.5 w-3.5" />
-              View
+              {{ t("common.view") }}
             </button>
 
             <div :class="['node-icon', data.kind]">
@@ -946,7 +982,7 @@ const graphEdges = computed<Edge[]>(() => [
             </div>
             <div v-if="data.service" class="service-chip">
               <CpuChipIcon class="h-4 w-4" />
-              Backup Service
+              {{ t("resourceTopology.nodes.backupService") }}
             </div>
           </article>
         </template>
@@ -956,12 +992,15 @@ const graphEdges = computed<Edge[]>(() => [
     <div class="flow-summary">
       <div>
         <CloudIcon class="h-5 w-5" />
-        <span>Execution: {{ executorRole }}</span>
+        <span
+          >{{ t("resourceTopology.summary.execution") }}:
+          {{ executorRole }}</span
+        >
       </div>
       <div>
         <CircleStackIcon class="h-5 w-5" />
         <span
-          >Repository:
+          >{{ t("resourceTopology.summary.repository") }}:
           {{
             resolvedRepository?.repo_type_display ||
             resolvedRepository?.repo_type ||
@@ -971,7 +1010,14 @@ const graphEdges = computed<Edge[]>(() => [
       </div>
       <div>
         <SparklesIcon class="h-5 w-5" />
-        <span>Gateway: {{ gateway ? "available" : "not connected" }}</span>
+        <span
+          >{{ t("resourceTopology.summary.gateway") }}:
+          {{
+            gateway
+              ? t("resourceTopology.status.availableLower")
+              : t("resourceTopology.status.notConnected")
+          }}</span
+        >
       </div>
     </div>
   </section>

@@ -173,6 +173,102 @@ export default {
     progressAsc: "Progress (asc)",
   },
 
+  resourceTopology: {
+    title: "Data Flow Topology",
+    actions: {
+      viewResourceDetails: "View resource details",
+    },
+    badges: {
+      backupTask: "Backup Task",
+      sourceResource: "Source Resource",
+    },
+    modal: {
+      title: "Source Flow Topology",
+      resolving: "Resolving topology from backend...",
+      executorSelection: "Executor selection",
+      fallback:
+        "Topology is shown with local fallback data because backend resolution is unavailable.",
+    },
+    scenarios: {
+      networkToObject:
+        "Network source is read by Sync Proxy and written to object storage.",
+      agentLocal:
+        "Agent Proxy reads the local source and writes directly to the target repository.",
+      default:
+        "Executor Proxy reads the source and writes backup snapshots to the target repository.",
+    },
+    nodes: {
+      source: "Source",
+      target: "Target",
+      backupSource: "Backup Source",
+      sourcePath: "Source Path",
+      gatewayNode: "Gateway Node",
+      gatewaySubtitle: "AI Insights reads repository snapshots",
+      backupService: "Backup Service",
+    },
+    roles: {
+      agentProxy: "Agent Proxy",
+      syncProxy: "Sync Proxy",
+    },
+    fields: {
+      type: "Type",
+      ip: "IP",
+      path: "Path",
+      endpoint: "Endpoint",
+      sharedPath: "Shared Path",
+      capacity: "Capacity",
+      status: "Status",
+      cpu: "CPU",
+      mem: "MEM",
+      sourcePathShort: "S-PATH",
+      targetPathShort: "T-PATH",
+    },
+    types: {
+      sourceResource: "Source Resource",
+      targetRepository: "Target Repository",
+      filesystem: "Filesystem",
+      localFilesystem: "Local Filesystem",
+      localRepository: "Local Repository",
+      networkStorage: "NAS/NFS/CIFS",
+      objectStorage: "Object Storage",
+      nasNfs: "NAS / NFS",
+      s3: "S3 Object Storage",
+      azure: "Azure Blob",
+      gcs: "Google Cloud Storage",
+    },
+    status: {
+      online: "Online",
+      offline: "Offline",
+      pending: "Pending",
+      maintenance: "Maintenance",
+      error: "Error",
+      unknown: "Unknown",
+      available: "Available",
+      availableLower: "available",
+      unavailable: "Unavailable",
+      initializing: "Initializing",
+      missing: "Missing",
+      notConnected: "not connected",
+    },
+    empty: {
+      noProxySelected: "No proxy selected",
+      noRepositorySelected: "No repository selected",
+      noSourceSelected: "No source selected",
+      noGatewayConnected: "No Gateway connected",
+      autoPlacement: "Auto placement",
+    },
+    edges: {
+      readSource: "read source",
+      writeSnapshots: "write snapshots",
+      aiInsights: "AI Insights",
+    },
+    summary: {
+      execution: "Execution",
+      repository: "Repository",
+      gateway: "Gateway",
+    },
+  },
+
   // Favorites
   favorites: {
     add: "Add to favorites",

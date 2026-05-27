@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { XMarkIcon } from "@heroicons/vue/24/outline";
 import ResourceFlowTopology from "@/components/ResourceFlowTopology.vue";
 import { sourceResourcesApi } from "@/api";
@@ -20,6 +21,7 @@ defineEmits<{
   close: [];
 }>();
 
+const { t } = useI18n();
 const topology = ref<Record<string, any> | null>(null);
 const loading = ref(false);
 
@@ -76,7 +78,7 @@ watch(
         >
           <div class="min-w-0">
             <h2 class="truncate text-lg font-semibold text-foreground">
-              Source Flow Topology
+              {{ t("resourceTopology.modal.title") }}
             </h2>
             <p class="mt-1 truncate text-sm text-foreground-secondary">
               {{ resource.name }} ·
@@ -101,13 +103,15 @@ watch(
           <div
             class="mt-4 rounded-lg border border-border bg-background-secondary px-4 py-3 text-sm text-foreground-secondary"
           >
-            <span v-if="loading">Resolving topology from backend...</span>
+            <span v-if="loading">
+              {{ t("resourceTopology.modal.resolving") }}
+            </span>
             <span v-else-if="topology?.selection_reason">
-              Executor selection: {{ topology.selection_reason }}
+              {{ t("resourceTopology.modal.executorSelection") }}:
+              {{ topology.selection_reason }}
             </span>
             <span v-else>
-              Topology is shown with local fallback data because backend
-              resolution is unavailable.
+              {{ t("resourceTopology.modal.fallback") }}
             </span>
           </div>
         </div>
