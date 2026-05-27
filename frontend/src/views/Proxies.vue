@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import { proxiesApi } from "@/api";
 import type { ProxyNode, ProxyStats, ProxyTask } from "@/types/proxy";
 import { usePagination } from "@/composables/usePagination";
@@ -35,6 +36,7 @@ import {
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
+const route = useRoute();
 const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 const VIEW_MODE_STORAGE_KEY = "hyperfilelens:proxies:viewMode";
@@ -859,6 +861,23 @@ function viewProxyDetail(proxy: ProxyNode) {
   openMenuId.value = null;
 }
 
+async function openRouteDetail() {
+  const detailId = route.query.detail;
+  if (typeof detailId !== "string") return;
+  const existing = proxies.value.find((proxy) => String(proxy.id) === detailId);
+  if (existing) {
+    viewProxyDetail(existing);
+    return;
+  }
+
+  try {
+    const response = await proxiesApi.detail(detailId);
+    viewProxyDetail(response.data);
+  } catch (error) {
+    console.error("Failed to open proxy detail:", error);
+  }
+}
+
 // Watch tab changes to load data on demand
 watch(detailTab, (newTab) => {
   if (!selectedProxy.value) return;
@@ -1168,8 +1187,16 @@ function closeMenu() {
 const AgentIcon = ComputerDesktopIcon;
 const SyncIcon = CircleStackIcon;
 
-onMounted(() => {
-  fetchProxies();
+watch(
+  () => route.query.detail,
+  () => {
+    openRouteDetail();
+  },
+);
+
+onMounted(async () => {
+  await fetchProxies();
+  await openRouteDetail();
   document.addEventListener("click", closeMenu);
 
   // Poll for updates every 30 seconds

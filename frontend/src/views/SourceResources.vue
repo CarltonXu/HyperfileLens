@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import { PlusIcon, ServerIcon } from "@heroicons/vue/24/outline";
 import Pagination from "@/components/Pagination.vue";
 import SourceResourceWizard from "@/components/SourceResourceWizard.vue";
@@ -26,6 +27,7 @@ import type {
 } from "@/types/sourceResource";
 
 const { t } = useI18n();
+const route = useRoute();
 const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 
@@ -245,15 +247,32 @@ async function fetchTopologyContext() {
   }
 }
 
-function refreshResources() {
-  fetchData();
+async function openRouteDetail() {
+  const detailId = route.query.detail;
+  if (typeof detailId !== "string") return;
+  const resource = resources.value.find((item) => item.id === detailId);
+  if (resource) {
+    await openDetailModal(resource);
+  }
+}
+
+async function refreshResources() {
+  await fetchData();
   fetchTopologyContext();
+  await openRouteDetail();
 }
 
 function openTopologyModal(resource: SourceResource) {
   topologyResource.value = resource;
   showTopologyModal.value = true;
 }
+
+watch(
+  () => route.query.detail,
+  () => {
+    openRouteDetail();
+  },
+);
 
 onMounted(() => {
   refreshResources();

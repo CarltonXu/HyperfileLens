@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import { repositoriesApi, nodesApi } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { getApiErrorMessage } from "@/utils/errors";
@@ -27,6 +28,7 @@ import {
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
+const route = useRoute();
 const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 const VIEW_MODE_STORAGE_KEY = "hyperfilelens:repository:viewMode";
@@ -514,6 +516,27 @@ async function fetchRepositories() {
   }
 }
 
+async function openRouteDetail() {
+  const detailId = route.query.detail;
+  if (typeof detailId !== "string") return;
+  const existing = repositories.value.find(
+    (repo) => String(repo.id) === detailId,
+  );
+  if (existing) {
+    selectedRepo.value = existing;
+    showDetailModal.value = true;
+    return;
+  }
+
+  try {
+    const response = await repositoriesApi.detail(detailId);
+    selectedRepo.value = response.data;
+    showDetailModal.value = true;
+  } catch (error) {
+    console.error("Failed to open repository detail:", error);
+  }
+}
+
 async function fetchNodes() {
   try {
     const response = await nodesApi.list();
@@ -744,9 +767,16 @@ function openEditModal(repo: Repository) {
   showCreateModal.value = true;
 }
 
-onMounted(() => {
-  fetchRepositories();
-  fetchNodes();
+watch(
+  () => route.query.detail,
+  () => {
+    openRouteDetail();
+  },
+);
+
+onMounted(async () => {
+  await Promise.all([fetchRepositories(), fetchNodes()]);
+  await openRouteDetail();
 });
 </script>
 

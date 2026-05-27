@@ -9,7 +9,6 @@ import { useAuthStore } from "@/stores/auth";
 const Dashboard = () => import("@/views/Dashboard.vue");
 const Login = () => import("@/views/Login.vue");
 const Proxies = () => import("@/views/Proxies.vue");
-const ProxyDetail = () => import("@/views/ProxyDetail.vue");
 const BackupTasks = () => import("@/views/BackupTasks.vue");
 const RecoveryTasks = () => import("@/views/RecoveryTasks.vue");
 const RecoveryExports = () => import("@/views/RecoveryExports.vue");
@@ -112,9 +111,10 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "proxies/:id",
-        name: "ProxyDetail",
-        component: ProxyDetail,
-        meta: { title: "Proxy Details" },
+        redirect: (to) => ({
+          path: "/proxies",
+          query: { detail: String(to.params.id) },
+        }),
       },
       {
         path: "backup-tasks",
@@ -314,7 +314,10 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "nodes/:id",
-        redirect: (to) => ({ path: `/proxies/${to.params.id}` }),
+        redirect: (to) => ({
+          path: "/proxies",
+          query: { detail: String(to.params.id) },
+        }),
       },
     ],
   },

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import { gatewaysApi } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { getApiErrorMessage } from "@/utils/errors";
@@ -22,6 +23,7 @@ import GatewayMonitoringTab from "@/components/gateways/GatewayMonitoringTab.vue
 import { PlusIcon } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
+const route = useRoute();
 const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 const { statusColors, getStatusLabel, formatBytes, formatDate } =
@@ -466,6 +468,23 @@ async function viewGatewayDetail(gateway: Gateway) {
   monitoringData.value = [];
 }
 
+async function openRouteDetail() {
+  const detailId = route.query.detail;
+  if (typeof detailId !== "string") return;
+  const existing = gateways.value.find((gateway) => gateway.id === detailId);
+  if (existing) {
+    await viewGatewayDetail(existing);
+    return;
+  }
+
+  try {
+    const response = await gatewaysApi.detail(detailId);
+    await viewGatewayDetail(response.data);
+  } catch (error) {
+    console.error("Failed to open gateway detail:", error);
+  }
+}
+
 async function viewInstallInfo(gateway: Gateway) {
   installInfoGateway.value = gateway;
   installInfoCommand.value = "";
@@ -748,9 +767,17 @@ watch(monitoringHours, () => {
   }
 });
 
+watch(
+  () => route.query.detail,
+  () => {
+    openRouteDetail();
+  },
+);
+
 // Lifecycle
-onMounted(() => {
-  fetchGateways();
+onMounted(async () => {
+  await fetchGateways();
+  await openRouteDetail();
 });
 </script>
 
