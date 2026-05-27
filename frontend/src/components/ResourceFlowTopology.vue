@@ -929,19 +929,19 @@ const graphEdges = computed<Edge[]>(() => [
               >
                 {{ data.detail }}
               </small>
-              <div v-if="data.details?.length" class="repository-details">
-                <div
-                  v-for="item in data.details"
-                  :key="item.label"
-                  :class="['repository-detail', { wrap: item.wrap }]"
-                >
-                  <span>{{ item.label }}:</span>
-                  <strong v-if="!item.status">{{ item.value }}</strong>
-                  <strong v-else :class="['repository-status', data.tone]">
-                    <CircleStackIcon class="h-3.5 w-3.5" />
-                    {{ item.value }}
-                  </strong>
-                </div>
+            </div>
+            <div v-if="data.details?.length" class="repository-details">
+              <div
+                v-for="item in data.details"
+                :key="item.label"
+                :class="['repository-detail', { wrap: item.wrap }]"
+              >
+                <span>{{ item.label }}:</span>
+                <strong v-if="!item.status">{{ item.value }}</strong>
+                <strong v-else :class="['repository-status', data.tone]">
+                  <CircleStackIcon class="h-3.5 w-3.5" />
+                  {{ item.value }}
+                </strong>
               </div>
             </div>
             <div v-if="data.service" class="service-chip">
@@ -1135,28 +1135,28 @@ const graphEdges = computed<Edge[]>(() => [
   position: relative;
   z-index: 5;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 14px;
-  width: 230px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  width: 210px;
   height: auto;
   border: 1px solid var(--topology-border);
   border-radius: 10px;
   background: var(--topology-node);
-  padding: 16px;
+  padding: 14px;
   box-shadow: var(--topology-shadow);
 }
 
 .topology-node.source.has-details {
-  width: 300px;
+  width: 268px;
 }
 
 .topology-node.executor.has-details,
 .topology-node.gateway.has-details {
-  width: 320px;
+  width: 278px;
 }
 
 .topology-node.repository {
-  width: 300px;
+  width: 268px;
 }
 
 .node-view-button {
@@ -1242,16 +1242,16 @@ const graphEdges = computed<Edge[]>(() => [
 .node-icon {
   position: relative;
   display: grid;
-  align-self: center;
-  width: 48px;
-  height: 48px;
+  align-self: start;
+  width: 42px;
+  height: 42px;
   place-items: center;
   border-radius: 12px;
 }
 
 .node-icon :deep(svg) {
-  width: 28px;
-  height: 28px;
+  width: 25px;
+  height: 25px;
 }
 
 .node-icon.source {
@@ -1369,16 +1369,17 @@ const graphEdges = computed<Edge[]>(() => [
 }
 
 .repository-details {
+  grid-column: 1 / -1;
   display: grid;
-  gap: 5px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 2px;
   padding-top: 10px;
   border-top: 1px solid var(--topology-border-soft);
 }
 
 .repository-detail {
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
+  grid-template-columns: minmax(72px, max-content) minmax(0, 1fr);
   gap: 8px;
   align-items: start;
   color: var(--topology-text-secondary);
@@ -1428,7 +1429,7 @@ const graphEdges = computed<Edge[]>(() => [
 }
 
 .service-chip {
-  grid-column: 2;
+  grid-column: 1 / -1;
   justify-self: start;
   display: inline-flex;
   align-items: center;
