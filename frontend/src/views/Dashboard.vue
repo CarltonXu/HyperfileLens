@@ -8,9 +8,11 @@ import {
   backupTasksApi,
   gatewaysApi,
   licensesApi,
+  policiesApi,
   proxiesApi,
   recoveryTasksApi,
   repositoriesApi,
+  sourceResourcesApi,
   taskManagementApi,
 } from "@/api";
 import {
@@ -18,8 +20,6 @@ import {
   BoltIcon,
   CircleStackIcon,
   ChartBarIcon,
-  CloudArrowUpIcon,
-  ArrowUturnLeftIcon,
   ArrowTrendingUpIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -79,10 +79,20 @@ interface Alert {
 
 interface ActiveTask {
   id: string;
-  type: "backup" | "recovery" | "ai";
+  type: string;
   name: string;
   progress: number;
   status: string;
+}
+
+interface SetupStep {
+  id: string;
+  title: string;
+  description: string;
+  status: "done" | "action" | "blocked";
+  metric: string;
+  route: string;
+  action: string;
 }
 
 const isLoading = ref(true);
@@ -105,6 +115,7 @@ const risks = ref<Risk[]>([]);
 const optimizations = ref<Optimization[]>([]);
 const alerts = ref<Alert[]>([]);
 const activeTasks = ref<ActiveTask[]>([]);
+const setupSteps = ref<SetupStep[]>([]);
 const lastSyncTime = ref("-");
 const compliance = ref({
   isValid: false,
@@ -122,6 +133,18 @@ const storageUsagePercent = computed(() => {
     Math.round((stats.value.storage_used / stats.value.storage_total) * 100),
   );
 });
+
+const setupProgress = computed(() => {
+  if (!setupSteps.value.length) return 0;
+  const done = setupSteps.value.filter((step) => step.status === "done").length;
+  return Math.round((done / setupSteps.value.length) * 100);
+});
+
+const setupComplete = computed(
+  () =>
+    setupSteps.value.length > 0 &&
+    setupSteps.value.every((step) => step.status === "done"),
+);
 
 function formatBytes(bytes: number | null | undefined): string {
   if (!bytes) return "0 B";
@@ -226,6 +249,125 @@ function getSeverityIcon(severity: string) {
   return icons[severity] || InformationCircleIcon;
 }
 
+function setupCopy() {
+  const zh = locale.value === "zh-CN";
+  return {
+    title: zh ? "配置向导" : "Setup Guide",
+    subtitle: zh
+      ? "按顺序完成节点、数据源、仓库、策略、备份、索引和恢复验证。"
+      : "Connect nodes, configure sources and repositories, run backups, index snapshots, and verify recovery.",
+    ready: zh ? "系统已就绪" : "System ready",
+    progress: zh ? "完成度" : "Progress",
+    actions: {
+      manage: zh ? "去配置" : "Configure",
+      view: zh ? "查看" : "View",
+      fix: zh ? "处理" : "Resolve",
+    },
+  };
+}
+
+function buildSetupSteps(data: {
+  proxyStats: any;
+  gatewayStats: any;
+  sourceStats: any;
+  repositoryStats: any;
+  policies: any[];
+  backupStats: any;
+  aiOverview: any;
+  recoveryStats: any;
+}) {
+  const zh = locale.value === "zh-CN";
+  const onlineNodes =
+    toNumber(data.proxyStats.online_proxies) + toNumber(data.gatewayStats.active);
+  const totalNodes =
+    toNumber(data.proxyStats.total_proxies) + toNumber(data.gatewayStats.total);
+  const sourceCount =
+    toNumber(data.sourceStats.total) || toNumber(data.sourceStats.total_resources);
+  const initializedRepositories = toNumber(data.repositoryStats.initialized);
+  const repositoryCount = toNumber(data.repositoryStats.total);
+  const policyCount = data.policies.length;
+  const backupCount = toNumber(data.backupStats.total_tasks);
+  const indexedSnapshots = toNumber(data.aiOverview.indexed_snapshots);
+  const recoveryCount = toNumber(data.recoveryStats.completed);
+
+  setupSteps.value = [
+    {
+      id: "nodes",
+      title: zh ? "连接执行节点" : "Connect nodes",
+      description: zh ? "至少一个 Proxy 或 Gateway 在线" : "At least one proxy or gateway is online",
+      status: onlineNodes > 0 ? "done" : totalNodes > 0 ? "blocked" : "action",
+      metric: `${onlineNodes}/${totalNodes}`,
+      route: "/proxies",
+      action: onlineNodes > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+    },
+    {
+      id: "sources",
+      title: zh ? "配置数据源" : "Configure sources",
+      description: zh ? "添加需要保护的数据源" : "Add data sources to protect",
+      status: sourceCount > 0 ? "done" : onlineNodes > 0 ? "action" : "blocked",
+      metric: String(sourceCount),
+      route: "/source-resources",
+      action: sourceCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+    },
+    {
+      id: "repositories",
+      title: zh ? "准备备份仓库" : "Prepare repository",
+      description: zh ? "仓库需要初始化并可写" : "Repository should be initialized and writable",
+      status:
+        initializedRepositories > 0
+          ? "done"
+          : sourceCount > 0
+            ? "action"
+            : "blocked",
+      metric: `${initializedRepositories}/${repositoryCount}`,
+      route: "/repository",
+      action:
+        initializedRepositories > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+    },
+    {
+      id: "policies",
+      title: zh ? "创建备份策略" : "Create policy",
+      description: zh ? "配置保留、排除和调度规则" : "Define retention, exclusions, and schedule",
+      status:
+        policyCount > 0
+          ? "done"
+          : initializedRepositories > 0
+            ? "action"
+            : "blocked",
+      metric: String(policyCount),
+      route: "/policies",
+      action: policyCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+    },
+    {
+      id: "backup",
+      title: zh ? "运行首次备份" : "Run first backup",
+      description: zh ? "创建任务并生成快照" : "Create a task and produce snapshots",
+      status: backupCount > 0 ? "done" : policyCount > 0 ? "action" : "blocked",
+      metric: String(backupCount),
+      route: "/backup-tasks",
+      action: backupCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+    },
+    {
+      id: "index",
+      title: zh ? "索引快照" : "Index snapshots",
+      description: zh ? "为搜索和 AI 洞察准备索引" : "Prepare snapshot indexes for search and AI",
+      status: indexedSnapshots > 0 ? "done" : backupCount > 0 ? "action" : "blocked",
+      metric: String(indexedSnapshots),
+      route: "/ai-insights",
+      action: indexedSnapshots > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+    },
+    {
+      id: "recovery",
+      title: zh ? "验证恢复能力" : "Verify recovery",
+      description: zh ? "至少完成一次恢复演练" : "Complete at least one recovery run",
+      status: recoveryCount > 0 ? "done" : backupCount > 0 ? "action" : "blocked",
+      metric: String(recoveryCount),
+      route: "/recovery-tasks",
+      action: recoveryCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+    },
+  ];
+}
+
 async function fetchDashboardData() {
   isLoading.value = true;
   try {
@@ -237,6 +379,8 @@ async function fetchDashboardData() {
       backupStatsRes,
       recoveryStatsRes,
       repositoriesRes,
+      sourceStatsRes,
+      policiesRes,
       aiOverviewRes,
       alertsRes,
       licenseRes,
@@ -248,6 +392,8 @@ async function fetchDashboardData() {
       backupTasksApi.stats(),
       recoveryTasksApi.stats(),
       repositoriesApi.stats(),
+      sourceResourcesApi.stats(),
+      policiesApi.list({ page_size: 100 }),
       aiInsightsApi.overview(),
       alertsApi.records({ status: "firing", page_size: 5 }),
       licensesApi.current(),
@@ -259,6 +405,8 @@ async function fetchDashboardData() {
     const backupStats = resultData(backupStatsRes) || {};
     const recoveryStats = resultData(recoveryStatsRes) || {};
     const repositoryStats = resultData(repositoriesRes) || {};
+    const sourceStats = resultData(sourceStatsRes) || {};
+    const policies = pageItems(resultData(policiesRes));
     const aiOverview = resultData(aiOverviewRes) || {};
     const licenseData = resultData(licenseRes) || {};
 
@@ -386,6 +534,17 @@ async function fetchDashboardData() {
         : t("common.noData"),
       recoverySeverity: toNumber(recoveryStats.completed) ? "info" : "warning",
     };
+
+    buildSetupSteps({
+      proxyStats,
+      gatewayStats,
+      sourceStats,
+      repositoryStats,
+      policies,
+      backupStats,
+      aiOverview,
+      recoveryStats,
+    });
   } catch (error) {
     console.error("Failed to fetch dashboard data:", error);
   } finally {
@@ -427,6 +586,86 @@ onMounted(() => {
         {{ t("common.refresh") }}
       </button>
     </div>
+
+    <!-- Setup Guide -->
+    <section class="rounded-xl border border-border bg-card shadow-sm">
+      <div
+        class="flex flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div class="flex items-center gap-2">
+            <CheckCircleIcon
+              v-if="setupComplete"
+              class="h-5 w-5 text-emerald-500" />
+            <InformationCircleIcon v-else class="h-5 w-5 text-violet-500" />
+            <h2 class="text-base font-semibold text-foreground">
+              {{ setupCopy().title }}
+            </h2>
+            <span
+              class="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+              {{ setupCopy().progress }} {{ setupProgress }}%
+            </span>
+          </div>
+          <p class="mt-1 text-sm text-foreground-secondary">
+            {{ setupComplete ? setupCopy().ready : setupCopy().subtitle }}
+          </p>
+        </div>
+        <div class="h-2 w-full overflow-hidden rounded-full bg-background-tertiary lg:w-48">
+          <div
+            class="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 transition-all duration-500"
+            :style="{ width: `${setupProgress}%` }" />
+        </div>
+      </div>
+
+      <div class="grid gap-px bg-border md:grid-cols-2 xl:grid-cols-7">
+        <button
+          v-for="(step, index) in setupSteps"
+          :key="step.id"
+          type="button"
+          class="group bg-card px-4 py-4 text-left transition-colors hover:bg-hover"
+          @click="router.push(step.route)">
+          <div class="flex items-start gap-3">
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold',
+                step.status === 'done'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400'
+                  : step.status === 'action'
+                    ? 'border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-300'
+                    : 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-500',
+              ]">
+              <CheckCircleIcon v-if="step.status === 'done'" class="h-4 w-4" />
+              <span v-else>{{ index + 1 }}</span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="truncate text-sm font-semibold text-foreground">
+                  {{ step.title }}
+                </h3>
+                <span
+                  :class="[
+                    'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
+                    step.status === 'done'
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                      : step.status === 'action'
+                        ? 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
+                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+                  ]">
+                  {{ step.metric }}
+                </span>
+              </div>
+              <p class="mt-1 line-clamp-2 text-xs text-foreground-secondary">
+                {{ step.description }}
+              </p>
+              <div
+                class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-violet-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-violet-300">
+                {{ step.action }}
+                <ArrowRightIcon class="h-3.5 w-3.5" />
+              </div>
+            </div>
+          </div>
+        </button>
+      </div>
+    </section>
 
     <!-- Stats Grid -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -893,32 +1132,5 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <button
-        @click="router.push('/backup-tasks')"
-        class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg">
-        <CloudArrowUpIcon class="w-5 h-5" />
-        {{ t("dashboard.actions.newBackup") }}
-      </button>
-      <button
-        @click="router.push('/recovery-tasks')"
-        class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-foreground surface-card border border-border rounded-lg hover:bg-hover hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm">
-        <ArrowUturnLeftIcon class="w-5 h-5 text-foreground-secondary" />
-        {{ t("dashboard.actions.newRecovery") }}
-      </button>
-      <button
-        @click="router.push('/ai-insights')"
-        class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-foreground surface-card border border-border rounded-lg hover:bg-hover hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm">
-        <SparklesIcon class="w-5 h-5 text-purple-500" />
-        {{ t("dashboard.actions.aiInsights") }}
-      </button>
-      <button
-        @click="router.push('/proxies')"
-        class="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-foreground surface-card border border-border rounded-lg hover:bg-hover hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm">
-        <ServerIcon class="w-5 h-5 text-foreground-secondary" />
-        {{ t("dashboard.actions.manageProxies") }}
-      </button>
-    </div>
   </div>
 </template>
