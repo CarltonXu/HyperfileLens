@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { useAppStore } from "@/stores/app";
@@ -868,6 +868,58 @@ const isFavorite = (path: string): boolean => {
   return favoritesStore.isFavorite(path);
 };
 
+const navTourTargets: Record<string, string> = {
+  "/": "nav-dashboard",
+  "/proxies": "nav-proxies",
+  "/gateways": "nav-gateways",
+  "/source-resources": "nav-source-resources",
+  "/repository": "nav-repository",
+  "/policies": "nav-policies",
+  "/backup-tasks": "nav-backup-tasks",
+  "/ai-insights/overview": "nav-ai-insights-overview",
+  "/recovery-tasks": "nav-recovery-tasks",
+};
+
+const getNavTourTarget = (path: string) => navTourTargets[path];
+
+const findGroupIdForPath = (path?: string | null) => {
+  if (!path) return null;
+  for (const group of navigationGroups.value) {
+    if (
+      group.items.some((item) => {
+        if (item.path === path) return true;
+        if (item.path !== "/" && path.startsWith(`${item.path}/`)) return true;
+        return item.subItems?.some((subItem) => subItem.path === path);
+      })
+    ) {
+      return group.id;
+    }
+    if (
+      group.aiInsightsCategories?.some((category) =>
+        category.items.some((item) => item.path === path),
+      )
+    ) {
+      return group.id;
+    }
+  }
+  return null;
+};
+
+const expandGroupForPath = (path?: string | null) => {
+  const groupId = findGroupIdForPath(path);
+  if (groupId && !expandedGroups.value.includes(groupId)) {
+    expandedGroups.value.push(groupId);
+  }
+};
+
+const handlePrepareTourStep = (event: Event) => {
+  const step = (event as CustomEvent<{ route?: string; selector?: string }>)
+    .detail;
+  isCollapsed.value = false;
+  localStorage.setItem("sidebarCollapsed", "false");
+  expandGroupForPath(step?.route);
+};
+
 // 检查分组是否有当前激活项
 const isGroupActive = (group: NavigationGroup) => {
   if (
@@ -901,6 +953,8 @@ onMounted(() => {
     expandedGroups.value = [currentGroup.value];
   }
 
+  window.addEventListener("hfl:prepare-tour-step", handlePrepareTourStep);
+
   // 显示欢迎弹窗
   if (sessionStorage.getItem("showWelcome") === "true") {
     sessionStorage.removeItem("showWelcome");
@@ -912,7 +966,15 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener("click", () => {});
+  window.removeEventListener("hfl:prepare-tour-step", handlePrepareTourStep);
 });
+
+watch(
+  () => route.path,
+  (path) => {
+    expandGroupForPath(path);
+  },
+);
 </script>
 
 <template>
@@ -974,6 +1036,7 @@ onUnmounted(() => {
               >
                 <router-link
                   :to="item.path"
+                  :data-tour="getNavTourTarget(item.path)"
                   :class="[
                     'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors pr-10',
                     item.current
@@ -1026,6 +1089,7 @@ onUnmounted(() => {
                   >
                     <router-link
                       :to="subItem.path"
+                      :data-tour="getNavTourTarget(subItem.path)"
                       :class="[
                         'group flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors pr-8',
                         subItem.current
@@ -1104,6 +1168,7 @@ onUnmounted(() => {
                   >
                     <router-link
                       :to="subItem.path"
+                      :data-tour="getNavTourTarget(subItem.path)"
                       :class="[
                         'group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors pr-8',
                         subItem.current

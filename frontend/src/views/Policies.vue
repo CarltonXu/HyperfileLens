@@ -265,8 +265,10 @@ const retentionPreview = computed(() => {
 });
 
 const schedulePreview = computed(() => {
-  if (form.value.schedule_mode === "interval") return form.value.interval || "24h";
-  if (form.value.schedule_mode === "time") return form.value.time_of_day || "02:00";
+  if (form.value.schedule_mode === "interval")
+    return form.value.interval || "24h";
+  if (form.value.schedule_mode === "time")
+    return form.value.time_of_day || "02:00";
   if (form.value.schedule_mode === "cron") return form.value.cron || "-";
   return t("policies.scheduleModes.manual");
 });
@@ -523,7 +525,8 @@ function formatRetention(policy: BackupPolicy) {
 
 function getPolicyTarget(policy: BackupPolicy | null) {
   if (!policy) return "-";
-  if (policy.policy_scope === "global") return t("policies.target.allSnapshots");
+  if (policy.policy_scope === "global")
+    return t("policies.target.allSnapshots");
   return policy.policy_target?.kopia_target || "-";
 }
 
@@ -541,11 +544,17 @@ function getPolicyPreviewCommand(policy: BackupPolicy | null) {
     `  --keep-annual ${retention.keep_annual}`,
   ];
   if (schedule.mode === "interval") {
-    lines.push(`# HyperFileLens scheduler interval: ${schedule.interval || "24h"}`);
+    lines.push(
+      `# HyperFileLens scheduler interval: ${schedule.interval || "24h"}`,
+    );
   } else if (schedule.mode === "time") {
-    lines.push(`# HyperFileLens scheduler time: ${schedule.time_of_day || "02:00"}`);
+    lines.push(
+      `# HyperFileLens scheduler time: ${schedule.time_of_day || "02:00"}`,
+    );
   } else if (schedule.mode === "cron") {
-    lines.push(`# HyperFileLens scheduler cron: ${schedule.cron || "* * * * *"}`);
+    lines.push(
+      `# HyperFileLens scheduler cron: ${schedule.cron || "* * * * *"}`,
+    );
   } else {
     lines.push("# HyperFileLens scheduler: manual");
   }
@@ -565,8 +574,10 @@ onMounted(fetchPolicies);
         <p class="mt-1 text-slate-500">{{ t("policies.subtitle") }}</p>
       </div>
       <button
+        data-tour="policy-create-button"
         @click="openCreateModal"
-        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-violet-500 to-purple-600 rounded-lg hover:from-violet-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg">
+        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-violet-500 to-purple-600 rounded-lg hover:from-violet-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+      >
         <PlusIcon class="w-4 h-4" />
         {{ t("policies.form.addPolicy") }}
       </button>
@@ -575,8 +586,12 @@ onMounted(fetchPolicies);
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-            <ListBulletIcon class="w-4 h-4 text-slate-600 dark:text-slate-400" />
+          <div
+            class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
+          >
+            <ListBulletIcon
+              class="w-4 h-4 text-slate-600 dark:text-slate-400"
+            />
           </div>
           <div>
             <p class="text-xs text-foreground-secondary">
@@ -590,8 +605,12 @@ onMounted(fetchPolicies);
       </div>
       <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-            <ShieldCheckIcon class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <div
+            class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center"
+          >
+            <ShieldCheckIcon
+              class="w-4 h-4 text-emerald-600 dark:text-emerald-400"
+            />
           </div>
           <div>
             <p class="text-xs text-foreground-secondary">
@@ -605,8 +624,12 @@ onMounted(fetchPolicies);
       </div>
       <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-            <DocumentTextIcon class="w-4 h-4 text-violet-600 dark:text-violet-400" />
+          <div
+            class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center"
+          >
+            <DocumentTextIcon
+              class="w-4 h-4 text-violet-600 dark:text-violet-400"
+            />
           </div>
           <div>
             <p class="text-xs text-foreground-secondary">
@@ -622,16 +645,19 @@ onMounted(fetchPolicies);
       <div class="flex flex-wrap items-center gap-3">
         <div class="relative min-w-[220px] flex-1">
           <MagnifyingGlassIcon
-            class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+          />
           <input
             v-model="searchQuery"
             type="text"
             :placeholder="t('common.search')"
-            class="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-4 text-sm text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+            class="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-4 text-sm text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+          />
         </div>
         <button
           @click="fetchPolicies"
-          class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-hover">
+          class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-hover"
+        >
           <ArrowPathIcon class="h-4 w-4" />
           {{ t("common.refresh") }}
         </button>
@@ -640,14 +666,17 @@ onMounted(fetchPolicies);
 
     <div v-if="isLoading" class="flex items-center justify-center py-12">
       <div
-        class="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
+        class="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600"
+      />
     </div>
 
     <div
       v-else-if="filteredPolicies.length === 0"
-      class="rounded-xl border border-border bg-card p-12 text-center">
+      class="rounded-xl border border-border bg-card p-12 text-center"
+    >
       <div
-        class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-background-tertiary">
+        class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-background-tertiary"
+      >
         <DocumentTextIcon class="h-8 w-8 text-slate-400" />
       </div>
       <h3 class="mb-1 text-lg font-medium text-foreground">
@@ -660,16 +689,19 @@ onMounted(fetchPolicies);
 
     <div
       v-else
-      class="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      class="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+    >
       <div class="overflow-x-auto">
         <table
           class="w-full table-fixed"
-          :style="{ minWidth: policyTable.tableMinWidth.value }">
+          :style="{ minWidth: policyTable.tableMinWidth.value }"
+        >
           <colgroup>
             <col
               v-for="column in policyColumns"
               :key="column.key"
-              :style="policyTable.columnStyle(column.key)" />
+              :style="policyTable.columnStyle(column.key)"
+            />
           </colgroup>
           <thead class="border-b border-border bg-background-secondary">
             <tr>
@@ -691,18 +723,21 @@ onMounted(fetchPolicies);
                 "
                 @resize-reset="
                   policyTable.resetColumnWidth($event as PolicyColumnKey)
-                " />
+                "
+              />
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
             <tr
               v-for="policy in paginatedPolicies"
               :key="policy.id"
-              class="hover:bg-hover transition-colors">
+              class="hover:bg-hover transition-colors"
+            >
               <td class="px-4 py-4" :style="policyTable.columnStyle('name')">
                 <div class="flex items-center gap-3">
                   <div
-                    class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+                    class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400"
+                  >
                     <ShieldCheckIcon class="h-5 w-5" />
                   </div>
                   <div class="min-w-0">
@@ -717,17 +752,20 @@ onMounted(fetchPolicies);
               </td>
               <td class="px-4 py-4" :style="policyTable.columnStyle('target')">
                 <span
-                  class="inline-flex rounded-full bg-background-tertiary px-2.5 py-0.5 text-xs font-medium text-foreground">
+                  class="inline-flex rounded-full bg-background-tertiary px-2.5 py-0.5 text-xs font-medium text-foreground"
+                >
                   {{ getScopeLabel(policy.policy_scope) }}
                 </span>
                 <p
-                  class="mt-1 max-w-[240px] truncate text-xs text-foreground-secondary">
+                  class="mt-1 max-w-[240px] truncate text-xs text-foreground-secondary"
+                >
                   {{ getPolicyTarget(policy) }}
                 </p>
               </td>
               <td
                 class="px-4 py-4 text-sm text-foreground-secondary"
-                :style="policyTable.columnStyle('schedule')">
+                :style="policyTable.columnStyle('schedule')"
+              >
                 <div class="flex items-center gap-2">
                   <ClockIcon class="h-4 w-4 text-foreground-muted" />
                   {{ getScheduleLabel(policy) }}
@@ -736,7 +774,10 @@ onMounted(fetchPolicies);
                   {{ t("policies.schedule.platformScheduler") }}
                 </p>
               </td>
-              <td class="px-4 py-4" :style="policyTable.columnStyle('retention')">
+              <td
+                class="px-4 py-4"
+                :style="policyTable.columnStyle('retention')"
+              >
                 <p class="font-mono text-xs text-foreground">
                   {{ formatRetention(policy) }}
                 </p>
@@ -748,10 +789,12 @@ onMounted(fetchPolicies);
                     policy.is_active
                       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                       : 'bg-background-tertiary text-slate-500',
-                  ]">
+                  ]"
+                >
                   <CheckCircleIcon
                     v-if="policy.is_active"
-                    class="h-3.5 w-3.5" />
+                    class="h-3.5 w-3.5"
+                  />
                   <PauseIcon v-else class="h-3.5 w-3.5" />
                   {{
                     policy.is_active
@@ -762,12 +805,14 @@ onMounted(fetchPolicies);
               </td>
               <td
                 class="px-4 py-4 text-right"
-                :style="policyTable.columnStyle('actions')">
+                :style="policyTable.columnStyle('actions')"
+              >
                 <div class="flex items-center justify-end gap-2">
                   <button
                     @click="openDetailsModal(policy)"
                     class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-background-tertiary hover:text-violet-600"
-                    :title="t('common.viewDetails')">
+                    :title="t('common.viewDetails')"
+                  >
                     <EyeIcon class="h-4 w-4" />
                   </button>
                   <button
@@ -782,20 +827,23 @@ onMounted(fetchPolicies);
                       policy.is_active
                         ? t('policies.actions.disable')
                         : t('policies.actions.enable')
-                    ">
+                    "
+                  >
                     <PauseIcon v-if="policy.is_active" class="h-4 w-4" />
                     <CheckCircleIcon v-else class="h-4 w-4" />
                   </button>
                   <button
                     @click="openEditModal(policy)"
                     class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-background-tertiary hover:text-violet-600"
-                    :title="t('common.edit')">
+                    :title="t('common.edit')"
+                  >
                     <PencilSquareIcon class="h-4 w-4" />
                   </button>
                   <button
                     @click="deletePolicy(policy)"
                     class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                    :title="t('common.delete')">
+                    :title="t('common.delete')"
+                  >
                     <TrashIcon class="h-4 w-4" />
                   </button>
                 </div>
@@ -808,18 +856,22 @@ onMounted(fetchPolicies);
       <Pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
-        :total-items="filteredPolicies.length" />
+        :total-items="filteredPolicies.length"
+      />
     </div>
 
     <Teleport to="body">
       <div
         v-if="showDetailsModal"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-        @click.self="showDetailsModal = false">
+        @click.self="showDetailsModal = false"
+      >
         <div
-          class="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-border modal-surface shadow-xl">
+          class="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-border modal-surface shadow-xl"
+        >
           <div
-            class="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+            class="flex items-start justify-between gap-4 border-b border-border px-6 py-4"
+          >
             <div>
               <h2 class="text-lg font-semibold text-foreground">
                 {{ selectedPolicy?.name || t("common.details") }}
@@ -830,14 +882,16 @@ onMounted(fetchPolicies);
             </div>
             <button
               @click="showDetailsModal = false"
-              class="rounded-lg p-2 hover:bg-background-tertiary">
+              class="rounded-lg p-2 hover:bg-background-tertiary"
+            >
               <XCircleIcon class="h-5 w-5 text-slate-400" />
             </button>
           </div>
 
           <div v-if="isLoadingDetails" class="flex justify-center py-16">
             <div
-              class="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
+              class="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600"
+            />
           </div>
 
           <div v-else-if="selectedPolicy" class="flex-1 overflow-y-auto p-6">
@@ -861,10 +915,12 @@ onMounted(fetchPolicies);
                           selectedPolicy.is_active
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                             : 'bg-background-tertiary text-slate-500',
-                        ]">
+                        ]"
+                      >
                         <CheckCircleIcon
                           v-if="selectedPolicy.is_active"
-                          class="h-3.5 w-3.5" />
+                          class="h-3.5 w-3.5"
+                        />
                         <PauseIcon v-else class="h-3.5 w-3.5" />
                         {{
                           selectedPolicy.is_active
@@ -910,9 +966,7 @@ onMounted(fetchPolicies);
                     </dd>
                   </div>
                   <div>
-                    <dt class="text-xs text-foreground-muted">
-                      Kopia Target
-                    </dt>
+                    <dt class="text-xs text-foreground-muted">Kopia Target</dt>
                     <dd class="mt-1 break-all font-mono text-foreground">
                       {{ getPolicyTarget(selectedPolicy) }}
                     </dd>
@@ -960,7 +1014,8 @@ onMounted(fetchPolicies);
                   <div
                     v-for="field in retentionFields"
                     :key="field.key"
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <p class="text-xs text-foreground-muted">
                       {{ t(`policies.retention.${field.label}`) }}
                     </p>
@@ -988,10 +1043,12 @@ onMounted(fetchPolicies);
 
           <div
             v-if="selectedPolicy"
-            class="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
+            class="flex items-center justify-end gap-3 border-t border-border px-6 py-4"
+          >
             <button
               @click="togglePolicy(selectedPolicy)"
-              class="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover">
+              class="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-hover"
+            >
               <PauseIcon v-if="selectedPolicy.is_active" class="h-4 w-4" />
               <CheckCircleIcon v-else class="h-4 w-4" />
               {{
@@ -1005,7 +1062,8 @@ onMounted(fetchPolicies);
                 showDetailsModal = false;
                 openEditModal(selectedPolicy);
               "
-              class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700">
+              class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
+            >
               <PencilSquareIcon class="h-4 w-4" />
               {{ t("common.edit") }}
             </button>
@@ -1017,14 +1075,18 @@ onMounted(fetchPolicies);
     <Teleport to="body">
       <div
         v-if="showPolicyModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
         <div
           class="absolute inset-0 bg-black/50"
-          @click="showPolicyModal = false" />
+          @click="showPolicyModal = false"
+        />
         <div
-          class="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-border modal-surface shadow-xl">
+          class="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-border modal-surface shadow-xl"
+        >
           <div
-            class="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+            class="flex items-start justify-between gap-4 border-b border-border px-6 py-4"
+          >
             <div>
               <h2 class="text-lg font-semibold text-foreground">
                 {{
@@ -1039,13 +1101,15 @@ onMounted(fetchPolicies);
             </div>
             <button
               @click="showPolicyModal = false"
-              class="rounded-lg p-2 hover:bg-background-tertiary">
+              class="rounded-lg p-2 hover:bg-background-tertiary"
+            >
               <XCircleIcon class="h-5 w-5 text-slate-400" />
             </button>
           </div>
 
           <div
-            class="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto xl:grid-cols-[minmax(0,1fr)_360px]">
+            class="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto xl:grid-cols-[minmax(0,1fr)_360px]"
+          >
             <div class="space-y-5 p-6">
               <section class="rounded-lg border border-border bg-card p-4">
                 <div class="mb-2 flex items-center gap-2">
@@ -1060,26 +1124,30 @@ onMounted(fetchPolicies);
                 <div class="space-y-4">
                   <div>
                     <label
-                      class="mb-1 block text-sm font-medium text-foreground">
+                      class="mb-1 block text-sm font-medium text-foreground"
+                    >
                       {{ t("policies.form.policyName") }}
                     </label>
                     <input
                       v-model="form.name"
                       type="text"
                       :placeholder="t('policies.basic.namePlaceholder')"
-                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
                     <p class="mt-1 text-xs text-foreground-muted">
                       {{ t("policies.basic.nameDesc") }}
                     </p>
                   </div>
                   <div>
                     <label
-                      class="mb-1 block text-sm font-medium text-foreground">
+                      class="mb-1 block text-sm font-medium text-foreground"
+                    >
                       {{ t("policies.form.backupType") }}
                     </label>
                     <select
                       v-model="form.backup_type"
-                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
                       <option value="incremental">Incremental</option>
                       <option value="full">Full</option>
                       <option value="differential">Differential</option>
@@ -1090,28 +1158,33 @@ onMounted(fetchPolicies);
                   </div>
                   <div>
                     <label
-                      class="mb-1 block text-sm font-medium text-foreground">
+                      class="mb-1 block text-sm font-medium text-foreground"
+                    >
                       {{ t("common.description") }}
                     </label>
                     <textarea
                       v-model="form.description"
                       rows="2"
                       :placeholder="t('policies.basic.descriptionPlaceholder')"
-                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
                     <p class="mt-1 text-xs text-foreground-muted">
                       {{ t("policies.basic.descriptionDesc") }}
                     </p>
                   </div>
                   <label
-                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
+                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground"
+                  >
                     <input
                       v-model="form.is_active"
                       type="checkbox"
-                      class="mt-1 h-4 w-4 rounded border-border text-violet-600 focus:ring-violet-500" />
+                      class="mt-1 h-4 w-4 rounded border-border text-violet-600 focus:ring-violet-500"
+                    />
                     <span>
                       <span class="font-medium">{{ t("common.enabled") }}</span>
                       <span
-                        class="mt-1 block text-xs leading-5 text-foreground-muted">
+                        class="mt-1 block text-xs leading-5 text-foreground-muted"
+                      >
                         {{ t("policies.basic.enabledDesc") }}
                       </span>
                     </span>
@@ -1132,12 +1205,14 @@ onMounted(fetchPolicies);
                 <div class="space-y-4">
                   <div>
                     <label
-                      class="mb-1 block text-sm font-medium text-foreground">
+                      class="mb-1 block text-sm font-medium text-foreground"
+                    >
                       {{ t("policies.target.title") }}
                     </label>
                     <select
                       v-model="form.policy_scope"
-                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
                       <option value="global">
                         {{ t("policies.scopes.global") }}
                       </option>
@@ -1163,40 +1238,46 @@ onMounted(fetchPolicies);
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div v-if="form.policy_scope !== 'global'">
                     <label
-                      class="mb-1 block text-sm font-medium text-foreground">
+                      class="mb-1 block text-sm font-medium text-foreground"
+                    >
                       {{ t("policies.target.host") }}
                     </label>
                     <input
                       v-model="form.target_host"
                       type="text"
-                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
                     <p class="mt-1 text-xs text-foreground-muted">
                       {{ t("policies.target.hostDesc") }}
                     </p>
                   </div>
                   <div v-if="['user', 'path'].includes(form.policy_scope)">
                     <label
-                      class="mb-1 block text-sm font-medium text-foreground">
+                      class="mb-1 block text-sm font-medium text-foreground"
+                    >
                       {{ t("policies.target.user") }}
                     </label>
                     <input
                       v-model="form.target_user"
                       type="text"
-                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
                     <p class="mt-1 text-xs text-foreground-muted">
                       {{ t("policies.target.userDesc") }}
                     </p>
                   </div>
                   <div v-if="form.policy_scope === 'path'">
                     <label
-                      class="mb-1 block text-sm font-medium text-foreground">
+                      class="mb-1 block text-sm font-medium text-foreground"
+                    >
                       {{ t("policies.target.path") }}
                     </label>
                     <input
                       v-model="form.target_path"
                       type="text"
                       placeholder="/data"
-                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
                     <p class="mt-1 text-xs text-foreground-muted">
                       {{ t("policies.target.pathDesc") }}
                     </p>
@@ -1217,12 +1298,14 @@ onMounted(fetchPolicies);
                 <div class="space-y-4">
                   <div>
                     <label
-                      class="mb-1 block text-sm font-medium text-foreground">
+                      class="mb-1 block text-sm font-medium text-foreground"
+                    >
                       {{ t("policies.schedule.title") }}
                     </label>
                     <select
                       v-model="form.schedule_mode"
-                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
                       <option value="manual">
                         {{ t("policies.scheduleModes.manual") }}
                       </option>
@@ -1247,61 +1330,72 @@ onMounted(fetchPolicies);
                   <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div v-if="form.schedule_mode === 'interval'">
                       <label
-                        class="mb-1 block text-sm font-medium text-foreground">
+                        class="mb-1 block text-sm font-medium text-foreground"
+                      >
                         {{ t("policies.schedule.interval") }}
                       </label>
                       <input
                         v-model="form.interval"
                         type="text"
                         placeholder="24h"
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
                       <p class="mt-1 text-xs text-foreground-muted">
                         {{ t("policies.schedule.intervalDesc") }}
                       </p>
                     </div>
                     <div
-                      v-if="['interval', 'time'].includes(form.schedule_mode)">
+                      v-if="['interval', 'time'].includes(form.schedule_mode)"
+                    >
                       <label
-                        class="mb-1 block text-sm font-medium text-foreground">
+                        class="mb-1 block text-sm font-medium text-foreground"
+                      >
                         {{ t("policies.schedule.timeOfDay") }}
                       </label>
                       <input
                         v-model="form.time_of_day"
                         type="time"
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
                       <p class="mt-1 text-xs text-foreground-muted">
                         {{ t("policies.schedule.timeOfDayDesc") }}
                       </p>
                     </div>
                     <div
                       v-if="form.schedule_mode === 'cron'"
-                      class="md:col-span-2">
+                      class="md:col-span-2"
+                    >
                       <label
-                        class="mb-1 block text-sm font-medium text-foreground">
+                        class="mb-1 block text-sm font-medium text-foreground"
+                      >
                         {{ t("policies.schedule.cron") }}
                       </label>
                       <input
                         v-model="form.cron"
                         type="text"
                         placeholder="0 2 * * *"
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-foreground placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
                       <p class="mt-1 text-xs text-foreground-muted">
                         {{ t("policies.schedule.cronDesc") }}
                       </p>
                     </div>
                   </div>
                   <label
-                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground">
+                    class="flex items-start gap-3 rounded-lg border border-border bg-background/50 p-3 text-sm text-foreground"
+                  >
                     <input
                       v-model="form.run_missed"
                       type="checkbox"
-                      class="mt-1 h-4 w-4 rounded border-border text-violet-600 focus:ring-violet-500" />
+                      class="mt-1 h-4 w-4 rounded border-border text-violet-600 focus:ring-violet-500"
+                    />
                     <span>
                       <span class="font-medium">
                         {{ t("policies.schedule.runMissed") }}
                       </span>
                       <span
-                        class="mt-1 block text-xs leading-5 text-foreground-muted">
+                        class="mt-1 block text-xs leading-5 text-foreground-muted"
+                      >
                         {{ t("policies.schedule.runMissedDesc") }}
                       </span>
                     </span>
@@ -1323,16 +1417,19 @@ onMounted(fetchPolicies);
                   <div
                     v-for="field in retentionFields"
                     :key="field.key"
-                    class="rounded-lg border border-border bg-background/50 p-3">
+                    class="rounded-lg border border-border bg-background/50 p-3"
+                  >
                     <label
-                      class="mb-2 block text-sm font-medium text-foreground">
+                      class="mb-2 block text-sm font-medium text-foreground"
+                    >
                       {{ t(`policies.retention.${field.label}`) }}
                     </label>
                     <input
                       v-model.number="form[field.key]"
                       type="number"
                       min="0"
-                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                      class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
                     <p class="mt-2 text-xs leading-5 text-foreground-muted">
                       {{ t(`policies.retention.${field.description}`) }}
                     </p>
@@ -1342,7 +1439,8 @@ onMounted(fetchPolicies);
             </div>
 
             <aside
-              class="border-t border-border bg-background-secondary p-6 xl:sticky xl:top-0 xl:max-h-full xl:self-start xl:overflow-y-auto xl:border-l xl:border-t-0">
+              class="border-t border-border bg-background-secondary p-6 xl:sticky xl:top-0 xl:max-h-full xl:self-start xl:overflow-y-auto xl:border-l xl:border-t-0"
+            >
               <h3 class="font-semibold text-foreground">
                 {{ t("policies.preview.title") }}
               </h3>
@@ -1382,16 +1480,19 @@ onMounted(fetchPolicies);
           </div>
 
           <div
-            class="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
+            class="flex items-center justify-end gap-3 border-t border-border px-6 py-4"
+          >
             <button
               @click="showPolicyModal = false"
-              class="rounded-lg border border-border px-4 py-2 text-sm text-foreground-secondary hover:bg-hover">
+              class="rounded-lg border border-border px-4 py-2 text-sm text-foreground-secondary hover:bg-hover"
+            >
               {{ t("common.cancel") }}
             </button>
             <button
               @click="savePolicy"
               :disabled="isSaving"
-              class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
+              class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+            >
               <ArrowPathIcon v-if="isSaving" class="h-4 w-4 animate-spin" />
               {{ t("common.save") }}
             </button>

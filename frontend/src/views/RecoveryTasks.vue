@@ -254,7 +254,8 @@ const recoveryTaskTable = useResizableSortableTable<
     if (key === "repository") {
       // Show repository name with share path
       const repoName = task.repository_name || "-";
-      const sharePath = task.snapshot_source_path || task.metadata?.source_path || "";
+      const sharePath =
+        task.snapshot_source_path || task.metadata?.source_path || "";
       return sharePath ? `${repoName}: ${sharePath}` : repoName;
     }
     if (key === "recovery_target") {
@@ -332,7 +333,9 @@ async function fetchSnapshots() {
       search: snapshotSearchQuery.value.trim() || undefined,
       snapshot_status: "available",
       snapshot_kind:
-        snapshotKindFilter.value === "all" ? undefined : snapshotKindFilter.value,
+        snapshotKindFilter.value === "all"
+          ? undefined
+          : snapshotKindFilter.value,
       page: 1,
       page_size: 50,
     });
@@ -347,7 +350,11 @@ async function fetchSnapshots() {
 }
 
 async function loadMoreSnapshots() {
-  if (!newRecovery.value.repository || !snapshotNextPage.value || snapshotsLoadingMore.value) {
+  if (
+    !newRecovery.value.repository ||
+    !snapshotNextPage.value ||
+    snapshotsLoadingMore.value
+  ) {
     return;
   }
   const page = snapshotNextPage.value;
@@ -358,7 +365,9 @@ async function loadMoreSnapshots() {
       search: snapshotSearchQuery.value.trim() || undefined,
       snapshot_status: "available",
       snapshot_kind:
-        snapshotKindFilter.value === "all" ? undefined : snapshotKindFilter.value,
+        snapshotKindFilter.value === "all"
+          ? undefined
+          : snapshotKindFilter.value,
       page,
       page_size: 50,
     });
@@ -428,7 +437,9 @@ const filteredSnapshots = computed(() => {
 });
 
 const selectedTargetNode = computed(() =>
-  nodes.value.find((node) => String(node.id) === String(newRecovery.value.node)),
+  nodes.value.find(
+    (node) => String(node.id) === String(newRecovery.value.node),
+  ),
 );
 
 const selectedRecoveryFileStats = computed(() => {
@@ -439,7 +450,9 @@ const selectedRecoveryFileStats = computed(() => {
   for (const file of recoverySnapshotFiles.value) {
     if (
       selected.has(file.relative_path) ||
-      Array.from(selected).some((path) => file.relative_path?.startsWith(`${path}/`))
+      Array.from(selected).some((path) =>
+        file.relative_path?.startsWith(`${path}/`),
+      )
     ) {
       if (!file.is_dir) {
         knownFiles += 1;
@@ -453,9 +466,9 @@ const selectedRecoveryFileStats = computed(() => {
 const canCreateRecovery = computed(() => {
   return Boolean(
     newRecovery.value.name &&
-      newRecovery.value.node &&
-      newRecovery.value.snapshot_id &&
-      newRecovery.value.target_path,
+    newRecovery.value.node &&
+    newRecovery.value.snapshot_id &&
+    newRecovery.value.target_path,
   );
 });
 
@@ -464,7 +477,9 @@ const canContinueRecoveryWizard = computed(() => {
     return Boolean(newRecovery.value.name);
   }
   if (createStep.value === 1) {
-    return Boolean(newRecovery.value.repository && newRecovery.value.snapshot_id);
+    return Boolean(
+      newRecovery.value.repository && newRecovery.value.snapshot_id,
+    );
   }
   if (createStep.value === 2) {
     return (
@@ -562,7 +577,10 @@ async function executeRecovery(task: RecoveryTask) {
     appStore.showToast({
       type: "error",
       title: t("common.error"),
-      message: getApiErrorMessage(error, t("recoveryTasks.messages.executeFailed")),
+      message: getApiErrorMessage(
+        error,
+        t("recoveryTasks.messages.executeFailed"),
+      ),
     });
   }
 }
@@ -577,7 +595,10 @@ async function fetchRecoveryRuns(taskId: string) {
     appStore.showToast({
       type: "error",
       title: t("common.error"),
-      message: getApiErrorMessage(error, t("recoveryTasks.messages.fetchRunsFailed")),
+      message: getApiErrorMessage(
+        error,
+        t("recoveryTasks.messages.fetchRunsFailed"),
+      ),
     });
   } finally {
     runsLoading.value = false;
@@ -734,7 +755,10 @@ async function pauseRecovery(task: RecoveryTask) {
     appStore.showToast({
       type: "error",
       title: t("common.error"),
-      message: getApiErrorMessage(error, t("recoveryTasks.messages.pauseFailed")),
+      message: getApiErrorMessage(
+        error,
+        t("recoveryTasks.messages.pauseFailed"),
+      ),
     });
   }
 }
@@ -836,6 +860,7 @@ onMounted(() => {
         <p class="text-slate-500 mt-1">{{ t("recoveryTasks.subtitle") }}</p>
       </div>
       <button
+        data-tour="recovery-create-button"
         @click="openCreateRecovery"
         class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all shadow-md hover:shadow-lg border border-emerald-600"
       >
@@ -981,28 +1006,28 @@ onMounted(() => {
               {{ t("common.previous") }}
             </button>
             <div class="flex justify-end gap-3">
-            <button
-              @click="closeCreateRecovery"
-              class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
-            >
-              {{ t("common.cancel") }}
-            </button>
-            <button
-              v-if="!isLastCreateStep"
-              @click="nextCreateStep"
-              :disabled="!canContinueRecoveryWizard"
-              class="px-4 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {{ t("common.next") }}
-            </button>
-            <button
-              v-else
-              @click="createRecovery"
-              :disabled="!canCreateRecovery"
-              class="px-4 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {{ editingTaskId ? t("common.save") : t("common.create") }}
-            </button>
+              <button
+                @click="closeCreateRecovery"
+                class="px-4 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover"
+              >
+                {{ t("common.cancel") }}
+              </button>
+              <button
+                v-if="!isLastCreateStep"
+                @click="nextCreateStep"
+                :disabled="!canContinueRecoveryWizard"
+                class="px-4 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {{ t("common.next") }}
+              </button>
+              <button
+                v-else
+                @click="createRecovery"
+                :disabled="!canCreateRecovery"
+                class="px-4 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {{ editingTaskId ? t("common.save") : t("common.create") }}
+              </button>
             </div>
           </div>
         </div>

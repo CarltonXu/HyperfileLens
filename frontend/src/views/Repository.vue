@@ -763,6 +763,7 @@ onMounted(() => {
         </p>
       </div>
       <button
+        data-tour="repository-create-button"
         @click="showCreateModal = true"
         class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-cyan-600 rounded-lg hover:from-blue-600 hover:to-cyan-700 transition-all shadow-md hover:shadow-lg"
       >

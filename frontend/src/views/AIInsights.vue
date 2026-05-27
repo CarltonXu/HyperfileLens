@@ -341,7 +341,10 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div
+      data-tour="ai-insights-entry"
+      class="flex items-center justify-between"
+    >
       <div>
         <h1 class="text-2xl font-bold text-foreground">{{ pageTitle }}</h1>
         <p class="text-foreground-secondary mt-1">
@@ -351,7 +354,8 @@ onMounted(() => {
       <div class="flex items-center gap-4">
         <!-- Gateway Status -->
         <div
-          class="flex items-center gap-2 px-3 py-1.5 bg-background-secondary border border-border rounded-lg">
+          class="flex items-center gap-2 px-3 py-1.5 bg-background-secondary border border-border rounded-lg"
+        >
           <ServerIcon class="w-4 h-4 text-slate-400" />
           <span class="text-sm text-foreground-secondary">Gateway:</span>
           <span
@@ -362,7 +366,8 @@ onMounted(() => {
                 : gatewayStatus === 'offline'
                   ? 'text-red-600 dark:text-red-400'
                   : 'text-slate-400',
-            ]">
+            ]"
+          >
             {{
               gatewayStatus === "online"
                 ? t("common.online")
@@ -379,7 +384,8 @@ onMounted(() => {
                 : gatewayStatus === 'offline'
                   ? 'bg-red-500'
                   : 'bg-slate-300 animate-pulse',
-            ]" />
+            ]"
+          />
         </div>
       </div>
     </div>
@@ -390,7 +396,8 @@ onMounted(() => {
       <div v-if="currentTab === 'overview'" class="space-y-6">
         <div
           v-if="isLoadingOverview"
-          class="flex items-center justify-center py-12">
+          class="flex items-center justify-center py-12"
+        >
           <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
         </div>
         <template v-else-if="overviewData">
@@ -407,9 +414,11 @@ onMounted(() => {
                   </p>
                 </div>
                 <div
-                  class="w-12 h-12 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center">
+                  class="w-12 h-12 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center"
+                >
                   <FolderIcon
-                    class="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                    class="w-6 h-6 text-violet-600 dark:text-violet-400"
+                  />
                 </div>
               </div>
             </div>
@@ -424,9 +433,11 @@ onMounted(() => {
                   </p>
                 </div>
                 <div
-                  class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                  class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center"
+                >
                   <DocumentTextIcon
-                    class="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                    class="w-6 h-6 text-blue-600 dark:text-blue-400"
+                  />
                 </div>
               </div>
             </div>
@@ -437,14 +448,17 @@ onMounted(() => {
                     {{ t("aiInsights.overview.sensitiveFiles") }}
                   </p>
                   <p
-                    class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                    class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1"
+                  >
                     {{ overviewData.risk_summary?.sensitive_files }}
                   </p>
                 </div>
                 <div
-                  class="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+                  class="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center"
+                >
                   <ShieldExclamationIcon
-                    class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                    class="w-6 h-6 text-amber-600 dark:text-amber-400"
+                  />
                 </div>
               </div>
             </div>
@@ -455,7 +469,8 @@ onMounted(() => {
                     {{ t("aiInsights.overview.duplicateSize") }}
                   </p>
                   <p
-                    class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
+                    class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1"
+                  >
                     {{
                       overviewData.optimization_suggestions?.duplicate_files
                         ?.size
@@ -463,9 +478,11 @@ onMounted(() => {
                   </p>
                 </div>
                 <div
-                  class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+                  class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center"
+                >
                   <DocumentDuplicateIcon
-                    class="w-6 h-6 text-red-600 dark:text-red-400" />
+                    class="w-6 h-6 text-red-600 dark:text-red-400"
+                  />
                 </div>
               </div>
             </div>
@@ -482,7 +499,8 @@ onMounted(() => {
                 <div
                   v-for="cat in overviewData.file_categories"
                   :key="cat.name"
-                  class="flex items-center gap-4">
+                  class="flex items-center gap-4"
+                >
                   <div class="flex-1">
                     <div class="flex items-center justify-between mb-1">
                       <span
@@ -494,10 +512,12 @@ onMounted(() => {
                       >
                     </div>
                     <div
-                      class="h-2 bg-background-tertiary rounded-full overflow-hidden">
+                      class="h-2 bg-background-tertiary rounded-full overflow-hidden"
+                    >
                       <div
                         class="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all"
-                        :style="{ width: `${cat.percentage}%` }" />
+                        :style="{ width: `${cat.percentage}%` }"
+                      />
                     </div>
                   </div>
                   <span class="text-sm text-slate-500 w-16 text-right">{{
@@ -514,7 +534,8 @@ onMounted(() => {
               </h3>
               <div class="space-y-4">
                 <div
-                  class="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                  class="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg"
+                >
                   <div class="flex items-center gap-3">
                     <ExclamationTriangleIcon class="w-5 h-5 text-amber-500" />
                     <span class="text-sm text-amber-700 dark:text-amber-300">{{
@@ -528,7 +549,8 @@ onMounted(() => {
                   >
                 </div>
                 <div
-                  class="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                  class="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg"
+                >
                   <div class="flex items-center gap-3">
                     <CheckCircleIcon class="w-5 h-5 text-emerald-500" />
                     <span
@@ -542,7 +564,8 @@ onMounted(() => {
                   >
                 </div>
                 <div
-                  class="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  class="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
+                >
                   <div class="flex items-center gap-3">
                     <ShieldExclamationIcon class="w-5 h-5 text-blue-500" />
                     <span class="text-sm text-blue-700 dark:text-blue-300">{{
@@ -629,18 +652,21 @@ onMounted(() => {
           <div class="flex gap-4">
             <div class="flex-1 relative">
               <MagnifyingGlassIcon
-                class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
+              />
               <input
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('aiInsights.search.placeholder')"
                 class="w-full pl-12 pr-4 py-3 bg-background-secondary border border-border rounded-lg text-foreground placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                @keyup.enter="handleSearch" />
+                @keyup.enter="handleSearch"
+              />
             </div>
             <button
               @click="handleSearch"
               :disabled="isSearching || !searchQuery.trim()"
-              class="px-6 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
+              class="px-6 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
               <ArrowPathIcon v-if="isSearching" class="w-5 h-5 animate-spin" />
               <MagnifyingGlassIcon v-else class="w-5 h-5" />
               {{ t("aiInsights.search.search") }}
@@ -654,18 +680,21 @@ onMounted(() => {
             </h4>
             <div
               v-if="searchResults.length === 0"
-              class="text-center py-8 text-slate-500">
+              class="text-center py-8 text-slate-500"
+            >
               {{ t("aiInsights.search.noResults") }}
             </div>
             <div v-else class="space-y-2">
               <div
                 v-for="result in searchResults"
                 :key="result.path"
-                class="flex items-center gap-4 p-3 bg-background-secondary rounded-lg">
+                class="flex items-center gap-4 p-3 bg-background-secondary rounded-lg"
+              >
                 <DocumentTextIcon class="w-5 h-5 text-slate-400" />
                 <div class="flex-1 min-w-0">
                   <p
-                    class="text-sm font-medium text-foreground-secondary truncate">
+                    class="text-sm font-medium text-foreground-secondary truncate"
+                  >
                     {{ result.name || result.path?.split("/").pop() }}
                   </p>
                   <p class="text-xs text-slate-500 truncate">
@@ -691,7 +720,8 @@ onMounted(() => {
       <div v-if="currentTab === 'sensitive'" class="space-y-6">
         <div
           v-if="isLoadingSensitive"
-          class="flex items-center justify-center py-12">
+          class="flex items-center justify-center py-12"
+        >
           <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
         </div>
         <template v-else-if="sensitiveData">
@@ -710,14 +740,16 @@ onMounted(() => {
               <div
                 v-for="finding in sensitiveData.findings"
                 :key="finding.type"
-                class="p-4 border border-border rounded-lg">
+                class="p-4 border border-border rounded-lg"
+              >
                 <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-3">
                     <span
                       :class="[
                         'px-2 py-1 text-xs font-medium rounded',
                         getSeverityColor(finding.severity),
-                      ]">
+                      ]"
+                    >
                       {{ finding.severity.toUpperCase() }}
                     </span>
                     <span class="font-medium text-foreground-secondary">{{
@@ -750,7 +782,8 @@ onMounted(() => {
       <div v-if="currentTab === 'profile'" class="space-y-6">
         <div
           v-if="isLoadingProfile"
-          class="flex items-center justify-center py-12">
+          class="flex items-center justify-center py-12"
+        >
           <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
         </div>
         <template v-else-if="contentProfile">
@@ -758,7 +791,8 @@ onMounted(() => {
             <div
               v-for="cat in contentProfile.categories"
               :key="cat.name"
-              class="bg-card rounded-xl border border-border p-5">
+              class="bg-card rounded-xl border border-border p-5"
+            >
               <div class="flex items-center gap-3 mb-3">
                 <TagIcon class="w-5 h-5 text-violet-500" />
                 <span class="font-medium text-foreground-secondary">{{
@@ -771,7 +805,8 @@ onMounted(() => {
                 <span
                   v-for="tag in cat.tags"
                   :key="tag"
-                  class="px-2 py-0.5 text-xs bg-background-tertiary text-foreground-secondary rounded">
+                  class="px-2 py-0.5 text-xs bg-background-tertiary text-foreground-secondary rounded"
+                >
                   {{ tag }}
                 </span>
               </div>
@@ -784,7 +819,8 @@ onMounted(() => {
       <div v-if="currentTab === 'heatmap'" class="space-y-6">
         <div
           v-if="isLoadingHeatmap"
-          class="flex items-center justify-center py-12">
+          class="flex items-center justify-center py-12"
+        >
           <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
         </div>
         <template v-else-if="dataHeatmap">
@@ -792,7 +828,8 @@ onMounted(() => {
             <div
               v-for="item in dataHeatmap.heatmap"
               :key="item.category"
-              class="bg-card rounded-xl border border-border p-6">
+              class="bg-card rounded-xl border border-border p-6"
+            >
               <div class="flex items-center gap-3 mb-4">
                 <div
                   :class="[
@@ -802,7 +839,8 @@ onMounted(() => {
                       : item.category === 'warm'
                         ? 'bg-amber-100 dark:bg-amber-900/30'
                         : 'bg-blue-100 dark:bg-blue-900/30',
-                  ]">
+                  ]"
+                >
                   <FireIcon
                     :class="[
                       'w-5 h-5',
@@ -811,7 +849,8 @@ onMounted(() => {
                         : item.category === 'warm'
                           ? 'text-amber-500'
                           : 'text-blue-500',
-                    ]" />
+                    ]"
+                  />
                 </div>
                 <div>
                   <p class="font-medium text-foreground-secondary">
@@ -822,7 +861,8 @@ onMounted(() => {
               </div>
               <p class="text-2xl font-bold text-foreground">{{ item.size }}</p>
               <div
-                class="flex items-center justify-between mt-2 text-sm text-slate-500">
+                class="flex items-center justify-between mt-2 text-sm text-slate-500"
+              >
                 <span>{{ item.percentage }}%</span>
                 <span
                   >{{ item.file_count?.toLocaleString() }}
@@ -835,7 +875,8 @@ onMounted(() => {
           <!-- Zombie Data -->
           <div
             v-if="dataHeatmap.zombie_data"
-            class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-6">
+            class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-6"
+          >
             <div class="flex items-center gap-3 mb-3">
               <ExclamationTriangleIcon class="w-5 h-5 text-amber-500" />
               <span class="font-medium text-amber-700 dark:text-amber-300">{{
@@ -846,7 +887,8 @@ onMounted(() => {
               {{ dataHeatmap.zombie_data.description }}
             </p>
             <p
-              class="text-lg font-bold text-amber-700 dark:text-amber-300 mt-2">
+              class="text-lg font-bold text-amber-700 dark:text-amber-300 mt-2"
+            >
               {{ dataHeatmap.zombie_data.size }} ({{
                 dataHeatmap.zombie_data.file_count?.toLocaleString()
               }}
@@ -863,7 +905,8 @@ onMounted(() => {
       <div v-if="currentTab === 'redundancy'" class="space-y-6">
         <div
           v-if="isLoadingRedundancy"
-          class="flex items-center justify-center py-12">
+          class="flex items-center justify-center py-12"
+        >
           <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
         </div>
         <template v-else-if="redundancyData">
@@ -889,7 +932,8 @@ onMounted(() => {
                 {{ t("aiInsights.redundancy.potentialSavings") }}
               </p>
               <p
-                class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1"
+              >
                 {{ redundancyData.potential_savings }}
               </p>
             </div>
@@ -903,7 +947,8 @@ onMounted(() => {
               <div
                 v-for="group in redundancyData.duplicate_groups"
                 :key="group.file_name"
-                class="p-4 bg-background-secondary rounded-lg">
+                class="p-4 bg-background-secondary rounded-lg"
+              >
                 <div class="flex items-center justify-between mb-2">
                   <span class="font-medium text-foreground-secondary">{{
                     group.file_name

@@ -15,6 +15,9 @@ import {
   sourceResourcesApi,
   taskManagementApi,
 } from "@/api";
+import ProductTour, {
+  type ProductTourStep,
+} from "@/components/ProductTour.vue";
 import {
   ServerIcon,
   BoltIcon,
@@ -116,6 +119,8 @@ const optimizations = ref<Optimization[]>([]);
 const alerts = ref<Alert[]>([]);
 const activeTasks = ref<ActiveTask[]>([]);
 const setupSteps = ref<SetupStep[]>([]);
+const showTourPrompt = ref(false);
+const isTourActive = ref(false);
 const lastSyncTime = ref("-");
 const compliance = ref({
   isValid: false,
@@ -145,6 +150,47 @@ const setupComplete = computed(
     setupSteps.value.length > 0 &&
     setupSteps.value.every((step) => step.status === "done"),
 );
+
+const tourSteps = computed<ProductTourStep[]>(() => {
+  const zh = locale.value === "zh-CN";
+  return [
+    {
+      selector: '[data-tour="dashboard-setup-guide"]',
+      title: zh ? "先看配置向导" : "Start with the setup guide",
+      description: zh
+        ? "这里展示从节点、数据源、仓库到备份、索引和恢复验证的完整路径。绿色表示已完成，紫色表示下一步可以操作。"
+        : "This shows the full path from nodes and sources to repository, backup, indexing, and recovery validation. Green means complete; violet means actionable.",
+    },
+    {
+      selector: '[data-tour="dashboard-setup-stepper"]',
+      title: zh ? "按顺序完成流程" : "Follow the workflow",
+      description: zh
+        ? "每一步都可以悬停或点击展开说明。展开后点击操作入口，会跳到对应配置页面。"
+        : "Hover or click each step to expand details. Use the action link to jump to the matching configuration page.",
+    },
+    {
+      selector: '[data-tour="dashboard-core-metrics"]',
+      title: zh ? "关注核心健康指标" : "Check core health",
+      description: zh
+        ? "这里聚合节点在线、活动任务、仓库容量和任务成功率，帮助你判断系统当前是否健康。"
+        : "These cards summarize node availability, active tasks, repository capacity, and task success rate.",
+    },
+    {
+      selector: '[data-tour="dashboard-ai-insights"]',
+      title: zh ? "查看数据洞察" : "Review data insights",
+      description: zh
+        ? "快照索引完成后，这里会展示文件分类、风险监测和存储优化建议。"
+        : "After snapshot indexing, this area shows file categories, risk signals, and storage optimization suggestions.",
+    },
+    {
+      selector: '[data-tour="dashboard-attention"]',
+      title: zh ? "处理当前关注项" : "Handle attention items",
+      description: zh
+        ? "这里展示待处理告警、正在运行任务以及授权和恢复验证状态。"
+        : "This area shows firing alerts, running tasks, license status, and recovery verification state.",
+    },
+  ];
+});
 
 function formatBytes(bytes: number | null | undefined): string {
   if (!bytes) return "0 B";
@@ -249,6 +295,29 @@ function getSeverityIcon(severity: string) {
   return icons[severity] || InformationCircleIcon;
 }
 
+function completeTour() {
+  isTourActive.value = false;
+  showTourPrompt.value = false;
+  localStorage.setItem("dashboardTourCompleted", "true");
+}
+
+function skipTour() {
+  isTourActive.value = false;
+  showTourPrompt.value = false;
+  localStorage.setItem("dashboardTourSkipped", "true");
+}
+
+function startTour() {
+  showTourPrompt.value = false;
+  isTourActive.value = true;
+}
+
+function startFullOnboardingTour() {
+  showTourPrompt.value = false;
+  isTourActive.value = false;
+  window.dispatchEvent(new CustomEvent("hfl:start-onboarding-tour"));
+}
+
 function setupCopy() {
   const zh = locale.value === "zh-CN";
   return {
@@ -258,6 +327,7 @@ function setupCopy() {
       : "Connect nodes, configure sources and repositories, run backups, index snapshots, and verify recovery.",
     ready: zh ? "系统已就绪" : "System ready",
     progress: zh ? "完成度" : "Progress",
+    fullTour: zh ? "完整流程引导" : "Full workflow tour",
     actions: {
       manage: zh ? "去配置" : "Configure",
       view: zh ? "查看" : "View",
@@ -278,11 +348,13 @@ function buildSetupSteps(data: {
 }) {
   const zh = locale.value === "zh-CN";
   const onlineNodes =
-    toNumber(data.proxyStats.online_proxies) + toNumber(data.gatewayStats.active);
+    toNumber(data.proxyStats.online_proxies) +
+    toNumber(data.gatewayStats.active);
   const totalNodes =
     toNumber(data.proxyStats.total_proxies) + toNumber(data.gatewayStats.total);
   const sourceCount =
-    toNumber(data.sourceStats.total) || toNumber(data.sourceStats.total_resources);
+    toNumber(data.sourceStats.total) ||
+    toNumber(data.sourceStats.total_resources);
   const initializedRepositories = toNumber(data.repositoryStats.initialized);
   const repositoryCount = toNumber(data.repositoryStats.total);
   const policyCount = data.policies.length;
@@ -294,11 +366,14 @@ function buildSetupSteps(data: {
     {
       id: "nodes",
       title: zh ? "连接执行节点" : "Connect nodes",
-      description: zh ? "至少一个 Proxy 或 Gateway 在线" : "At least one proxy or gateway is online",
+      description: zh
+        ? "至少一个 Proxy 或 Gateway 在线"
+        : "At least one proxy or gateway is online",
       status: onlineNodes > 0 ? "done" : totalNodes > 0 ? "blocked" : "action",
       metric: `${onlineNodes}/${totalNodes}`,
       route: "/proxies",
-      action: onlineNodes > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+      action:
+        onlineNodes > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
     },
     {
       id: "sources",
@@ -307,12 +382,15 @@ function buildSetupSteps(data: {
       status: sourceCount > 0 ? "done" : onlineNodes > 0 ? "action" : "blocked",
       metric: String(sourceCount),
       route: "/source-resources",
-      action: sourceCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+      action:
+        sourceCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
     },
     {
       id: "repositories",
       title: zh ? "准备备份仓库" : "Prepare repository",
-      description: zh ? "仓库需要初始化并可写" : "Repository should be initialized and writable",
+      description: zh
+        ? "仓库需要初始化并可写"
+        : "Repository should be initialized and writable",
       status:
         initializedRepositories > 0
           ? "done"
@@ -322,12 +400,16 @@ function buildSetupSteps(data: {
       metric: `${initializedRepositories}/${repositoryCount}`,
       route: "/repository",
       action:
-        initializedRepositories > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+        initializedRepositories > 0
+          ? setupCopy().actions.view
+          : setupCopy().actions.manage,
     },
     {
       id: "policies",
       title: zh ? "创建备份策略" : "Create policy",
-      description: zh ? "配置保留、排除和调度规则" : "Define retention, exclusions, and schedule",
+      description: zh
+        ? "配置保留、排除和调度规则"
+        : "Define retention, exclusions, and schedule",
       status:
         policyCount > 0
           ? "done"
@@ -336,34 +418,50 @@ function buildSetupSteps(data: {
             : "blocked",
       metric: String(policyCount),
       route: "/policies",
-      action: policyCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+      action:
+        policyCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
     },
     {
       id: "backup",
       title: zh ? "运行首次备份" : "Run first backup",
-      description: zh ? "创建任务并生成快照" : "Create a task and produce snapshots",
+      description: zh
+        ? "创建任务并生成快照"
+        : "Create a task and produce snapshots",
       status: backupCount > 0 ? "done" : policyCount > 0 ? "action" : "blocked",
       metric: String(backupCount),
       route: "/backup-tasks",
-      action: backupCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+      action:
+        backupCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
     },
     {
       id: "index",
       title: zh ? "索引快照" : "Index snapshots",
-      description: zh ? "为搜索和 AI 洞察准备索引" : "Prepare snapshot indexes for search and AI",
-      status: indexedSnapshots > 0 ? "done" : backupCount > 0 ? "action" : "blocked",
+      description: zh
+        ? "为搜索和 AI 洞察准备索引"
+        : "Prepare snapshot indexes for search and AI",
+      status:
+        indexedSnapshots > 0 ? "done" : backupCount > 0 ? "action" : "blocked",
       metric: String(indexedSnapshots),
       route: "/ai-insights",
-      action: indexedSnapshots > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+      action:
+        indexedSnapshots > 0
+          ? setupCopy().actions.view
+          : setupCopy().actions.manage,
     },
     {
       id: "recovery",
       title: zh ? "验证恢复能力" : "Verify recovery",
-      description: zh ? "至少完成一次恢复演练" : "Complete at least one recovery run",
-      status: recoveryCount > 0 ? "done" : backupCount > 0 ? "action" : "blocked",
+      description: zh
+        ? "至少完成一次恢复演练"
+        : "Complete at least one recovery run",
+      status:
+        recoveryCount > 0 ? "done" : backupCount > 0 ? "action" : "blocked",
       metric: String(recoveryCount),
       route: "/recovery-tasks",
-      action: recoveryCount > 0 ? setupCopy().actions.view : setupCopy().actions.manage,
+      action:
+        recoveryCount > 0
+          ? setupCopy().actions.view
+          : setupCopy().actions.manage,
     },
   ];
 }
@@ -473,8 +571,7 @@ async function fetchDashboardData() {
       {
         type: "ransomware",
         count: riskSummary.ransomware_risk === "safe" ? 0 : 1,
-        severity:
-          riskSummary.ransomware_risk === "safe" ? "info" : "critical",
+        severity: riskSummary.ransomware_risk === "safe" ? "info" : "critical",
       },
       {
         type: "permission",
@@ -511,8 +608,7 @@ async function fetchDashboardData() {
     }));
 
     const storageLimitGb = toNumber(
-      licenseData.limits?.max_storage_gb ??
-        licenseData.license?.max_storage_gb,
+      licenseData.limits?.max_storage_gb ?? licenseData.license?.max_storage_gb,
     );
     const storageUsedGb = toNumber(licenseData.usage?.storage_used_gb);
     const remainingGb = Math.max(storageLimitGb - storageUsedGb, 0);
@@ -554,6 +650,14 @@ async function fetchDashboardData() {
 
 onMounted(() => {
   fetchDashboardData();
+  if (
+    localStorage.getItem("dashboardTourCompleted") !== "true" &&
+    localStorage.getItem("dashboardTourSkipped") !== "true"
+  ) {
+    window.setTimeout(() => {
+      showTourPrompt.value = true;
+    }, 600);
+  }
 });
 </script>
 
@@ -571,37 +675,46 @@ onMounted(() => {
       </div>
       <button
         @click="fetchDashboardData"
-        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground-secondary surface-card border border-border rounded-lg hover:bg-hover hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm">
+        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground-secondary surface-card border border-border rounded-lg hover:bg-hover hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm"
+      >
         <svg
           class="w-4 h-4"
           fill="none"
           stroke="currentColor"
-          viewBox="0 0 24 24">
+          viewBox="0 0 24 24"
+        >
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
             stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          />
         </svg>
         {{ t("common.refresh") }}
       </button>
     </div>
 
     <!-- Setup Guide -->
-    <section class="rounded-xl border border-border bg-card shadow-sm">
+    <section
+      data-tour="dashboard-setup-guide"
+      class="rounded-xl border border-border bg-card shadow-sm"
+    >
       <div
-        class="flex flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        class="flex flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
+      >
         <div>
           <div class="flex items-center gap-2">
             <CheckCircleIcon
               v-if="setupComplete"
-              class="h-5 w-5 text-emerald-500" />
+              class="h-5 w-5 text-emerald-500"
+            />
             <InformationCircleIcon v-else class="h-5 w-5 text-violet-500" />
             <h2 class="text-base font-semibold text-foreground">
               {{ setupCopy().title }}
             </h2>
             <span
-              class="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+              class="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+            >
               {{ setupCopy().progress }} {{ setupProgress }}%
             </span>
           </div>
@@ -609,20 +722,39 @@ onMounted(() => {
             {{ setupComplete ? setupCopy().ready : setupCopy().subtitle }}
           </p>
         </div>
-        <div class="h-2 w-full overflow-hidden rounded-full bg-background-tertiary lg:w-48">
+        <div
+          class="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto"
+        >
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-900/70 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-950/50"
+            @click="startFullOnboardingTour"
+          >
+            <SparklesIcon class="mr-2 h-4 w-4" />
+            {{ setupCopy().fullTour }}
+          </button>
           <div
-            class="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 transition-all duration-500"
-            :style="{ width: `${setupProgress}%` }" />
+            class="h-2 w-full overflow-hidden rounded-full bg-background-tertiary sm:w-48"
+          >
+            <div
+              class="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 transition-all duration-500"
+              :style="{ width: `${setupProgress}%` }"
+            />
+          </div>
         </div>
       </div>
 
-      <div class="grid gap-px bg-border md:grid-cols-2 xl:grid-cols-7">
+      <div
+        data-tour="dashboard-setup-stepper"
+        class="grid gap-px bg-border md:grid-cols-2 xl:grid-cols-7"
+      >
         <button
           v-for="(step, index) in setupSteps"
           :key="step.id"
           type="button"
           class="group bg-card px-4 py-4 text-left transition-colors hover:bg-hover"
-          @click="router.push(step.route)">
+          @click="router.push(step.route)"
+        >
           <div class="flex items-start gap-3">
             <div
               :class="[
@@ -632,7 +764,8 @@ onMounted(() => {
                   : step.status === 'action'
                     ? 'border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-300'
                     : 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-500',
-              ]">
+              ]"
+            >
               <CheckCircleIcon v-if="step.status === 'done'" class="h-4 w-4" />
               <span v-else>{{ index + 1 }}</span>
             </div>
@@ -649,7 +782,8 @@ onMounted(() => {
                       : step.status === 'action'
                         ? 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
                         : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
-                  ]">
+                  ]"
+                >
                   {{ step.metric }}
                 </span>
               </div>
@@ -657,7 +791,8 @@ onMounted(() => {
                 {{ step.description }}
               </p>
               <div
-                class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-violet-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-violet-300">
+                class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-violet-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-violet-300"
+              >
                 {{ step.action }}
                 <ArrowRightIcon class="h-3.5 w-3.5" />
               </div>
@@ -668,10 +803,14 @@ onMounted(() => {
     </section>
 
     <!-- Stats Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div
+      data-tour="dashboard-core-metrics"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+    >
       <!-- Total Nodes -->
       <div
-        class="bg-card rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-shadow">
+        class="bg-card rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-shadow"
+      >
         <div class="flex items-start justify-between">
           <div class="flex-1">
             <p class="text-sm font-medium text-foreground-secondary">
@@ -682,7 +821,8 @@ onMounted(() => {
             </p>
             <div class="flex items-center gap-1.5 mt-2">
               <span
-                class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"
+              ></span>
               <span
                 class="text-xs text-emerald-600 dark:text-emerald-400 font-medium"
                 >{{ stats.online_nodes }} {{ t("common.active") }}</span
@@ -690,7 +830,8 @@ onMounted(() => {
             </div>
           </div>
           <div
-            class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+            class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md"
+          >
             <ServerIcon class="w-5 h-5 text-white" />
           </div>
         </div>
@@ -698,7 +839,8 @@ onMounted(() => {
 
       <!-- Active Tasks -->
       <div
-        class="bg-card rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-shadow">
+        class="bg-card rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-shadow"
+      >
         <div class="flex items-start justify-between">
           <div class="flex-1">
             <p class="text-sm font-medium text-foreground-secondary">
@@ -720,7 +862,8 @@ onMounted(() => {
             </div>
           </div>
           <div
-            class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+            class="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md"
+          >
             <BoltIcon class="w-5 h-5 text-white" />
           </div>
         </div>
@@ -728,7 +871,8 @@ onMounted(() => {
 
       <!-- Storage Used -->
       <div
-        class="bg-card rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-shadow">
+        class="bg-card rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-shadow"
+      >
         <div class="flex items-start justify-between">
           <div class="flex-1">
             <p class="text-sm font-medium text-foreground-secondary">
@@ -739,12 +883,14 @@ onMounted(() => {
             </p>
             <div class="mt-2">
               <div
-                class="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
+                class="h-1.5 bg-background-tertiary rounded-full overflow-hidden"
+              >
                 <div
                   class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
                   :style="{
                     width: `${storageUsagePercent}%`,
-                  }" />
+                  }"
+                />
               </div>
               <p class="text-xs text-foreground-secondary mt-1">
                 {{ storageUsagePercent }}% {{ t("dashboard.stats.used") }}
@@ -752,7 +898,8 @@ onMounted(() => {
             </div>
           </div>
           <div
-            class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+            class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md"
+          >
             <CircleStackIcon class="w-5 h-5 text-white" />
           </div>
         </div>
@@ -760,7 +907,8 @@ onMounted(() => {
 
       <!-- Success Rate -->
       <div
-        class="bg-card rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-shadow">
+        class="bg-card rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-shadow"
+      >
         <div class="flex items-start justify-between">
           <div class="flex-1">
             <p class="text-sm font-medium text-foreground-secondary">
@@ -770,7 +918,8 @@ onMounted(() => {
               {{ stats.success_rate }}%
             </p>
             <div
-              class="flex items-center gap-1 mt-2 text-emerald-600 dark:text-emerald-400">
+              class="flex items-center gap-1 mt-2 text-emerald-600 dark:text-emerald-400"
+            >
               <ArrowTrendingUpIcon class="w-3.5 h-3.5" />
               <span class="text-xs font-medium">
                 {{ stats.completed_tasks }} /
@@ -779,7 +928,8 @@ onMounted(() => {
             </div>
           </div>
           <div
-            class="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center shadow-md">
+            class="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center shadow-md"
+          >
             <ChartBarIcon class="w-5 h-5 text-white" />
           </div>
         </div>
@@ -788,12 +938,16 @@ onMounted(() => {
 
     <!-- AI Insights Section -->
     <div
-      class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/30 dark:via-purple-950/30 dark:to-pink-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50 overflow-hidden">
+      data-tour="dashboard-ai-insights"
+      class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/30 dark:via-purple-950/30 dark:to-pink-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50 overflow-hidden"
+    >
       <div
-        class="px-5 py-4 flex items-center justify-between border-b dark:border-indigo-900/50 bg-white/50 dark:bg-slate-900/30">
+        class="px-5 py-4 flex items-center justify-between border-b dark:border-indigo-900/50 bg-white/50 dark:bg-slate-900/30"
+      >
         <div class="flex items-center gap-3">
           <div
-            class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+            class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md"
+          >
             <SparklesIcon class="w-5 h-5 text-white" />
           </div>
           <div>
@@ -807,7 +961,8 @@ onMounted(() => {
         </div>
         <button
           @click="router.push('/ai-insights')"
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors">
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+        >
           {{ t("dashboard.aiInsights.viewDetails") }}
           <ArrowRightIcon class="w-4 h-4" />
         </button>
@@ -826,7 +981,8 @@ onMounted(() => {
             <div
               v-for="item in aiInsights"
               :key="item.category"
-              class="flex items-center justify-between">
+              class="flex items-center justify-between"
+            >
               <div class="flex items-center gap-2 flex-1 min-w-0">
                 <div
                   class="w-2 h-2 rounded-full"
@@ -836,7 +992,8 @@ onMounted(() => {
                     'bg-amber-500': item.category === 'archives',
                     'bg-purple-500': item.category === 'videos',
                     'bg-slate-400': item.category === 'others',
-                  }"></div>
+                  }"
+                ></div>
                 <span class="text-sm text-foreground-secondary truncate">
                   {{ item.label || getCategoryLabel(item.category) }}
                 </span>
@@ -850,7 +1007,8 @@ onMounted(() => {
             </div>
             <p
               v-if="!aiInsights.length"
-              class="text-sm text-foreground-secondary">
+              class="text-sm text-foreground-secondary"
+            >
               {{ t("common.noData") }}
             </p>
           </div>
@@ -874,7 +1032,8 @@ onMounted(() => {
                 'bg-emerald-50 dark:bg-emerald-900/20':
                   risk.severity === 'info',
                 'bg-red-50 dark:bg-red-900/20': risk.severity === 'critical',
-              }">
+              }"
+            >
               <span class="text-sm text-foreground-secondary">{{
                 getRiskLabel(risk.type)
               }}</span>
@@ -887,7 +1046,8 @@ onMounted(() => {
                     risk.severity === 'info',
                   'text-red-600 dark:text-red-400':
                     risk.severity === 'critical',
-                }">
+                }"
+              >
                 {{
                   risk.count > 0
                     ? `${risk.count} ${t("dashboard.aiInsights.items")}`
@@ -913,14 +1073,17 @@ onMounted(() => {
             <div
               v-for="opt in optimizations"
               :key="opt.type"
-              class="flex items-center justify-between">
+              class="flex items-center justify-between"
+            >
               <div class="flex items-center gap-2">
                 <DocumentDuplicateIcon
                   v-if="opt.type === 'duplicate'"
-                  class="w-4 h-4 text-slate-400" />
+                  class="w-4 h-4 text-slate-400"
+                />
                 <CircleStackIcon
                   v-else-if="opt.type === 'cold'"
-                  class="w-4 h-4 text-blue-400" />
+                  class="w-4 h-4 text-blue-400"
+                />
                 <ArrowTrendingUpIcon v-else class="w-4 h-4 text-red-400" />
                 <span class="text-sm text-foreground-secondary">{{
                   getOptimizationLabel(opt.type)
@@ -935,7 +1098,8 @@ onMounted(() => {
             </div>
             <p
               v-if="!optimizations.length"
-              class="text-sm text-foreground-secondary">
+              class="text-sm text-foreground-secondary"
+            >
               {{ t("common.noData") }}
             </p>
           </div>
@@ -944,7 +1108,10 @@ onMounted(() => {
     </div>
 
     <!-- Monitoring & Compliance Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div
+      data-tour="dashboard-attention"
+      class="grid grid-cols-1 lg:grid-cols-3 gap-6"
+    >
       <!-- Alerts -->
       <div class="bg-card rounded-xl border border-border shadow-sm">
         <div class="px-5 py-4 border-b border-border">
@@ -965,16 +1132,19 @@ onMounted(() => {
           <div
             v-for="alert in alerts"
             :key="alert.id"
-            class="px-5 py-3 hover:bg-hover transition-colors">
+            class="px-5 py-3 hover:bg-hover transition-colors"
+          >
             <div class="flex items-start gap-3">
               <div
                 :class="[
                   'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0',
                   getSeverityColor(alert.severity),
-                ]">
+                ]"
+              >
                 <component
                   :is="getSeverityIcon(alert.severity)"
-                  class="w-3.5 h-3.5" />
+                  class="w-3.5 h-3.5"
+                />
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-sm text-foreground truncate">
@@ -988,7 +1158,8 @@ onMounted(() => {
           </div>
           <p
             v-if="!alerts.length"
-            class="px-5 py-6 text-center text-sm text-foreground-secondary">
+            class="px-5 py-6 text-center text-sm text-foreground-secondary"
+          >
             {{ t("common.noData") }}
           </p>
         </div>
@@ -1022,7 +1193,8 @@ onMounted(() => {
                       : task.type === 'recovery'
                         ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
                         : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
-                  ]">
+                  ]"
+                >
                   {{ getTaskTypeLabel(task.type) }}
                 </span>
                 <span class="text-sm text-foreground truncate">{{
@@ -1034,7 +1206,8 @@ onMounted(() => {
               >
             </div>
             <div
-              class="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
+              class="h-1.5 bg-background-tertiary rounded-full overflow-hidden"
+            >
               <div
                 class="h-full rounded-full transition-all duration-300"
                 :class="
@@ -1044,12 +1217,14 @@ onMounted(() => {
                       ? 'bg-gradient-to-r from-amber-500 to-orange-500'
                       : 'bg-gradient-to-r from-purple-500 to-pink-500'
                 "
-                :style="{ width: `${task.progress}%` }" />
+                :style="{ width: `${task.progress}%` }"
+              />
             </div>
           </div>
           <p
             v-if="!activeTasks.length"
-            class="px-5 py-6 text-center text-sm text-foreground-secondary">
+            class="px-5 py-6 text-center text-sm text-foreground-secondary"
+          >
             {{ t("common.noData") }}
           </p>
         </div>
@@ -1072,7 +1247,8 @@ onMounted(() => {
               compliance.isValid
                 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/50'
                 : 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-900/50',
-            ]">
+            ]"
+          >
             <span class="text-sm text-foreground-secondary">{{
               t("dashboard.compliance.licenseStatus")
             }}</span>
@@ -1082,13 +1258,15 @@ onMounted(() => {
                 compliance.isValid
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : 'text-amber-600 dark:text-amber-400',
-              ]">
+              ]"
+            >
               <CheckCircleIcon class="w-4 h-4" />
               {{ compliance.licenseStatus }}
             </span>
           </div>
           <div
-            class="flex items-center justify-between px-3 py-2 rounded-lg bg-background-secondary">
+            class="flex items-center justify-between px-3 py-2 rounded-lg bg-background-secondary"
+          >
             <span class="text-sm text-foreground-secondary">{{
               t("dashboard.compliance.storageQuota")
             }}</span>
@@ -1099,7 +1277,8 @@ onMounted(() => {
             }}</span>
           </div>
           <div
-            class="flex items-center justify-between px-3 py-2 rounded-lg bg-background-secondary">
+            class="flex items-center justify-between px-3 py-2 rounded-lg bg-background-secondary"
+          >
             <span class="text-sm text-foreground-secondary">{{
               t("dashboard.compliance.expiryDate")
             }}</span>
@@ -1113,7 +1292,8 @@ onMounted(() => {
               compliance.recoverySeverity === 'info'
                 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/50'
                 : 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-900/50',
-            ]">
+            ]"
+          >
             <span class="text-sm text-foreground-secondary">{{
               t("dashboard.compliance.drill")
             }}</span>
@@ -1123,7 +1303,8 @@ onMounted(() => {
                 compliance.recoverySeverity === 'info'
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : 'text-amber-600 dark:text-amber-400',
-              ]">
+              ]"
+            >
               <ExclamationTriangleIcon class="w-4 h-4" />
               {{ compliance.recoveryStatus }}
             </span>
@@ -1132,5 +1313,60 @@ onMounted(() => {
       </div>
     </div>
 
+    <div
+      v-if="showTourPrompt"
+      class="fixed inset-0 z-[990] flex items-center justify-center bg-slate-950/50 p-4"
+    >
+      <div
+        class="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl"
+      >
+        <div class="flex items-start gap-3">
+          <div
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"
+          >
+            <SparklesIcon class="h-5 w-5" />
+          </div>
+          <div>
+            <h2 class="text-base font-semibold text-foreground">
+              {{
+                locale === "zh-CN"
+                  ? "需要快速了解 Dashboard 吗？"
+                  : "Take a quick Dashboard tour?"
+              }}
+            </h2>
+            <p class="mt-2 text-sm leading-6 text-foreground-secondary">
+              {{
+                locale === "zh-CN"
+                  ? "我可以用几步引导你理解配置向导、核心指标、AI 洞察和当前关注项。"
+                  : "A short walkthrough will explain the setup guide, core metrics, AI insights, and attention items."
+              }}
+            </p>
+          </div>
+        </div>
+        <div class="mt-5 flex justify-end gap-3">
+          <button
+            type="button"
+            class="rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-hover"
+            @click="skipTour"
+          >
+            {{ locale === "zh-CN" ? "跳过" : "Skip" }}
+          </button>
+          <button
+            type="button"
+            class="rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
+            @click="startTour"
+          >
+            {{ locale === "zh-CN" ? "开始引导" : "Start tour" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <ProductTour
+      :active="isTourActive"
+      :steps="tourSteps"
+      @finish="completeTour"
+      @skip="skipTour"
+    />
   </div>
 </template>

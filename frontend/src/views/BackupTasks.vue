@@ -446,10 +446,10 @@ async function loadTaskRuns() {
       page_size: runsPageSize.value,
       ordering: runsOrdering.value,
     };
-    if (runsStatusFilter.value !== 'all') {
+    if (runsStatusFilter.value !== "all") {
       params.status = runsStatusFilter.value;
     }
-    if (runsTriggerFilter.value !== 'all') {
+    if (runsTriggerFilter.value !== "all") {
       params.trigger_type = runsTriggerFilter.value;
     }
     const response = await backupTasksApi.runs(selectedTask.value.id, params);
@@ -719,6 +719,7 @@ onMounted(() => {
         <p class="text-slate-500 mt-1">{{ t("backupTasks.subtitle") }}</p>
       </div>
       <button
+        data-tour="backup-create-button"
         @click="showCreateModal = true"
         class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg border border-indigo-600"
       >
