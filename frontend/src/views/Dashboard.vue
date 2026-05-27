@@ -1,8 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { backupTasksApi, proxiesApi } from "@/api";
+import {
+  aiInsightsApi,
+  alertsApi,
+  backupTasksApi,
+  gatewaysApi,
+  licensesApi,
+  proxiesApi,
+  recoveryTasksApi,
+  repositoriesApi,
+  taskManagementApi,
+} from "@/api";
 import {
   ServerIcon,
   BoltIcon,
@@ -24,7 +34,7 @@ import {
 } from "@heroicons/vue/24/outline";
 
 const router = useRouter();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 interface Stats {
   total_nodes: number;
@@ -37,10 +47,12 @@ interface Stats {
   running_tasks: number;
   pending_tasks: number;
   failed_tasks: number;
+  completed_tasks: number;
 }
 
 interface AIInsight {
   category: string;
+  label: string;
   percentage: number;
   size: string;
 }
@@ -85,112 +97,82 @@ const stats = ref<Stats>({
   running_tasks: 0,
   pending_tasks: 0,
   failed_tasks: 0,
+  completed_tasks: 0,
 });
 
-const recentTasks = ref<any[]>([]);
+const aiInsights = ref<AIInsight[]>([]);
+const risks = ref<Risk[]>([]);
+const optimizations = ref<Optimization[]>([]);
+const alerts = ref<Alert[]>([]);
+const activeTasks = ref<ActiveTask[]>([]);
+const lastSyncTime = ref("-");
+const compliance = ref({
+  isValid: false,
+  licenseStatus: "-",
+  quotaRemaining: "-",
+  expiryDate: "-",
+  recoveryStatus: "-",
+  recoverySeverity: "info" as "critical" | "warning" | "info",
+});
 
-// AI Insights 数据
-const aiInsights = ref<AIInsight[]>([
-  { category: "documents", percentage: 45, size: "23 TB" },
-  { category: "images", percentage: 20, size: "10 TB" },
-  { category: "archives", percentage: 15, size: "8 TB" },
-  { category: "videos", percentage: 12, size: "6 TB" },
-  { category: "others", percentage: 8, size: "4 TB" },
-]);
+const storageUsagePercent = computed(() => {
+  if (!stats.value.storage_total) return 0;
+  return Math.min(
+    100,
+    Math.round((stats.value.storage_used / stats.value.storage_total) * 100),
+  );
+});
 
-const risks = ref<Risk[]>([
-  { type: "sensitive", count: 12, severity: "warning" },
-  { type: "ransomware", count: 0, severity: "info" },
-  { type: "permission", count: 32, severity: "warning" },
-]);
-
-const optimizations = ref<Optimization[]>([
-  { type: "duplicate", size: "1.2 TB", description: "建议清理" },
-  { type: "cold", size: "4.5 TB", description: "建议归档" },
-  { type: "growth", size: "/var/log", description: "周增 200%" },
-]);
-
-// 监控数据
-const alerts = ref<Alert[]>([
-  {
-    id: "1",
-    time: "16:20",
-    message: "Linux-03 离线",
-    severity: "critical",
-    source: "Proxy",
-  },
-  {
-    id: "2",
-    time: "15:10",
-    message: "S3 存储连接超时",
-    severity: "warning",
-    source: "Storage",
-  },
-  {
-    id: "3",
-    time: "14:00",
-    message: "策略 A 执行失败",
-    severity: "warning",
-    source: "Policy",
-  },
-  {
-    id: "4",
-    time: "昨天",
-    message: "存储空间 > 80%",
-    severity: "info",
-    source: "System",
-  },
-  {
-    id: "5",
-    time: "2天前",
-    message: "备份任务超时",
-    severity: "warning",
-    source: "Backup",
-  },
-]);
-
-const activeTasks = ref<ActiveTask[]>([
-  {
-    id: "1",
-    type: "backup",
-    name: "财务数据备份",
-    progress: 80,
-    status: "running",
-  },
-  {
-    id: "2",
-    type: "recovery",
-    name: "研发归档恢复",
-    progress: 12,
-    status: "running",
-  },
-  { id: "3", type: "ai", name: "文件扫描", progress: 45, status: "running" },
-  {
-    id: "4",
-    type: "backup",
-    name: "邮件系统备份",
-    progress: 99,
-    status: "running",
-  },
-]);
-
-const lastSyncTime = ref("2026-04-23 10:00");
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
+function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes) return "0 B";
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
+function pageItems(data: any): any[] {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
+  return [];
+}
+
+function resultData(result: PromiseSettledResult<any>) {
+  return result.status === "fulfilled" ? result.value.data : null;
+}
+
+function toNumber(value: unknown): number {
+  const numberValue = Number(value || 0);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString(locale.value === "zh-CN" ? "zh-CN" : "en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function getCategoryLabel(category: string): string {
   const labels: Record<string, string> = {
+    document: t("aiInsights.categories.documents"),
     documents: t("aiInsights.categories.documents"),
+    image: t("aiInsights.categories.images"),
     images: t("aiInsights.categories.images"),
+    archive: t("aiInsights.categories.archives"),
     archives: t("aiInsights.categories.archives"),
+    video: t("aiInsights.categories.videos"),
     videos: t("aiInsights.categories.videos"),
+    other: t("aiInsights.categories.others"),
     others: t("aiInsights.categories.others"),
+    code: "Code",
+    database: "Database",
+    audio: "Audio",
   };
   return labels[category] || category;
 }
@@ -217,7 +199,9 @@ function getTaskTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     backup: t("dashboard.taskTypes.backup"),
     recovery: t("dashboard.taskTypes.recovery"),
+    restore: t("dashboard.taskTypes.recovery"),
     ai: t("dashboard.taskTypes.ai"),
+    proxy: "Proxy",
   };
   return labels[type] || type;
 }
@@ -245,41 +229,163 @@ function getSeverityIcon(severity: string) {
 async function fetchDashboardData() {
   isLoading.value = true;
   try {
-    const [proxiesRes, tasksRes] = await Promise.all([
+    const [
+      proxiesRes,
+      gatewaysRes,
+      taskStatsRes,
+      activeTasksRes,
+      backupStatsRes,
+      recoveryStatsRes,
+      repositoriesRes,
+      aiOverviewRes,
+      alertsRes,
+      licenseRes,
+    ] = await Promise.allSettled([
       proxiesApi.stats(),
-      backupTasksApi.list({ ordering: "-created_at", page_size: 5 }),
+      gatewaysApi.stats(),
+      taskManagementApi.stats(),
+      taskManagementApi.list({ status: "running", page_size: 5 }),
+      backupTasksApi.stats(),
+      recoveryTasksApi.stats(),
+      repositoriesApi.stats(),
+      aiInsightsApi.overview(),
+      alertsApi.records({ status: "firing", page_size: 5 }),
+      licensesApi.current(),
     ]);
 
-    const tasksData = tasksRes.data.results || [];
-    const runningCount = tasksData.filter(
-      (t: any) => t.status === "running",
-    ).length;
-    const pendingCount = tasksData.filter(
-      (t: any) => t.status === "pending",
-    ).length;
-    const failedCount = tasksData.filter(
-      (t: any) => t.status === "failed",
-    ).length;
+    const proxyStats = resultData(proxiesRes) || {};
+    const gatewayStats = resultData(gatewaysRes) || {};
+    const taskStats = resultData(taskStatsRes) || {};
+    const backupStats = resultData(backupStatsRes) || {};
+    const recoveryStats = resultData(recoveryStatsRes) || {};
+    const repositoryStats = resultData(repositoriesRes) || {};
+    const aiOverview = resultData(aiOverviewRes) || {};
+    const licenseData = resultData(licenseRes) || {};
+
+    const completedTasks =
+      toNumber(backupStats.completed_tasks) + toNumber(recoveryStats.completed);
+    const failedTasks =
+      toNumber(backupStats.failed_tasks) + toNumber(recoveryStats.failed);
+    const cancelledTasks =
+      toNumber(backupStats.cancelled_tasks) + toNumber(recoveryStats.cancelled);
+    const terminalTasks = completedTasks + failedTasks + cancelledTasks;
 
     stats.value = {
       total_nodes:
-        proxiesRes.data.total_proxies || proxiesRes.data.total_nodes || 0,
+        toNumber(proxyStats.total_proxies) + toNumber(gatewayStats.total),
       online_nodes:
-        proxiesRes.data.active_proxies ||
-        proxiesRes.data.active_nodes ||
-        proxiesRes.data.online_nodes ||
-        0,
-      active_tasks: tasksRes.data.count || 0,
-      storage_used: 161061273600, // 150GB
-      storage_total: 1099511627776, // 1TB
-      total_backups: 24,
-      success_rate: 97.5,
-      running_tasks: runningCount,
-      pending_tasks: pendingCount,
-      failed_tasks: failedCount,
+        toNumber(proxyStats.online_proxies) + toNumber(gatewayStats.active),
+      active_tasks: toNumber(taskStats.running),
+      storage_used: toNumber(repositoryStats.total_used),
+      storage_total: toNumber(repositoryStats.total_capacity),
+      total_backups: toNumber(backupStats.total_tasks),
+      success_rate: terminalTasks
+        ? Number(((completedTasks / terminalTasks) * 100).toFixed(1))
+        : 0,
+      running_tasks: toNumber(taskStats.by_status?.running),
+      pending_tasks:
+        toNumber(taskStats.by_status?.pending) +
+        toNumber(taskStats.by_status?.dispatched) +
+        toNumber(taskStats.by_status?.accepted),
+      failed_tasks: toNumber(taskStats.failed) || failedTasks,
+      completed_tasks: completedTasks,
     };
 
-    recentTasks.value = tasksData;
+    activeTasks.value = pageItems(resultData(activeTasksRes)).map((task) => ({
+      id: String(task.id),
+      type: task.source || task.task_type || "proxy",
+      name: task.name || task.task_type || task.id,
+      progress: Math.max(0, Math.min(100, toNumber(task.progress))),
+      status: task.status || "",
+    }));
+
+    lastSyncTime.value = formatDateTime(aiOverview.last_sync);
+    aiInsights.value = (aiOverview.file_categories || [])
+      .slice(0, 5)
+      .map((item: any) => {
+        const category = item.category || item.name?.toLowerCase() || "other";
+        return {
+          category,
+          label:
+            locale.value === "zh-CN"
+              ? item.name_zh || getCategoryLabel(category)
+              : item.name || getCategoryLabel(category),
+          percentage: toNumber(item.percentage),
+          size: item.size || formatBytes(item.size_bytes),
+        };
+      });
+
+    const riskSummary = aiOverview.risk_summary || {};
+    risks.value = [
+      {
+        type: "sensitive",
+        count: toNumber(riskSummary.sensitive_files),
+        severity: toNumber(riskSummary.sensitive_files) ? "warning" : "info",
+      },
+      {
+        type: "ransomware",
+        count: riskSummary.ransomware_risk === "safe" ? 0 : 1,
+        severity:
+          riskSummary.ransomware_risk === "safe" ? "info" : "critical",
+      },
+      {
+        type: "permission",
+        count: toNumber(riskSummary.permission_issues),
+        severity: toNumber(riskSummary.permission_issues) ? "warning" : "info",
+      },
+    ];
+
+    const suggestions = aiOverview.optimization_suggestions || {};
+    optimizations.value = [
+      {
+        type: "duplicate",
+        size: suggestions.duplicate_files?.size || "0 B",
+        description: `${toNumber(suggestions.duplicate_files?.count)} ${t("dashboard.aiInsights.items")}`,
+      },
+      {
+        type: "cold",
+        size: suggestions.cold_data?.size || "0 B",
+        description: `${toNumber(suggestions.cold_data?.count)} ${t("dashboard.aiInsights.items")}`,
+      },
+      {
+        type: "growth",
+        size: suggestions.fastest_growing?.path || "-",
+        description: String(suggestions.fastest_growing?.growth_rate || 0),
+      },
+    ];
+
+    alerts.value = pageItems(resultData(alertsRes)).map((alert) => ({
+      id: String(alert.id),
+      time: formatDateTime(alert.last_triggered_at || alert.created_at),
+      message: alert.title || alert.message || "-",
+      severity: alert.severity || "info",
+      source: alert.resource_name || alert.resource_type || alert.type || "-",
+    }));
+
+    const storageLimitGb = toNumber(
+      licenseData.limits?.max_storage_gb ??
+        licenseData.license?.max_storage_gb,
+    );
+    const storageUsedGb = toNumber(licenseData.usage?.storage_used_gb);
+    const remainingGb = Math.max(storageLimitGb - storageUsedGb, 0);
+    const daysUntilExpiry = licenseData.days_until_expiry;
+    compliance.value = {
+      isValid: Boolean(licenseData.is_valid),
+      licenseStatus: licenseData.is_valid
+        ? t("dashboard.compliance.normal")
+        : licenseData.message || licenseData.error || "-",
+      quotaRemaining: storageLimitGb
+        ? formatBytes(remainingGb * 1024 ** 3)
+        : "-",
+      expiryDate:
+        licenseData.license?.expires_at ||
+        licenseData.license?.expiry_date ||
+        (typeof daysUntilExpiry === "number" ? `${daysUntilExpiry}d` : "-"),
+      recoveryStatus: toNumber(recoveryStats.completed)
+        ? `${toNumber(recoveryStats.completed)} ${t("backupTasks.status.completed")}`
+        : t("common.noData"),
+      recoverySeverity: toNumber(recoveryStats.completed) ? "info" : "warning",
+    };
   } catch (error) {
     console.error("Failed to fetch dashboard data:", error);
   } finally {
@@ -398,13 +504,11 @@ onMounted(() => {
                 <div
                   class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
                   :style="{
-                    width: `${Math.round((stats.storage_used / stats.storage_total) * 100)}%`,
+                    width: `${storageUsagePercent}%`,
                   }" />
               </div>
               <p class="text-xs text-foreground-secondary mt-1">
-                {{
-                  Math.round((stats.storage_used / stats.storage_total) * 100)
-                }}% {{ t("dashboard.stats.used") }}
+                {{ storageUsagePercent }}% {{ t("dashboard.stats.used") }}
               </p>
             </div>
           </div>
@@ -429,7 +533,10 @@ onMounted(() => {
             <div
               class="flex items-center gap-1 mt-2 text-emerald-600 dark:text-emerald-400">
               <ArrowTrendingUpIcon class="w-3.5 h-3.5" />
-              <span class="text-xs font-medium">+2.5%</span>
+              <span class="text-xs font-medium">
+                {{ stats.completed_tasks }} /
+                {{ stats.failed_tasks }}
+              </span>
             </div>
           </div>
           <div
@@ -442,7 +549,7 @@ onMounted(() => {
 
     <!-- AI Insights Section -->
     <div
-      class="from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/30 dark:via-purple-950/30 dark:to-pink-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50 overflow-hidden">
+      class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/30 dark:via-purple-950/30 dark:to-pink-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50 overflow-hidden">
       <div
         class="px-5 py-4 flex items-center justify-between border-b dark:border-indigo-900/50 bg-white/50 dark:bg-slate-900/30">
         <div class="flex items-center gap-3">
@@ -491,9 +598,9 @@ onMounted(() => {
                     'bg-purple-500': item.category === 'videos',
                     'bg-slate-400': item.category === 'others',
                   }"></div>
-                <span class="text-sm text-foreground-secondary truncate">{{
-                  getCategoryLabel(item.category)
-                }}</span>
+                <span class="text-sm text-foreground-secondary truncate">
+                  {{ item.label || getCategoryLabel(item.category) }}
+                </span>
               </div>
               <div class="flex items-center gap-2 text-xs">
                 <span class="font-medium text-foreground"
@@ -502,6 +609,11 @@ onMounted(() => {
                 <span class="text-slate-400">({{ item.size }})</span>
               </div>
             </div>
+            <p
+              v-if="!aiInsights.length"
+              class="text-sm text-foreground-secondary">
+              {{ t("common.noData") }}
+            </p>
           </div>
         </div>
 
@@ -544,6 +656,9 @@ onMounted(() => {
                 }}
               </span>
             </div>
+            <p v-if="!risks.length" class="text-sm text-foreground-secondary">
+              {{ t("common.noData") }}
+            </p>
           </div>
         </div>
 
@@ -579,6 +694,11 @@ onMounted(() => {
                 <p class="text-xs text-slate-400">{{ opt.description }}</p>
               </div>
             </div>
+            <p
+              v-if="!optimizations.length"
+              class="text-sm text-foreground-secondary">
+              {{ t("common.noData") }}
+            </p>
           </div>
         </div>
       </div>
@@ -627,6 +747,11 @@ onMounted(() => {
               </div>
             </div>
           </div>
+          <p
+            v-if="!alerts.length"
+            class="px-5 py-6 text-center text-sm text-foreground-secondary">
+            {{ t("common.noData") }}
+          </p>
         </div>
       </div>
 
@@ -683,6 +808,11 @@ onMounted(() => {
                 :style="{ width: `${task.progress}%` }" />
             </div>
           </div>
+          <p
+            v-if="!activeTasks.length"
+            class="px-5 py-6 text-center text-sm text-foreground-secondary">
+            {{ t("common.noData") }}
+          </p>
         </div>
       </div>
 
@@ -698,14 +828,24 @@ onMounted(() => {
         </div>
         <div class="p-5 space-y-3">
           <div
-            class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/50">
+            :class="[
+              'flex items-center justify-between px-3 py-2.5 rounded-lg border',
+              compliance.isValid
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/50'
+                : 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-900/50',
+            ]">
             <span class="text-sm text-foreground-secondary">{{
               t("dashboard.compliance.licenseStatus")
             }}</span>
             <span
-              class="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+              :class="[
+                'flex items-center gap-1.5 text-sm font-medium',
+                compliance.isValid
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-amber-600 dark:text-amber-400',
+              ]">
               <CheckCircleIcon class="w-4 h-4" />
-              {{ t("dashboard.compliance.normal") }}
+              {{ compliance.licenseStatus }}
             </span>
           </div>
           <div
@@ -714,7 +854,9 @@ onMounted(() => {
               t("dashboard.compliance.storageQuota")
             }}</span>
             <span class="text-sm font-medium text-foreground">{{
-              t("dashboard.compliance.quotaRemaining", { amount: "1.2 TB" })
+              t("dashboard.compliance.quotaRemaining", {
+                amount: compliance.quotaRemaining,
+              })
             }}</span>
           </div>
           <div
@@ -722,17 +864,29 @@ onMounted(() => {
             <span class="text-sm text-foreground-secondary">{{
               t("dashboard.compliance.expiryDate")
             }}</span>
-            <span class="text-sm font-medium text-foreground">2027-01-01</span>
+            <span class="text-sm font-medium text-foreground">{{
+              compliance.expiryDate
+            }}</span>
           </div>
           <div
-            class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/50">
+            :class="[
+              'flex items-center justify-between px-3 py-2.5 rounded-lg border',
+              compliance.recoverySeverity === 'info'
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/50'
+                : 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-900/50',
+            ]">
             <span class="text-sm text-foreground-secondary">{{
               t("dashboard.compliance.drill")
             }}</span>
             <span
-              class="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
+              :class="[
+                'flex items-center gap-1.5 text-sm font-medium',
+                compliance.recoverySeverity === 'info'
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-amber-600 dark:text-amber-400',
+              ]">
               <ExclamationTriangleIcon class="w-4 h-4" />
-              {{ t("dashboard.compliance.drillOverdue") }}
+              {{ compliance.recoveryStatus }}
             </span>
           </div>
         </div>
