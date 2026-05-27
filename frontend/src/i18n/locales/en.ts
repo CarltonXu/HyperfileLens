@@ -943,7 +943,8 @@ export default {
   // Backup Tasks
   backupTasks: {
     title: "Backup Tasks",
-    subtitle: "Create, manage and monitor backup tasks, track snapshot status and restore operations",
+    subtitle:
+      "Create, manage and monitor backup tasks, track snapshot status and restore operations",
     createTask: "Create Backup Task",
     enabled: "Enabled",
     disabled: "Disabled",
@@ -983,6 +984,7 @@ export default {
 
     tabs: {
       overview: "Overview",
+      topology: "Topology",
       snapshots: "Snapshots",
       tasks: "Task Runs",
     },
@@ -1456,7 +1458,8 @@ export default {
   // Recovery Tasks
   recoveryTasks: {
     title: "Recovery Tasks",
-    subtitle: "Create, manage and monitor data recovery tasks from backup snapshots to original or new locations",
+    subtitle:
+      "Create, manage and monitor data recovery tasks from backup snapshots to original or new locations",
     createTask: "Create Recovery Task",
 
     types: {

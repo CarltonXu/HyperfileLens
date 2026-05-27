@@ -320,6 +320,139 @@ class SourceResourceViewSet(QuotaCheckMixin, viewsets.ModelViewSet):
             stats['by_type'][type_code] = queryset.filter(resource_type=type_code).count()
         
         return Response(stats)
+
+    @action(detail=True, methods=['get'])
+    def topology(self, request, pk=None):
+        """Return the resolved backup flow topology for a source resource."""
+        from backup_tasks.models import BackupTask
+        from gateways.models import Gateway
+        from nodes.models import ProxyNode
+
+        resource = self.get_object()
+        task = (
+            BackupTask.objects
+            .filter(source_resource=resource)
+            .select_related('source_resource', 'target_repository', 'preferred_execution_node')
+            .order_by('-updated_at', '-created_at')
+            .first()
+        )
+        repository = task.target_repository if task else None
+
+        source_is_network = resource.resource_type in [
+            SourceResource.TYPE_NAS,
+            SourceResource.TYPE_NFS,
+            SourceResource.TYPE_CIFS,
+            SourceResource.TYPE_S3,
+        ]
+
+        executor = None
+        selection_reason = ''
+        if task and task.preferred_execution_node_id:
+            executor = task.preferred_execution_node
+            selection_reason = 'task_preferred_execution_node'
+        elif source_is_network and resource.bound_node_id:
+            executor = resource.bound_node
+            selection_reason = 'source_bound_sync_proxy'
+        elif not source_is_network and resource.bound_node_id:
+            executor = resource.bound_node
+            selection_reason = 'source_bound_agent_proxy'
+        elif repository and repository.bound_node_id:
+            executor = repository.bound_node
+            selection_reason = 'repository_bound_sync_proxy'
+        else:
+            desired_role = ProxyNode.Role.SYNC if source_is_network else ProxyNode.Role.AGENT
+            executor = (
+                ProxyNode.objects
+                .filter(role=desired_role, status=ProxyNode.NodeStatus.ONLINE)
+                .order_by('name')
+                .first()
+            )
+            selection_reason = f'fallback_online_{desired_role}_proxy'
+
+        gateway = (
+            Gateway.objects
+            .filter(ai_enabled=True, status=Gateway.GatewayStatus.ACTIVE)
+            .order_by('name')
+            .first()
+            or Gateway.objects.order_by('name').first()
+        )
+
+        def proxy_payload(proxy):
+            if not proxy:
+                return None
+            return {
+                'id': str(proxy.id),
+                'name': proxy.name,
+                'role': proxy.role,
+                'status': proxy.status,
+                'is_online': proxy.status == ProxyNode.NodeStatus.ONLINE,
+                'hostname': proxy.hostname,
+                'internal_ip': str(proxy.internal_ip) if proxy.internal_ip else None,
+                'connection_ip': getattr(proxy, 'connection_ip', None),
+            }
+
+        def repository_payload(repo):
+            if not repo:
+                return None
+            return {
+                'id': str(repo.id),
+                'name': repo.name,
+                'repo_type': repo.repo_type,
+                'repo_type_display': repo.get_repo_type_display(),
+                'status': repo.status,
+                'status_display': repo.get_status_display(),
+                'config': repo.config or {},
+                'bound_node': str(repo.bound_node_id) if repo.bound_node_id else None,
+                'bound_node_name': repo.bound_node.name if repo.bound_node_id else '',
+                'kopia_initialized': repo.kopia_initialized,
+                'capacity': repo.capacity,
+                'used_space': repo.used_space,
+            }
+
+        def task_payload(item):
+            if not item:
+                return None
+            return {
+                'id': str(item.id),
+                'name': item.name,
+                'status': item.status,
+                'execution_mode': item.execution_mode,
+                'preferred_execution_node': str(item.preferred_execution_node_id) if item.preferred_execution_node_id else None,
+                'target_repository': str(item.target_repository_id) if item.target_repository_id else None,
+                'target_repository_name': item.target_repository.name if item.target_repository_id else '',
+                'source_resource': str(item.source_resource_id) if item.source_resource_id else None,
+            }
+
+        def gateway_payload(item):
+            if not item:
+                return None
+            return {
+                'id': str(item.id),
+                'name': item.name,
+                'status': item.status,
+                'is_online': item.status == Gateway.GatewayStatus.ACTIVE,
+                'hostname': item.hostname,
+                'internal_ip': str(item.internal_ip) if item.internal_ip else None,
+                'ai_enabled': item.ai_enabled,
+                'indexer_status': item.indexer_status,
+            }
+
+        return Response({
+            'source_id': str(resource.id),
+            'source_type': resource.resource_type,
+            'source_is_network': source_is_network,
+            'task': task_payload(task),
+            'repository': repository_payload(repository),
+            'executor_proxy': proxy_payload(executor),
+            'executor_role': executor.role if executor else (ProxyNode.Role.SYNC if source_is_network else ProxyNode.Role.AGENT),
+            'selection_reason': selection_reason,
+            'gateway': gateway_payload(gateway),
+            'flows': [
+                {'from': 'source', 'to': 'executor', 'type': 'read'},
+                {'from': 'executor', 'to': 'repository', 'type': 'backup'},
+                {'from': 'gateway', 'to': 'repository', 'type': 'insight'},
+            ],
+        })
     
     @action(detail=True, methods=['get'])
     def scan(self, request, pk=None):

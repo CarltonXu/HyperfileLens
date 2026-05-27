@@ -22,6 +22,8 @@ import {
   ServerIcon,
   BoltIcon,
   CircleStackIcon,
+  ArrowUturnLeftIcon,
+  CloudIcon,
   ChartBarIcon,
   ArrowTrendingUpIcon,
   CheckCircleIcon,
@@ -150,6 +152,55 @@ const setupComplete = computed(
     setupSteps.value.length > 0 &&
     setupSteps.value.every((step) => step.status === "done"),
 );
+
+const architectureDiagram = computed(() => {
+  const zh = locale.value === "zh-CN";
+  return {
+    title: zh ? "网络拓扑架构" : "Network Architecture",
+    subtitle: zh
+      ? "展示源端代理、同步代理、目标存储库、Gateway 索引节点和恢复任务之间的网络连接与动态数据流向。"
+      : "Shows the network connections and live data flow between source proxies, sync proxies, target repositories, gateway indexers, and recovery jobs.",
+    controlFlow: zh ? "控制流" : "Control flow",
+    dataFlow: zh ? "备份/同步数据流" : "Backup / sync flow",
+    indexFlow: zh ? "索引洞察流" : "Index insight flow",
+    restoreFlow: zh ? "恢复流" : "Restore flow",
+    controlPlane: zh ? "HyperFileLens 控制面" : "HyperFileLens Control Plane",
+    controlDesc: zh
+      ? "任务编排 / 策略下发 / 运行状态 / 告警监控"
+      : "Task orchestration / policy dispatch / run status / alerting",
+    sourceZone: zh ? "源端网络" : "Source Network",
+    targetZone: zh ? "目标仓库网络" : "Target Repository Network",
+    insightZone: zh ? "洞察分析网络" : "Insight Analysis Network",
+    recoveryZone: zh ? "恢复执行网络" : "Recovery Execution Network",
+    sourceData: zh ? "源端数据" : "Source Data",
+    sourceDataDesc: zh ? "Local / SMB / NFS / NAS" : "Local / SMB / NFS / NAS",
+    agentProxy: zh ? "Agent Proxy" : "Agent Proxy",
+    agentProxyDesc: zh
+      ? "靠近源端，执行本地/挂载数据备份与恢复"
+      : "Runs backup and restore near local or mounted source data",
+    syncProxy: zh ? "Sync Proxy" : "Sync Proxy",
+    syncProxyDesc: zh
+      ? "靠近目标仓库，执行仓库连接、同步、保留和维护"
+      : "Runs repository access, sync, retention, and maintenance near storage",
+    repository: zh ? "目标存储库" : "Target Repository",
+    repositoryDesc: zh ? "Kopia Repository" : "Kopia Repository",
+    objectStorage: zh ? "对象存储" : "Object Storage",
+    filesystem: zh ? "文件系统" : "Filesystem",
+    nas: zh ? "NAS / NFS / SMB" : "NAS / NFS / SMB",
+    gateway: zh ? "Gateway 节点" : "Gateway Node",
+    gatewayDesc: zh
+      ? "挂载/读取仓库快照对象，拉取到本地进行索引"
+      : "Mounts or reads repository snapshots and indexes them locally",
+    localInsight: zh ? "本地索引与 AI 洞察" : "Local Index and AI Insights",
+    localInsightDesc: zh
+      ? "文件索引、搜索、敏感数据、重复数据、冷热分析"
+      : "File index, search, sensitive data, duplicates, and heat analysis",
+    recoveryTask: zh ? "恢复任务" : "Recovery Tasks",
+    recoveryTaskDesc: zh
+      ? "运行在 Agent Proxy 或 Sync Proxy，从仓库快照恢复数据"
+      : "Runs on Agent Proxy or Sync Proxy and restores data from repository snapshots",
+  };
+});
 
 const tourSteps = computed<ProductTourStep[]>(() => {
   const zh = locale.value === "zh-CN";
@@ -802,6 +853,608 @@ onMounted(() => {
       </div>
     </section>
 
+    <section class="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div
+        class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+      >
+        <div>
+          <h2 class="text-base font-semibold text-foreground">
+            {{
+              locale === "zh-CN"
+                ? "按备份源查看链路拓扑"
+                : "Source-based topology"
+            }}
+          </h2>
+          <p class="mt-1 max-w-3xl text-sm leading-6 text-foreground-secondary">
+            {{
+              locale === "zh-CN"
+                ? "全局资源拓扑会随着节点和仓库增多而变复杂。现在拓扑图放在源端资源详情和备份任务详情中，按单个备份源展示 Source、Agent/Sync Proxy、Repository 与 Gateway AI Insights 的真实链路。"
+                : "Global topology becomes noisy as resources grow. Topology is now shown in source resource details and backup task details, focused on one source and its real Source, Agent/Sync Proxy, Repository, and Gateway AI Insights flow."
+            }}
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
+            @click="router.push('/source-resources')"
+          >
+            {{ locale === "zh-CN" ? "查看源端拓扑" : "View source topology" }}
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
+            @click="router.push('/backup-tasks')"
+          >
+            {{ locale === "zh-CN" ? "查看任务链路" : "View task flow" }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture Diagram -->
+    <section
+      v-if="false"
+      class="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+    >
+      <div
+        class="flex flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-start lg:justify-between"
+      >
+        <div>
+          <div class="flex items-center gap-2">
+            <ChartBarIcon class="h-5 w-5 text-indigo-500" />
+            <h2 class="text-base font-semibold text-foreground">
+              {{ architectureDiagram.title }}
+            </h2>
+          </div>
+          <p class="mt-1 max-w-3xl text-sm leading-6 text-foreground-secondary">
+            {{ architectureDiagram.subtitle }}
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs">
+          <span
+            class="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-3 py-1 font-medium text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-300"
+          >
+            <span class="mr-1.5 h-1.5 w-5 rounded-full bg-blue-500"></span>
+            {{ architectureDiagram.controlFlow }}
+          </span>
+          <span
+            class="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 font-medium text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300"
+          >
+            <span class="mr-1.5 h-1.5 w-5 rounded-full bg-emerald-500"></span>
+            {{ architectureDiagram.dataFlow }}
+          </span>
+          <span
+            class="inline-flex items-center rounded-full border border-violet-100 bg-violet-50 px-3 py-1 font-medium text-violet-700 dark:border-violet-900/70 dark:bg-violet-950/30 dark:text-violet-300"
+          >
+            <span class="mr-1.5 h-1.5 w-5 rounded-full bg-violet-500"></span>
+            {{ architectureDiagram.indexFlow }}
+          </span>
+        </div>
+      </div>
+
+      <div class="px-5 py-5">
+        <div
+          class="rounded-xl border border-border bg-background-secondary/40 p-4"
+        >
+          <div class="hidden overflow-x-auto pb-3 xl:block">
+            <div class="architecture-canvas">
+              <svg
+                class="architecture-orthogonal-lines"
+                viewBox="0 0 1160 560"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <defs>
+                  <marker
+                    id="arch-process-arrow-data"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="4"
+                    orient="auto"
+                  >
+                    <path d="M0,0 L8,4 L0,8 Z" fill="rgb(16 185 129)" />
+                  </marker>
+                  <marker
+                    id="arch-process-arrow-index"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="4"
+                    orient="auto"
+                  >
+                    <path d="M0,0 L8,4 L0,8 Z" fill="rgb(139 92 246)" />
+                  </marker>
+                  <marker
+                    id="arch-process-arrow-control"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="4"
+                    orient="auto"
+                  >
+                    <path d="M0,0 L8,4 L0,8 Z" fill="rgb(59 130 246)" />
+                  </marker>
+                  <marker
+                    id="arch-process-arrow-restore"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="4"
+                    orient="auto"
+                  >
+                    <path d="M0,0 L8,4 L0,8 Z" fill="rgb(245 158 11)" />
+                  </marker>
+                </defs>
+                <path
+                  class="architecture-orthogonal-flow architecture-orthogonal-flow-control"
+                  d="M580 144 L580 170 L174 170 L174 200"
+                  marker-end="url(#arch-process-arrow-control)"
+                />
+                <path
+                  class="architecture-orthogonal-flow architecture-orthogonal-flow-control"
+                  d="M580 144 L580 170 L993 170 L993 200"
+                  marker-end="url(#arch-process-arrow-control)"
+                />
+                <path
+                  class="architecture-orthogonal-flow architecture-orthogonal-flow-data"
+                  d="M324 335 L460 335"
+                  marker-end="url(#arch-process-arrow-data)"
+                />
+                <path
+                  class="architecture-orthogonal-flow architecture-orthogonal-flow-index"
+                  d="M740 335 L795 335 L795 305 L850 305"
+                  marker-end="url(#arch-process-arrow-index)"
+                />
+                <path
+                  class="architecture-orthogonal-flow architecture-orthogonal-flow-index"
+                  d="M993 410 L993 430"
+                  marker-end="url(#arch-process-arrow-index)"
+                />
+                <path
+                  class="architecture-orthogonal-flow architecture-orthogonal-flow-restore"
+                  d="M740 378 L795 378 L795 482 L850 482"
+                  marker-end="url(#arch-process-arrow-restore)"
+                />
+                <path
+                  class="architecture-orthogonal-flow architecture-orthogonal-flow-restore"
+                  d="M460 390 L392 390 L392 438 L324 438"
+                  marker-end="url(#arch-process-arrow-restore)"
+                />
+                <circle
+                  class="architecture-port architecture-port-control"
+                  cx="580"
+                  cy="144"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-control"
+                  cx="174"
+                  cy="200"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-control"
+                  cx="993"
+                  cy="200"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-data"
+                  cx="324"
+                  cy="335"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-data"
+                  cx="460"
+                  cy="335"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-index"
+                  cx="740"
+                  cy="335"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-index"
+                  cx="850"
+                  cy="305"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-index"
+                  cx="993"
+                  cy="410"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-index"
+                  cx="993"
+                  cy="430"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-restore"
+                  cx="740"
+                  cy="378"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-restore"
+                  cx="850"
+                  cy="482"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-restore"
+                  cx="460"
+                  cy="390"
+                  r="4"
+                />
+                <circle
+                  class="architecture-port architecture-port-restore"
+                  cx="324"
+                  cy="438"
+                  r="4"
+                />
+              </svg>
+
+              <div
+                class="architecture-process-node architecture-process-control"
+              >
+                <div
+                  class="architecture-card architecture-card-control text-center"
+                >
+                  <BoltIcon class="mx-auto h-6 w-6 text-blue-600" />
+                  <h3 class="mt-2 text-sm font-semibold text-foreground">
+                    {{ architectureDiagram.controlPlane }}
+                  </h3>
+                  <p class="mt-1 text-xs leading-5 text-foreground-secondary">
+                    {{ architectureDiagram.controlDesc }}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                class="architecture-process-node architecture-process-source"
+              >
+                <div class="architecture-zone-box architecture-zone-box-source">
+                  <p
+                    class="architecture-zone-title text-sky-700 dark:text-sky-300"
+                  >
+                    {{ architectureDiagram.sourceZone }}
+                  </p>
+                  <div class="mt-3 grid gap-3">
+                    <div class="architecture-node">
+                      <div class="architecture-icon bg-sky-50 text-sky-600">
+                        <FolderIcon class="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 class="text-sm font-semibold text-foreground">
+                          {{ architectureDiagram.sourceData }}
+                        </h3>
+                        <p class="mt-1 text-xs text-foreground-secondary">
+                          {{ architectureDiagram.sourceDataDesc }}
+                        </p>
+                      </div>
+                    </div>
+                    <div class="architecture-node">
+                      <div
+                        class="architecture-icon bg-indigo-50 text-indigo-600"
+                      >
+                        <ServerIcon class="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 class="text-sm font-semibold text-foreground">
+                          {{ architectureDiagram.agentProxy }}
+                        </h3>
+                        <p
+                          class="mt-1 text-xs leading-5 text-foreground-secondary"
+                        >
+                          {{ architectureDiagram.agentProxyDesc }}
+                        </p>
+                      </div>
+                    </div>
+                    <div class="architecture-node">
+                      <div
+                        class="architecture-icon bg-violet-50 text-violet-600"
+                      >
+                        <ServerIcon class="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 class="text-sm font-semibold text-foreground">
+                          {{ architectureDiagram.syncProxy }}
+                        </h3>
+                        <p
+                          class="mt-1 text-xs leading-5 text-foreground-secondary"
+                        >
+                          {{ architectureDiagram.syncProxyDesc }}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="architecture-process-node architecture-process-repo">
+                <div class="architecture-zone-box architecture-zone-box-repo">
+                  <p
+                    class="architecture-zone-title text-cyan-700 dark:text-cyan-300"
+                  >
+                    {{ architectureDiagram.targetZone }}
+                  </p>
+                  <div class="mt-3 architecture-node">
+                    <div class="architecture-icon bg-cyan-50 text-cyan-600">
+                      <CircleStackIcon class="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-foreground">
+                        {{ architectureDiagram.repository }}
+                      </h3>
+                      <p
+                        class="mt-1 text-xs leading-5 text-foreground-secondary"
+                      >
+                        {{ architectureDiagram.repositoryDesc }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="mt-3 grid gap-2">
+                    <div class="architecture-storage-option">
+                      <CloudIcon class="h-4 w-4" />{{
+                        architectureDiagram.objectStorage
+                      }}
+                    </div>
+                    <div class="architecture-storage-option">
+                      <CircleStackIcon class="h-4 w-4" />{{
+                        architectureDiagram.filesystem
+                      }}
+                    </div>
+                    <div class="architecture-storage-option">
+                      <ServerIcon class="h-4 w-4" />{{
+                        architectureDiagram.nas
+                      }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="architecture-process-node architecture-process-insight"
+              >
+                <div
+                  class="architecture-zone-box architecture-zone-box-insight"
+                >
+                  <p
+                    class="architecture-zone-title text-violet-700 dark:text-violet-300"
+                  >
+                    {{ architectureDiagram.insightZone }}
+                  </p>
+                  <div class="mt-3 grid gap-3">
+                    <div class="architecture-node">
+                      <div
+                        class="architecture-icon bg-emerald-50 text-emerald-600"
+                      >
+                        <CloudIcon class="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 class="text-sm font-semibold text-foreground">
+                          {{ architectureDiagram.gateway }}
+                        </h3>
+                        <p
+                          class="mt-1 text-xs leading-5 text-foreground-secondary"
+                        >
+                          {{ architectureDiagram.gatewayDesc }}
+                        </p>
+                      </div>
+                    </div>
+                    <div class="architecture-node">
+                      <div
+                        class="architecture-icon bg-violet-50 text-violet-600"
+                      >
+                        <SparklesIcon class="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 class="text-sm font-semibold text-foreground">
+                          {{ architectureDiagram.localInsight }}
+                        </h3>
+                        <p
+                          class="mt-1 text-xs leading-5 text-foreground-secondary"
+                        >
+                          {{ architectureDiagram.localInsightDesc }}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="architecture-process-node architecture-process-recovery"
+              >
+                <div
+                  class="architecture-zone-box architecture-zone-box-recovery"
+                >
+                  <p
+                    class="architecture-zone-title text-amber-700 dark:text-amber-300"
+                  >
+                    {{ architectureDiagram.recoveryZone }}
+                  </p>
+                  <div class="mt-3 architecture-node">
+                    <div class="architecture-icon bg-amber-50 text-amber-600">
+                      <ArrowUturnLeftIcon class="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-foreground">
+                        {{ architectureDiagram.recoveryTask }}
+                      </h3>
+                      <p
+                        class="mt-1 text-xs leading-5 text-foreground-secondary"
+                      >
+                        {{ architectureDiagram.recoveryTaskDesc }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="architecture-process-legend">
+                <div class="architecture-legend architecture-legend-control">
+                  <span></span>{{ architectureDiagram.controlFlow }}
+                </div>
+                <div class="architecture-legend architecture-legend-data">
+                  <span></span>{{ architectureDiagram.dataFlow }}
+                </div>
+                <div class="architecture-legend architecture-legend-index">
+                  <span></span>{{ architectureDiagram.indexFlow }}
+                </div>
+                <div class="architecture-legend architecture-legend-restore">
+                  <span></span>{{ architectureDiagram.restoreFlow }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid gap-4 xl:hidden">
+            <div
+              class="architecture-card architecture-card-control text-center"
+            >
+              <BoltIcon class="mx-auto h-6 w-6 text-blue-600" />
+              <h3 class="mt-2 text-sm font-semibold text-foreground">
+                {{ architectureDiagram.controlPlane }}
+              </h3>
+              <p class="mt-1 text-xs leading-5 text-foreground-secondary">
+                {{ architectureDiagram.controlDesc }}
+              </p>
+            </div>
+            <div class="architecture-zone-box architecture-zone-box-source">
+              <p class="architecture-zone-title text-sky-700 dark:text-sky-300">
+                {{ architectureDiagram.sourceZone }}
+              </p>
+              <div class="mt-3 grid gap-3">
+                <div class="architecture-node">
+                  <div class="architecture-icon bg-sky-50 text-sky-600">
+                    <FolderIcon class="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-foreground">
+                      {{ architectureDiagram.sourceData }}
+                    </h3>
+                    <p class="mt-1 text-xs text-foreground-secondary">
+                      {{ architectureDiagram.sourceDataDesc }}
+                    </p>
+                  </div>
+                </div>
+                <div class="architecture-node">
+                  <div class="architecture-icon bg-indigo-50 text-indigo-600">
+                    <ServerIcon class="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-foreground">
+                      {{ architectureDiagram.agentProxy }}
+                    </h3>
+                    <p class="mt-1 text-xs leading-5 text-foreground-secondary">
+                      {{ architectureDiagram.agentProxyDesc }}
+                    </p>
+                  </div>
+                </div>
+                <div class="architecture-node">
+                  <div class="architecture-icon bg-violet-50 text-violet-600">
+                    <ServerIcon class="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-foreground">
+                      {{ architectureDiagram.syncProxy }}
+                    </h3>
+                    <p class="mt-1 text-xs leading-5 text-foreground-secondary">
+                      {{ architectureDiagram.syncProxyDesc }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="architecture-zone-box architecture-zone-box-repo">
+              <p
+                class="architecture-zone-title text-cyan-700 dark:text-cyan-300"
+              >
+                {{ architectureDiagram.targetZone }}
+              </p>
+              <div class="mt-3 architecture-node">
+                <div class="architecture-icon bg-cyan-50 text-cyan-600">
+                  <CircleStackIcon class="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 class="text-sm font-semibold text-foreground">
+                    {{ architectureDiagram.repository }}
+                  </h3>
+                  <p class="mt-1 text-xs leading-5 text-foreground-secondary">
+                    {{ architectureDiagram.repositoryDesc }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="architecture-zone-box architecture-zone-box-insight">
+              <p
+                class="architecture-zone-title text-violet-700 dark:text-violet-300"
+              >
+                {{ architectureDiagram.insightZone }}
+              </p>
+              <div class="mt-3 grid gap-3">
+                <div class="architecture-node">
+                  <div class="architecture-icon bg-emerald-50 text-emerald-600">
+                    <CloudIcon class="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-foreground">
+                      {{ architectureDiagram.gateway }}
+                    </h3>
+                    <p class="mt-1 text-xs leading-5 text-foreground-secondary">
+                      {{ architectureDiagram.gatewayDesc }}
+                    </p>
+                  </div>
+                </div>
+                <div class="architecture-node">
+                  <div class="architecture-icon bg-violet-50 text-violet-600">
+                    <SparklesIcon class="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-foreground">
+                      {{ architectureDiagram.localInsight }}
+                    </h3>
+                    <p class="mt-1 text-xs leading-5 text-foreground-secondary">
+                      {{ architectureDiagram.localInsightDesc }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="architecture-zone-box architecture-zone-box-recovery">
+              <p
+                class="architecture-zone-title text-amber-700 dark:text-amber-300"
+              >
+                {{ architectureDiagram.recoveryZone }}
+              </p>
+              <div class="mt-3 architecture-node">
+                <div class="architecture-icon bg-amber-50 text-amber-600">
+                  <ArrowUturnLeftIcon class="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 class="text-sm font-semibold text-foreground">
+                    {{ architectureDiagram.recoveryTask }}
+                  </h3>
+                  <p class="mt-1 text-xs leading-5 text-foreground-secondary">
+                    {{ architectureDiagram.recoveryTaskDesc }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Stats Grid -->
     <div
       data-tour="dashboard-core-metrics"
@@ -1370,3 +2023,199 @@ onMounted(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.architecture-node {
+  @apply rounded-lg border border-border bg-card p-4 shadow-sm;
+}
+
+.architecture-icon {
+  @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-lg;
+}
+
+.architecture-storage-option {
+  @apply flex items-center gap-2 rounded-lg border border-cyan-100 bg-white/70 px-3 py-2 text-xs font-medium text-cyan-700 dark:border-cyan-900/70 dark:bg-slate-950/40 dark:text-cyan-300;
+}
+
+.architecture-card {
+  @apply rounded-xl border p-4 shadow-sm;
+}
+
+.architecture-card-control {
+  @apply border-blue-100 bg-blue-50/90 dark:border-blue-900/60 dark:bg-blue-950/30;
+}
+
+.architecture-canvas {
+  @apply relative h-[560px] min-w-[1160px] overflow-visible rounded-xl border border-border bg-background-secondary/40;
+}
+
+.architecture-orthogonal-lines {
+  @apply pointer-events-none absolute inset-0 h-full w-full;
+}
+
+.architecture-process-node,
+.architecture-zone {
+  @apply absolute z-10;
+}
+
+.architecture-process-control {
+  left: 440px;
+  top: 24px;
+  width: 280px;
+  height: 120px;
+}
+
+.architecture-process-source {
+  left: 24px;
+  top: 200px;
+  width: 300px;
+  height: 270px;
+}
+
+.architecture-process-repo {
+  left: 460px;
+  top: 220px;
+  width: 280px;
+  height: 230px;
+}
+
+.architecture-process-insight {
+  left: 850px;
+  top: 200px;
+  width: 286px;
+  height: 210px;
+}
+
+.architecture-process-recovery {
+  left: 850px;
+  top: 430px;
+  width: 286px;
+  height: 105px;
+}
+
+.architecture-zone-box {
+  @apply h-full rounded-xl border p-4;
+}
+
+.architecture-zone-box-source {
+  @apply border-sky-100 bg-sky-50/50 dark:border-sky-900/60 dark:bg-sky-950/20;
+}
+
+.architecture-zone-box-repo {
+  @apply border-cyan-100 bg-cyan-50/50 dark:border-cyan-900/60 dark:bg-cyan-950/20;
+}
+
+.architecture-zone-box-insight {
+  @apply border-violet-100 bg-violet-50/50 dark:border-violet-900/60 dark:bg-violet-950/20;
+}
+
+.architecture-zone-box-recovery {
+  @apply border-amber-100 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20;
+}
+
+.architecture-zone-title {
+  @apply text-xs font-semibold uppercase;
+}
+
+.architecture-process-legend {
+  @apply absolute bottom-4 left-4 right-4 z-10 grid gap-2 text-xs xl:grid-cols-4;
+}
+
+.architecture-legend {
+  @apply inline-flex items-center rounded-full border bg-card px-3 py-2 font-medium text-foreground-secondary;
+}
+
+.architecture-legend span {
+  @apply mr-2 h-1.5 w-6 rounded-full;
+}
+
+.architecture-legend-control {
+  @apply border-blue-100 dark:border-blue-900/70;
+}
+
+.architecture-legend-control span {
+  @apply bg-blue-500;
+}
+
+.architecture-legend-data {
+  @apply border-emerald-100 dark:border-emerald-900/70;
+}
+
+.architecture-legend-data span {
+  @apply bg-emerald-500;
+}
+
+.architecture-legend-index {
+  @apply border-violet-100 dark:border-violet-900/70;
+}
+
+.architecture-legend-index span {
+  @apply bg-violet-500;
+}
+
+.architecture-legend-restore {
+  @apply border-amber-100 dark:border-amber-900/70;
+}
+
+.architecture-legend-restore span {
+  @apply bg-amber-500;
+}
+
+.architecture-orthogonal-flow {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 9 10;
+  animation: architecture-orthogonal-flow 1.35s linear infinite;
+}
+
+.architecture-orthogonal-flow-control {
+  stroke: rgb(59 130 246);
+}
+
+.architecture-orthogonal-flow-data {
+  stroke: rgb(16 185 129);
+}
+
+.architecture-orthogonal-flow-index {
+  stroke: rgb(139 92 246);
+}
+
+.architecture-orthogonal-flow-restore {
+  stroke: rgb(245 158 11);
+}
+
+.architecture-port {
+  stroke: white;
+  stroke-width: 2;
+}
+
+.architecture-port-control {
+  fill: rgb(59 130 246);
+}
+
+.architecture-port-data {
+  fill: rgb(16 185 129);
+}
+
+.architecture-port-index {
+  fill: rgb(139 92 246);
+}
+
+.architecture-port-restore {
+  fill: rgb(245 158 11);
+}
+
+@keyframes architecture-orthogonal-flow {
+  to {
+    stroke-dashoffset: -38;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .architecture-orthogonal-flow {
+    animation: none;
+  }
+}
+</style>

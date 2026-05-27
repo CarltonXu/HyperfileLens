@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
   backupTasksApi,
+  gatewaysApi,
   insightsApi,
   nodesApi,
   policiesApi,
@@ -32,6 +33,7 @@ import BackupTaskSnapshotsTab from "@/components/backup-tasks/BackupTaskSnapshot
 import BackupTaskStatsCards from "@/components/backup-tasks/BackupTaskStats.vue";
 import BackupTaskTable from "@/components/backup-tasks/BackupTaskTable.vue";
 import BackupTaskToolbar from "@/components/backup-tasks/BackupTaskToolbar.vue";
+import ResourceFlowTopology from "@/components/ResourceFlowTopology.vue";
 import SnapshotHoverCard from "@/components/backup-tasks/SnapshotHoverCard.vue";
 import { snapshotDisplayTime } from "@/features/backup-tasks/snapshotDisplay";
 import {
@@ -58,11 +60,13 @@ const stats = ref<BackupTaskStats | null>(null);
 const nodes = ref<ProxyNode[]>([]);
 const repositories = ref<Repository[]>([]);
 const sourceResources = ref<SourceResource[]>([]);
+const gateways = ref<any[]>([]);
 const backupPolicies = ref<Array<Record<string, any>>>([]);
 const showCreateModal = ref(false);
 const showDetailModal = ref(false);
 const selectedTask = ref<BackupTask | null>(null);
-const detailTab = ref<"overview" | "snapshots" | "tasks">("overview");
+type DetailTab = "overview" | "topology" | "snapshots" | "tasks";
+const detailTab = ref<DetailTab>("overview");
 const selectedTaskRuns = ref<any[]>([]);
 const runsLoading = ref(false);
 const detailLoading = ref(false);
@@ -321,6 +325,7 @@ const paginatedTasks = computed(() => {
 
 const currentDetailTabLoading = computed(() => {
   if (detailTab.value === "overview") return detailRefreshing.value;
+  if (detailTab.value === "topology") return detailRefreshing.value;
   if (detailTab.value === "snapshots") return snapshotsLoading.value;
   return runsLoading.value;
 });
@@ -403,7 +408,7 @@ async function openTaskDetail(task: BackupTask) {
   startDetailAutoRefresh();
 }
 
-async function selectDetailTab(tab: "overview" | "snapshots" | "tasks") {
+async function selectDetailTab(tab: DetailTab) {
   detailTab.value = tab;
   await refreshCurrentDetailTab();
 }
@@ -412,6 +417,8 @@ async function refreshCurrentDetailTab(silent = false) {
   if (!selectedTask.value) return;
   if (currentDetailTabLoading.value) return;
   if (detailTab.value === "overview") {
+    await refreshTaskOverview(silent);
+  } else if (detailTab.value === "topology") {
     await refreshTaskOverview(silent);
   } else if (detailTab.value === "snapshots") {
     await loadTaskSnapshots();
@@ -561,16 +568,19 @@ async function fetchStats() {
 
 async function fetchNodesAndRepos() {
   try {
-    const [nodesRes, reposRes, sourcesRes, policiesRes] = await Promise.all([
-      nodesApi.list({ page_size: 100 }),
-      repositoriesApi.list({ page_size: 100 }),
-      sourceResourcesApi.list({ page_size: 100 }),
-      policiesApi.list({ page_size: 100, is_active: true }),
-    ]);
+    const [nodesRes, reposRes, sourcesRes, policiesRes, gatewaysRes] =
+      await Promise.all([
+        nodesApi.list({ page_size: 100 }),
+        repositoriesApi.list({ page_size: 100 }),
+        sourceResourcesApi.list({ page_size: 100 }),
+        policiesApi.list({ page_size: 100, is_active: true }),
+        gatewaysApi.list({ page_size: 100 }),
+      ]);
     nodes.value = nodesRes.data.results || nodesRes.data;
     repositories.value = reposRes.data.results || reposRes.data;
     sourceResources.value = sourcesRes.data.results || sourcesRes.data;
     backupPolicies.value = policiesRes.data.results || policiesRes.data;
+    gateways.value = gatewaysRes.data.results || gatewaysRes.data;
   } catch (error) {
     console.error("Failed to fetch nodes/repos/source resources:", error);
   }
@@ -841,6 +851,15 @@ onMounted(() => {
               :format-date-time="formatDateTime"
               :format-bytes="formatBytes"
               :format-speed="formatSpeed"
+            />
+
+            <ResourceFlowTopology
+              v-else-if="detailTab === 'topology'"
+              :source="selectedSource"
+              :task="selectedTask"
+              :repository="selectedRepository"
+              :proxies="nodes"
+              :gateways="gateways"
             />
 
             <BackupTaskSnapshotsTab

@@ -14,6 +14,7 @@ defineProps<{
 
 defineEmits<{
   close: [];
+  topology: [resource: SourceResource];
 }>();
 
 const { t } = useI18n();
@@ -223,8 +224,14 @@ const { t } = useI18n();
         </div>
 
         <div
-          class="sticky bottom-0 flex justify-end border-t border-border px-6 py-4 modal-surface"
+          class="sticky bottom-0 flex justify-between border-t border-border px-6 py-4 modal-surface"
         >
+          <button
+            class="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-hover"
+            @click="$emit('topology', resource)"
+          >
+            View Topology
+          </button>
           <button
             class="rounded-lg px-4 py-2 text-sm text-foreground-secondary hover:bg-hover"
             @click="$emit('close')"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { PlusIcon } from "@heroicons/vue/24/outline";
+import { PlusIcon, ServerIcon } from "@heroicons/vue/24/outline";
 import Pagination from "@/components/Pagination.vue";
 import SourceResourceWizard from "@/components/SourceResourceWizard.vue";
 import SourceResourceCardView from "@/components/source-resources/SourceResourceCardView.vue";
@@ -9,12 +9,16 @@ import SourceResourceDeleteModal from "@/components/source-resources/SourceResou
 import SourceResourceDetailModal from "@/components/source-resources/SourceResourceDetailModal.vue";
 import SourceResourceListView from "@/components/source-resources/SourceResourceListView.vue";
 import SourceResourceStatsCards from "@/components/source-resources/SourceResourceStats.vue";
+import SourceResourceTopologyModal from "@/components/source-resources/SourceResourceTopologyModal.vue";
 import SourceResourceToolbar from "@/components/source-resources/SourceResourceToolbar.vue";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import { useAppStore } from "@/stores/app";
 import { useSourceResourceActions } from "@/features/source-resources/useSourceResourceActions";
 import { useSourceResourceFormatting } from "@/features/source-resources/useSourceResourceFormatting";
+import { backupTasksApi, gatewaysApi, repositoriesApi } from "@/api";
+import type { BackupTask } from "@/types/backup";
+import type { Repository } from "@/types/repository";
 import type {
   ResourceType,
   SourceResource,
@@ -28,6 +32,9 @@ const { getPageSize, setPageSize } = usePagination();
 const resources = ref<SourceResource[]>([]);
 const stats = ref<SourceResourceStats | null>(null);
 const nodes = ref<any[]>([]);
+const topologyTasks = ref<BackupTask[]>([]);
+const topologyRepositories = ref<Repository[]>([]);
+const topologyGateways = ref<any[]>([]);
 
 const searchQuery = ref("");
 const typeFilter = ref("");
@@ -49,6 +56,8 @@ const viewMode = ref<"card" | "list">(
 );
 
 const selectedResource = ref<SourceResource | null>(null);
+const topologyResource = ref<SourceResource | null>(null);
+const showTopologyModal = ref(false);
 
 const {
   formatDate,
@@ -220,7 +229,35 @@ const resourceTypes: { value: ResourceType; label: string }[] = [
   { value: "local", label: "Local Filesystem" },
 ];
 
-onMounted(fetchData);
+async function fetchTopologyContext() {
+  try {
+    const [tasksRes, repositoriesRes, gatewaysRes] = await Promise.all([
+      backupTasksApi.list({ page_size: 500 }),
+      repositoriesApi.list({ page_size: 100 }),
+      gatewaysApi.list({ page_size: 100 }),
+    ]);
+    topologyTasks.value = tasksRes.data.results || tasksRes.data || [];
+    topologyRepositories.value =
+      repositoriesRes.data.results || repositoriesRes.data || [];
+    topologyGateways.value = gatewaysRes.data.results || gatewaysRes.data || [];
+  } catch (error) {
+    console.error("Failed to fetch source topology context:", error);
+  }
+}
+
+function refreshResources() {
+  fetchData();
+  fetchTopologyContext();
+}
+
+function openTopologyModal(resource: SourceResource) {
+  topologyResource.value = resource;
+  showTopologyModal.value = true;
+}
+
+onMounted(() => {
+  refreshResources();
+});
 </script>
 
 <template>
@@ -252,7 +289,7 @@ onMounted(fetchData);
       v-model:status-filter="statusFilter"
       v-model:view-mode="viewMode"
       :resource-types="resourceTypes"
-      @refresh="fetchData"
+      @refresh="refreshResources"
     />
 
     <div v-if="loading" class="flex items-center justify-center py-12">
@@ -286,6 +323,7 @@ onMounted(fetchData);
       :get-usage-percent="getUsagePercent"
       :format-bytes="formatBytes"
       @detail="openDetailModal"
+      @topology="openTopologyModal"
       @edit="openEditModal"
       @delete="openDeleteModal"
       @test="testConnection"
@@ -305,6 +343,7 @@ onMounted(fetchData);
       :get-capacity-text="getCapacityText"
       :format-date="formatDate"
       @detail="openDetailModal"
+      @topology="openTopologyModal"
       @edit="openEditModal"
       @delete="openDeleteModal"
       @test="testConnection"
@@ -337,6 +376,17 @@ onMounted(fetchData);
       :get-usage-percent="getUsagePercent"
       :get-capacity-text="getCapacityText"
       @close="showDetailModal = false"
+      @topology="openTopologyModal"
+    />
+
+    <SourceResourceTopologyModal
+      v-if="showTopologyModal && topologyResource"
+      :resource="topologyResource"
+      :tasks="topologyTasks"
+      :repositories="topologyRepositories"
+      :proxies="nodes"
+      :gateways="topologyGateways"
+      @close="showTopologyModal = false"
     />
 
     <SourceResourceDeleteModal

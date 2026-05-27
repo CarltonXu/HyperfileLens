@@ -9,7 +9,9 @@ import {
   XCircleIcon,
 } from "@heroicons/vue/24/outline";
 
-const detailTab = defineModel<"overview" | "snapshots" | "tasks">("detailTab", {
+type DetailTab = "overview" | "topology" | "snapshots" | "tasks";
+
+const detailTab = defineModel<DetailTab>("detailTab", {
   required: true,
 });
 const autoRefresh = defineModel<boolean>("autoRefresh", { required: true });
@@ -27,14 +29,14 @@ defineProps<{
 
 defineEmits<{
   close: [];
-  selectTab: [tab: "overview" | "snapshots" | "tasks"];
+  selectTab: [tab: DetailTab];
   refresh: [];
   execute: [task: BackupTask];
   toggleEnabled: [task: BackupTask];
 }>();
 
 const { t } = useI18n();
-const tabs = ["overview", "snapshots", "tasks"] as const;
+const tabs = ["overview", "topology", "snapshots", "tasks"] as const;
 </script>
 
 <template>

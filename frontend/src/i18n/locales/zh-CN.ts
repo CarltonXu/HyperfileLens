@@ -959,6 +959,7 @@ export default {
 
     tabs: {
       overview: "基础信息",
+      topology: "链路拓扑",
       snapshots: "快照列表",
       tasks: "任务列表",
     },

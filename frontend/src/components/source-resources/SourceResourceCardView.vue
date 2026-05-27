@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import {
+  ArrowsRightLeftIcon,
   EyeIcon,
   LinkIcon,
   PencilIcon,
@@ -21,6 +22,7 @@ defineEmits<{
   edit: [resource: SourceResource];
   delete: [resource: SourceResource];
   test: [resource: SourceResource];
+  topology: [resource: SourceResource];
 }>();
 
 const { t } = useI18n();
@@ -151,6 +153,13 @@ const { t } = useI18n();
               @click="$emit('detail', resource)"
             >
               <EyeIcon class="h-4 w-4" />
+            </button>
+            <button
+              class="rounded p-1.5 text-foreground-muted hover:bg-hover hover:text-foreground-secondary"
+              title="Topology"
+              @click="$emit('topology', resource)"
+            >
+              <ArrowsRightLeftIcon class="h-4 w-4" />
             </button>
             <button
               class="rounded p-1.5 text-foreground-muted hover:bg-hover hover:text-foreground-secondary"

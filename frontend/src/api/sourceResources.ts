@@ -42,4 +42,7 @@ export const sourceResourcesApi = {
 
   unbindNode: (id: number | string) =>
     api.post(`/api/v1/source-resources/${id}/unbind-node/`),
+
+  topology: (id: number | string) =>
+    api.get(`/api/v1/source-resources/${id}/topology/`),
 };
