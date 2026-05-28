@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Handle,
@@ -8,6 +15,7 @@ import {
   VueFlow,
   type Edge,
   type Node,
+  type NodeDragEvent,
 } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
@@ -31,6 +39,92 @@ import type { Repository } from "@/types/repository";
 import type { SourceResource } from "@/types/sourceResource";
 
 const { t } = useI18n();
+const topologyRoot = ref<HTMLElement | null>(null);
+const nodeHeights = ref<Record<string, number>>({});
+const userNodePositions = ref<Record<string, { x: number; y: number }>>({});
+let nodeResizeObserver: ResizeObserver | null = null;
+
+const MAIN_NODE_CENTER_Y = 250;
+const GATEWAY_NODE_CENTER_Y = 500;
+const NODE_WIDTHS = {
+  repository: 268,
+  gateway: 278,
+};
+const REPOSITORY_X = 960;
+const GATEWAY_X =
+  REPOSITORY_X + (NODE_WIDTHS.repository - NODE_WIDTHS.gateway) / 2;
+
+function nodeTop(
+  nodeId: string,
+  fallbackHeight: number,
+  centerY = MAIN_NODE_CENTER_Y,
+) {
+  const height = nodeHeights.value[nodeId] || fallbackHeight;
+  return Math.round(centerY - height / 2);
+}
+
+function nodePosition(
+  nodeId: string,
+  x: number,
+  fallbackHeight: number,
+  centerY = MAIN_NODE_CENTER_Y,
+) {
+  return (
+    userNodePositions.value[nodeId] || {
+      x,
+      y: nodeTop(nodeId, fallbackHeight, centerY),
+    }
+  );
+}
+
+function handleNodeDrag(event: NodeDragEvent) {
+  const { id, position } = event.node;
+  if (!id || !position) return;
+  userNodePositions.value = {
+    ...userNodePositions.value,
+    [id]: {
+      x: Math.round(position.x),
+      y: Math.round(position.y),
+    },
+  };
+}
+
+function updateNodeHeight(nodeId: string, height: number) {
+  if (!height) return;
+  const rounded = Math.round(height);
+  if (Math.abs((nodeHeights.value[nodeId] || 0) - rounded) <= 1) return;
+  nodeHeights.value = {
+    ...nodeHeights.value,
+    [nodeId]: rounded,
+  };
+}
+
+function observeNodeHeights() {
+  nodeResizeObserver?.disconnect();
+  nodeResizeObserver = null;
+  const root = topologyRoot.value;
+  if (!root) return;
+
+  const nodes = root.querySelectorAll<HTMLElement>(
+    ".topology-node[data-node-id]",
+  );
+  if (!nodes.length) return;
+
+  nodeResizeObserver = new ResizeObserver((entries) => {
+    entries.forEach((entry) => {
+      const nodeId = (entry.target as HTMLElement).dataset.nodeId;
+      if (!nodeId) return;
+      updateNodeHeight(nodeId, entry.contentRect.height);
+    });
+  });
+
+  nodes.forEach((node) => {
+    const nodeId = node.dataset.nodeId;
+    if (!nodeId) return;
+    updateNodeHeight(nodeId, node.offsetHeight);
+    nodeResizeObserver?.observe(node);
+  });
+}
 
 interface GatewayNode {
   id: string;
@@ -550,11 +644,27 @@ const sourceHasDetails = computed(() =>
   ["local", "nas", "nfs", "cifs"].includes(props.source?.resource_type || ""),
 );
 
+const sourceFallbackHeight = computed(() =>
+  sourceHasDetails.value ? 174 : 96,
+);
+
+watch(
+  () => [
+    props.source?.id,
+    resolvedRepository.value?.id,
+    executorProxy.value?.id,
+    gateway.value?.id,
+  ],
+  () => {
+    userNodePositions.value = {};
+  },
+);
+
 const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
   {
     id: "source",
     type: "resource",
-    position: { x: 40, y: sourceHasDetails.value ? 132 : 165 },
+    position: nodePosition("source", 40, sourceFallbackHeight.value),
     selectable: false,
     data: {
       kind: "source",
@@ -621,7 +731,7 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
   {
     id: "executor",
     type: "resource",
-    position: { x: 500, y: 86 },
+    position: nodePosition("executor", 500, 230),
     selectable: false,
     data: {
       kind: "executor",
@@ -689,7 +799,7 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
   {
     id: "repository",
     type: "resource",
-    position: { x: 960, y: 132 },
+    position: nodePosition("repository", REPOSITORY_X, 174),
     selectable: false,
     data: {
       kind: "repository",
@@ -739,7 +849,9 @@ const graphNodes = computed<Node<ResourceNodeData>[]>(() => [
   {
     id: "gateway",
     type: "resource",
-    position: { x: 950, y: 470 },
+    position: {
+      ...nodePosition("gateway", GATEWAY_X, 156, GATEWAY_NODE_CENTER_Y),
+    },
     selectable: false,
     data: {
       kind: "gateway",
@@ -854,10 +966,30 @@ const graphEdges = computed<Edge[]>(() => [
     },
   },
 ]);
+
+watch(
+  graphNodes,
+  () => {
+    nextTick(() => {
+      observeNodeHeights();
+    });
+  },
+  { flush: "post" },
+);
+
+onMounted(() => {
+  nextTick(() => {
+    observeNodeHeights();
+  });
+});
+
+onBeforeUnmount(() => {
+  nodeResizeObserver?.disconnect();
+});
 </script>
 
 <template>
-  <section class="flow-topology" :class="{ compact }">
+  <section ref="topologyRoot" class="flow-topology" :class="{ compact }">
     <div class="flow-header">
       <div>
         <h3>{{ t("resourceTopology.title") }}</h3>
@@ -887,12 +1019,15 @@ const graphEdges = computed<Edge[]>(() => [
         :max-zoom="1.4"
         fit-view-on-init
         class="resource-flow"
+        @node-drag="handleNodeDrag"
+        @node-drag-stop="handleNodeDrag"
       >
         <Background :gap="18" :size="1" pattern-color="var(--topology-grid)" />
         <Controls position="bottom-right" />
 
-        <template #node-resource="{ data }">
+        <template #node-resource="{ id, data }">
           <article
+            :data-node-id="id"
             :class="[
               'topology-node',
               data.kind,
