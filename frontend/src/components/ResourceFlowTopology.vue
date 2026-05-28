@@ -45,7 +45,7 @@ const userNodePositions = ref<Record<string, { x: number; y: number }>>({});
 let nodeResizeObserver: ResizeObserver | null = null;
 
 const MAIN_NODE_CENTER_Y = 250;
-const GATEWAY_NODE_CENTER_Y = 500;
+const GATEWAY_NODE_CENTER_Y = 560;
 const NODE_WIDTHS = {
   repository: 268,
   gateway: 278,
@@ -53,6 +53,11 @@ const NODE_WIDTHS = {
 const REPOSITORY_X = 960;
 const GATEWAY_X =
   REPOSITORY_X + (NODE_WIDTHS.repository - NODE_WIDTHS.gateway) / 2;
+const EDGE_COLORS = {
+  source: "#38bdf8",
+  repository: "#34d399",
+  gateway: "#a78bfa",
+};
 
 function nodeTop(
   nodeId: string,
@@ -908,9 +913,12 @@ const graphEdges = computed<Edge[]>(() => [
     label: t("resourceTopology.edges.readSource"),
     type: "smoothstep",
     animated: true,
-    markerEnd: MarkerType.ArrowClosed,
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: EDGE_COLORS.source,
+    },
     style: {
-      stroke: "#38bdf8",
+      stroke: EDGE_COLORS.source,
       strokeWidth: 2.5,
     },
     labelStyle: {
@@ -930,9 +938,12 @@ const graphEdges = computed<Edge[]>(() => [
     label: t("resourceTopology.edges.writeSnapshots"),
     type: "smoothstep",
     animated: true,
-    markerEnd: MarkerType.ArrowClosed,
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: EDGE_COLORS.repository,
+    },
     style: {
-      stroke: "#34d399",
+      stroke: EDGE_COLORS.repository,
       strokeWidth: 2.5,
     },
     labelStyle: {
@@ -952,9 +963,12 @@ const graphEdges = computed<Edge[]>(() => [
     label: t("resourceTopology.edges.aiInsights"),
     type: "smoothstep",
     animated: true,
-    markerEnd: MarkerType.ArrowClosed,
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: EDGE_COLORS.gateway,
+    },
     style: {
-      stroke: "#a78bfa",
+      stroke: EDGE_COLORS.gateway,
       strokeWidth: 2.5,
     },
     labelStyle: {

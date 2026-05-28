@@ -15,6 +15,7 @@ import {
   sourceResourcesApi,
   taskManagementApi,
 } from "@/api";
+import DashboardGlobalTopology from "@/components/DashboardGlobalTopology.vue";
 import ProductTour, {
   type ProductTourStep,
 } from "@/components/ProductTour.vue";
@@ -853,44 +854,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="rounded-xl border border-border bg-card p-5 shadow-sm">
-      <div
-        class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
-      >
-        <div>
-          <h2 class="text-base font-semibold text-foreground">
-            {{
-              locale === "zh-CN"
-                ? "按备份源查看链路拓扑"
-                : "Source-based topology"
-            }}
-          </h2>
-          <p class="mt-1 max-w-3xl text-sm leading-6 text-foreground-secondary">
-            {{
-              locale === "zh-CN"
-                ? "全局资源拓扑会随着节点和仓库增多而变复杂。现在拓扑图放在源端资源详情和备份任务详情中，按单个备份源展示 Source、Agent/Sync Proxy、Repository 与 Gateway AI Insights 的真实链路。"
-                : "Global topology becomes noisy as resources grow. Topology is now shown in source resource details and backup task details, focused on one source and its real Source, Agent/Sync Proxy, Repository, and Gateway AI Insights flow."
-            }}
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            class="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
-            @click="router.push('/source-resources')"
-          >
-            {{ locale === "zh-CN" ? "查看源端拓扑" : "View source topology" }}
-          </button>
-          <button
-            type="button"
-            class="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
-            @click="router.push('/backup-tasks')"
-          >
-            {{ locale === "zh-CN" ? "查看任务链路" : "View task flow" }}
-          </button>
-        </div>
-      </div>
-    </section>
+    <DashboardGlobalTopology />
 
     <!-- Architecture Diagram -->
     <section
