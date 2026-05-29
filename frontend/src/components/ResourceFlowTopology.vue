@@ -21,10 +21,12 @@ import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
 import {
   ArchiveBoxIcon,
+  ArrowPathIcon,
   CircleStackIcon,
   CloudIcon,
   ComputerDesktopIcon,
   CpuChipIcon,
+  DocumentIcon,
   EyeIcon,
   FolderOpenIcon,
   FolderIcon,
@@ -556,6 +558,8 @@ const repositoryIsObject = computed(() =>
   isObjectRepository(resolvedRepository.value),
 );
 
+const isTaskRunning = computed(() => resolvedTask.value?.status === "running");
+
 const boundSourceProxy = computed(() => {
   const id = props.source?.bound_node?.id || null;
   return findProxyById(id);
@@ -912,7 +916,7 @@ const graphEdges = computed<Edge[]>(() => [
     targetHandle: "left",
     label: t("resourceTopology.edges.readSource"),
     type: "smoothstep",
-    animated: true,
+    animated: isTaskRunning.value,
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: EDGE_COLORS.source,
@@ -937,7 +941,7 @@ const graphEdges = computed<Edge[]>(() => [
     targetHandle: "left",
     label: t("resourceTopology.edges.writeSnapshots"),
     type: "smoothstep",
-    animated: true,
+    animated: isTaskRunning.value,
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: EDGE_COLORS.repository,
@@ -962,7 +966,7 @@ const graphEdges = computed<Edge[]>(() => [
     targetHandle: "bottom",
     label: t("resourceTopology.edges.aiInsights"),
     type: "smoothstep",
-    animated: true,
+    animated: isTaskRunning.value,
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: EDGE_COLORS.gateway,
@@ -1046,6 +1050,7 @@ onBeforeUnmount(() => {
               'topology-node',
               data.kind,
               { 'has-details': data.details?.length },
+              { 'is-running': data.kind === 'executor' && isTaskRunning },
             ]"
           >
             <Handle
@@ -1350,6 +1355,21 @@ onBeforeUnmount(() => {
   width: 278px;
 }
 
+.topology-node.is-running {
+  animation: border-pulse 2s ease-in-out infinite;
+}
+
+@keyframes border-pulse {
+  0%, 100% {
+    border-color: var(--topology-border-soft);
+    box-shadow: var(--topology-shadow);
+  }
+  50% {
+    border-color: var(--primary);
+    box-shadow: var(--topology-shadow), 0 0 0 3px rgb(var(--primary-rgb) / 0.2);
+  }
+}
+
 .topology-node.repository {
   width: 268px;
 }
@@ -1636,6 +1656,21 @@ onBeforeUnmount(() => {
   padding: 6px 10px;
   color: var(--topology-text-secondary);
   font-size: 12px;
+}
+
+:deep(.vue-flow__edge.animated path) {
+  stroke-dasharray: 8 12;
+  animation: dash-flow 0.8s linear infinite;
+}
+
+:deep(.vue-flow__edge.animated path) {
+  stroke-linecap: round;
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
 }
 
 .flow-summary {
