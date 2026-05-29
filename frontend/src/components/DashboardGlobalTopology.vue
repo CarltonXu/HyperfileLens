@@ -15,6 +15,7 @@ import {
   CircleStackIcon,
   CloudIcon,
   CpuChipIcon,
+  CubeIcon,
   FolderIcon,
   GlobeAltIcon,
   QueueListIcon,
@@ -22,12 +23,15 @@ import {
   ShieldCheckIcon,
   SparklesIcon,
   WindowIcon,
+  BellIcon,
+  BoltIcon,
+  CogIcon,
 } from "@heroicons/vue/24/outline";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
 
 interface TopologyNodeData {
-  kind: "group" | "service" | "storage" | "compact";
+  kind: "group" | "service" | "storage" | "compact" | "infra-services";
   title: string;
   subtitle?: string;
   icon?: any;
@@ -64,24 +68,40 @@ const copy = computed(() => {
     insightZone: zh ? "洞察分析" : "Insight Analysis",
     infraZone: zh ? "平台基础服务" : "Platform Services",
     browser: zh ? "Web 控制台" : "Web Console",
-    browserDesc: zh ? "租户、策略、任务、恢复与审计管理" : "Tenant, policy, task, recovery, and audit management",
+    browserDesc: zh
+      ? "租户、策略、任务、恢复与审计管理"
+      : "Tenant, policy, task, recovery, and audit management",
     source: zh ? "源端数据" : "Source Data",
     sourceDesc: "Local FS / NAS / NFS / SMB",
     api: zh ? "Django ASGI API" : "Django ASGI API",
-    apiDesc: zh ? "REST API / WebSocket / 权限与审计" : "REST API / WebSocket / auth and audit",
+    apiDesc: zh
+      ? "REST API / WebSocket / 权限与审计"
+      : "REST API / WebSocket / auth and audit",
     scheduler: zh ? "任务编排" : "Task Orchestration",
-    schedulerDesc: zh ? "策略调度、队列分发、状态聚合" : "Policy scheduling, queue dispatch, status aggregation",
+    schedulerDesc: zh
+      ? "策略调度、队列分发、状态聚合"
+      : "Policy scheduling, queue dispatch, status aggregation",
     proxy: zh ? "Proxy 节点" : "Proxy Nodes",
-    proxyDesc: zh ? "Go Agent，执行备份、恢复、挂载、维护" : "Go agent for backup, restore, mount, and maintenance",
+    proxyDesc: zh
+      ? "Go Agent，执行备份、恢复、挂载、维护"
+      : "Go agent for backup, restore, mount, and maintenance",
     proxyChips: ["Agent Proxy", "Sync Proxy", "Kopia CLI"],
     repository: zh ? "Kopia Repository" : "Kopia Repository",
-    repositoryDesc: zh ? "快照、去重块、策略保留点" : "Snapshots, deduplicated blobs, retention points",
+    repositoryDesc: zh
+      ? "快照、去重块、策略保留点"
+      : "Snapshots, deduplicated blobs, retention points",
     gateway: zh ? "Gateway 节点" : "Gateway Nodes",
-    gatewayDesc: zh ? "Ubuntu Agent，挂载快照并本地索引" : "Ubuntu agent mounts snapshots and builds local indexes",
+    gatewayDesc: zh
+      ? "Ubuntu Agent，挂载快照并本地索引"
+      : "Ubuntu agent mounts snapshots and builds local indexes",
     insights: zh ? "AI Insights" : "AI Insights",
-    insightsDesc: zh ? "搜索、冷热、重复、敏感数据分析" : "Search, heat, duplicate, and sensitive data analysis",
-    infra: zh ? "PostgreSQL / Redis / Alerting" : "PostgreSQL / Redis / Alerting",
-    infraDesc: zh ? "业务元数据、任务队列、心跳指标、告警通知" : "Metadata, task queues, heartbeats, metrics, and notifications",
+    insightsDesc: zh
+      ? "搜索、冷热、重复、敏感数据分析"
+      : "Search, heat, duplicate, and sensitive data analysis",
+    infra: "PostgreSQL / Redis / Celery / Alerting",
+    infraDesc: zh
+      ? "业务元数据、任务队列、心跳指标、告警通知"
+      : "Metadata, task queues, heartbeats, metrics, and notifications",
     restFlow: "HTTPS REST",
     wsFlow: "WSS Control",
     queueFlow: zh ? "任务下发" : "Task dispatch",
@@ -93,9 +113,43 @@ const copy = computed(() => {
     snapshotFlow: zh ? "快照读取" : "Snapshot read",
     metaFlow: zh ? "元数据/心跳/告警" : "Metadata / heartbeat / alerts",
     repoItems: [
-      { label: zh ? "本地文件系统" : "Local Filesystem", detail: "filesystem", icon: FolderIcon },
-      { label: "NAS / NFS / SMB", detail: "mounted path", icon: CircleStackIcon },
-      { label: zh ? "S3 对象存储" : "S3 Object Storage", detail: "s3 compatible", icon: CloudIcon },
+      {
+        label: zh ? "本地文件系统" : "Local Filesystem",
+        detail: "filesystem",
+        icon: FolderIcon,
+      },
+      {
+        label: "NAS / NFS / SMB",
+        detail: "mounted path",
+        icon: CircleStackIcon,
+      },
+      {
+        label: zh ? "S3 对象存储" : "S3 Object Storage",
+        detail: "s3 compatible",
+        icon: CloudIcon,
+      },
+    ],
+    infraItems: [
+      {
+        label: "PostgreSQL",
+        detail: zh ? "业务元数据" : "Metadata",
+        icon: CubeIcon,
+      },
+      {
+        label: "Redis",
+        detail: zh ? "任务队列与缓存" : "Queue & Cache",
+        icon: CogIcon,
+      },
+      {
+        label: "Celery",
+        detail: zh ? "异步任务执行" : "Async Tasks",
+        icon: BoltIcon,
+      },
+      {
+        label: "Alerting",
+        detail: zh ? "告警通知" : "Notifications",
+        icon: BellIcon,
+      },
     ],
   };
 });
@@ -127,17 +181,15 @@ const edgeDefaults = {
 
 const layout = {
   entry: { x: 28, y: 64, width: 250, height: 425 },
-  control: { x: 332, y: 28, width: 350, height: 300 },
-  runtime: { x: 332, y: 370, width: 350, height: 210 },
+  control: { x: 332, y: 28, width: 350, height: 330 },
+  runtime: { x: 332, y: 370, width: 350, height: 220 },
   storage: { x: 780, y: 280, width: 318, height: 310 },
-  insight: { x: 1180, y: 302, width: 280, height: 300 },
-  infra: { x: 332, y: 640, width: 766, height: 150 },
+  insight: { x: 1180, y: 302, width: 280, height: 330 },
+  infra: { x: 332, y: 620, width: 766, height: 200 },
 };
 
-const centerX = (
-  zone: { x: number; width: number },
-  nodeWidth: number,
-) => zone.x + (zone.width - nodeWidth) / 2;
+const centerX = (zone: { x: number; width: number }, nodeWidth: number) =>
+  zone.x + (zone.width - nodeWidth) / 2;
 
 const nodes = computed<Node<TopologyNodeData>[]>(() => [
   {
@@ -147,7 +199,13 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
     selectable: false,
     draggable: false,
     style: { zIndex: 0 },
-    data: { kind: "group", title: copy.value.entryZone, tone: "entry", width: layout.entry.width, height: layout.entry.height },
+    data: {
+      kind: "group",
+      title: copy.value.entryZone,
+      tone: "entry",
+      width: layout.entry.width,
+      height: layout.entry.height,
+    },
   },
   {
     id: "control-group",
@@ -156,7 +214,13 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
     selectable: false,
     draggable: false,
     style: { zIndex: 0 },
-    data: { kind: "group", title: copy.value.controlZone, tone: "control", width: layout.control.width, height: layout.control.height },
+    data: {
+      kind: "group",
+      title: copy.value.controlZone,
+      tone: "control",
+      width: layout.control.width,
+      height: layout.control.height,
+    },
   },
   {
     id: "runtime-group",
@@ -165,7 +229,13 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
     selectable: false,
     draggable: false,
     style: { zIndex: 0 },
-    data: { kind: "group", title: copy.value.runtimeZone, tone: "runtime", width: layout.runtime.width, height: layout.runtime.height },
+    data: {
+      kind: "group",
+      title: copy.value.runtimeZone,
+      tone: "runtime",
+      width: layout.runtime.width,
+      height: layout.runtime.height,
+    },
   },
   {
     id: "storage-group",
@@ -174,7 +244,13 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
     selectable: false,
     draggable: false,
     style: { zIndex: 0 },
-    data: { kind: "group", title: copy.value.storageZone, tone: "storage", width: layout.storage.width, height: layout.storage.height },
+    data: {
+      kind: "group",
+      title: copy.value.storageZone,
+      tone: "storage",
+      width: layout.storage.width,
+      height: layout.storage.height,
+    },
   },
   {
     id: "insight-group",
@@ -183,7 +259,13 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
     selectable: false,
     draggable: false,
     style: { zIndex: 0 },
-    data: { kind: "group", title: copy.value.insightZone, tone: "insight", width: layout.insight.width, height: layout.insight.height },
+    data: {
+      kind: "group",
+      title: copy.value.insightZone,
+      tone: "insight",
+      width: layout.insight.width,
+      height: layout.insight.height,
+    },
   },
   {
     id: "infra-group",
@@ -192,7 +274,13 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
     selectable: false,
     draggable: false,
     style: { zIndex: 0 },
-    data: { kind: "group", title: copy.value.infraZone, tone: "infra", width: layout.infra.width, height: layout.infra.height },
+    data: {
+      kind: "group",
+      title: copy.value.infraZone,
+      tone: "infra",
+      width: layout.infra.width,
+      height: layout.infra.height,
+    },
   },
   {
     id: "browser",
@@ -237,14 +325,14 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
       icon: GlobeAltIcon,
       tone: "control",
       width: 242,
-      handles: { left: true, right: true, bottom: true },
+      handles: { left: true, bottom: true },
       chips: ["DRF", "Channels", "ASGI"],
     },
   },
   {
     id: "scheduler",
     type: "global",
-    position: { x: centerX(layout.control, 242), y: 218 },
+    position: { x: centerX(layout.control, 242), y: 250 },
     selectable: false,
     data: {
       kind: "compact",
@@ -253,13 +341,13 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
       icon: QueueListIcon,
       tone: "control",
       width: 242,
-      handles: { top: true, bottom: true },
+      handles: { top: true, right: true, bottom: true },
     },
   },
   {
     id: "proxy",
     type: "global",
-    position: { x: centerX(layout.runtime, 242), y: 430 },
+    position: { x: centerX(layout.runtime, 242), y: 414 },
     selectable: false,
     data: {
       kind: "service",
@@ -291,7 +379,7 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
   {
     id: "gateway",
     type: "global",
-    position: { x: centerX(layout.insight, 208), y: 344 },
+    position: { x: centerX(layout.insight, 208), y: 332 },
     selectable: false,
     data: {
       kind: "service",
@@ -300,14 +388,14 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
       icon: CpuChipIcon,
       tone: "insight",
       width: 208,
-      handles: { left: true, bottom: true },
+      handles: { left: true, top: true, bottom: true },
       chips: ["Kopia mount", "Indexer"],
     },
   },
   {
     id: "insights",
     type: "global",
-    position: { x: centerX(layout.insight, 208), y: 472 },
+    position: { x: centerX(layout.insight, 208), y: 508 },
     selectable: false,
     data: {
       kind: "compact",
@@ -322,17 +410,17 @@ const nodes = computed<Node<TopologyNodeData>[]>(() => [
   {
     id: "infra",
     type: "global",
-    position: { x: centerX(layout.infra, 686), y: 680 },
+    position: { x: centerX(layout.infra, 700), y: 660 },
     selectable: false,
     data: {
-      kind: "service",
+      kind: "infra-services",
       title: copy.value.infra,
       subtitle: copy.value.infraDesc,
       icon: CircleStackIcon,
       tone: "infra",
-      width: 686,
+      width: 700,
       handles: { top: true },
-      chips: ["PostgreSQL", "Redis", "Celery", "Alerts"],
+      items: copy.value.infraItems,
     },
   },
 ]);
@@ -366,6 +454,17 @@ const edges = computed<Edge[]>(() => [
     source: "scheduler",
     target: "proxy",
     sourceHandle: "bottom",
+    targetHandle: "top",
+    label: copy.value.wsFlow,
+    markerEnd: { type: MarkerType.ArrowClosed, color: edgeColors.control },
+    style: { stroke: edgeColors.control, strokeWidth: 2.4 },
+  },
+  {
+    ...edgeDefaults,
+    id: "scheduler-gateway",
+    source: "scheduler",
+    target: "gateway",
+    sourceHandle: "right",
     targetHandle: "top",
     label: copy.value.wsFlow,
     markerEnd: { type: MarkerType.ArrowClosed, color: edgeColors.control },
@@ -472,52 +571,45 @@ const edges = computed<Edge[]>(() => [
         :min-zoom="0.62"
         :max-zoom="1.25"
         fit-view-on-init
-        class="dashboard-topology-flow"
-      >
+        class="dashboard-topology-flow">
         <Background :gap="20" :size="1" pattern-color="var(--topology-grid)" />
 
         <template #node-global="{ data }">
           <div
             v-if="data.kind === 'group'"
             :class="['topology-group-node', data.tone]"
-            :style="{ width: `${data.width}px`, height: `${data.height}px` }"
-          >
+            :style="{ width: `${data.width}px`, height: `${data.height}px` }">
             <span>{{ data.title }}</span>
           </div>
 
           <article
             v-else
             :class="['topology-card-node', data.kind, data.tone]"
-            :style="{ width: `${data.width}px` }"
-          >
+            :style="{ width: `${data.width}px` }">
             <Handle
               v-if="data.handles?.left"
               id="left"
               type="target"
               :position="Position.Left"
-              class="topology-handle"
-            />
+              class="topology-handle" />
             <Handle
               v-if="data.handles?.right"
               id="right"
               type="source"
               :position="Position.Right"
-              class="topology-handle"
-            />
+              class="topology-handle" />
             <Handle
               v-if="data.handles?.top"
               id="top"
               type="target"
               :position="Position.Top"
-              class="topology-handle"
-            />
+              class="topology-handle" />
             <Handle
               v-if="data.handles?.bottom"
               id="bottom"
               type="source"
               :position="Position.Bottom"
-              class="topology-handle"
-            />
+              class="topology-handle" />
 
             <div class="topology-card-main">
               <div class="topology-card-icon">
@@ -533,7 +625,24 @@ const edges = computed<Edge[]>(() => [
               <span v-for="chip in data.chips" :key="chip">{{ chip }}</span>
             </div>
 
-            <div v-if="data.items?.length" class="target-options">
+            <div
+              v-if="data.items?.length && data.kind === 'infra-services'"
+              class="infra-items">
+              <div
+                v-for="item in data.items"
+                :key="item.label"
+                class="infra-item">
+                <div class="infra-item-icon">
+                  <component :is="item.icon" class="h-5 w-5" />
+                </div>
+                <div class="infra-item-text">
+                  <span>{{ item.label }}</span>
+                  <small v-if="item.detail">{{ item.detail }}</small>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="data.items?.length" class="target-options">
               <div v-for="item in data.items" :key="item.label">
                 <component :is="item.icon" class="h-5 w-5" />
                 <span>{{ item.label }}</span>
@@ -631,7 +740,11 @@ const edges = computed<Edge[]>(() => [
   border: 1px solid var(--border);
   border-radius: 12px;
   background:
-    linear-gradient(180deg, rgb(var(--background-secondary-rgb) / 0.68), rgb(var(--background-secondary-rgb) / 0.36)),
+    linear-gradient(
+      180deg,
+      rgb(var(--background-secondary-rgb) / 0.68),
+      rgb(var(--background-secondary-rgb) / 0.36)
+    ),
     var(--background-secondary);
 }
 
@@ -821,6 +934,83 @@ const edges = computed<Edge[]>(() => [
   color: var(--foreground-secondary);
   font-size: 10px;
   font-weight: 700;
+}
+
+.infra-items {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.infra-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  background: rgb(var(--background-secondary-rgb) / 0.5);
+  padding: 10px 12px;
+}
+
+.infra-item:nth-child(1) {
+  border: 1px solid rgb(59 130 246 / 0.25);
+}
+.infra-item:nth-child(1) .infra-item-icon {
+  background: rgb(59 130 246 / 0.14);
+  color: #3b82f6;
+}
+
+.infra-item:nth-child(2) {
+  border: 1px solid rgb(249 115 22 / 0.25);
+}
+.infra-item:nth-child(2) .infra-item-icon {
+  background: rgb(249 115 22 / 0.14);
+  color: #f97316;
+}
+
+.infra-item:nth-child(3) {
+  border: 1px solid rgb(34 197 94 / 0.25);
+}
+.infra-item:nth-child(3) .infra-item-icon {
+  background: rgb(34 197 94 / 0.14);
+  color: #22c55e;
+}
+
+.infra-item:nth-child(4) {
+  border: 1px solid rgb(234 179 8 / 0.25);
+}
+.infra-item:nth-child(4) .infra-item-icon {
+  background: rgb(234 179 8 / 0.14);
+  color: #eab308;
+}
+
+.infra-item-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.infra-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.infra-item-text span {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.infra-item-text small {
+  color: var(--foreground-secondary);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .topology-handle {
