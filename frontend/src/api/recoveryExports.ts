@@ -6,6 +6,9 @@ export const recoveryExportsApi = {
     page_size?: number;
     status?: string;
     snapshot?: string;
+    repository?: string;
+    task?: string;
+    source_resource?: string;
     ordering?: string;
   }) => api.get("/api/v1/recovery-tasks/exports/", { params }),
 
@@ -16,6 +19,9 @@ export const recoveryExportsApi = {
 
   execute: (id: number | string) =>
     api.post(`/api/v1/recovery-tasks/exports/${id}/execute/`),
+
+  retry: (id: number | string) =>
+    api.post(`/api/v1/recovery-tasks/exports/${id}/retry/`),
 
   cancel: (id: number | string) =>
     api.post(`/api/v1/recovery-tasks/exports/${id}/cancel/`),

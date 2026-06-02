@@ -192,6 +192,10 @@ class RecoveryExportSerializer(serializers.ModelSerializer):
     snapshot_created_at = serializers.DateTimeField(source='snapshot.created_at', read_only=True)
     snapshot_source_path = serializers.SerializerMethodField()
     repository_name = serializers.CharField(source='repository.name', read_only=True)
+    backup_task_id = serializers.UUIDField(source='snapshot.task.id', read_only=True)
+    backup_task_name = serializers.CharField(source='snapshot.task.name', read_only=True)
+    source_resource_id = serializers.UUIDField(source='snapshot.task.source_resource.id', read_only=True)
+    source_resource_name = serializers.CharField(source='snapshot.task.source_resource.name', read_only=True)
     executor_node_name = serializers.CharField(source='executor_node.name', read_only=True)
     user_email = serializers.CharField(source='user.email', read_only=True)
     download_url = serializers.SerializerMethodField()
@@ -205,7 +209,9 @@ class RecoveryExportSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'snapshot', 'snapshot_name',
             'snapshot_storage_path', 'snapshot_manifest_path', 'snapshot_status',
             'snapshot_created_at', 'snapshot_source_path', 'repository',
-            'repository_name', 'selected_paths', 'package_format', 'status',
+            'repository_name', 'backup_task_id', 'backup_task_name',
+            'source_resource_id', 'source_resource_name',
+            'selected_paths', 'package_format', 'status',
             'progress', 'status_message', 'error_message', 'current_file',
             'total_files', 'processed_files', 'total_size', 'processed_size',
             'speed_mbps', 'eta', 'package_size', 'checksum', 'file_name', 'executor_node',

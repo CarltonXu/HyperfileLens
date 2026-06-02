@@ -1585,6 +1585,9 @@ export default {
     form: {
       targetNode: "Target Node",
       repository: "Repository",
+      sourceResource: "Source Resource",
+      allSourceResources: "All source resources",
+      backupTask: "Backup Task",
       snapshot: "Snapshot",
       snapshotPlaceholder: "Select an available snapshot",
       snapshotSearchPlaceholder: "Search snapshot name, path, ID, or time",
@@ -1606,7 +1609,7 @@ export default {
     sections: {
       source: "Recovery Point",
       sourceHelp:
-        "Choose the repository and snapshot that will be used as the restore source.",
+        "Choose a backup task and point-in-time snapshot that will be used as the restore source.",
       target: "Restore Target",
       targetHelp:
         "Select the proxy that can reach the restore destination and define the restore path.",
@@ -1621,7 +1624,7 @@ export default {
         "Name the restore operation so it can be audited and found later.",
       recoveryPoint: "Recovery Point",
       recoveryPointHelp:
-        "Select the repository and point-in-time snapshot to restore from.",
+        "Select the backup task and point-in-time snapshot to restore from.",
       scope: "Restore Scope",
       scopeHelp:
         "Choose whether this operation restores the entire snapshot or a smaller file set.",
@@ -1723,9 +1726,12 @@ export default {
       selectRepositoryTitle: "Select a repository first",
       selectRepositoryDescription:
         "Available snapshots will be shown here after a repository is selected.",
+      selectBackupTaskTitle: "Select a backup task first",
+      selectBackupTaskDescription:
+        "Available snapshots will be shown here after a backup task is selected.",
       noSnapshotsTitle: "No snapshots found",
       noSnapshotsDescription:
-        "Try another repository or adjust your snapshot search.",
+        "Try another backup task or adjust your snapshot search.",
     },
   },
 
@@ -3449,10 +3455,37 @@ export default {
     noExportsTitle: "No recovery exports yet",
     noExportsDesc:
       "Select files or folders in a snapshot file browser to create a downloadable export.",
+    newExport: "New export",
+    newExportDesc:
+      "Choose an available snapshot, select files or folders, then create a download package.",
+    chooseSnapshot: "Choose snapshot",
+    chooseBackupTask: "Choose backup task",
+    filterBySourceResource: "Source resource",
+    allSourceResources: "All source resources",
+    allBackupTasks: "All backup tasks",
+    allRepositories: "All repositories",
+    noBackupTasks: "No backup tasks found.",
+    noBackupTasksForSource: "No backup tasks found for this source resource.",
+    backupTasksLoadFailed: "Failed to load backup tasks",
+    sourceResourcesLoadFailed: "Failed to load source resources",
+    repositoriesLoadFailed: "Failed to load repositories",
+    selectBackupTaskFirst: "Choose a backup task to load its snapshots.",
+    resetFilters: "Reset",
+    snapshotSearchPlaceholder: "Search snapshots or backup tasks",
+    snapshotResultCount: "{shown} of {total} snapshots",
+    noAvailableSnapshots: "No available snapshots found.",
+    snapshotsLoadFailed: "Failed to load snapshots",
+    exportNamePlaceholder: "Export name",
+    exportDescriptionPlaceholder: "Optional note for this export",
+    expiresInHours: "Expires in hours",
+    createAndStart: "Create and start",
     created: "Recovery export has been created.",
     createFailed: "Failed to create recovery export",
     cancelled: "Export cancelled",
     cancelFailed: "Failed to cancel export",
+    retryExport: "Retry export",
+    retryStarted: "Export retry started.",
+    retryFailed: "Failed to retry export",
     selectRequired: "Select at least one file or folder to export.",
     exportDownload: "Export download",
     selectedForExport: "{count} selected for export",
@@ -3498,6 +3531,29 @@ export default {
       failed: "Failed",
       cancelled: "Cancelled",
       expired: "Expired",
+    },
+    snapshotKindFilters: {
+      data: "Data snapshots",
+      noChange: "No-change snapshots",
+      empty: "Empty snapshots",
+      all: "All snapshots",
+    },
+    snapshotKinds: {
+      data: "Data",
+      no_change: "No-change",
+      empty: "Empty",
+    },
+    snapshotTimeFilters: {
+      all: "All time",
+      day: "Last 24h",
+      week: "Last 7 days",
+      month: "Last 30 days",
+    },
+    snapshotSort: {
+      newest: "Newest first",
+      oldest: "Oldest first",
+      largest: "Largest first",
+      files: "Most files",
     },
   },
 

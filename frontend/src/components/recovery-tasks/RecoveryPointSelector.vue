@@ -6,13 +6,14 @@ import {
   ClockIcon,
   MagnifyingGlassIcon,
 } from "@heroicons/vue/24/outline";
-import type { Repository } from "@/types/repository";
 import type { SnapshotInfo } from "@/types/recovery";
 
 const props = defineProps<{
-  repositories: Repository[];
+  sourceResources: any[];
+  backupTasks: any[];
   snapshots: SnapshotInfo[];
-  selectedRepository: string | number;
+  selectedSourceResourceId: string;
+  selectedBackupTaskId: string;
   selectedSnapshotId: string;
   snapshotSearchQuery: string;
   snapshotKindFilter: string;
@@ -25,7 +26,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  "update:selectedRepository": [value: string | number];
+  "update:selectedSourceResourceId": [value: string];
+  "update:selectedBackupTaskId": [value: string];
   "update:selectedSnapshotId": [value: string];
   "update:snapshotSearchQuery": [value: string];
   "update:snapshotKindFilter": [value: string];
@@ -51,6 +53,12 @@ function snapshotKindLabel(snapshot: SnapshotInfo): string {
   }
   return t("recoveryTasks.snapshots.empty");
 }
+
+function selectedBackupTask() {
+  return props.backupTasks.find(
+    (task) => String(task.id) === props.selectedBackupTaskId,
+  );
+}
 </script>
 
 <template>
@@ -67,32 +75,78 @@ function snapshotKindLabel(snapshot: SnapshotInfo): string {
       </div>
     </div>
 
-    <div>
-      <label class="block text-sm font-medium text-foreground-secondary mb-1">
-        {{ t("recoveryTasks.form.repository") }}
-      </label>
-      <select
-        :value="props.selectedRepository"
-        class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
-        @change="
-          emit(
-            'update:selectedRepository',
-            ($event.target as HTMLSelectElement).value,
-          )
-        "
-      >
-        <option class="bg-background" value="">
-          {{ t("common.select") || "Select" }}
-        </option>
-        <option
-          v-for="repo in props.repositories"
-          :key="repo.id"
-          class="bg-background"
-          :value="repo.id"
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium text-foreground-secondary mb-1">
+          {{ t("recoveryTasks.form.sourceResource") }}
+        </label>
+        <select
+          :value="props.selectedSourceResourceId"
+          class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          @change="
+            emit(
+              'update:selectedSourceResourceId',
+              ($event.target as HTMLSelectElement).value,
+            )
+          "
         >
-          {{ repo.name }}
-        </option>
-      </select>
+          <option class="bg-background" value="">
+            {{ t("recoveryTasks.form.allSourceResources") }}
+          </option>
+          <option
+            v-for="source in props.sourceResources"
+            :key="source.id"
+            class="bg-background"
+            :value="String(source.id)"
+          >
+            {{ source.name }}
+          </option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-foreground-secondary mb-1">
+          {{ t("recoveryTasks.form.backupTask") }}
+        </label>
+        <select
+          :value="props.selectedBackupTaskId"
+          class="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          @change="
+            emit(
+              'update:selectedBackupTaskId',
+              ($event.target as HTMLSelectElement).value,
+            )
+          "
+        >
+          <option class="bg-background" value="">
+            {{ t("common.select") || "Select" }}
+          </option>
+          <option
+            v-for="task in props.backupTasks"
+            :key="task.id"
+            class="bg-background"
+            :value="String(task.id)"
+          >
+            {{ task.name }}
+          </option>
+        </select>
+      </div>
+    </div>
+
+    <div
+      v-if="selectedBackupTask()"
+      class="mt-3 rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground-secondary"
+    >
+      <div class="grid gap-2 sm:grid-cols-3">
+        <span class="truncate">
+          {{ selectedBackupTask()?.source_resource_name || "-" }}
+        </span>
+        <span class="truncate">
+          {{ selectedBackupTask()?.target_repository_name || "-" }}
+        </span>
+        <span class="truncate">
+          {{ selectedBackupTask()?.execution_node_name || "-" }}
+        </span>
+      </div>
     </div>
 
     <div class="mt-4">
@@ -146,15 +200,15 @@ function snapshotKindLabel(snapshot: SnapshotInfo): string {
       </div>
 
       <div
-        v-if="!props.selectedRepository"
+        v-if="!props.selectedBackupTaskId"
         class="rounded-lg border border-dashed border-border p-8 text-center"
       >
         <CircleStackIcon class="w-8 h-8 text-slate-400 mx-auto mb-3" />
         <p class="text-sm font-medium text-foreground">
-          {{ t("recoveryTasks.empty.selectRepositoryTitle") }}
+          {{ t("recoveryTasks.empty.selectBackupTaskTitle") }}
         </p>
         <p class="text-xs text-foreground-secondary mt-1">
-          {{ t("recoveryTasks.empty.selectRepositoryDescription") }}
+          {{ t("recoveryTasks.empty.selectBackupTaskDescription") }}
         </p>
       </div>
 

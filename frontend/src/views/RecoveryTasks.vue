@@ -6,6 +6,7 @@ import {
   backupTasksApi,
   nodesApi,
   repositoriesApi,
+  sourceResourcesApi,
 } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { getApiErrorMessage } from "@/utils/errors";
@@ -50,6 +51,8 @@ const tasks = ref<RecoveryTask[]>([]);
 const stats = ref<RecoveryTaskStatsBackend | null>(null);
 const nodes = ref<ProxyNode[]>([]);
 const repositories = ref<Repository[]>([]);
+const sourceResources = ref<any[]>([]);
+const backupTasks = ref<any[]>([]);
 const snapshots = ref<SnapshotInfo[]>([]);
 const showCreateModal = ref(false);
 const editingTaskId = ref<string | null>(null);
@@ -71,6 +74,8 @@ const recoverySnapshotFiles = ref<any[]>([]);
 const recoverySnapshotFilesLoading = ref(false);
 const recoverySnapshotFilesError = ref("");
 const loadingRecoverySnapshotPaths = ref<Set<string>>(new Set());
+const selectedSourceResourceId = ref("");
+const selectedBackupTaskId = ref("");
 
 // Pagination
 const currentPage = ref(1);
@@ -305,19 +310,23 @@ async function fetchStats() {
 
 async function fetchNodesAndRepos() {
   try {
-    const [nodesRes, reposRes] = await Promise.all([
+    const [nodesRes, reposRes, sourceRes, tasksRes] = await Promise.all([
       nodesApi.list({ page_size: 100 }),
       repositoriesApi.list({ page_size: 100 }),
+      sourceResourcesApi.list({ page_size: 1000 }),
+      backupTasksApi.list({ page_size: 1000, ordering: "name" }),
     ]);
     nodes.value = nodesRes.data.results || nodesRes.data;
     repositories.value = reposRes.data.results || reposRes.data;
+    sourceResources.value = sourceRes.data.results || sourceRes.data;
+    backupTasks.value = tasksRes.data.results || tasksRes.data;
   } catch (error) {
-    console.error("Failed to fetch nodes/repos:", error);
+    console.error("Failed to fetch recovery dependencies:", error);
   }
 }
 
 async function fetchSnapshots() {
-  if (!newRecovery.value.repository) {
+  if (!selectedBackupTaskId.value) {
     snapshots.value = [];
     newRecovery.value.snapshot_id = "";
     snapshotPage.value = 1;
@@ -329,7 +338,7 @@ async function fetchSnapshots() {
   snapshotPage.value = 1;
   try {
     const response = await backupTasksApi.listSnapshots({
-      repository: newRecovery.value.repository,
+      task: selectedBackupTaskId.value,
       search: snapshotSearchQuery.value.trim() || undefined,
       snapshot_status: "available",
       snapshot_kind:
@@ -351,7 +360,7 @@ async function fetchSnapshots() {
 
 async function loadMoreSnapshots() {
   if (
-    !newRecovery.value.repository ||
+    !selectedBackupTaskId.value ||
     !snapshotNextPage.value ||
     snapshotsLoadingMore.value
   ) {
@@ -361,7 +370,7 @@ async function loadMoreSnapshots() {
   snapshotsLoadingMore.value = true;
   try {
     const response = await backupTasksApi.listSnapshots({
-      repository: newRecovery.value.repository,
+      task: selectedBackupTaskId.value,
       search: snapshotSearchQuery.value.trim() || undefined,
       snapshot_status: "available",
       snapshot_kind:
@@ -388,8 +397,10 @@ async function loadMoreSnapshots() {
 }
 
 watch(
-  () => newRecovery.value.repository,
-  () => {
+  () => selectedBackupTaskId.value,
+  (taskId) => {
+    const task = backupTasks.value.find((item) => String(item.id) === taskId);
+    newRecovery.value.repository = task?.target_repository || "";
     newRecovery.value.snapshot_id = "";
     snapshotSearchQuery.value = "";
     fetchSnapshots();
@@ -398,7 +409,7 @@ watch(
 
 let snapshotSearchTimer: number | null = null;
 watch([snapshotSearchQuery, snapshotKindFilter], () => {
-  if (!newRecovery.value.repository) return;
+  if (!selectedBackupTaskId.value) return;
   if (snapshotSearchTimer) clearTimeout(snapshotSearchTimer);
   snapshotSearchTimer = window.setTimeout(() => {
     fetchSnapshots();
@@ -434,6 +445,13 @@ const selectedSnapshot = computed(() =>
 
 const filteredSnapshots = computed(() => {
   return snapshots.value;
+});
+
+const filteredBackupTasks = computed(() => {
+  if (!selectedSourceResourceId.value) return backupTasks.value;
+  return backupTasks.value.filter(
+    (task) => String(task.source_resource || "") === selectedSourceResourceId.value,
+  );
 });
 
 const selectedTargetNode = computed(() =>
@@ -477,9 +495,7 @@ const canContinueRecoveryWizard = computed(() => {
     return Boolean(newRecovery.value.name);
   }
   if (createStep.value === 1) {
-    return Boolean(
-      newRecovery.value.repository && newRecovery.value.snapshot_id,
-    );
+    return Boolean(selectedBackupTaskId.value && newRecovery.value.snapshot_id);
   }
   if (createStep.value === 2) {
     return (
@@ -496,6 +512,10 @@ const canContinueRecoveryWizard = computed(() => {
 function openCreateRecovery() {
   editingTaskId.value = null;
   newRecovery.value = createRecoveryDraft();
+  selectedSourceResourceId.value = "";
+  selectedBackupTaskId.value = "";
+  snapshots.value = [];
+  snapshotSearchQuery.value = "";
   createStep.value = 0;
   showCreateModal.value = true;
 }
@@ -504,6 +524,8 @@ function openEditRecovery(task: RecoveryTask) {
   const repositoryId = task.repository_id || "";
   const snapshotId = task.snapshot || task.snapshot_id || "";
   editingTaskId.value = task.id;
+  selectedSourceResourceId.value = "";
+  selectedBackupTaskId.value = "";
   newRecovery.value = {
     name: task.name || "",
     description: task.description || "",
@@ -542,6 +564,18 @@ function copyRecovery(task: RecoveryTask) {
 
 function closeCreateRecovery() {
   showCreateModal.value = false;
+}
+
+function updateSelectedSourceResource(value: string) {
+  selectedSourceResourceId.value = value;
+  selectedBackupTaskId.value = "";
+  newRecovery.value.repository = "";
+  newRecovery.value.snapshot_id = "";
+  snapshots.value = [];
+  snapshotSearchQuery.value = "";
+  if (filteredBackupTasks.value.length === 1) {
+    selectedBackupTaskId.value = String(filteredBackupTasks.value[0].id);
+  }
 }
 
 function nextCreateStep() {
@@ -942,11 +976,13 @@ onMounted(() => {
 
               <RecoveryPointSelector
                 v-if="createStep === 1"
-                v-model:selected-repository="newRecovery.repository"
+                :selected-source-resource-id="selectedSourceResourceId"
+                v-model:selected-backup-task-id="selectedBackupTaskId"
                 v-model:selected-snapshot-id="newRecovery.snapshot_id"
                 v-model:snapshot-search-query="snapshotSearchQuery"
                 v-model:snapshot-kind-filter="snapshotKindFilter"
-                :repositories="repositories"
+                :source-resources="sourceResources"
+                :backup-tasks="filteredBackupTasks"
                 :snapshots="filteredSnapshots"
                 :snapshot-total="snapshotTotal"
                 :snapshots-loading="snapshotsLoading"
@@ -954,6 +990,7 @@ onMounted(() => {
                 :has-more-snapshots="Boolean(snapshotNextPage)"
                 :format-bytes="formatBytes"
                 :format-date-time="formatDateTime"
+                @update:selected-source-resource-id="updateSelectedSourceResource"
                 @load-more="loadMoreSnapshots"
               />
 

@@ -6,6 +6,7 @@ export const backupTasksApi = {
     page_size?: number;
     status?: string;
     node?: number;
+    source_resource?: number | string;
     ordering?: string;
   }) => api.get("/api/v1/backup-tasks/tasks/", { params }),
 
@@ -61,6 +62,7 @@ export const backupTasksApi = {
     api.get(`/api/v1/backup-tasks/tasks/${id}/runs/`, { params }),
 
   listSnapshots: (params?: {
+    task?: number | string;
     node?: number | string;
     repository?: number | string;
     search?: string;

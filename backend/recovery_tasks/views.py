@@ -325,6 +325,15 @@ class RecoveryExportViewSet(viewsets.ModelViewSet):
         snapshot_id = self.request.query_params.get('snapshot')
         if snapshot_id:
             queryset = queryset.filter(snapshot_id=snapshot_id)
+        repository_id = self.request.query_params.get('repository')
+        if repository_id:
+            queryset = queryset.filter(repository_id=repository_id)
+        task_id = self.request.query_params.get('task')
+        if task_id:
+            queryset = queryset.filter(snapshot__task_id=task_id)
+        source_resource_id = self.request.query_params.get('source_resource')
+        if source_resource_id:
+            queryset = queryset.filter(snapshot__task__source_resource_id=source_resource_id)
         ordering = self.request.query_params.get('ordering') or '-created_at'
         allowed = {
             'name', '-name', 'status', '-status', 'created_at', '-created_at',
@@ -358,6 +367,59 @@ class RecoveryExportViewSet(viewsets.ModelViewSet):
         except RecoveryExportExecutionError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'message': 'Export dispatched'})
+
+    @action(detail=True, methods=['post'])
+    def retry(self, request, pk=None):
+        export = self.get_object()
+        if export.status in [
+            RecoveryExport.STATUS_PENDING,
+            RecoveryExport.STATUS_DISPATCHED,
+            RecoveryExport.STATUS_RUNNING,
+            RecoveryExport.STATUS_PACKAGING,
+        ]:
+            return Response({'error': 'Export is already running'}, status=status.HTTP_400_BAD_REQUEST)
+        if not export.selected_paths:
+            return Response({'error': 'Export has no selected paths'}, status=status.HTTP_400_BAD_REQUEST)
+
+        export.status = RecoveryExport.STATUS_PENDING
+        export.progress = 0
+        export.status_message = 'Retrying export'
+        export.error_message = ''
+        export.current_file = ''
+        export.total_files = 0
+        export.processed_files = 0
+        export.total_size = 0
+        export.processed_size = 0
+        export.speed_mbps = 0
+        export.eta = ''
+        export.package_size = 0
+        export.checksum = ''
+        export.file_name = ''
+        export.proxy_task = None
+        export.executor_node = None
+        export.started_at = None
+        export.completed_at = None
+        export.save(update_fields=[
+            'status', 'progress', 'status_message', 'error_message',
+            'current_file', 'total_files', 'processed_files', 'total_size',
+            'processed_size', 'speed_mbps', 'eta', 'package_size',
+            'checksum', 'file_name', 'proxy_task', 'executor_node',
+            'started_at', 'completed_at', 'updated_at',
+        ])
+
+        try:
+            dispatch_recovery_export(export)
+        except RecoveryExportExecutionError as exc:
+            export.status = RecoveryExport.STATUS_FAILED
+            export.error_message = str(exc)
+            export.status_message = str(exc)
+            export.completed_at = timezone.now()
+            export.save(update_fields=[
+                'status', 'error_message', 'status_message',
+                'completed_at', 'updated_at',
+            ])
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(RecoveryExportSerializer(export, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
