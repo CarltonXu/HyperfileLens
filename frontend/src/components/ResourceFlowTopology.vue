@@ -9,10 +9,12 @@ import {
 } from "vue";
 import { useI18n } from "vue-i18n";
 import {
+  BaseEdge,
   Handle,
   MarkerType,
   Position,
   VueFlow,
+  getSmoothStepPath,
   type Edge,
   type Node,
   type NodeDragEvent,
@@ -21,12 +23,10 @@ import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
 import {
   ArchiveBoxIcon,
-  ArrowPathIcon,
   CircleStackIcon,
   CloudIcon,
   ComputerDesktopIcon,
   CpuChipIcon,
-  DocumentIcon,
   EyeIcon,
   FolderOpenIcon,
   FolderIcon,
@@ -60,6 +60,27 @@ const EDGE_COLORS = {
   repository: "#34d399",
   gateway: "#a78bfa",
 };
+
+function transferEdgePath(edge: any) {
+  return getSmoothStepPath({
+    sourceX: edge.sourceX,
+    sourceY: edge.sourceY,
+    sourcePosition: edge.sourcePosition,
+    targetX: edge.targetX,
+    targetY: edge.targetY,
+    targetPosition: edge.targetPosition,
+    borderRadius: 18,
+  });
+}
+
+function transferLabelWidth(label: unknown) {
+  const text = String(label ?? "");
+  const estimatedTextWidth = Array.from(text).reduce((width, char) => {
+    return width + (char.charCodeAt(0) > 255 ? 12 : 6.8);
+  }, 0);
+
+  return estimatedTextWidth;
+}
 
 function nodeTop(
   nodeId: string,
@@ -914,9 +935,14 @@ const graphEdges = computed<Edge[]>(() => [
     target: "executor",
     sourceHandle: "right",
     targetHandle: "left",
-    label: t("resourceTopology.edges.readSource"),
-    type: "smoothstep",
+    label: isTaskRunning.value ? "" : t("resourceTopology.edges.readSource"),
+    type: "transfer",
     animated: isTaskRunning.value,
+    data: {
+      showTransfer: isTaskRunning.value,
+      packetColor: EDGE_COLORS.source,
+      labelColor: "#7dd3fc",
+    },
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: EDGE_COLORS.source,
@@ -927,11 +953,17 @@ const graphEdges = computed<Edge[]>(() => [
     },
     labelStyle: {
       fill: "#7dd3fc",
+      fontSize: 12,
       fontWeight: 700,
     },
     labelBgStyle: {
       fill: "var(--topology-label-bg)",
+      fillOpacity: 0.98,
+      stroke: "rgba(125, 211, 252, 0.72)",
+      strokeWidth: 1.25,
     },
+    labelBgPadding: [10, 6],
+    labelBgBorderRadius: 6,
   },
   {
     id: "executor-repository",
@@ -939,9 +971,16 @@ const graphEdges = computed<Edge[]>(() => [
     target: "repository",
     sourceHandle: "right",
     targetHandle: "left",
-    label: t("resourceTopology.edges.writeSnapshots"),
-    type: "smoothstep",
+    label: isTaskRunning.value
+      ? ""
+      : t("resourceTopology.edges.writeSnapshots"),
+    type: "transfer",
     animated: isTaskRunning.value,
+    data: {
+      showTransfer: isTaskRunning.value,
+      packetColor: EDGE_COLORS.repository,
+      labelColor: "#86efac",
+    },
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: EDGE_COLORS.repository,
@@ -952,11 +991,17 @@ const graphEdges = computed<Edge[]>(() => [
     },
     labelStyle: {
       fill: "#86efac",
+      fontSize: 12,
       fontWeight: 700,
     },
     labelBgStyle: {
       fill: "var(--topology-label-bg)",
+      fillOpacity: 0.98,
+      stroke: "rgba(134, 239, 172, 0.72)",
+      strokeWidth: 1.25,
     },
+    labelBgPadding: [10, 6],
+    labelBgBorderRadius: 6,
   },
   {
     id: "gateway-repository",
@@ -1038,10 +1083,68 @@ onBeforeUnmount(() => {
         fit-view-on-init
         class="resource-flow"
         @node-drag="handleNodeDrag"
-        @node-drag-stop="handleNodeDrag"
-      >
+        @node-drag-stop="handleNodeDrag">
         <Background :gap="18" :size="1" pattern-color="var(--topology-grid)" />
         <Controls position="bottom-right" />
+
+        <template #edge-transfer="edgeProps">
+          <BaseEdge
+            :id="edgeProps.id"
+            :path="transferEdgePath(edgeProps)[0]"
+            :marker-end="edgeProps.markerEnd"
+            :style="edgeProps.style" />
+          <g
+            v-if="edgeProps.label"
+            class="transfer-edge-label"
+            :style="{
+              '--transfer-label-color': edgeProps.data?.labelColor,
+            }"
+            :transform="`translate(${transferEdgePath(edgeProps)[1]} ${transferEdgePath(edgeProps)[2]})`">
+            <rect
+              class="transfer-edge-label-bg"
+              :x="-(transferLabelWidth(edgeProps.label) / 2)"
+              y="-11"
+              :width="transferLabelWidth(edgeProps.label)"
+              height="22"
+              rx="5"
+              ry="5" />
+            <text
+              class="transfer-edge-label-text"
+              text-anchor="middle"
+              dominant-baseline="middle">
+              {{ edgeProps.label }}
+            </text>
+          </g>
+          <path
+            :id="`transfer-motion-${edgeProps.id}`"
+            class="transfer-motion-path"
+            :d="transferEdgePath(edgeProps)[0]" />
+          <g
+            v-if="edgeProps.data?.showTransfer"
+            class="transfer-packets"
+            :style="{
+              '--packet-color': edgeProps.data.packetColor,
+            }">
+            <g v-for="index in 3" :key="index" class="transfer-packet">
+              <animateMotion
+                dur="2.8s"
+                repeatCount="indefinite"
+                rotate="0"
+                :begin="`${(index - 1) * 0.62}s`">
+                <mpath :href="`#transfer-motion-${edgeProps.id}`" />
+              </animateMotion>
+              <g class="transfer-data-icon" transform="translate(-19.2 -19.2) scale(1.6)">
+                <circle class="transfer-data-glow" cx="12" cy="12" r="11" />
+                <path
+                  d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                <g class="transfer-data-text-lines">
+                  <line x1="11.4" y1="11.5" x2="17.8" y2="11.5" />
+                  <line x1="11.4" y1="13.8" x2="15.5" y2="13.8" />
+                </g>
+              </g>
+            </g>
+          </g>
+        </template>
 
         <template #node-resource="{ id, data }">
           <article
@@ -1051,44 +1154,38 @@ onBeforeUnmount(() => {
               data.kind,
               { 'has-details': data.details?.length },
               { 'is-running': data.kind === 'executor' && isTaskRunning },
-            ]"
-          >
+            ]">
             <Handle
               v-if="data.handles.leftTarget"
               id="left"
               type="target"
               :position="Position.Left"
-              class="flow-handle left-handle"
-            />
+              class="flow-handle left-handle" />
             <Handle
               v-if="data.handles.rightSource"
               id="right"
               type="source"
               :position="Position.Right"
-              class="flow-handle right-handle"
-            />
+              class="flow-handle right-handle" />
             <Handle
               v-if="data.handles.bottomTarget"
               id="bottom"
               type="target"
               :position="Position.Bottom"
-              class="flow-handle bottom-handle"
-            />
+              class="flow-handle bottom-handle" />
             <Handle
               v-if="data.handles.topSource"
               id="top"
               type="source"
               :position="Position.Top"
-              class="flow-handle top-handle"
-            />
+              class="flow-handle top-handle" />
 
             <button
               v-if="data.viewUrl"
               class="node-view-button"
               type="button"
               :title="t('resourceTopology.actions.viewResourceDetails')"
-              @click.stop="openNodeDetail(data)"
-            >
+              @click.stop="openNodeDetail(data)">
               <EyeIcon class="h-3.5 w-3.5" />
               {{ t("common.view") }}
             </button>
@@ -1097,8 +1194,7 @@ onBeforeUnmount(() => {
               <component :is="data.icon" class="h-7 w-7" />
               <span
                 v-if="data.kind === 'executor'"
-                :class="['proxy-shield', data.statusIconTone]"
-              >
+                :class="['proxy-shield', data.statusIconTone]">
                 <ShieldCheckIcon class="shield-base" />
               </span>
             </div>
@@ -1107,16 +1203,14 @@ onBeforeUnmount(() => {
               <h4>{{ data.title }}</h4>
               <span
                 v-if="data.kind !== 'repository' && !data.details?.length"
-                class="node-subtitle"
-              >
+                class="node-subtitle">
                 {{ data.subtitle }}
               </span>
               <small
                 v-if="!data.details?.length"
                 :class="
                   ['executor', 'gateway'].includes(data.kind) ? data.tone : ''
-                "
-              >
+                ">
                 {{ data.detail }}
               </small>
             </div>
@@ -1124,8 +1218,7 @@ onBeforeUnmount(() => {
               <div
                 v-for="item in data.details"
                 :key="item.label"
-                :class="['repository-detail', { wrap: item.wrap }]"
-              >
+                :class="['repository-detail', { wrap: item.wrap }]">
                 <span>{{ item.label }}:</span>
                 <strong v-if="!item.status">{{ item.value }}</strong>
                 <strong v-else :class="['repository-status', data.tone]">
@@ -1300,6 +1393,102 @@ onBeforeUnmount(() => {
   animation-duration: 1.4s;
 }
 
+.transfer-motion-path {
+  fill: none;
+  stroke: none;
+  pointer-events: none;
+}
+
+.transfer-edge-label {
+  pointer-events: none;
+}
+
+.transfer-edge-label-bg {
+  fill: var(--topology-label-bg);
+  fill-opacity: 0.98;
+  stroke: var(--topology-border-soft);
+  stroke-width: 1px;
+  filter: drop-shadow(0 6px 12px rgb(15 23 42 / 0.2));
+}
+
+.transfer-edge-label-text {
+  fill: var(--transfer-label-color);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.transfer-packets {
+  --packet-color: #38bdf8;
+  pointer-events: none;
+}
+
+.transfer-data-icon {
+  animation: none;
+  fill: #fff;
+  stroke: var(--packet-color);
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 0.85;
+}
+
+.transfer-data-glow {
+  animation: transfer-icon-halo 1.9s ease-in-out infinite;
+  fill: var(--packet-color);
+  filter: blur(4px);
+  opacity: 0.18;
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.transfer-data-icon path {
+  animation: transfer-icon-stroke-breathe 1.9s ease-in-out infinite;
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
+}
+
+.transfer-data-text-lines {
+  animation: transfer-icon-stroke-breathe 1.9s ease-in-out infinite;
+  fill: none;
+  stroke: var(--packet-color);
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
+  stroke-linecap: round;
+  stroke-width: 0.9;
+}
+
+:deep(.vue-flow__edge.animated .transfer-data-icon path) {
+  animation: transfer-icon-stroke-breathe 1.9s ease-in-out infinite !important;
+  stroke-dasharray: none !important;
+  stroke-dashoffset: 0 !important;
+}
+
+@keyframes transfer-icon-halo {
+  0%,
+  100% {
+    opacity: 0.06;
+    transform: scale(0.85);
+  }
+
+  50% {
+    opacity: 0.32;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes transfer-icon-stroke-breathe {
+  0%,
+  100% {
+    stroke-opacity: 0.68;
+  }
+
+  50% {
+    stroke-opacity: 1;
+  }
+}
+
 :deep(.vue-flow__edge-textbg) {
   rx: 4px;
   ry: 4px;
@@ -1360,13 +1549,16 @@ onBeforeUnmount(() => {
 }
 
 @keyframes border-pulse {
-  0%, 100% {
+  0%,
+  100% {
     border-color: var(--topology-border-soft);
     box-shadow: var(--topology-shadow);
   }
   50% {
     border-color: var(--primary);
-    box-shadow: var(--topology-shadow), 0 0 0 3px rgb(var(--primary-rgb) / 0.2);
+    box-shadow:
+      var(--topology-shadow),
+      0 0 0 3px rgb(var(--primary-rgb) / 0.2);
   }
 }
 
