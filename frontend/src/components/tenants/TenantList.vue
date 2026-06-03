@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
 import {
@@ -54,11 +55,44 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const actionMenuStyle = ref<Record<string, string>>({});
+
+function updateActionMenuPosition(
+  event: MouseEvent,
+  width = 192,
+  preferredHeight = 280,
+) {
+  const target = event.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  const gap = 8;
+  const viewportPadding = 8;
+  const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPadding;
+  const spaceAbove = rect.top - gap - viewportPadding;
+  const openAbove = spaceBelow < 180 && spaceAbove > spaceBelow;
+  const maxHeight = Math.max(
+    140,
+    Math.min(preferredHeight, openAbove ? spaceAbove : spaceBelow),
+  );
+  const left = Math.min(
+    Math.max(viewportPadding, rect.right - width),
+    window.innerWidth - width - viewportPadding,
+  );
+  const top = openAbove
+    ? Math.max(viewportPadding, rect.top - gap - maxHeight)
+    : Math.min(rect.bottom + gap, window.innerHeight - maxHeight - viewportPadding);
+
+  actionMenuStyle.value = {
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${width}px`,
+    maxHeight: `${maxHeight}px`,
+  };
+}
 </script>
 
 <template>
   <div
-    class="bg-card shadow rounded-xl border border-border overflow-visible mb-4"
+    class="mb-4 flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow"
   >
     <div v-if="loading" class="p-8 text-center">
       <svg
@@ -86,9 +120,9 @@ const { t } = useI18n();
       </p>
     </div>
 
-    <table
-      v-else
-      class="w-full table-fixed divide-y divide-border"
+    <div v-else class="relative min-h-0 flex-1 overflow-auto bg-card">
+      <table
+      class="w-full table-fixed border-separate border-spacing-0"
       :style="{ minWidth: tenantTable.tableMinWidth.value }"
     >
       <colgroup>
@@ -98,7 +132,7 @@ const { t } = useI18n();
           :style="tenantTable.columnStyle(column.key)"
         />
       </colgroup>
-      <thead class="bg-background-secondary">
+      <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
         <tr>
           <ResizableSortableTh
             v-for="column in tenantColumns"
@@ -111,6 +145,7 @@ const { t } = useI18n();
             :align="column.align"
             :sort-icon="tenantTable.getSortIcon(column.key)"
             :resizing="tenantTable.resizingColumn.value === column.key"
+            header-class="border-b border-border"
             @sort="tenantTable.toggleSort($event as TenantColumnKey)"
             @resize-start="
               (key, event) =>
@@ -122,7 +157,7 @@ const { t } = useI18n();
           />
         </tr>
       </thead>
-      <tbody class="divide-y divide-border">
+      <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
         <tr
           v-for="tenant in tenantTable.sortedRows.value"
           :key="tenant.id"
@@ -184,12 +219,13 @@ const { t } = useI18n();
             {{ formatDate(tenant.created_at) }}
           </td>
           <td
-            class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6"
+            class="relative whitespace-nowrap px-3 py-4 text-center text-sm font-medium"
             :style="tenantTable.columnStyle('actions')"
           >
             <Menu as="div" class="relative inline-block text-left">
               <MenuButton
                 class="flex items-center rounded-full text-foreground-muted hover:text-slate-600 dark:hover:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                @click="updateActionMenuPosition($event)"
               >
                 <span class="sr-only">Open options</span>
                 <EllipsisVerticalIcon class="h-5 w-5" aria-hidden="true" />
@@ -203,7 +239,8 @@ const { t } = useI18n();
                 leave-to-class="transform opacity-0 scale-95"
               >
                 <MenuItems
-                  class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-md popover-surface shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                  class="fixed z-[9999] overflow-auto rounded-md popover-surface shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                  :style="actionMenuStyle"
                 >
                   <MenuItem v-slot="{ active }">
                     <button
@@ -298,11 +335,12 @@ const { t } = useI18n();
           </td>
         </tr>
       </tbody>
-    </table>
+      </table>
+    </div>
 
     <div
       v-if="pagination.total > 0"
-      class="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 bg-card border-t border-border"
+      class="flex flex-shrink-0 flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 bg-card border-t border-border"
     >
       <div class="flex flex-1 justify-between sm:hidden">
         <button

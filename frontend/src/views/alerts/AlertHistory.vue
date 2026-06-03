@@ -328,7 +328,7 @@ onMounted(fetchAlerts);
     </div>
 
     <div
-      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+      class="flex max-h-[calc(100vh-13rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
     >
     <div
       class="flex flex-shrink-0 flex-wrap items-center gap-3 border-b border-border p-4"

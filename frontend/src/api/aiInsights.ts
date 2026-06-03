@@ -80,6 +80,9 @@ export const aiInsightsApi = {
 
   setDefaultProvider: (id: number | string) =>
     api.post(`/api/v1/system/ai-providers/${id}/set-default/`),
+
+  testProviderChat: (id: number | string, data: { message: string }) =>
+    api.post(`/api/v1/system/ai-providers/${id}/test-chat/`, data),
 };
 
 export const aiQueryApi = aiInsightsApi;

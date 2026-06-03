@@ -689,11 +689,11 @@ onMounted(fetchPolicies);
 
     <div
       v-else
-      class="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
     >
-      <div class="overflow-x-auto">
+      <div class="relative min-h-0 flex-1 overflow-auto bg-card">
         <table
-          class="w-full table-fixed"
+          class="w-full table-fixed border-separate border-spacing-0"
           :style="{ minWidth: policyTable.tableMinWidth.value }"
         >
           <colgroup>
@@ -703,7 +703,7 @@ onMounted(fetchPolicies);
               :style="policyTable.columnStyle(column.key)"
             />
           </colgroup>
-          <thead class="border-b border-border bg-background-secondary">
+          <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
             <tr>
               <ResizableSortableTh
                 v-for="column in policyColumns"
@@ -716,6 +716,7 @@ onMounted(fetchPolicies);
                 :align="column.align"
                 :sort-icon="policyTable.getSortIcon(column.key)"
                 :resizing="policyTable.resizingColumn.value === column.key"
+                header-class="border-b border-border"
                 @sort="policyTable.toggleSort($event as PolicyColumnKey)"
                 @resize-start="
                   (key, event) =>
@@ -727,7 +728,7 @@ onMounted(fetchPolicies);
               />
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+          <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
             <tr
               v-for="policy in paginatedPolicies"
               :key="policy.id"

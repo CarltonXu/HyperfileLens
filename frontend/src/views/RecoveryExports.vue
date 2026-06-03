@@ -876,10 +876,12 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-border bg-card">
-      <div class="overflow-x-auto">
-        <table class="w-full table-fixed" :style="{ minWidth: table.tableMinWidth.value }">
-          <thead>
+    <div
+      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card"
+    >
+      <div class="relative min-h-0 flex-1 overflow-auto bg-card">
+        <table class="w-full table-fixed border-separate border-spacing-0" :style="{ minWidth: table.tableMinWidth.value }">
+          <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
             <tr>
               <ResizableSortableTh
                 v-for="column in columns"
@@ -892,6 +894,7 @@ onUnmounted(() => {
                 :sort-icon="table.getSortIcon(column.key)"
                 :align="column.align"
                 :resizing="table.resizingColumn.value === column.key"
+                header-class="border-b border-border"
                 @sort="table.toggleSort($event as ExportColumnKey)"
                 @resize-start="
                   (key, event) =>
@@ -903,7 +906,7 @@ onUnmounted(() => {
               </ResizableSortableTh>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
             <tr v-if="isLoading">
               <td :colspan="columns.length" class="p-10 text-center text-foreground-secondary">
                 {{ t("common.loading") }}
@@ -920,7 +923,7 @@ onUnmounted(() => {
               v-for="item in table.sortedRows.value"
               v-else
               :key="item.id"
-              class="border-b border-border last:border-b-0 hover:bg-hover"
+              class="hover:bg-hover"
             >
               <td :style="table.columnStyle('select')" class="px-4 py-3">
                 <input

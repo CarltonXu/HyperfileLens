@@ -77,7 +77,7 @@
     <TransitionRoot appear :show="showRemoveUserConfirm" as="template">
       <Dialog
         as="div"
-        class="relative z-[60]"
+        class="relative z-[10000]"
         @close="showRemoveUserConfirm = false"
       >
         <TransitionChild
@@ -90,11 +90,11 @@
           leave-to="opacity-0"
         >
           <div
-            class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity"
+            class="fixed inset-0 bg-black/50 transition-opacity"
           />
         </TransitionChild>
 
-        <div class="fixed inset-0 z-[60] overflow-y-auto">
+        <div class="fixed inset-0 z-[10000] overflow-y-auto">
           <div class="flex min-h-full items-center justify-center p-4">
             <TransitionChild
               as="template"
@@ -162,7 +162,11 @@
 
     <!-- Delete Confirmation -->
     <TransitionRoot appear :show="showDeleteConfirm" as="template">
-      <Dialog as="div" class="relative z-10" @close="closeDeleteConfirm">
+      <Dialog
+        as="div"
+        class="relative z-[10000]"
+        @close="closeDeleteConfirm"
+      >
         <TransitionChild
           as="template"
           enter="duration-300 ease-out"
@@ -173,11 +177,11 @@
           leave-to="opacity-0"
         >
           <div
-            class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity"
+            class="fixed inset-0 bg-black/50 transition-opacity"
           />
         </TransitionChild>
 
-        <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="fixed inset-0 z-[10000] overflow-y-auto">
           <div
             class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
           >

@@ -2856,6 +2856,20 @@ export default {
       applyJson: "Apply JSON",
       jsonApplied: "JSON configuration applied",
       invalidJson: "Invalid JSON configuration",
+      testChat: "Quick Test Chat",
+      testChatHint:
+        "Send a lightweight chat completion request with the saved provider configuration.",
+      testChatSaveHint:
+        "Save the provider first. Unsaved API keys are not sent to the test endpoint.",
+      testPromptPlaceholder: "Enter a short prompt to test this provider",
+      sendTest: "Send Test",
+      testing: "Testing",
+      testFailed: "Provider test failed",
+      testSaveFirst: "Save the AI provider before testing.",
+      testPromptRequired: "Enter a test prompt.",
+      savedProvider: "Saved",
+      unsavedProvider: "Save required",
+      latency: "Latency",
     },
 
     smtp: {

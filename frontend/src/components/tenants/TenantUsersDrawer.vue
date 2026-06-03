@@ -60,14 +60,14 @@ function handleEmailInput(event: Event) {
   <Teleport to="body">
     <div
       v-if="show"
-      class="fixed inset-0 z-50 overflow-y-auto"
+      class="fixed inset-0 z-[10000] overflow-y-auto"
       aria-labelledby="modal-title"
       role="dialog"
       aria-modal="true"
     >
       <div class="flex min-h-screen items-center justify-center p-4">
         <div
-          class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity"
+          class="fixed inset-0 bg-black/50 transition-opacity"
           @click="emit('close')"
         />
 

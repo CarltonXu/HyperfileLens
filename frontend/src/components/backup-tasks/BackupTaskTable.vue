@@ -149,10 +149,13 @@ function progressPrimaryText(task: BackupTask) {
     </p>
   </div>
 
-  <div v-else class="rounded-xl border border-border bg-card shadow-sm">
-    <div class="overflow-x-auto">
+  <div
+    v-else
+    class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+  >
+    <div class="relative min-h-0 flex-1 overflow-auto bg-card">
       <table
-        class="w-full table-fixed"
+        class="w-full table-fixed border-separate border-spacing-0"
         :style="{ minWidth: table.tableMinWidth.value }"
       >
         <colgroup>
@@ -162,7 +165,7 @@ function progressPrimaryText(task: BackupTask) {
             :style="table.columnStyle(column.key)"
           />
         </colgroup>
-        <thead class="border-b border-border bg-background-secondary">
+        <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
           <tr>
             <ResizableSortableTh
               v-for="column in columns"
@@ -175,13 +178,14 @@ function progressPrimaryText(task: BackupTask) {
               :align="column.align"
               :sort-icon="table.getSortIcon(column.key)"
               :resizing="table.resizingColumn.value === column.key"
+              header-class="border-b border-border"
               @sort="sortColumn"
               @resize-start="startResize"
               @resize-reset="resetColumnWidth"
             />
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
           <tr
             v-for="task in tasks"
             :key="task.id"

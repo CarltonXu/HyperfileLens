@@ -2734,6 +2734,18 @@ export default {
       applyJson: "应用 JSON",
       jsonApplied: "JSON 配置已应用",
       invalidJson: "JSON 配置格式不正确",
+      testChat: "快速测试聊天",
+      testChatHint: "使用已保存的 Provider 配置发送一次轻量 Chat Completions 请求。",
+      testChatSaveHint: "请先保存 Provider。未保存的 API Key 不会发送到测试接口。",
+      testPromptPlaceholder: "输入一句简短提示词来测试该 Provider",
+      sendTest: "发送测试",
+      testing: "测试中",
+      testFailed: "Provider 测试失败",
+      testSaveFirst: "请先保存 AI Provider 再测试。",
+      testPromptRequired: "请输入测试提示词。",
+      savedProvider: "已保存",
+      unsavedProvider: "需要保存",
+      latency: "耗时",
     },
 
     smtp: {

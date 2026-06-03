@@ -81,10 +81,13 @@ const { t } = useI18n();
     </p>
   </div>
 
-  <div v-else class="rounded-xl border border-border overflow-hidden">
-    <div class="overflow-x-auto">
+  <div
+    v-else
+    class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card"
+  >
+    <div class="relative min-h-0 flex-1 overflow-auto bg-card">
       <table
-        class="w-full table-fixed divide-y divide-border"
+        class="w-full table-fixed border-separate border-spacing-0"
         :style="{ minWidth: table.tableMinWidth.value }"
       >
         <colgroup>
@@ -94,7 +97,7 @@ const { t } = useI18n();
             :style="table.columnStyle(column.key)"
           />
         </colgroup>
-        <thead class="bg-background-secondary">
+        <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
           <tr>
             <ResizableSortableTh
               v-for="column in columns"
@@ -107,6 +110,7 @@ const { t } = useI18n();
               :align="column.align"
               :sort-icon="table.getSortIcon(column.key)"
               :resizing="table.resizingColumn.value === column.key"
+              header-class="border-b border-border"
               :sticky="
                 column.key === 'name'
                   ? 'left'
@@ -120,7 +124,7 @@ const { t } = useI18n();
             />
           </tr>
         </thead>
-        <tbody class="bg-card divide-y divide-border">
+        <tbody class="bg-card [&>tr>td]:border-b [&>tr>td]:border-border">
           <tr
             v-for="repo in table.sortedRows.value"
             :key="repo.id"

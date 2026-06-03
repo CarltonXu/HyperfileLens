@@ -94,12 +94,12 @@ const { t } = useI18n();
 
 <template>
   <Teleport to="body">
-    <div v-if="showCreateDialog" class="fixed inset-0 z-50 overflow-y-auto">
+    <div v-if="showCreateDialog" class="fixed inset-0 z-[10000] overflow-y-auto">
       <div
         class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
       >
         <div
-          class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          class="fixed inset-0 bg-black/50 transition-opacity"
           @click="emit('closeCreate')"
         />
         <div
@@ -247,12 +247,12 @@ const { t } = useI18n();
   </Teleport>
 
   <Teleport to="body">
-    <div v-if="showEditDialog" class="fixed inset-0 z-50 overflow-y-auto">
+    <div v-if="showEditDialog" class="fixed inset-0 z-[10000] overflow-y-auto">
       <div
         class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
       >
         <div
-          class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          class="fixed inset-0 bg-black/50 transition-opacity"
           @click="emit('closeEdit')"
         />
         <div
@@ -367,12 +367,12 @@ const { t } = useI18n();
   </Teleport>
 
   <Teleport to="body">
-    <div v-if="showInviteDialog" class="fixed inset-0 z-50 overflow-y-auto">
+    <div v-if="showInviteDialog" class="fixed inset-0 z-[10000] overflow-y-auto">
       <div
         class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
       >
         <div
-          class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          class="fixed inset-0 bg-black/50 transition-opacity"
           @click="emit('closeInvite')"
         />
         <div
@@ -472,13 +472,13 @@ const { t } = useI18n();
   <Teleport to="body">
     <div
       v-if="showResetPasswordDialog"
-      class="fixed inset-0 z-50 overflow-y-auto"
+      class="fixed inset-0 z-[10000] overflow-y-auto"
     >
       <div
         class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
       >
         <div
-          class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          class="fixed inset-0 bg-black/50 transition-opacity"
           @click="emit('closeResetPassword')"
         />
         <div
@@ -543,12 +543,12 @@ const { t } = useI18n();
   </Teleport>
 
   <Teleport to="body">
-    <div v-if="showJoinTenantDialog" class="fixed inset-0 z-50 overflow-y-auto">
+    <div v-if="showJoinTenantDialog" class="fixed inset-0 z-[10000] overflow-y-auto">
       <div
         class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
       >
         <div
-          class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          class="fixed inset-0 bg-black/50 transition-opacity"
           @click="emit('closeJoinTenant')"
         />
         <div
@@ -637,12 +637,12 @@ const { t } = useI18n();
   </Teleport>
 
   <Teleport to="body">
-    <div v-if="showDeleteDialog" class="fixed inset-0 z-50 overflow-y-auto">
+    <div v-if="showDeleteDialog" class="fixed inset-0 z-[10000] overflow-y-auto">
       <div
         class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
       >
         <div
-          class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          class="fixed inset-0 bg-black/50 transition-opacity"
           @click="emit('closeDelete')"
         />
         <div

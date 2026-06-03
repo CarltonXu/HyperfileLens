@@ -69,10 +69,12 @@ function resetColumnWidth(key: string) {
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-xl border border-border bg-card">
-    <div class="overflow-x-auto">
+  <div
+    class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card"
+  >
+    <div class="relative min-h-0 flex-1 overflow-auto bg-card">
       <table
-        class="w-full table-fixed divide-y divide-border"
+        class="w-full table-fixed border-separate border-spacing-0"
         :style="{ minWidth: table.tableMinWidth.value }"
       >
         <colgroup>
@@ -82,7 +84,7 @@ function resetColumnWidth(key: string) {
             :style="table.columnStyle(column.key)"
           />
         </colgroup>
-        <thead class="bg-background-secondary">
+        <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
           <tr>
             <ResizableSortableTh
               v-for="column in columns"
@@ -95,13 +97,14 @@ function resetColumnWidth(key: string) {
               :align="column.align"
               :sort-icon="table.getSortIcon(column.key)"
               :resizing="table.resizingColumn.value === column.key"
+              header-class="border-b border-border"
               @sort="sortColumn"
               @resize-start="startResize"
               @resize-reset="resetColumnWidth"
             />
           </tr>
         </thead>
-        <tbody class="divide-y divide-border">
+        <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
           <tr
             v-for="resource in resources"
             :key="resource.id"

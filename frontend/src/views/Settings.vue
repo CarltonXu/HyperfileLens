@@ -13,6 +13,7 @@ import {
   InformationCircleIcon,
   ServerStackIcon,
   EnvelopeIcon,
+  PaperAirplaneIcon,
 } from "@heroicons/vue/24/outline";
 import ThemeSwitcher from "@/components/ThemeSwitcher.vue";
 import { usePagination } from "@/composables/usePagination";
@@ -63,6 +64,11 @@ const aiProviderJsonError = ref("");
 const providerJson = ref("");
 const selectedProviderPreset = ref("openai");
 const aiInsightsEnabled = ref(false);
+const aiTestMessage = ref("Hello, please reply with one short sentence.");
+const aiTestResult = ref<any>(null);
+const aiTestError = ref("");
+const isTestingProvider = ref(false);
+const showAiTestPanel = ref(false);
 const providerForm = ref({
   name: "Default AI Provider",
   provider_type: "openai_compatible",
@@ -79,14 +85,25 @@ const aiProviderPresets = computed(() => [
   {
     id: "openai",
     label: "OpenAI",
+    name: "OpenAI",
     provider_type: "openai",
     base_url: "https://api.openai.com/v1",
     default_model: "gpt-4.1-mini",
     config: {},
   },
   {
+    id: "agione_hyperone",
+    label: "Agione HyperOne",
+    name: "Agione HyperOne",
+    provider_type: "openai_compatible",
+    base_url: "https://agione.cc/hyperone/xapi/api",
+    default_model: "z-ai/glm-4.7/57f69",
+    config: {},
+  },
+  {
     id: "openrouter",
     label: "OpenRouter",
+    name: "OpenRouter",
     provider_type: "openai_compatible",
     base_url: "https://openrouter.ai/api/v1",
     default_model: "openai/gpt-4.1-mini",
@@ -100,6 +117,7 @@ const aiProviderPresets = computed(() => [
   {
     id: "deepseek",
     label: "DeepSeek",
+    name: "DeepSeek",
     provider_type: "openai_compatible",
     base_url: "https://api.deepseek.com/v1",
     default_model: "deepseek-chat",
@@ -108,6 +126,7 @@ const aiProviderPresets = computed(() => [
   {
     id: "local",
     label: "Local Fallback",
+    name: "Local Fallback",
     provider_type: "local",
     base_url: "",
     default_model: "rule-summary",
@@ -116,6 +135,7 @@ const aiProviderPresets = computed(() => [
   {
     id: "custom",
     label: t("settings.aiInsights.customPreset"),
+    name: "Custom AI Provider",
     provider_type: "openai_compatible",
     base_url: "",
     default_model: "",
@@ -278,6 +298,7 @@ async function fetchAiProvider() {
 
 function inferProviderPreset(baseUrl: string, providerType: string) {
   if (providerType === "local") return "local";
+  if (baseUrl.includes("agione.cc/hyperone/xapi/api")) return "agione_hyperone";
   if (baseUrl.includes("openrouter.ai")) return "openrouter";
   if (baseUrl.includes("deepseek.com")) return "deepseek";
   if (baseUrl.includes("api.openai.com")) return "openai";
@@ -287,6 +308,7 @@ function inferProviderPreset(baseUrl: string, providerType: string) {
 function applyProviderPreset() {
   const preset = aiProviderPresets.value.find((item) => item.id === selectedProviderPreset.value);
   if (!preset || preset.id === "custom") return;
+  providerForm.value.name = preset.name || preset.label || providerForm.value.name;
   providerForm.value.provider_type = preset.provider_type;
   providerForm.value.base_url = preset.base_url;
   providerForm.value.default_model = preset.default_model;
@@ -349,11 +371,49 @@ async function saveAiProvider() {
     aiInsightsEnabled.value = response.data.is_enabled === true;
     providerForm.value.is_enabled = aiInsightsEnabled.value;
     providerForm.value.api_key = "";
+    aiTestResult.value = null;
+    aiTestError.value = "";
     aiProviderSuccess.value = t("settings.aiInsights.saved");
   } catch (error: any) {
     aiProviderError.value = error?.response?.data?.error || error?.response?.data?.api_key || t("settings.aiInsights.saveFailed");
   } finally {
     isSavingProvider.value = false;
+  }
+}
+
+async function testAiProviderChat() {
+  aiProviderError.value = "";
+  aiProviderSuccess.value = "";
+  aiTestError.value = "";
+  aiTestResult.value = null;
+
+  if (!aiProvider.value?.id) {
+    aiTestError.value = t("settings.aiInsights.testSaveFirst");
+    return;
+  }
+
+  const message = aiTestMessage.value.trim();
+  if (!message) {
+    aiTestError.value = t("settings.aiInsights.testPromptRequired");
+    return;
+  }
+
+  isTestingProvider.value = true;
+  try {
+    const response = await aiInsightsApi.testProviderChat(aiProvider.value.id, {
+      message,
+    });
+    aiTestResult.value = response.data;
+  } catch (error: any) {
+    aiTestError.value =
+      error?.response?.data?.error ||
+      error?.response?.data?.detail ||
+      t("settings.aiInsights.testFailed");
+    if (error?.response?.data?.url) {
+      aiTestResult.value = { url: error.response.data.url };
+    }
+  } finally {
+    isTestingProvider.value = false;
   }
 }
 
@@ -802,6 +862,13 @@ watch(tabs, ensureActiveTab);
           </div>
 
           <template v-else>
+          <div
+            :class="[
+              showAiTestPanel
+                ? 'grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]'
+                : 'block',
+            ]">
+          <div class="space-y-5">
           <div class="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
             <div class="rounded-lg border border-border bg-background/40 p-4">
               <h4 class="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -944,12 +1011,105 @@ watch(tabs, ensureActiveTab);
             <p class="text-xs leading-5 text-foreground-muted">
               {{ t("settings.aiInsights.saveHint") }}
             </p>
-            <button
-              class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md disabled:opacity-50"
-              :disabled="isSavingProvider"
-              @click="saveAiProvider">
-              {{ isSavingProvider ? t("common.saving") : t("common.save") }}
-            </button>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <button
+                class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md disabled:opacity-50"
+                :disabled="isSavingProvider"
+                @click="saveAiProvider">
+                {{ isSavingProvider ? t("common.saving") : t("common.save") }}
+              </button>
+              <button
+                class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground"
+                @click="showAiTestPanel = !showAiTestPanel">
+                <SparklesIcon class="h-4 w-4 text-indigo-500" />
+                {{
+                  showAiTestPanel
+                    ? t("common.close")
+                    : t("settings.aiInsights.testChat")
+                }}
+              </button>
+            </div>
+          </div>
+          </div>
+
+          <aside
+            v-if="showAiTestPanel"
+            class="rounded-lg border border-border bg-background/40 xl:sticky xl:top-4 xl:self-start">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+              <div>
+                <h4 class="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <SparklesIcon class="h-4 w-4 text-indigo-500" />
+                  {{ t("settings.aiInsights.testChat") }}
+                </h4>
+                <p class="mt-1 text-xs text-foreground-muted">
+                  {{ t("settings.aiInsights.testChatHint") }}
+                </p>
+              </div>
+              <span
+                v-if="aiProvider?.id"
+                class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                {{ t("settings.aiInsights.savedProvider") }}
+              </span>
+              <span
+                v-else
+                class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                {{ t("settings.aiInsights.unsavedProvider") }}
+              </span>
+            </div>
+            <div class="space-y-3 p-4">
+              <textarea
+                v-model="aiTestMessage"
+                rows="3"
+                class="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                :placeholder="t('settings.aiInsights.testPromptPlaceholder')" />
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-xs leading-5 text-foreground-muted">
+                  {{ t("settings.aiInsights.testChatSaveHint") }}
+                </p>
+                <button
+                  class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="isTestingProvider || !aiProvider?.id"
+                  @click="testAiProviderChat">
+                  <PaperAirplaneIcon class="h-4 w-4" />
+                  {{
+                    isTestingProvider
+                      ? t("settings.aiInsights.testing")
+                      : t("settings.aiInsights.sendTest")
+                  }}
+                </button>
+              </div>
+
+              <div
+                v-if="aiTestError"
+                class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+                {{ aiTestError }}
+              </div>
+              <div
+                v-if="aiTestResult"
+                class="rounded-lg border border-border bg-card p-3">
+                <div class="flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
+                  <span v-if="aiTestResult.model">
+                    {{ t("settings.aiInsights.model") }}:
+                    <span class="font-medium text-foreground">{{ aiTestResult.model }}</span>
+                  </span>
+                  <span v-if="aiTestResult.latency_ms">
+                    {{ t("settings.aiInsights.latency") }}:
+                    <span class="font-medium text-foreground">{{ aiTestResult.latency_ms }}ms</span>
+                  </span>
+                </div>
+                <p
+                  v-if="aiTestResult.url"
+                  class="mt-2 break-all font-mono text-xs text-foreground-muted">
+                  {{ aiTestResult.url }}
+                </p>
+                <p
+                  v-if="aiTestResult.answer"
+                  class="mt-3 whitespace-pre-wrap rounded-md bg-background px-3 py-2 text-sm leading-6 text-foreground">
+                  {{ aiTestResult.answer }}
+                </p>
+              </div>
+            </div>
+          </aside>
           </div>
           </template>
         </div>

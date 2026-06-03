@@ -38,7 +38,7 @@ const { t } = useI18n();
 
 <template>
   <TransitionRoot appear :show="show" as="template">
-    <Dialog as="div" class="relative z-10" @close="emit('close')">
+    <Dialog as="div" class="relative z-[10000]" @close="emit('close')">
       <TransitionChild
         as="template"
         enter="duration-300 ease-out"
@@ -49,11 +49,11 @@ const { t } = useI18n();
         leave-to="opacity-0"
       >
         <div
-          class="fixed inset-0 bg-slate-900/75 dark:bg-slate-900/75 transition-opacity"
+          class="fixed inset-0 bg-black/50 transition-opacity"
         />
       </TransitionChild>
 
-      <div class="fixed inset-0 z-10 overflow-y-auto">
+      <div class="fixed inset-0 z-[10000] overflow-y-auto">
         <div
           class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
         >

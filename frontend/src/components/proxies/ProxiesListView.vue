@@ -97,10 +97,13 @@ const { t } = useI18n();
     </button>
   </div>
 
-  <div v-else class="bg-card rounded-xl border border-border overflow-hidden">
-    <div class="overflow-x-auto">
+  <div
+    v-else
+    class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card"
+  >
+    <div class="relative min-h-0 flex-1 overflow-auto bg-card">
       <table
-        class="w-full table-fixed divide-y divide-border"
+        class="w-full table-fixed border-separate border-spacing-0"
         :style="{ minWidth: tableMinWidth }"
       >
         <colgroup>
@@ -111,14 +114,14 @@ const { t } = useI18n();
           />
           <col :style="columnStyle('actions')" />
         </colgroup>
-        <thead class="bg-background-secondary">
+        <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
           <tr>
             <th
               v-for="column in columns"
               :key="column.key"
               :style="columnStyle(column.key)"
               :class="[
-                'relative bg-background-secondary px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider whitespace-nowrap',
+                'relative border-b border-border bg-background-secondary px-4 py-3 text-left text-xs font-medium text-foreground-secondary uppercase tracking-wider whitespace-nowrap',
                 column.key === 'name' ? 'sticky left-0 z-10' : '',
               ]"
             >
@@ -155,7 +158,7 @@ const { t } = useI18n();
             </th>
             <th
               :style="columnStyle('actions')"
-              class="sticky right-0 bg-background-secondary px-4 py-3 text-right text-xs font-medium text-foreground-secondary z-10"
+              class="sticky right-0 z-10 border-b border-border bg-background-secondary px-4 py-3 text-right text-xs font-medium text-foreground-secondary"
             >
               <span class="uppercase tracking-wider">{{
                 t("proxies.list.actions")
@@ -163,7 +166,7 @@ const { t } = useI18n();
             </th>
           </tr>
         </thead>
-        <tbody class="bg-card divide-y divide-border">
+        <tbody class="bg-card [&>tr>td]:border-b [&>tr>td]:border-border">
           <tr
             v-for="proxy in proxies"
             :key="proxy.id"

@@ -103,10 +103,10 @@ function formatDuration(startedAt?: string, completedAt?: string): string {
 
   <div
     v-else
-    class="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-    <div class="overflow-x-auto">
+    class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+    <div class="relative min-h-0 flex-1 overflow-auto bg-card">
       <table
-        class="w-full table-fixed"
+        class="w-full table-fixed border-separate border-spacing-0"
         :style="{ minWidth: table.tableMinWidth.value }">
         <colgroup>
           <col
@@ -114,7 +114,7 @@ function formatDuration(startedAt?: string, completedAt?: string): string {
             :key="column.key"
             :style="table.columnStyle(column.key)" />
         </colgroup>
-        <thead class="bg-background-secondary border-b border-border">
+        <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
           <tr>
             <ResizableSortableTh
               v-for="column in columns"
@@ -127,6 +127,7 @@ function formatDuration(startedAt?: string, completedAt?: string): string {
               :align="column.align"
               :sort-icon="table.getSortIcon(column.key)"
               :resizing="table.resizingColumn.value === column.key"
+              header-class="border-b border-border"
               @sort="table.toggleSort($event as RecoveryTaskColumnKey)"
               @resize-start="
                 (key, event) =>
@@ -137,7 +138,7 @@ function formatDuration(startedAt?: string, completedAt?: string): string {
               " />
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
           <tr
             v-for="task in tasks"
             :key="task.id"

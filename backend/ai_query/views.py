@@ -2,9 +2,11 @@
 HyperFileLens Backend - AI Query Views
 """
 
+import time
 from datetime import timedelta
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
+import requests
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -13,6 +15,15 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import AIProvider, AIQuery
 from .serializers import AIProviderSerializer, AIQuerySerializer, AIQueryCreateSerializer
 from .services import dispatch_ai_query
+
+
+def _chat_completions_url(base_url):
+    normalized = str(base_url or '').rstrip('/')
+    if normalized.endswith('/chat/completions'):
+        return normalized
+    if normalized.endswith('/v1'):
+        return f'{normalized}/chat/completions'
+    return f'{normalized}/v1/chat/completions'
 
 
 def _format_bytes(value):
@@ -201,6 +212,82 @@ class AIProviderViewSet(viewsets.ModelViewSet):
         if not provider:
             return Response({'detail': 'No AI provider configured'}, status=status.HTTP_404_NOT_FOUND)
         return Response(AIProviderSerializer(provider).data)
+
+    @action(detail=True, methods=['post'], url_path='test-chat')
+    def test_chat(self, request, pk=None):
+        provider = self.get_object()
+        prompt = (request.data.get('message') or 'Hello').strip()
+        if provider.provider_type == AIProvider.PROVIDER_LOCAL:
+            return Response({
+                'success': True,
+                'provider': provider.provider_type,
+                'model': provider.default_model or 'rule-summary',
+                'answer': f'Local fallback is enabled. Test prompt: {prompt}',
+                'url': '',
+                'latency_ms': 0,
+            })
+
+        api_key = provider.get_decrypted_api_key()
+        if not api_key:
+            return Response({'success': False, 'error': 'API key is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        url = _chat_completions_url(provider.base_url)
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {api_key}',
+        }
+        extra_headers = (provider.config or {}).get('headers') if isinstance(provider.config, dict) else None
+        if isinstance(extra_headers, dict):
+            headers.update({str(key): str(value) for key, value in extra_headers.items()})
+
+        payload = {
+            'stream': False,
+            'model': provider.default_model,
+            'messages': [
+                {
+                    'role': 'system',
+                    'content': 'You are a connectivity test assistant for HyperFileLens. Reply briefly.',
+                },
+                {'role': 'user', 'content': prompt},
+            ],
+            'max_tokens': int(request.data.get('max_tokens') or 160),
+            'temperature': 0.2,
+        }
+        started = time.monotonic()
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=max(5, min(int(provider.timeout_seconds or 60), 120)),
+            )
+            latency_ms = int((time.monotonic() - started) * 1000)
+            response.raise_for_status()
+            data = response.json()
+            answer = ''
+            choices = data.get('choices') or []
+            if choices:
+                message = choices[0].get('message') or {}
+                answer = message.get('content') or choices[0].get('text') or ''
+            return Response({
+                'success': True,
+                'provider': provider.provider_type,
+                'model': data.get('model') or provider.default_model,
+                'answer': answer,
+                'url': url,
+                'latency_ms': latency_ms,
+                'usage': data.get('usage') or {},
+            })
+        except requests.HTTPError as exc:
+            body = exc.response.text[:1000] if exc.response is not None else str(exc)
+            return Response({
+                'success': False,
+                'error': body,
+                'url': url,
+                'status_code': exc.response.status_code if exc.response is not None else None,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'success': False, 'error': str(exc), 'url': url}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ============== Gateway Proxy Views ==============
