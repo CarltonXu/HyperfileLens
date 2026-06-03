@@ -246,7 +246,7 @@ class AIProviderViewSet(viewsets.ModelViewSet):
             'messages': [
                 {
                     'role': 'system',
-                    'content': 'You are a connectivity test assistant for HyperFileLens. Reply briefly.',
+                    'content': 'You are a helpful AI assistant. Answer the user naturally and concisely.',
                 },
                 {'role': 'user', 'content': prompt},
             ],

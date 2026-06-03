@@ -2861,10 +2861,13 @@ export default {
         "Send a lightweight chat completion request with the saved provider configuration.",
       testChatSaveHint:
         "Save the provider first. Unsaved API keys are not sent to the test endpoint.",
+      testEmptyState:
+        "Send a message to verify the provider response. The conversation is only used for this quick test.",
       testPromptPlaceholder: "Enter a short prompt to test this provider",
       sendTest: "Send Test",
       testing: "Testing",
       testFailed: "Provider test failed",
+      testNoAnswer: "The provider returned successfully, but no answer content was found.",
       testSaveFirst: "Save the AI provider before testing.",
       testPromptRequired: "Enter a test prompt.",
       savedProvider: "Saved",

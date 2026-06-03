@@ -14,6 +14,7 @@ import {
   ServerStackIcon,
   EnvelopeIcon,
   PaperAirplaneIcon,
+  XMarkIcon,
 } from "@heroicons/vue/24/outline";
 import ThemeSwitcher from "@/components/ThemeSwitcher.vue";
 import { usePagination } from "@/composables/usePagination";
@@ -69,6 +70,18 @@ const aiTestResult = ref<any>(null);
 const aiTestError = ref("");
 const isTestingProvider = ref(false);
 const showAiTestPanel = ref(false);
+const aiTestMessages = ref<
+  Array<{
+    role: "user" | "assistant";
+    content: string;
+    status?: "error";
+    meta?: {
+      model?: string;
+      latency_ms?: number;
+      url?: string;
+    };
+  }>
+>([]);
 const providerForm = ref({
   name: "Default AI Provider",
   provider_type: "openai_compatible",
@@ -398,12 +411,26 @@ async function testAiProviderChat() {
     return;
   }
 
+  aiTestMessages.value.push({
+    role: "user",
+    content: message,
+  });
+  aiTestMessage.value = "";
   isTestingProvider.value = true;
   try {
     const response = await aiInsightsApi.testProviderChat(aiProvider.value.id, {
       message,
     });
     aiTestResult.value = response.data;
+    aiTestMessages.value.push({
+      role: "assistant",
+      content: response.data.answer || t("settings.aiInsights.testNoAnswer"),
+      meta: {
+        model: response.data.model,
+        latency_ms: response.data.latency_ms,
+        url: response.data.url,
+      },
+    });
   } catch (error: any) {
     aiTestError.value =
       error?.response?.data?.error ||
@@ -412,6 +439,14 @@ async function testAiProviderChat() {
     if (error?.response?.data?.url) {
       aiTestResult.value = { url: error.response.data.url };
     }
+    aiTestMessages.value.push({
+      role: "assistant",
+      content: aiTestError.value,
+      status: "error",
+      meta: {
+        url: error?.response?.data?.url,
+      },
+    });
   } finally {
     isTestingProvider.value = false;
   }
@@ -456,27 +491,30 @@ watch(tabs, ensureActiveTab);
       <p class="text-foreground-secondary mt-1">{{ t("settings.subtitle") }}</p>
     </div>
 
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[240px_1fr]">
-      <aside class="rounded-xl border border-border bg-card p-2 shadow-sm lg:self-start">
-        <nav class="space-y-1">
+    <div class="space-y-6">
+      <div class="rounded-xl border border-border bg-card px-2 shadow-sm">
+        <nav class="flex gap-1 overflow-x-auto">
           <button
             v-for="tab in tabs"
             :key="tab.id"
             :class="[
-              'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors',
+              'relative flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-medium transition-colors',
               activeTab === tab.id
-                ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                : 'text-foreground-secondary hover:bg-hover hover:text-foreground',
+                ? 'text-indigo-700 dark:text-indigo-300'
+                : 'text-foreground-secondary hover:text-foreground',
             ]"
             @click="activeTab = tab.id">
             <component :is="tab.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="truncate">{{ tab.label }}</span>
+            <span
+              v-if="activeTab === tab.id"
+              class="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
           </button>
         </nav>
-      </aside>
+      </div>
 
     <!-- Content -->
-      <div class="min-w-0 max-w-5xl">
+      <div class="min-w-0">
       <!-- Profile -->
       <div
         v-if="activeTab === 'profile'"
@@ -862,12 +900,6 @@ watch(tabs, ensureActiveTab);
           </div>
 
           <template v-else>
-          <div
-            :class="[
-              showAiTestPanel
-                ? 'grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]'
-                : 'block',
-            ]">
           <div class="space-y-5">
           <div class="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
             <div class="rounded-lg border border-border bg-background/40 p-4">
@@ -1020,96 +1052,119 @@ watch(tabs, ensureActiveTab);
               </button>
               <button
                 class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 font-medium text-foreground-secondary transition-colors hover:bg-hover hover:text-foreground"
-                @click="showAiTestPanel = !showAiTestPanel">
+                @click="showAiTestPanel = true">
                 <SparklesIcon class="h-4 w-4 text-indigo-500" />
-                {{
-                  showAiTestPanel
-                    ? t("common.close")
-                    : t("settings.aiInsights.testChat")
-                }}
+                {{ t("settings.aiInsights.testChat") }}
               </button>
             </div>
           </div>
           </div>
 
-          <aside
+          <div
             v-if="showAiTestPanel"
-            class="rounded-lg border border-border bg-background/40 xl:sticky xl:top-4 xl:self-start">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-              <div>
-                <h4 class="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <SparklesIcon class="h-4 w-4 text-indigo-500" />
-                  {{ t("settings.aiInsights.testChat") }}
-                </h4>
-                <p class="mt-1 text-xs text-foreground-muted">
-                  {{ t("settings.aiInsights.testChatHint") }}
-                </p>
-              </div>
-              <span
-                v-if="aiProvider?.id"
-                class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                {{ t("settings.aiInsights.savedProvider") }}
-              </span>
-              <span
-                v-else
-                class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                {{ t("settings.aiInsights.unsavedProvider") }}
-              </span>
-            </div>
-            <div class="space-y-3 p-4">
-              <textarea
-                v-model="aiTestMessage"
-                rows="3"
-                class="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-                :placeholder="t('settings.aiInsights.testPromptPlaceholder')" />
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <p class="text-xs leading-5 text-foreground-muted">
-                  {{ t("settings.aiInsights.testChatSaveHint") }}
-                </p>
+            class="fixed inset-0 z-[10000] bg-black/50"
+            @click.self="showAiTestPanel = false">
+            <aside
+              class="ml-auto flex h-full w-full flex-col border-l border-border bg-card shadow-2xl sm:w-[60vw] sm:max-w-[60vw]">
+              <div class="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+                <div>
+                  <h4 class="inline-flex items-center gap-2 text-base font-semibold text-foreground">
+                    <SparklesIcon class="h-5 w-5 text-indigo-500" />
+                    {{ t("settings.aiInsights.testChat") }}
+                  </h4>
+                  <p class="mt-1 text-sm leading-5 text-foreground-secondary">
+                    {{ t("settings.aiInsights.testChatHint") }}
+                  </p>
+                  <span
+                    v-if="aiProvider?.id"
+                    class="mt-3 inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                    {{ t("settings.aiInsights.savedProvider") }}
+                  </span>
+                  <span
+                    v-else
+                    class="mt-3 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                    {{ t("settings.aiInsights.unsavedProvider") }}
+                  </span>
+                </div>
                 <button
-                  class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="isTestingProvider || !aiProvider?.id"
-                  @click="testAiProviderChat">
-                  <PaperAirplaneIcon class="h-4 w-4" />
-                  {{
-                    isTestingProvider
-                      ? t("settings.aiInsights.testing")
-                      : t("settings.aiInsights.sendTest")
-                  }}
+                  class="rounded-lg p-2 text-foreground-muted transition-colors hover:bg-hover hover:text-foreground"
+                  :aria-label="t('common.close')"
+                  @click="showAiTestPanel = false">
+                  <XMarkIcon class="h-5 w-5" />
                 </button>
               </div>
 
-              <div
-                v-if="aiTestError"
-                class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
-                {{ aiTestError }}
-              </div>
-              <div
-                v-if="aiTestResult"
-                class="rounded-lg border border-border bg-card p-3">
-                <div class="flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
-                  <span v-if="aiTestResult.model">
-                    {{ t("settings.aiInsights.model") }}:
-                    <span class="font-medium text-foreground">{{ aiTestResult.model }}</span>
-                  </span>
-                  <span v-if="aiTestResult.latency_ms">
-                    {{ t("settings.aiInsights.latency") }}:
-                    <span class="font-medium text-foreground">{{ aiTestResult.latency_ms }}ms</span>
-                  </span>
+              <div class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-background/50 px-5 py-5">
+                <div
+                  v-if="aiTestMessages.length === 0"
+                  class="rounded-lg border border-dashed border-border bg-card px-4 py-5 text-sm leading-6 text-foreground-secondary">
+                  {{ t("settings.aiInsights.testEmptyState") }}
                 </div>
-                <p
-                  v-if="aiTestResult.url"
-                  class="mt-2 break-all font-mono text-xs text-foreground-muted">
-                  {{ aiTestResult.url }}
-                </p>
-                <p
-                  v-if="aiTestResult.answer"
-                  class="mt-3 whitespace-pre-wrap rounded-md bg-background px-3 py-2 text-sm leading-6 text-foreground">
-                  {{ aiTestResult.answer }}
-                </p>
+                <div
+                  v-for="(message, index) in aiTestMessages"
+                  :key="index"
+                  :class="[
+                    'flex',
+                    message.role === 'user' ? 'justify-end' : 'justify-start',
+                  ]">
+                  <div
+                    :class="[
+                      'max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm',
+                      message.role === 'user'
+                        ? 'rounded-br-md bg-indigo-600 text-white'
+                        : message.status === 'error'
+                          ? 'rounded-bl-md border border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300'
+                          : 'rounded-bl-md border border-border bg-card text-foreground',
+                    ]">
+                    <p class="whitespace-pre-wrap">{{ message.content }}</p>
+                    <div
+                      v-if="message.meta?.model || message.meta?.latency_ms || message.meta?.url"
+                      class="mt-2 space-y-1 border-t border-current/10 pt-2 text-[11px] leading-4 opacity-75">
+                      <p v-if="message.meta?.model">
+                        {{ t("settings.aiInsights.model") }}: {{ message.meta.model }}
+                      </p>
+                      <p v-if="message.meta?.latency_ms">
+                        {{ t("settings.aiInsights.latency") }}: {{ message.meta.latency_ms }}ms
+                      </p>
+                      <p
+                        v-if="message.meta?.url"
+                        class="break-all font-mono">
+                        {{ message.meta.url }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  v-if="isTestingProvider"
+                  class="flex justify-start">
+                  <div class="rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3 text-sm text-foreground-secondary shadow-sm">
+                    {{ t("settings.aiInsights.testing") }}
+                  </div>
+                </div>
               </div>
-            </div>
-          </aside>
+
+              <div class="border-t border-border bg-card p-4">
+                <p
+                  v-if="!aiProvider?.id"
+                  class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                  {{ t("settings.aiInsights.testChatSaveHint") }}
+                </p>
+                <div class="flex items-end gap-2">
+                  <textarea
+                    v-model="aiTestMessage"
+                    rows="3"
+                    class="min-h-[76px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                    :placeholder="t('settings.aiInsights.testPromptPlaceholder')" />
+                  <button
+                    class="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="isTestingProvider || !aiProvider?.id || !aiTestMessage.trim()"
+                    :title="isTestingProvider ? t('settings.aiInsights.testing') : t('settings.aiInsights.sendTest')"
+                    @click="testAiProviderChat">
+                    <PaperAirplaneIcon class="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+            </aside>
           </div>
           </template>
         </div>
@@ -1117,7 +1172,7 @@ watch(tabs, ensureActiveTab);
 
       <!-- Email Settings -->
       <SettingsSMTP v-if="activeTab === 'email' && authStore.user?.is_superuser" />
-      </div>
     </div>
+  </div>
   </div>
 </template>
