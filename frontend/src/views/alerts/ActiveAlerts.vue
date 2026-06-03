@@ -346,7 +346,10 @@ onMounted(fetchAlerts);
     </div>
 
     <div
-      class="flex flex-wrap items-center gap-3 rounded-lg border border-border p-4 shadow-sm"
+      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+    >
+    <div
+      class="flex flex-shrink-0 flex-wrap items-center gap-3 border-b border-border p-4"
     >
       <div class="relative min-w-[240px] flex-1">
         <MagnifyingGlassIcon
@@ -410,10 +413,9 @@ onMounted(fetchAlerts);
       </div>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-border shadow-sm">
-      <div class="overflow-x-auto">
+      <div class="relative min-h-0 flex-1 overflow-auto bg-card">
         <table
-          class="w-full table-fixed text-left text-sm"
+          class="w-full table-fixed border-separate border-spacing-0 text-left text-sm"
           :style="{ minWidth: activeAlertTable.tableMinWidth.value }"
         >
           <colgroup>
@@ -424,7 +426,7 @@ onMounted(fetchAlerts);
             />
           </colgroup>
           <thead
-            class="border-b border-border bg-background bg-background-secondary text-xs uppercase text-foreground-secondary"
+            class="sticky top-0 z-30 bg-background-secondary text-xs uppercase text-foreground-secondary shadow-sm"
           >
             <tr>
               <ResizableSortableTh
@@ -438,6 +440,7 @@ onMounted(fetchAlerts);
                 :align="column.align"
                 :sort-icon="activeAlertTable.getSortIcon(column.key)"
                 :resizing="activeAlertTable.resizingColumn.value === column.key"
+                header-class="border-b border-border"
                 @sort="
                   activeAlertTable.toggleSort($event as ActiveAlertColumnKey)
                 "
@@ -456,7 +459,7 @@ onMounted(fetchAlerts);
               />
             </tr>
           </thead>
-          <tbody class="divide-y divide-border">
+          <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
             <tr
               v-for="alert in activeAlertTable.sortedRows.value"
               :key="alert.id"
@@ -554,12 +557,11 @@ onMounted(fetchAlerts);
           </tbody>
         </table>
       </div>
-    </div>
 
     <!-- Pagination -->
     <div
       v-if="pagination.count > 0"
-      class="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 bg-card border-t border-border rounded-lg"
+      class="flex flex-shrink-0 flex-col items-center justify-between gap-4 border-t border-border bg-card px-4 py-3 sm:flex-row"
     >
       <div class="flex flex-1 justify-between sm:hidden">
         <button
@@ -639,6 +641,7 @@ onMounted(fetchAlerts);
           </nav>
         </div>
       </div>
+    </div>
     </div>
 
     <div v-if="selected" class="fixed inset-0 z-50 flex justify-end">

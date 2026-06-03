@@ -443,9 +443,9 @@ onMounted(() => {
     </div>
 
     <div
-      class="rounded-lg border border-border bg-background p-3 shadow-sm"
+      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-visible rounded-xl border border-border bg-card shadow-sm"
     >
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="flex flex-wrap items-center gap-3 border-b border-border p-4">
         <div
           class="relative min-w-[280px] flex-1"
           @mouseleave="showFilterMenu = false"
@@ -496,7 +496,7 @@ onMounted(() => {
 
           <div
             v-if="showFilterMenu"
-            class="absolute left-0 top-full z-30 mt-2 w-full min-w-[min(720px,calc(100vw-2rem))] max-w-3xl rounded-xl border border-border bg-background p-3 shadow-xl ring-1 ring-black/5"
+            class="absolute left-0 top-full z-50 mt-2 w-full min-w-[min(720px,calc(100vw-2rem))] max-w-3xl rounded-xl border border-border bg-background p-3 shadow-xl ring-1 ring-black/5"
           >
             <div class="flex flex-wrap gap-2 border-b border-border pb-3">
               <button
@@ -548,12 +548,9 @@ onMounted(() => {
         </button>
       </div>
 
-    </div>
-
-    <div class="overflow-hidden rounded-lg border border-border shadow-sm">
-      <div class="overflow-x-auto">
+      <div class="relative min-h-0 flex-1 overflow-auto bg-card">
         <table
-          class="w-full table-fixed text-left text-sm"
+          class="w-full table-fixed border-separate border-spacing-0 text-left text-sm"
           :style="{ minWidth: table.tableMinWidth.value }"
         >
           <colgroup>
@@ -564,7 +561,7 @@ onMounted(() => {
             />
           </colgroup>
           <thead
-            class="border-b border-border bg-background-secondary text-xs uppercase text-foreground-secondary"
+            class="sticky top-0 z-30 bg-background-secondary text-xs uppercase text-foreground-secondary shadow-sm"
           >
             <tr>
               <ResizableSortableTh
@@ -577,6 +574,7 @@ onMounted(() => {
                 :active="table.sort.value.key === column.key"
                 :sort-icon="table.getSortIcon(column.key)"
                 :resizing="table.resizingColumn.value === column.key"
+                header-class="border-b border-border"
                 @sort="table.toggleSort($event as NotificationLogColumnKey)"
                 @resize-start="
                   (key, event) =>
@@ -588,7 +586,7 @@ onMounted(() => {
               />
             </tr>
           </thead>
-          <tbody class="divide-y divide-border">
+          <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
             <tr
               v-for="log in table.sortedRows.value"
               :key="log.id"
@@ -695,7 +693,7 @@ onMounted(() => {
 
       <div
         v-if="pagination.count > 0"
-        class="flex flex-wrap items-center justify-between gap-4 border-t border-border p-4"
+        class="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 border-t border-border bg-card p-4"
       >
         <div class="flex items-center gap-2">
           <span class="text-sm text-foreground-secondary">{{

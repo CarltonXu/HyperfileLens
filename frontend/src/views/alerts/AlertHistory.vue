@@ -328,7 +328,10 @@ onMounted(fetchAlerts);
     </div>
 
     <div
-      class="flex flex-wrap items-center gap-3 rounded-lg border border-border p-4 shadow-sm"
+      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+    >
+    <div
+      class="flex flex-shrink-0 flex-wrap items-center gap-3 border-b border-border p-4"
     >
       <div class="relative min-w-[240px] flex-1">
         <MagnifyingGlassIcon
@@ -393,10 +396,9 @@ onMounted(fetchAlerts);
       </button>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-border shadow-sm">
-      <div class="overflow-x-auto">
+      <div class="relative min-h-0 flex-1 overflow-auto bg-card">
         <table
-          class="w-full table-fixed text-left text-sm"
+          class="w-full table-fixed border-separate border-spacing-0 text-left text-sm"
           :style="{ minWidth: alertHistoryTable.tableMinWidth.value }"
         >
           <colgroup>
@@ -407,7 +409,7 @@ onMounted(fetchAlerts);
             />
           </colgroup>
           <thead
-            class="border-b border-border bg-background bg-background-secondary text-xs uppercase text-foreground-secondary"
+            class="sticky top-0 z-30 bg-background-secondary text-xs uppercase text-foreground-secondary shadow-sm"
           >
             <tr>
               <ResizableSortableTh
@@ -423,6 +425,7 @@ onMounted(fetchAlerts);
                 :resizing="
                   alertHistoryTable.resizingColumn.value === column.key
                 "
+                header-class="border-b border-border"
                 @sort="
                   alertHistoryTable.toggleSort($event as AlertHistoryColumnKey)
                 "
@@ -441,7 +444,7 @@ onMounted(fetchAlerts);
               />
             </tr>
           </thead>
-          <tbody class="divide-y divide-border">
+          <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
             <tr
               v-for="alert in alertHistoryTable.sortedRows.value"
               :key="alert.id"
@@ -522,7 +525,7 @@ onMounted(fetchAlerts);
 
       <div
         v-if="pagination.count > 0"
-        class="p-4 border-t border-border flex flex-wrap items-center justify-between gap-4"
+        class="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 border-t border-border bg-card p-4"
       >
         <div class="flex items-center gap-2">
           <span class="text-sm text-foreground-secondary">{{

@@ -18,8 +18,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-xl border border-border bg-card">
-    <div class="flex flex-wrap gap-3 p-4">
+  <div class="flex flex-shrink-0 flex-wrap gap-3 border-b border-border p-4">
       <div class="relative min-w-[200px] flex-1">
         <MagnifyingGlassIcon
           class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted"
@@ -57,6 +56,5 @@ const { t } = useI18n();
         <ArrowPathIcon :class="['h-4 w-4', loading && 'animate-spin']" />
         {{ t("alertsCenter.common.refresh") }}
       </button>
-    </div>
   </div>
 </template>

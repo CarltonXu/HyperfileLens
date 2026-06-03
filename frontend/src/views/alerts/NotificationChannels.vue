@@ -663,6 +663,9 @@ onMounted(fetchChannels);
       </button>
     </div>
 
+    <div
+      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+    >
     <NotificationChannelToolbar
       v-model:search="filters.search"
       v-model:type="filters.type"
@@ -689,7 +692,7 @@ onMounted(fetchChannels);
     <!-- Pagination -->
     <div
       v-if="pagination.count > 0"
-      class="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 bg-card border border-border rounded-lg"
+      class="flex flex-shrink-0 flex-col items-center justify-between gap-4 border-t border-border bg-card px-4 py-3 sm:flex-row"
     >
       <div class="flex flex-1 justify-between sm:hidden">
         <button
@@ -774,7 +777,7 @@ onMounted(fetchChannels);
     <!-- Empty State -->
     <div
       v-else
-      class="rounded-xl border border-border bg-card p-12 text-center"
+      class="p-12 text-center"
     >
       <div
         class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-background-secondary mb-4"
@@ -794,6 +797,7 @@ onMounted(fetchChannels);
         <PlusIcon class="h-4 w-4" />
         {{ t("alertsCenter.common.createChannel") }}
       </button>
+    </div>
     </div>
 
     <!-- Create/Edit Modal -->

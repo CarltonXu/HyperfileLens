@@ -54,7 +54,7 @@
 
     <!-- Logs Table -->
     <div
-      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card"
+      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-visible rounded-xl border border-border bg-card"
     >
       <!-- Search & Filters Bar - Compact Design -->
       <div
@@ -63,12 +63,12 @@
         <div class="flex flex-wrap items-center gap-2 flex-1">
           <!-- Search Input with Type Selector -->
           <div
-            class="flex-1 min-w-[280px] flex rounded-lg overflow-hidden border border-border"
+            class="flex-1 min-w-[280px] flex rounded-lg overflow-visible border border-border"
           >
             <!-- Search Type Dropdown -->
             <div class="relative">
               <button
-                @click="showSearchTypeMenu = !showSearchTypeMenu"
+                @click="toggleSearchTypeMenu"
                 class="h-9 px-3 bg-background-secondary border-r border-border text-sm text-foreground-secondary hover:bg-hover-secondary flex items-center gap-1.5 whitespace-nowrap"
               >
                 <span>{{ searchTypeLabel }}</span>
@@ -77,7 +77,7 @@
               <Transition name="dropdown">
                 <div
                   v-if="showSearchTypeMenu"
-                  class="absolute left-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-20 min-w-[120px]"
+                  class="absolute left-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-50 min-w-[120px]"
                 >
                   <button
                     v-for="type in searchTypes"
@@ -112,7 +112,7 @@
           </div>
 
           <!-- Quick Date Filters -->
-          <div class="flex items-center gap-1">
+          <div class="relative flex items-center gap-1">
             <button
               v-for="preset in datePresets"
               :key="preset.value"
@@ -126,12 +126,60 @@
             >
               {{ preset.label }}
             </button>
+
+            <Transition name="dropdown">
+              <div
+                v-if="showCustomDateMenu"
+                class="absolute left-0 top-full z-50 mt-2 w-[min(28rem,calc(100vw-3rem))] rounded-xl border border-border bg-card p-4 shadow-xl"
+              >
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label
+                      class="mb-1.5 block text-sm font-medium text-foreground"
+                    >
+                      {{ t("auditLog.startDate") }}
+                    </label>
+                    <input
+                      v-model="filters.start_date"
+                      type="date"
+                      class="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="mb-1.5 block text-sm font-medium text-foreground"
+                    >
+                      {{ t("auditLog.endDate") }}
+                    </label>
+                    <input
+                      v-model="filters.end_date"
+                      type="date"
+                      class="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+                    />
+                  </div>
+                </div>
+                <div class="mt-4 flex justify-end gap-2">
+                  <button
+                    @click="showCustomDateMenu = false"
+                    class="h-9 rounded-lg border border-border px-3 text-sm font-medium text-foreground-secondary hover:bg-hover"
+                  >
+                    {{ t("common.cancel") }}
+                  </button>
+                  <button
+                    @click="applyCustomDate"
+                    class="h-9 rounded-lg bg-indigo-600 px-3 text-sm font-medium text-white hover:bg-indigo-700"
+                  >
+                    {{ t("common.apply") }}
+                  </button>
+                </div>
+              </div>
+            </Transition>
           </div>
 
           <!-- Action Filter -->
           <div class="relative">
             <button
-              @click="showActionMenu = !showActionMenu"
+              @click="toggleActionMenu"
               :class="[
                 'h-9 px-3 rounded-lg text-sm font-medium border flex items-center gap-1.5',
                 filters.action
@@ -150,7 +198,7 @@
             <Transition name="dropdown">
               <div
                 v-if="showActionMenu"
-                class="absolute right-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-20 min-w-[140px]"
+                class="absolute right-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-50 min-w-[140px]"
               >
                 <button
                   @click="selectAction('')"
@@ -183,7 +231,7 @@
           <!-- Resource Type Filter -->
           <div class="relative">
             <button
-              @click="showResourceMenu = !showResourceMenu"
+              @click="toggleResourceMenu"
               :class="[
                 'h-9 px-3 rounded-lg text-sm font-medium border flex items-center gap-1.5',
                 filters.resource_type
@@ -202,7 +250,7 @@
             <Transition name="dropdown">
               <div
                 v-if="showResourceMenu"
-                class="absolute right-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-20 min-w-[140px]"
+                class="absolute right-0 top-full mt-1 popover-surface rounded-lg shadow-lg border border-border z-50 min-w-[140px]"
               >
                 <button
                   @click="selectResourceType('')"
@@ -250,41 +298,6 @@
             {{ t("common.reset") }}
           </button>
         </div>
-
-        <!-- Custom Date Range (when custom is selected) -->
-        <Transition name="fade">
-          <div
-            v-if="datePreset === 'custom'"
-            class="mt-3 pt-3 border-t border-border flex items-center gap-3"
-          >
-            <div class="flex items-center gap-2">
-              <label class="text-sm text-foreground-secondary">{{
-                t("auditLog.startDate")
-              }}</label>
-              <input
-                v-model="filters.start_date"
-                type="date"
-                class="h-8 px-2 rounded border border-border bg-background text-sm text-foreground"
-              />
-            </div>
-            <div class="flex items-center gap-2">
-              <label class="text-sm text-foreground-secondary">{{
-                t("auditLog.endDate")
-              }}</label>
-              <input
-                v-model="filters.end_date"
-                type="date"
-                class="h-8 px-2 rounded border border-border bg-background text-sm text-foreground"
-              />
-            </div>
-            <button
-              @click="applyCustomDate"
-              class="h-8 px-3 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
-            >
-              {{ t("common.apply") }}
-            </button>
-          </div>
-        </Transition>
       </div>
 
       <!-- Single Table with Sticky Header -->
@@ -356,7 +369,7 @@
               class="hover:bg-hover transition-colors"
             >
                 <td
-                  class="px-4 py-3 whitespace-nowrap text-center"
+                  class="px-4 py-3 whitespace-nowrap"
                   :style="auditLogTable.columnStyle('timestamp')"
                 >
                   <span class="text-sm text-foreground">
@@ -859,6 +872,7 @@ const searchType = ref("all");
 const showSearchTypeMenu = ref(false);
 const showActionMenu = ref(false);
 const showResourceMenu = ref(false);
+const showCustomDateMenu = ref(false);
 const datePreset = ref("7d");
 
 const filters = ref({
@@ -938,40 +952,33 @@ const columns = computed(() => [
   {
     key: "timestamp" as const,
     label: t("auditLog.timestamp"),
-    min: 170,
     max: 320,
-    align: "center" as const,
   },
   {
     key: "user" as const,
     label: t("auditLog.user"),
-    min: 210,
     max: 420,
   },
   {
     key: "action" as const,
     label: t("auditLog.action"),
-    min: 130,
     max: 240,
     align: "center" as const,
   },
   {
     key: "resource" as const,
     label: t("auditLog.resource"),
-    min: 240,
     max: 520,
   },
   {
     key: "result" as const,
     label: t("auditLog.result"),
-    min: 120,
     max: 220,
     align: "center" as const,
   },
   {
     key: "ip" as const,
     label: t("auditLog.ipAddress"),
-    min: 150,
     max: 280,
     align: "center" as const,
   },
@@ -1144,6 +1151,27 @@ const handleSearch = () => {
   fetchLogs();
 };
 
+const toggleSearchTypeMenu = () => {
+  showSearchTypeMenu.value = !showSearchTypeMenu.value;
+  showActionMenu.value = false;
+  showResourceMenu.value = false;
+  showCustomDateMenu.value = false;
+};
+
+const toggleActionMenu = () => {
+  showActionMenu.value = !showActionMenu.value;
+  showSearchTypeMenu.value = false;
+  showResourceMenu.value = false;
+  showCustomDateMenu.value = false;
+};
+
+const toggleResourceMenu = () => {
+  showResourceMenu.value = !showResourceMenu.value;
+  showSearchTypeMenu.value = false;
+  showActionMenu.value = false;
+  showCustomDateMenu.value = false;
+};
+
 const selectSearchType = (type: string) => {
   searchType.value = type;
   showSearchTypeMenu.value = false;
@@ -1151,16 +1179,21 @@ const selectSearchType = (type: string) => {
 
 const selectDatePreset = (preset: string) => {
   datePreset.value = preset;
+  showSearchTypeMenu.value = false;
+  showActionMenu.value = false;
+  showResourceMenu.value = false;
 
   const today = new Date();
   const formatDate = (d: Date) => d.toISOString().split("T")[0];
 
   if (preset === "today") {
+    showCustomDateMenu.value = false;
     filters.value.start_date = formatDate(today);
     filters.value.end_date = formatDate(today);
     pagination.value.page = 1;
     fetchLogs();
   } else if (preset === "7d") {
+    showCustomDateMenu.value = false;
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
     filters.value.start_date = formatDate(weekAgo);
@@ -1168,16 +1201,20 @@ const selectDatePreset = (preset: string) => {
     pagination.value.page = 1;
     fetchLogs();
   } else if (preset === "30d") {
+    showCustomDateMenu.value = false;
     const monthAgo = new Date(today);
     monthAgo.setDate(monthAgo.getDate() - 30);
     filters.value.start_date = formatDate(monthAgo);
     filters.value.end_date = formatDate(today);
     pagination.value.page = 1;
     fetchLogs();
+  } else if (preset === "custom") {
+    showCustomDateMenu.value = true;
   }
 };
 
 const applyCustomDate = () => {
+  showCustomDateMenu.value = false;
   pagination.value.page = 1;
   fetchLogs();
 };
@@ -1317,6 +1354,7 @@ const handleClickOutside = (e: MouseEvent) => {
     showSearchTypeMenu.value = false;
     showActionMenu.value = false;
     showResourceMenu.value = false;
+    showCustomDateMenu.value = false;
   }
 };
 

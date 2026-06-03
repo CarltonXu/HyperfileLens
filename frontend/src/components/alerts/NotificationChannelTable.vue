@@ -61,11 +61,10 @@ function resetColumnWidth(key: string) {
 
 <template>
   <div
-    class="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+    class="relative min-h-0 flex-1 overflow-auto bg-card"
   >
-    <div class="overflow-x-auto">
       <table
-        class="w-full table-fixed text-left text-sm"
+        class="w-full table-fixed border-separate border-spacing-0 text-left text-sm"
         :style="{ minWidth: table.tableMinWidth.value }"
       >
         <colgroup>
@@ -75,7 +74,7 @@ function resetColumnWidth(key: string) {
             :style="table.columnStyle(column.key)"
           />
         </colgroup>
-        <thead class="border-b border-border bg-background-secondary">
+        <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
           <tr>
             <ResizableSortableTh
               v-for="column in columns"
@@ -88,13 +87,14 @@ function resetColumnWidth(key: string) {
               :align="column.align"
               :sort-icon="table.getSortIcon(column.key)"
               :resizing="table.resizingColumn.value === column.key"
+              header-class="border-b border-border"
               @sort="sortColumn"
               @resize-start="startResize"
               @resize-reset="resetColumnWidth"
             />
           </tr>
         </thead>
-        <tbody class="divide-y divide-border">
+        <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
           <tr
             v-for="channel in channels"
             :key="channel.id"
@@ -210,6 +210,5 @@ function resetColumnWidth(key: string) {
           </tr>
         </tbody>
       </table>
-    </div>
   </div>
 </template>
