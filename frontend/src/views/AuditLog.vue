@@ -29,7 +29,7 @@
         <div
           v-for="card in statCards"
           :key="card.label"
-          class="bg-card rounded-lg border border-border p-4"
+          class="bg-card rounded-xl border border-border p-4"
         >
           <div class="flex items-center gap-3">
             <div
@@ -52,10 +52,15 @@
       </div>
     </div>
 
-    <!-- Search & Filters Bar - Compact Design -->
-    <div class="flex-shrink-0">
-      <div class="bg-card rounded-lg border border-border p-4">
-        <div class="flex flex-wrap items-center gap-2">
+    <!-- Logs Table -->
+    <div
+      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card"
+    >
+      <!-- Search & Filters Bar - Compact Design -->
+      <div
+        class="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3"
+      >
+        <div class="flex flex-wrap items-center gap-2 flex-1">
           <!-- Search Input with Type Selector -->
           <div
             class="flex-1 min-w-[280px] flex rounded-lg overflow-hidden border border-border"
@@ -281,83 +286,77 @@
           </div>
         </Transition>
       </div>
-    </div>
 
-    <!-- Logs Table with Resizable Columns -->
-    <div class="flex-1 overflow-hidden flex flex-col min-h-0">
-      <div
-        class="bg-card rounded-lg border border-border overflow-hidden flex flex-col h-full"
-      >
-        <!-- Single Table with Sticky Header -->
-        <div class="overflow-auto flex-1">
-          <table
-            class="w-full table-fixed"
-            :style="{ minWidth: auditLogTable.tableMinWidth.value }"
-          >
-            <colgroup>
-              <col
+      <!-- Single Table with Sticky Header -->
+      <div class="relative min-h-0 flex-1 overflow-auto bg-card">
+        <table
+          class="w-full table-fixed border-separate border-spacing-0"
+          :style="{ minWidth: auditLogTable.tableMinWidth.value }"
+        >
+          <colgroup>
+            <col
+              v-for="col in columns"
+              :key="col.key"
+              :style="auditLogTable.columnStyle(col.key)"
+            />
+          </colgroup>
+          <thead class="sticky top-0 z-30 bg-background-secondary shadow-sm">
+            <tr>
+              <ResizableSortableTh
                 v-for="col in columns"
                 :key="col.key"
-                :style="auditLogTable.columnStyle(col.key)"
+                :column-key="col.key"
+                :label="col.label"
+                :style-value="auditLogTable.columnStyle(col.key)"
+                :sortable="col.sortable !== false"
+                :active="auditLogTable.sort.value.key === col.key"
+                :align="col.align"
+                :sort-icon="auditLogTable.getSortIcon(col.key)"
+                :resizing="auditLogTable.resizingColumn.value === col.key"
+                header-class="border-b border-border"
+                @sort="auditLogTable.toggleSort($event as AuditLogColumnKey)"
+                @resize-start="
+                  (key, event) =>
+                    auditLogTable.startResize(key as AuditLogColumnKey, event)
+                "
+                @resize-reset="
+                  auditLogTable.resetColumnWidth($event as AuditLogColumnKey)
+                "
               />
-            </colgroup>
-            <thead class="bg-background-secondary">
-              <tr>
-                <ResizableSortableTh
-                  v-for="col in columns"
-                  :key="col.key"
-                  :column-key="col.key"
-                  :label="col.label"
-                  :style-value="auditLogTable.columnStyle(col.key)"
-                  :sortable="col.sortable !== false"
-                  :active="auditLogTable.sort.value.key === col.key"
-                  :align="col.align"
-                  :sort-icon="auditLogTable.getSortIcon(col.key)"
-                  :resizing="auditLogTable.resizingColumn.value === col.key"
-                  header-class="sticky top-0 z-10"
-                  @sort="auditLogTable.toggleSort($event as AuditLogColumnKey)"
-                  @resize-start="
-                    (key, event) =>
-                      auditLogTable.startResize(key as AuditLogColumnKey, event)
-                  "
-                  @resize-reset="
-                    auditLogTable.resetColumnWidth($event as AuditLogColumnKey)
-                  "
-                />
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-border">
-              <tr v-if="loading">
-                <td :colspan="columns.length" class="px-4 py-12 text-center">
-                  <div class="flex flex-col items-center">
-                    <div
-                      class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"
-                    ></div>
-                    <span class="mt-2 text-sm text-foreground-secondary">{{
-                      t("common.loading")
-                    }}</span>
-                  </div>
-                </td>
-              </tr>
-              <tr v-else-if="logs.length === 0">
-                <td :colspan="columns.length" class="px-4 py-12 text-center">
-                  <div class="flex flex-col items-center">
-                    <ClipboardDocumentListIcon
-                      class="w-12 h-12 text-foreground-muted"
-                    />
-                    <span class="mt-2 text-sm text-foreground-secondary">{{
-                      t("common.noData")
-                    }}</span>
-                  </div>
-                </td>
-              </tr>
-              <tr
-                v-for="log in auditLogTable.sortedRows.value"
-                :key="log.id"
-                class="hover:bg-hover transition-colors"
-              >
+            </tr>
+          </thead>
+          <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
+            <tr v-if="loading">
+              <td :colspan="columns.length" class="px-4 py-12 text-center">
+                <div class="flex flex-col items-center">
+                  <div
+                    class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"
+                  ></div>
+                  <span class="mt-2 text-sm text-foreground-secondary">{{
+                    t("common.loading")
+                  }}</span>
+                </div>
+              </td>
+            </tr>
+            <tr v-else-if="logs.length === 0">
+              <td :colspan="columns.length" class="px-4 py-12 text-center">
+                <div class="flex flex-col items-center">
+                  <ClipboardDocumentListIcon
+                    class="w-12 h-12 text-foreground-muted"
+                  />
+                  <span class="mt-2 text-sm text-foreground-secondary">{{
+                    t("common.noData")
+                  }}</span>
+                </div>
+              </td>
+            </tr>
+            <tr
+              v-for="log in auditLogTable.sortedRows.value"
+              :key="log.id"
+              class="hover:bg-hover transition-colors"
+            >
                 <td
-                  class="px-4 py-3 whitespace-nowrap"
+                  class="px-4 py-3 whitespace-nowrap text-center"
                   :style="auditLogTable.columnStyle('timestamp')"
                 >
                   <span class="text-sm text-foreground">
@@ -387,7 +386,7 @@
                   </div>
                 </td>
                 <td
-                  class="px-4 py-3 whitespace-nowrap"
+                  class="px-4 py-3 whitespace-nowrap text-center"
                   :style="auditLogTable.columnStyle('action')"
                 >
                   <span
@@ -414,7 +413,7 @@
                   </div>
                 </td>
                 <td
-                  class="px-4 py-3 whitespace-nowrap"
+                  class="px-4 py-3 whitespace-nowrap text-center"
                   :style="auditLogTable.columnStyle('result')"
                 >
                   <span
@@ -425,7 +424,7 @@
                   </span>
                 </td>
                 <td
-                  class="px-4 py-3 whitespace-nowrap"
+                  class="px-4 py-3 whitespace-nowrap text-center"
                   :style="auditLogTable.columnStyle('ip')"
                 >
                   <span class="text-sm text-foreground-secondary font-mono">
@@ -433,7 +432,7 @@
                   </span>
                 </td>
                 <td
-                  class="px-4 py-3 whitespace-nowrap text-right"
+                  class="px-4 py-3 whitespace-nowrap text-center"
                   :style="auditLogTable.columnStyle('actions')"
                 >
                   <button
@@ -443,15 +442,16 @@
                     {{ t("common.detail") }}
                   </button>
                 </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-        <!-- Pagination (Fixed) -->
-        <div
-          class="px-4 py-3 border-t border-border flex items-center justify-between flex-shrink-0 bg-card"
-        >
+      <!-- Pagination -->
+      <div
+        v-if="pagination.count > 0"
+        class="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 border-t border-border bg-card p-4"
+      >
           <div class="flex items-center gap-2">
             <span class="text-sm text-foreground-secondary">{{
               t("common.rowsPerPage")
@@ -509,8 +509,8 @@
               </button>
             </nav>
           </div>
-        </div>
       </div>
+    </div>
 
       <!-- Detail Modal -->
       <Transition name="modal">
@@ -780,7 +780,6 @@
           </div>
         </div>
       </Transition>
-    </div>
   </div>
 </template>
 
@@ -941,6 +940,7 @@ const columns = computed(() => [
     label: t("auditLog.timestamp"),
     min: 170,
     max: 320,
+    align: "center" as const,
   },
   {
     key: "user" as const,
@@ -953,6 +953,7 @@ const columns = computed(() => [
     label: t("auditLog.action"),
     min: 130,
     max: 240,
+    align: "center" as const,
   },
   {
     key: "resource" as const,
@@ -965,12 +966,14 @@ const columns = computed(() => [
     label: t("auditLog.result"),
     min: 120,
     max: 220,
+    align: "center" as const,
   },
   {
     key: "ip" as const,
     label: t("auditLog.ipAddress"),
     min: 150,
     max: 280,
+    align: "center" as const,
   },
   {
     key: "actions" as const,
@@ -978,7 +981,7 @@ const columns = computed(() => [
     min: 100,
     max: 180,
     sortable: false,
-    align: "right" as const,
+    align: "center" as const,
   },
 ]);
 

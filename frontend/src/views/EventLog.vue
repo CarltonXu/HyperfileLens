@@ -395,7 +395,9 @@ onMounted(fetchTasks);
     </div>
 
     <!-- Task List -->
-    <div class="bg-card border border-border rounded-xl overflow-hidden">
+    <div
+      class="flex max-h-[calc(100vh-19rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card"
+    >
       <!-- Filters -->
       <div
         class="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3"
@@ -456,9 +458,9 @@ onMounted(fetchTasks);
       </div>
 
       <!-- Table -->
-      <div class="overflow-x-auto">
+      <div class="relative min-h-0 flex-1 overflow-auto bg-card">
         <table
-          class="w-full table-fixed divide-y divide-border"
+          class="w-full table-fixed border-separate border-spacing-0"
           :style="{ minWidth: taskTable.tableMinWidth.value }"
         >
           <colgroup>
@@ -468,7 +470,9 @@ onMounted(fetchTasks);
               :style="taskTable.columnStyle(column.key)"
             />
           </colgroup>
-          <thead class="bg-background-secondary">
+          <thead
+            class="sticky top-0 z-30 bg-background-secondary shadow-sm"
+          >
             <tr>
               <ResizableSortableTh
                 v-for="column in taskColumns"
@@ -479,6 +483,7 @@ onMounted(fetchTasks);
                 :active="taskTable.sort.value.key === column.key"
                 :sort-icon="taskTable.getSortIcon(column.key)"
                 :resizing="taskTable.resizingColumn.value === column.key"
+                header-class="border-b border-border"
                 @sort="taskTable.toggleSort($event as TaskColumnKey)"
                 @resize-start="
                   (key, event) =>
@@ -490,7 +495,7 @@ onMounted(fetchTasks);
               />
             </tr>
           </thead>
-          <tbody class="divide-y divide-border">
+          <tbody class="[&>tr>td]:border-b [&>tr>td]:border-border">
             <tr v-if="loading">
               <td
                 colspan="7"
@@ -602,7 +607,7 @@ onMounted(fetchTasks);
       <!-- Pagination -->
       <div
         v-if="pagination.count > 0"
-        class="p-4 border-t border-border flex flex-wrap items-center justify-between gap-4"
+        class="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 border-t border-border bg-card p-4"
       >
         <div class="flex items-center gap-2">
           <span class="text-sm text-foreground-secondary">{{
