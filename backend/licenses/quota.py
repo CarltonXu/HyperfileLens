@@ -8,6 +8,8 @@ from rest_framework.exceptions import PermissionDenied
 
 from .models import License
 
+SYSTEM_TENANT_NAME = 'administrator'
+
 
 class LicenseQuotaExceeded(PermissionDenied):
     """Raised when a license quota would be exceeded."""
@@ -19,13 +21,45 @@ def get_quota_license(tenant=None):
     """Return the license that should be used for quota checks."""
     if tenant:
         return License.get_active_license(tenant)
-    return (
-        License.objects
-        .filter(status=License.LicenseStatus.ACTIVE)
-        .select_related('tenant')
-        .order_by('-activated_at')
-        .first()
-    )
+    return None
+
+
+def get_platform_license():
+    """Return the system license used for platform-wide quotas."""
+    from tenants.models import Tenant
+
+    system_tenant = Tenant.objects.filter(name=SYSTEM_TENANT_NAME).first()
+    if not system_tenant:
+        return None
+    return License.get_active_license(system_tenant)
+
+
+def get_platform_tenant_count():
+    """Count tenant records controlled by the platform tenant quota."""
+    from tenants.models import Tenant
+
+    return Tenant.objects.exclude(name=SYSTEM_TENANT_NAME).count()
+
+
+def enforce_platform_tenant_quota(additional=1):
+    """Enforce the platform-wide tenant quota from the system tenant license."""
+    license_obj = get_platform_license()
+    if not license_obj:
+        return None
+
+    limit = license_obj.max_tenants
+    if limit == -1:
+        return license_obj
+
+    current = get_platform_tenant_count()
+    new_total = current + additional
+    if new_total > limit:
+        raise LicenseQuotaExceeded(
+            f"License quota exceeded: Cannot create {additional} tenant(s). "
+            f"Current: {current}, Limit: {limit}"
+        )
+
+    return license_obj
 
 
 def enforce_license_quota(tenant, resource_type: str, additional=1):

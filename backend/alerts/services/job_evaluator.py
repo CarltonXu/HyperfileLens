@@ -15,7 +15,8 @@ def on_job_finished(job):
 def handle_job_event(job):
     event_type = "job_failed" if getattr(job, "status", "") == "failed" else f"job_{getattr(job, 'status', '')}"
     job_type = getattr(job, "task_type", None) or getattr(job, "type", None)
-    for policy in AlertPolicy.objects.filter(enabled=True, type="job"):
+    tenant = getattr(job, "tenant", None) or getattr(getattr(job, "proxy", None), "tenant", None)
+    for policy in AlertPolicy.objects.filter(enabled=True, type="job", tenant=tenant):
         rule = policy.trigger_rule or {}
         if rule.get("job_type") == job_type and rule.get("event_type") == event_type:
             fire_alert(
@@ -27,7 +28,7 @@ def handle_job_event(job):
                 metadata={
                     "event_type": event_type,
                     "job_type": job_type,
-                    "job_status": status,
+                    "job_status": getattr(job, "status", ""),
                     "error_message": getattr(job, "error_message", "") or getattr(job, "status_message", ""),
                 },
             )
@@ -39,5 +40,10 @@ def recover_job_alerts(job):
         return
     from alerts.models import AlertRecord
 
-    for alert in AlertRecord.objects.filter(resource_id=job_id, status__in=["pending", "firing", "acknowledged"]):
+    tenant = getattr(job, "tenant", None) or getattr(getattr(job, "proxy", None), "tenant", None)
+    for alert in AlertRecord.objects.filter(
+        tenant=tenant,
+        resource_id=job_id,
+        status__in=["pending", "firing", "acknowledged"],
+    ):
         resolve_alert(alert)

@@ -17,6 +17,7 @@ def fire_alert(policy, resource=None, title="", message="", current_value=None, 
     now = timezone.now()
 
     alert = AlertRecord.objects.filter(
+        tenant=policy.tenant,
         fingerprint=fingerprint,
         status__in=[AlertStatus.PENDING, AlertStatus.FIRING, AlertStatus.ACKNOWLEDGED],
     ).first()
@@ -44,6 +45,7 @@ def fire_alert(policy, resource=None, title="", message="", current_value=None, 
     if threshold is None:
         threshold = (policy.trigger_rule or {}).get("timeout_seconds")
     alert = AlertRecord.objects.create(
+        tenant=policy.tenant,
         policy_id=policy.id,
         type=policy.type,
         severity=policy.severity,
@@ -77,6 +79,7 @@ def active_alerts_for_policy(policy, resource=None, alert_key="default"):
     resource_id = getattr(resource, "id", None)
     fingerprint = build_fingerprint(policy, resource_id, alert_key)
     return AlertRecord.objects.filter(
+        tenant=policy.tenant,
         fingerprint=fingerprint,
         status__in=[AlertStatus.PENDING, AlertStatus.FIRING, AlertStatus.ACKNOWLEDGED],
     )
@@ -106,6 +109,8 @@ def evaluate_alert_policies():
     from .system_evaluator import evaluate_system_policy
 
     for policy in AlertPolicy.objects.filter(enabled=True):
+        if policy.type == "system" and (not policy.tenant or policy.tenant.name != "administrator"):
+            continue
         if policy.type == "metric":
             evaluate_metric_policy(policy)
         elif policy.type == "availability":

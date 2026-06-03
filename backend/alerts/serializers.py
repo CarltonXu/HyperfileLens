@@ -5,6 +5,12 @@ from rest_framework import serializers
 from .choices import AlertType, PolicyScope, ResourceType
 from .models import AlertPolicy, AlertRecord, NotificationChannel, NotificationLog
 
+PLATFORM_RESOURCE_TYPES = {
+    ResourceType.SYSTEM,
+    ResourceType.SYSTEM_SERVICE,
+    ResourceType.LICENSE,
+}
+
 
 class AlertPolicySerializer(serializers.ModelSerializer):
     notification_channels = serializers.SerializerMethodField(read_only=True)
@@ -13,6 +19,7 @@ class AlertPolicySerializer(serializers.ModelSerializer):
         model = AlertPolicy
         fields = [
             "id",
+            "tenant",
             "name",
             "description",
             "type",
@@ -29,7 +36,7 @@ class AlertPolicySerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_by", "created_at", "updated_at", "notification_channels"]
+        read_only_fields = ["id", "tenant", "created_by", "created_at", "updated_at", "notification_channels"]
 
     def validate(self, attrs):
         data = {**getattr(self.instance, "__dict__", {}), **attrs}
@@ -38,6 +45,14 @@ class AlertPolicySerializer(serializers.ModelSerializer):
         resource_ids = data.get("resource_ids") or []
         resource_type = data.get("resource_type")
         trigger_rule = data.get("trigger_rule") or {}
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if user and user.is_authenticated and not user.is_superuser:
+            if alert_type == AlertType.SYSTEM:
+                raise serializers.ValidationError({"type": "System alert policies are only available to system administrators."})
+            if resource_type in PLATFORM_RESOURCE_TYPES:
+                raise serializers.ValidationError({"resource_type": "This resource type is only available to system administrators."})
 
         if not resource_type:
             raise serializers.ValidationError({"resource_type": "This field is required."})
@@ -62,13 +77,14 @@ class AlertPolicySerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         if user and user.is_authenticated:
             validated_data["created_by"] = user.id
+            validated_data.setdefault("tenant", getattr(user, "tenant", None))
         return super().create(validated_data)
 
     def get_notification_channels(self, obj):
         ids = obj.notification_channel_ids or []
         if not ids:
             return []
-        channels = NotificationChannel.objects.filter(id__in=ids)
+        channels = NotificationChannel.objects.filter(id__in=ids, tenant=obj.tenant)
         return [{"id": str(channel.id), "name": channel.name, "type": channel.type, "enabled": channel.enabled} for channel in channels]
 
 
@@ -79,6 +95,7 @@ class AlertRecordSerializer(serializers.ModelSerializer):
         model = AlertRecord
         fields = [
             "id",
+            "tenant",
             "policy_id",
             "type",
             "severity",
@@ -112,8 +129,14 @@ class AlertRecordActionSerializer(serializers.Serializer):
 class NotificationChannelSerializer(serializers.ModelSerializer):
     class Meta:
         model = NotificationChannel
-        fields = ["id", "name", "type", "enabled", "config", "created_at", "updated_at"]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        fields = ["id", "tenant", "name", "type", "enabled", "config", "created_at", "updated_at"]
+        read_only_fields = ["id", "tenant", "created_at", "updated_at"]
+
+    def create(self, validated_data):
+        user = self.context["request"].user
+        if user and user.is_authenticated:
+            validated_data.setdefault("tenant", getattr(user, "tenant", None))
+        return super().create(validated_data)
 
     def validate_config(self, value):
         if not isinstance(value, dict):
@@ -165,5 +188,5 @@ class NotificationChannelSerializer(serializers.ModelSerializer):
 class NotificationLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = NotificationLog
-        fields = ["id", "alert_record_id", "channel_id", "notification_type", "status", "error_message", "sent_at"]
+        fields = ["id", "tenant", "alert_record_id", "channel_id", "notification_type", "status", "error_message", "sent_at"]
         read_only_fields = fields

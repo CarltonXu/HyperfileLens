@@ -99,7 +99,7 @@ class TenantInvitationSerializer(serializers.ModelSerializer):
             'invited_by', 'invited_by_name', 'status',
             'created_at', 'expires_at', 'accepted_at'
         ]
-        read_only_fields = ['id', 'token', 'created_at', 'accepted_at', 'invited_by']
+        read_only_fields = ['id', 'token', 'tenant', 'created_at', 'accepted_at', 'invited_by']
 
 
 class AcceptInvitationSerializer(serializers.Serializer):
@@ -108,6 +108,7 @@ class AcceptInvitationSerializer(serializers.Serializer):
     """
 
     token = serializers.CharField()
+    email = serializers.EmailField(required=False)
     password = serializers.CharField(write_only=True, required=False)
     first_name = serializers.CharField(required=False)
     last_name = serializers.CharField(required=False)

@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -43,6 +44,39 @@ from .serializers import (
 )
 from .services.evaluator import resolve_alert
 from .services.notifier import test_channel
+from licenses.quota import SYSTEM_TENANT_NAME
+
+
+PLATFORM_RESOURCE_TYPES = {
+    ResourceType.SYSTEM,
+    ResourceType.SYSTEM_SERVICE,
+    ResourceType.LICENSE,
+}
+
+
+def _is_system_admin(user):
+    return bool(user and user.is_authenticated and user.is_superuser)
+
+
+def _tenant_filtered_queryset(request, queryset):
+    user = request.user
+    if user.is_superuser:
+        tenant_id = request.headers.get("X-Tenant-ID") or request.query_params.get("tenant_id")
+        return queryset.filter(tenant_id=tenant_id) if tenant_id else queryset
+    if getattr(user, "tenant_id", None):
+        return queryset.filter(tenant_id=user.tenant_id)
+    return queryset.none()
+
+
+def _request_tenant(request):
+    user = request.user
+    if user.is_superuser:
+        tenant_id = request.headers.get("X-Tenant-ID") or request.query_params.get("tenant_id")
+        if tenant_id:
+            from tenants.models import Tenant
+
+            return Tenant.objects.filter(id=tenant_id).first()
+    return getattr(user, "tenant", None)
 
 
 class AlertPagination(PageNumberPagination):
@@ -66,7 +100,7 @@ class AlertPolicyViewSet(viewsets.ModelViewSet):
     pagination_class = AlertPagination
 
     def get_queryset(self):
-        queryset = AlertPolicy.objects.all()
+        queryset = _tenant_filtered_queryset(self.request, AlertPolicy.objects.all())
         search = self.request.query_params.get("search")
         alert_type = self.request.query_params.get("type")
         severity = self.request.query_params.get("severity")
@@ -86,8 +120,18 @@ class AlertPolicyViewSet(viewsets.ModelViewSet):
         return queryset.order_by("-created_at")
 
     def perform_create(self, serializer):
-        enforce_license_quota(getattr(self.request.user, "tenant", None), "policies")
+        tenant = _request_tenant(self.request)
+        alert_type = self.request.data.get("type")
+        resource_type = self.request.data.get("resource_type")
+        if (alert_type == AlertType.SYSTEM or resource_type in PLATFORM_RESOURCE_TYPES) and (
+            not tenant or tenant.name != SYSTEM_TENANT_NAME
+        ):
+            raise ValidationError({
+                "tenant": "System alert policies must belong to the administrator tenant."
+            })
+        enforce_license_quota(tenant, "policies")
         serializer.save(
+            tenant=tenant,
             created_by=self.request.user.id
             if self.request.user and self.request.user.is_authenticated
             else None
@@ -109,12 +153,14 @@ class AlertPolicyViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def duplicate(self, request, pk=None):
-        enforce_license_quota(getattr(request.user, "tenant", None), "policies")
         policy = self.get_object()
+        tenant = _request_tenant(request) or policy.tenant
+        enforce_license_quota(tenant, "policies")
         policy.pk = None
         policy.id = uuid.uuid4()
         policy.name = f"{policy.name} Copy"
         policy.created_by = request.user.id if request.user and request.user.is_authenticated else None
+        policy.tenant = tenant
         policy.save()
         return Response(self.get_serializer(policy).data, status=status.HTTP_201_CREATED)
 
@@ -126,7 +172,7 @@ class AlertRecordViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = AlertPagination
 
     def get_queryset(self):
-        queryset = AlertRecord.objects.all()
+        queryset = _tenant_filtered_queryset(self.request, AlertRecord.objects.all())
         params = self.request.query_params
 
         for field in ["status", "type", "severity", "resource_type", "resource_id"]:
@@ -185,7 +231,7 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
     pagination_class = AlertPagination
 
     def get_queryset(self):
-        queryset = NotificationChannel.objects.all()
+        queryset = _tenant_filtered_queryset(self.request, NotificationChannel.objects.all())
         params = self.request.query_params
         search = params.get("search")
         channel_type = params.get("type")
@@ -198,6 +244,9 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
         if enabled in {"true", "false"}:
             queryset = queryset.filter(enabled=enabled == "true")
         return queryset.order_by("-created_at")
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=_request_tenant(self.request))
 
     @action(detail=True, methods=["post"])
     def test(self, request, pk=None):
@@ -217,7 +266,7 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
 
         # Filter policies in Python since SQLite doesn't support JSONField contains
         channel_id_str = str(channel.id)
-        all_policies = AlertPolicy.objects.all().order_by('-created_at')
+        all_policies = _tenant_filtered_queryset(request, AlertPolicy.objects.all()).order_by('-created_at')
         alert_policies = [
             p for p in all_policies
             if channel_id_str in (p.notification_channel_ids or [])
@@ -227,7 +276,7 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
         from alerts.models import NotificationLog
 
         # Get all logs for stats (without slicing)
-        all_notification_logs = NotificationLog.objects.filter(
+        all_notification_logs = _tenant_filtered_queryset(request, NotificationLog.objects.all()).filter(
             channel_id=str(channel.id)
         ).order_by('-sent_at')
 
@@ -236,10 +285,13 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
 
         all_alert_record_ids = list(all_notification_logs.values_list('alert_record_id', flat=True).distinct())
         alert_record_ids = [log.alert_record_id for log in notification_logs]
-        recent_records_qs = AlertRecord.objects.filter(id__in=alert_record_ids)
+        recent_records_qs = _tenant_filtered_queryset(request, AlertRecord.objects.all()).filter(id__in=alert_record_ids)
         alert_record_map = {record.id: record for record in recent_records_qs}
         policy_ids = [record.policy_id for record in recent_records_qs if record.policy_id]
-        policy_map = {policy.id: policy for policy in AlertPolicy.objects.filter(id__in=policy_ids)}
+        policy_map = {
+            policy.id: policy
+            for policy in _tenant_filtered_queryset(request, AlertPolicy.objects.all()).filter(id__in=policy_ids)
+        }
         recent_records = sorted(
             recent_records_qs,
             key=lambda record: record.created_at,
@@ -288,7 +340,7 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
             ],
             'stats': {
                 'policies_count': len(alert_policies),
-                'alerts_count': AlertRecord.objects.filter(id__in=all_alert_record_ids).count(),
+                'alerts_count': _tenant_filtered_queryset(request, AlertRecord.objects.all()).filter(id__in=all_alert_record_ids).count(),
                 'logs_count': logs_count,
                 'logs_success': success_count,
                 'logs_failed': failed_count,
@@ -306,7 +358,7 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = AlertPagination
 
     def get_queryset(self):
-        queryset = NotificationLog.objects.all().order_by("-sent_at")
+        queryset = _tenant_filtered_queryset(self.request, NotificationLog.objects.all()).order_by("-sent_at")
         params = self.request.query_params
 
         channel_id = params.get("channel_id")
@@ -344,7 +396,9 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
         if policy_id:
             alert_filters &= Q(policy_id=policy_id)
         if alert_filters:
-            alert_ids = AlertRecord.objects.filter(alert_filters).values_list("id", flat=True)
+            alert_ids = _tenant_filtered_queryset(
+                self.request, AlertRecord.objects.all()
+            ).filter(alert_filters).values_list("id", flat=True)
             queryset = queryset.filter(alert_record_id__in=list(alert_ids))
 
         return queryset
@@ -370,7 +424,7 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
         failed = queryset.filter(status=NotificationStatus.FAILED).count()
         recent_failed = queryset.filter(status=NotificationStatus.FAILED).order_by("-sent_at")[:5]
         channel_ids = list(queryset.values_list("channel_id", flat=True).distinct())
-        channels = NotificationChannel.objects.filter(id__in=channel_ids)
+        channels = _tenant_filtered_queryset(request, NotificationChannel.objects.all()).filter(id__in=channel_ids)
         return Response({
             "total": total,
             "success": success,
@@ -386,20 +440,24 @@ class MetadataView(APIView):
 
     def get(self, request, kind):
         if kind == "alert-types":
-            return Response(_choices(AlertType))
+            return Response(_choices(AlertType, include_platform=_is_system_admin(request.user)))
         if kind == "resource-types":
-            return Response(_choices(ResourceType))
+            return Response(_choices(ResourceType, include_platform=_is_system_admin(request.user)))
         if kind == "metrics":
             resource_type = request.query_params.get("resource_type")
+            if resource_type in PLATFORM_RESOURCE_TYPES and not _is_system_admin(request.user):
+                return Response([])
             return Response(METRICS_BY_RESOURCE_TYPE.get(resource_type, []))
         if kind == "resources":
             resource_type = request.query_params.get("resource_type")
-            return Response(_resource_options(resource_type))
+            return Response(_resource_options(request, resource_type))
         if kind == "job-types":
             return Response(JOB_TYPES)
         if kind == "event-types":
             return Response({"categories": EVENT_CATEGORIES, "types": EVENT_TYPES, "job_event_types": JOB_EVENT_TYPES})
         if kind == "system-check-types":
+            if not _is_system_admin(request.user):
+                return Response([])
             return Response(SYSTEM_CHECK_TYPES)
         if kind == "availability-check-types":
             return Response(AVAILABILITY_CHECK_TYPES)
@@ -417,7 +475,7 @@ class MetadataResourcesView(APIView):
 
     def get(self, request):
         resource_type = request.query_params.get("resource_type")
-        return Response(_resource_options(resource_type))
+        return Response(_resource_options(request, resource_type))
 
 
 class SystemMonitorView(APIView):
@@ -426,13 +484,23 @@ class SystemMonitorView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if not _is_system_admin(request.user):
+            return Response({"detail": "System monitor is only available to system administrators."}, status=status.HTTP_403_FORBIDDEN)
+
         since, until, error = self._resolve_time_range(request)
         if error:
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
         sample = collect_system_sample()
-        new_metric = SystemMetric.objects.create(**sample)
-        metrics = list(SystemMetric.objects.filter(timestamp__gte=since, timestamp__lte=until).order_by("timestamp")[:2000])
+        system_tenant = _system_tenant()
+        new_metric = SystemMetric.objects.create(tenant=system_tenant, **sample)
+        metrics = list(
+            SystemMetric.objects.filter(
+                tenant=system_tenant,
+                timestamp__gte=since,
+                timestamp__lte=until,
+            ).order_by("timestamp")[:2000]
+        )
         if since <= new_metric.timestamp <= until and all(metric.id != new_metric.id for metric in metrics):
             metrics.append(new_metric)
             metrics.sort(key=lambda metric: metric.timestamp)
@@ -491,11 +559,22 @@ class SystemMonitorView(APIView):
         }
 
 
-def _choices(choice_cls):
-    return [{"value": value, "label": label} for value, label in choice_cls.choices]
+def _choices(choice_cls, include_platform=True):
+    choices = choice_cls.choices
+    if not include_platform:
+        if choice_cls == AlertType:
+            choices = [(value, label) for value, label in choices if value != AlertType.SYSTEM]
+        if choice_cls == ResourceType:
+            choices = [(value, label) for value, label in choices if value not in PLATFORM_RESOURCE_TYPES]
+    return [{"value": value, "label": label} for value, label in choices]
 
 
-def _resource_options(resource_type):
+def _resource_options(request, resource_type):
+    if resource_type in PLATFORM_RESOURCE_TYPES and not _is_system_admin(request.user):
+        return []
+
+    tenant = _request_tenant(request)
+
     if resource_type == ResourceType.SYSTEM:
         return [
             {
@@ -507,45 +586,73 @@ def _resource_options(resource_type):
     if resource_type == ResourceType.SYNC_PROXY:
         from nodes.models import ProxyNode
 
+        queryset = ProxyNode.objects.filter(role=ProxyNode.Role.SYNC)
+        if tenant:
+            queryset = queryset.filter(tenant=tenant)
         return [
             _resource_option(item, item.name, item.status)
-            for item in ProxyNode.objects.filter(role=ProxyNode.Role.SYNC).order_by("name")[:300]
+            for item in queryset.order_by("name")[:300]
         ]
     if resource_type == ResourceType.AGENT_PROXY:
         from nodes.models import ProxyNode
 
+        queryset = ProxyNode.objects.filter(role=ProxyNode.Role.AGENT)
+        if tenant:
+            queryset = queryset.filter(tenant=tenant)
         return [
             _resource_option(item, item.name, item.status)
-            for item in ProxyNode.objects.filter(role=ProxyNode.Role.AGENT).order_by("name")[:300]
+            for item in queryset.order_by("name")[:300]
         ]
     if resource_type == ResourceType.GATEWAY:
         from gateways.models import Gateway
 
-        return [_resource_option(item, item.name, item.status) for item in Gateway.objects.order_by("name")[:300]]
+        queryset = Gateway.objects.all()
+        if tenant:
+            queryset = queryset.filter(tenant=tenant)
+        return [_resource_option(item, item.name, item.status) for item in queryset.order_by("name")[:300]]
     if resource_type == ResourceType.BACKUP_REPOSITORY or resource_type == ResourceType.TARGET_STORAGE:
         from repository.models import Repository
 
-        return [_resource_option(item, item.name, item.status) for item in Repository.objects.order_by("name")[:300]]
+        queryset = Repository.objects.all()
+        if tenant:
+            queryset = queryset.filter(tenant=tenant)
+        return [_resource_option(item, item.name, item.status) for item in queryset.order_by("name")[:300]]
     if resource_type == ResourceType.SOURCE_RESOURCE:
         from source_resources.models import SourceResource
 
-        return [_resource_option(item, item.name, item.status) for item in SourceResource.objects.order_by("name")[:300]]
+        queryset = SourceResource.objects.all()
+        if tenant:
+            queryset = queryset.filter(tenant=tenant)
+        return [_resource_option(item, item.name, item.status) for item in queryset.order_by("name")[:300]]
     if resource_type == ResourceType.JOB:
         from nodes.models import ProxyTask
 
+        queryset = ProxyTask.objects.all()
+        if tenant:
+            queryset = queryset.filter(proxy__tenant=tenant)
         return [
             _resource_option(item, f"{item.task_type} / {item.id}", item.status)
-            for item in ProxyTask.objects.order_by("-created_at")[:300]
+            for item in queryset.order_by("-created_at")[:300]
         ]
     if resource_type == ResourceType.USER:
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
+        queryset = User.objects.all()
+        if tenant:
+            queryset = queryset.filter(tenant=tenant)
         return [
             _resource_option(item, getattr(item, "email", str(item.id)), "active" if item.is_active else "inactive")
-            for item in User.objects.order_by("email")[:300]
+            for item in queryset.order_by("email")[:300]
         ]
     return []
+
+
+def _system_tenant():
+    from tenants.models import Tenant
+    from licenses.quota import SYSTEM_TENANT_NAME
+
+    return Tenant.objects.filter(name=SYSTEM_TENANT_NAME).first()
 
 
 def _notification_log_details(logs):

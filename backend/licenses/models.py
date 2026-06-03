@@ -315,6 +315,7 @@ class License(models.Model):
         from ai_query.models import AIQuery
         from gateways.models import Gateway
         from alerts.models import AlertPolicy
+        from licenses.quota import SYSTEM_TENANT_NAME, get_platform_tenant_count
 
         def repository_reserved_storage_gb():
             total_bytes = 0
@@ -331,7 +332,11 @@ class License(models.Model):
         quota_mapping = {
             'tenants': {
                 'limit': 'max_tenants',
-                'current': lambda: Tenant.objects.count(),
+                'current': lambda: (
+                    get_platform_tenant_count()
+                    if self.tenant and self.tenant.name == SYSTEM_TENANT_NAME
+                    else 0
+                ),
                 'name': 'tenants'
             },
             'users': {
@@ -378,7 +383,7 @@ class License(models.Model):
                 'limit': 'max_policies',
                 'current': lambda: (
                     BackupPolicy.objects.filter(tenant=self.tenant).count()
-                    + AlertPolicy.objects.count()
+                    + AlertPolicy.objects.filter(tenant=self.tenant).count()
                 ),
                 'name': 'policies'
             },

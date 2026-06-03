@@ -41,19 +41,19 @@ def _resources_for_policy(policy):
         from nodes.models import ProxyNode
 
         role = "sync" if policy.resource_type == ResourceType.SYNC_PROXY else "agent"
-        qs = ProxyNode.objects.filter(role=role)
+        qs = ProxyNode.objects.filter(role=role, tenant=policy.tenant)
     elif policy.resource_type == ResourceType.GATEWAY:
         from gateways.models import Gateway
 
-        qs = Gateway.objects.all()
+        qs = Gateway.objects.filter(tenant=policy.tenant)
     elif policy.resource_type == ResourceType.BACKUP_REPOSITORY:
         from repository.models import Repository
 
-        qs = Repository.objects.all()
+        qs = Repository.objects.filter(tenant=policy.tenant)
     elif policy.resource_type == ResourceType.SOURCE_RESOURCE:
         from source_resources.models import SourceResource
 
-        qs = SourceResource.objects.all()
+        qs = SourceResource.objects.filter(tenant=policy.tenant)
     else:
         return []
 

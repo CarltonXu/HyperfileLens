@@ -3,8 +3,10 @@
     <TenantToolbar
       v-model:search-query="searchQuery"
       v-model:status-filter="statusFilter"
+      :loading="loading"
       @search="debouncedSearch"
       @filter="fetchTenants"
+      @refresh="fetchTenants"
       @create="openCreateDialog"
     />
 
@@ -56,11 +58,17 @@
       :tenant="usersTenant"
       :users="tenantUsers"
       :loading="loadingUsers"
+      :user-candidates="userCandidates"
+      :loading-user-candidates="loadingUserCandidates"
+      :selected-user-candidates="selectedUserCandidates"
       :current-user-id="currentUserId"
       :get-initials="getInitials"
       :get-display-name="getDisplayName"
       @close="closeUsersDrawer"
       @add-user="handleAddUser"
+      @search-user-candidates="searchUserCandidates"
+      @select-user-candidate="selectUserCandidate"
+      @remove-selected-user-candidate="removeSelectedUserCandidate"
       @update-role="updateUserRole"
       @remove-user="confirmRemoveUser"
     />
@@ -259,6 +267,7 @@ import TenantList from "@/components/tenants/TenantList.vue";
 import TenantStatsDialog from "@/components/tenants/TenantStatsDialog.vue";
 import TenantToolbar from "@/components/tenants/TenantToolbar.vue";
 import TenantUsersDrawer from "@/components/tenants/TenantUsersDrawer.vue";
+import { getApiErrorMessage } from "@/utils/errors";
 
 const { t } = useI18n();
 const { showToast } = useToast();
@@ -282,9 +291,13 @@ const statsTenant = ref<Tenant | null>(null);
 const statsData = ref<any>(null);
 const usersTenant = ref<Tenant | null>(null);
 const tenantUsers = ref<any[]>([]);
+const userCandidates = ref<any[]>([]);
+const selectedUserCandidates = ref<any[]>([]);
 const searchQuery = ref("");
 const statusFilter = ref("");
 const searchTimeout = ref<number | null>(null);
+const userCandidateSearchTimeout = ref<number | null>(null);
+const loadingUserCandidates = ref(false);
 
 const pagination = ref({
   page: 1,
@@ -492,7 +505,7 @@ const saveTenant = async () => {
     fetchTenants();
   } catch (error: any) {
     console.error("Failed to save tenant:", error);
-    showToast(error.response?.data?.detail || t("common.error"), "error");
+    showToast(getApiErrorMessage(error, t("common.error")), "error");
   } finally {
     saving.value = false;
   }
@@ -512,11 +525,7 @@ const deleteTenant = async () => {
     showDeleteConfirm.value = false;
     fetchTenants();
   } catch (error: any) {
-    const errorMsg =
-      error.response?.data?.detail ||
-      error.response?.data?.error ||
-      t("common.error");
-    showToast(errorMsg, "error");
+    showToast(getApiErrorMessage(error, t("common.error")), "error");
   } finally {
     deleting.value = false;
     deletingTenant.value = null;
@@ -587,6 +596,11 @@ const closeUsersDrawer = () => {
   showUsersDrawer.value = false;
   usersTenant.value = null;
   tenantUsers.value = [];
+  userCandidates.value = [];
+  selectedUserCandidates.value = [];
+  newUserEmail.value = "";
+  newUserRole.value = "member";
+  showAddUserForm.value = false;
 };
 
 const updateUserRole = async (
@@ -603,7 +617,7 @@ const updateUserRole = async (
     showToast(t("common.saved"), "success");
     await fetchTenantUsers(usersTenant.value.id);
   } catch (error: any) {
-    showToast(error.response?.data?.detail || t("common.error"), "error");
+    showToast(getApiErrorMessage(error, t("common.error")), "error");
   }
 };
 
@@ -621,12 +635,7 @@ const executeRemoveUser = async () => {
     removingUser.value = null;
     await fetchTenantUsers(usersTenant.value.id);
   } catch (error: any) {
-    showToast(
-      error.response?.data?.error ||
-        error.response?.data?.detail ||
-        t("common.error"),
-      "error",
-    );
+    showToast(getApiErrorMessage(error, t("common.error")), "error");
   }
 };
 
@@ -641,26 +650,81 @@ const removingUser = ref<any>(null);
 const currentUserId = ref<string | null>(null);
 
 const handleAddUser = async () => {
-  if (!newUserEmail.value || !usersTenant.value) return;
+  if (!usersTenant.value || selectedUserCandidates.value.length === 0) return;
   try {
-    await tenantsApi.addUser(usersTenant.value.id, {
-      email: newUserEmail.value,
-      role: newUserRole.value,
-      is_superuser: false,
-    });
+    for (const user of selectedUserCandidates.value) {
+      await tenantsApi.addUser(usersTenant.value.id, {
+        email: user.email,
+        role: newUserRole.value,
+        is_superuser: false,
+      });
+    }
     showToast(t("common.success"), "success");
     newUserEmail.value = "";
+    selectedUserCandidates.value = [];
+    userCandidates.value = [];
     newUserRole.value = "member";
     showAddUserForm.value = false;
     await fetchTenantUsers(usersTenant.value.id);
   } catch (error: any) {
-    showToast(
-      error.response?.data?.error ||
-        error.response?.data?.detail ||
-        t("common.error"),
-      "error",
-    );
+    showToast(getApiErrorMessage(error, t("common.error")), "error");
   }
+};
+
+const searchUserCandidates = (query: string) => {
+  if (userCandidateSearchTimeout.value) {
+    clearTimeout(userCandidateSearchTimeout.value);
+  }
+  const search = query.trim();
+  if (!usersTenant.value || search.length < 2) {
+    userCandidates.value = [];
+    loadingUserCandidates.value = false;
+    return;
+  }
+
+  userCandidates.value = [];
+  loadingUserCandidates.value = true;
+  userCandidateSearchTimeout.value = window.setTimeout(async () => {
+    if (!usersTenant.value) return;
+    try {
+      const response = await tenantsApi.userCandidates(usersTenant.value.id, {
+        search,
+      });
+      const existingEmails = new Set(
+        tenantUsers.value.map((user) => user.email?.toLowerCase()),
+      );
+      const selectedEmails = new Set(
+        selectedUserCandidates.value.map((user) => user.email?.toLowerCase()),
+      );
+      userCandidates.value = (response.data || []).filter(
+        (user: any) =>
+          !existingEmails.has(user.email?.toLowerCase()) &&
+          !selectedEmails.has(user.email?.toLowerCase()),
+      );
+    } catch (error) {
+      userCandidates.value = [];
+      showToast(getApiErrorMessage(error, t("common.error")), "error");
+    } finally {
+      loadingUserCandidates.value = false;
+    }
+  }, 250);
+};
+
+const selectUserCandidate = (user: any) => {
+  const exists = selectedUserCandidates.value.some(
+    (candidate) => candidate.id === user.id,
+  );
+  if (!exists) {
+    selectedUserCandidates.value = [...selectedUserCandidates.value, user];
+  }
+  newUserEmail.value = "";
+  userCandidates.value = [];
+};
+
+const removeSelectedUserCandidate = (userId: string) => {
+  selectedUserCandidates.value = selectedUserCandidates.value.filter(
+    (user) => user.id !== userId,
+  );
 };
 
 const activateTenant = async (tenant: Tenant) => {

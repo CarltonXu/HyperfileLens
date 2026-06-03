@@ -29,7 +29,12 @@ def evaluate_metric_policies_for_resource(resource):
     if not resource_type:
         return
 
-    policies = AlertPolicy.objects.filter(enabled=True, type="metric", resource_type=resource_type)
+    policies = AlertPolicy.objects.filter(
+        enabled=True,
+        type="metric",
+        resource_type=resource_type,
+        tenant=getattr(resource, "tenant", None),
+    )
     for policy in policies:
         if policy.scope == "selected" and str(getattr(resource, "id", "")) not in {str(item) for item in policy.resource_ids or []}:
             continue
@@ -44,7 +49,7 @@ def _evaluate_metric_policy_for_resource(policy, resource):
     if not metric_key or threshold is None:
         return
 
-    value = _metric_value(resource, policy.resource_type, metric_key, rule)
+    value = _metric_value(resource, policy.resource_type, metric_key, rule, tenant=policy.tenant)
     if value is None:
         return
 
@@ -111,7 +116,7 @@ def _resources_for_policy(policy):
         from nodes.models import ProxyNode
 
         role = "sync" if resource_type == ResourceType.SYNC_PROXY else "agent"
-        qs = ProxyNode.objects.filter(role=role)
+        qs = ProxyNode.objects.filter(role=role, tenant=policy.tenant)
     elif resource_type == ResourceType.SYSTEM:
         return [
             SimpleNamespace(
@@ -123,15 +128,15 @@ def _resources_for_policy(policy):
     elif resource_type == ResourceType.GATEWAY:
         from gateways.models import Gateway
 
-        qs = Gateway.objects.all()
+        qs = Gateway.objects.filter(tenant=policy.tenant)
     elif resource_type == ResourceType.BACKUP_REPOSITORY:
         from repository.models import Repository
 
-        qs = Repository.objects.all()
+        qs = Repository.objects.filter(tenant=policy.tenant)
     elif resource_type == ResourceType.SOURCE_RESOURCE:
         from source_resources.models import SourceResource
 
-        qs = SourceResource.objects.all()
+        qs = SourceResource.objects.filter(tenant=policy.tenant)
     else:
         return []
 
@@ -140,9 +145,9 @@ def _resources_for_policy(policy):
     return qs
 
 
-def _metric_value(resource, resource_type, metric_key, rule):
+def _metric_value(resource, resource_type, metric_key, rule, tenant=None):
     if resource_type == ResourceType.SYSTEM:
-        return _system_metric_value(metric_key, rule)
+        return _system_metric_value(metric_key, rule, tenant=tenant)
     if resource_type in (ResourceType.SYNC_PROXY, ResourceType.AGENT_PROXY):
         return _proxy_metric_value(resource, metric_key, rule)
     if resource_type == ResourceType.GATEWAY:
@@ -154,11 +159,11 @@ def _metric_value(resource, resource_type, metric_key, rule):
     return None
 
 
-def _system_metric_value(metric_key, rule):
+def _system_metric_value(metric_key, rule, tenant=None):
     from alerts.models import SystemMetric
 
     duration = int(rule.get("duration_seconds") or 0)
-    queryset = SystemMetric.objects.all()
+    queryset = SystemMetric.objects.filter(tenant=tenant)
     if duration > 0:
         since = timezone.now() - timezone.timedelta(seconds=duration)
         queryset = queryset.filter(timestamp__gte=since)

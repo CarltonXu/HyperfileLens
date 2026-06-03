@@ -16,6 +16,10 @@ import uuid
 import secrets
 
 
+def generate_invitation_token():
+    return secrets.token_hex(32)
+
+
 class Tenant(models.Model):
     """
     Tenant model for multi-tenancy support.
@@ -213,7 +217,7 @@ class TenantInvitation(models.Model):
     token = models.CharField(
         max_length=64,
         unique=True,
-        default=secrets.token_hex(32),
+        default=generate_invitation_token,
         help_text='Unique token for accepting the invitation'
     )
     status = models.CharField(

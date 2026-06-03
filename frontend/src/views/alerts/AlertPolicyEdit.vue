@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { alertsApi } from "@/api";
 import { useAppStore } from "@/stores/app";
+import { useAuthStore } from "@/stores/auth";
 import { getApiErrorMessage } from "@/utils/errors";
 import MetricRuleForm from "@/components/alerts/MetricRuleForm.vue";
 import AvailabilityRuleForm from "@/components/alerts/AvailabilityRuleForm.vue";
@@ -18,8 +19,10 @@ const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const appStore = useAppStore();
+const authStore = useAuthStore();
 const saving = ref(false);
 const loading = ref(false);
+const isSystemAdmin = computed(() => !!authStore.user?.is_superuser);
 
 const form = reactive<Record<string, any>>({
   name: "",
@@ -350,7 +353,7 @@ onMounted(async () => {
                 <option value="event">
                   {{ t("alertsCenter.values.event") }}
                 </option>
-                <option value="system">
+                <option v-if="isSystemAdmin" value="system">
                   {{ t("alertsCenter.values.system") }}
                 </option>
               </select>

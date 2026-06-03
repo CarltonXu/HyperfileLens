@@ -4,8 +4,10 @@
       v-model:search-query="searchQuery"
       v-model:role-filter="roleFilter"
       v-model:status-filter="statusFilter"
+      :loading="loading"
       @search="debouncedSearch"
       @filter="fetchUsers"
+      @refresh="fetchUsers"
       @invite="openInviteDialog"
       @create="openCreateDialog"
     />
@@ -27,6 +29,7 @@
       :format-date="formatDate"
       @edit="openEditDialog"
       @reset-password="openResetPasswordDialog"
+      @join-tenant="openJoinTenantDialog"
       @toggle-superuser="toggleSuperuser"
       @toggle-status="toggleUserStatus"
       @delete="openDeleteDialog"
@@ -52,6 +55,10 @@
       :resetting="resetting"
       :resetting-user="resettingUser"
       :reset-password-form="resetPasswordForm"
+      :show-join-tenant-dialog="showJoinTenantDialog"
+      :joining-tenant="joiningTenant"
+      :joining-user="joiningUser"
+      :join-tenant-form="joinTenantForm"
       :show-delete-dialog="showDeleteDialog"
       :deleting="deleting"
       :deleting-user="deletingUser"
@@ -63,6 +70,8 @@
       @invite="sendInvite"
       @close-reset-password="closeResetPasswordDialog"
       @reset-password="resetPassword"
+      @close-join-tenant="closeJoinTenantDialog"
+      @join-tenant="joinTenant"
       @close-delete="closeDeleteDialog"
       @delete="deleteUser"
     />
@@ -241,6 +250,15 @@ const resetPasswordForm = ref({
   confirm_password: "",
 });
 
+// Join tenant dialog
+const showJoinTenantDialog = ref(false);
+const joiningTenant = ref(false);
+const joiningUser = ref<User | null>(null);
+const joinTenantForm = ref({
+  tenant_id: "",
+  role: "member",
+});
+
 // Delete dialog
 const showDeleteDialog = ref(false);
 const deleting = ref(false);
@@ -252,6 +270,7 @@ const inviting = ref(false);
 const inviteForm = ref({
   email: "",
   role: "member",
+  tenant_id: "",
 });
 
 // Debounce
@@ -314,22 +333,25 @@ async function openCreateDialog() {
   };
   showCreateDialog.value = true;
 
-  // Fetch tenants for platform admin
-  if (isPlatformAdmin.value && tenants.value.length === 0) {
-    loadingTenants.value = true;
-    try {
-      const response = await tenantsApi.list({ page_size: 100 });
-      tenants.value = response.data.results || response.data;
-    } catch (error) {
-      console.error("Failed to fetch tenants:", error);
-    } finally {
-      loadingTenants.value = false;
-    }
-  }
+  await ensureTenantsLoaded();
 }
 
 function closeCreateDialog() {
   showCreateDialog.value = false;
+}
+
+async function ensureTenantsLoaded() {
+  if (!isPlatformAdmin.value || tenants.value.length > 0) return;
+  loadingTenants.value = true;
+  try {
+    const response = await tenantsApi.list({ page_size: 100 });
+    tenants.value = response.data.results || response.data;
+  } catch (error) {
+    console.error("Failed to fetch tenants:", error);
+    appStore.showToast({ type: "error", title: t("common.error") });
+  } finally {
+    loadingTenants.value = false;
+  }
 }
 
 async function createUser() {
@@ -463,8 +485,9 @@ async function toggleSuperuser(user: User, isSuperuser: boolean) {
 
 // Invite
 function openInviteDialog() {
-  inviteForm.value = { email: "", role: "member" };
+  inviteForm.value = { email: "", role: "member", tenant_id: "" };
   showInviteDialog.value = true;
+  ensureTenantsLoaded();
 }
 
 function closeInviteDialog() {
@@ -472,6 +495,10 @@ function closeInviteDialog() {
 }
 
 async function sendInvite() {
+  if (isPlatformAdmin.value && !inviteForm.value.tenant_id) {
+    appStore.showToast({ type: "error", title: t("users.selectTenant") });
+    return;
+  }
   inviting.value = true;
   try {
     await invitationsApi.create(inviteForm.value);
@@ -562,6 +589,53 @@ async function resetPassword() {
     });
   } finally {
     resetting.value = false;
+  }
+}
+
+async function openJoinTenantDialog(user: User) {
+  joiningUser.value = user;
+  joinTenantForm.value = {
+    tenant_id: "",
+    role: "member",
+  };
+  showJoinTenantDialog.value = true;
+  await ensureTenantsLoaded();
+}
+
+function closeJoinTenantDialog() {
+  showJoinTenantDialog.value = false;
+  joiningUser.value = null;
+}
+
+async function joinTenant() {
+  if (!joiningUser.value) return;
+  if (!joinTenantForm.value.tenant_id) {
+    appStore.showToast({ type: "error", title: t("users.selectTenant") });
+    return;
+  }
+
+  joiningTenant.value = true;
+  try {
+    await tenantsApi.addUser(joinTenantForm.value.tenant_id, {
+      email: joiningUser.value.email,
+      role: joinTenantForm.value.role,
+    });
+    appStore.showToast({ type: "success", title: t("users.joinTenantSuccess") });
+    closeJoinTenantDialog();
+    fetchUsers();
+  } catch (error: unknown) {
+    const err = error as {
+      response?: { data?: { detail?: string; error?: string } };
+    };
+    appStore.showToast({
+      type: "error",
+      title:
+        err.response?.data?.detail ||
+        err.response?.data?.error ||
+        t("users.joinTenantFailed"),
+    });
+  } finally {
+    joiningTenant.value = false;
   }
 }
 

@@ -37,6 +37,7 @@ const Licenses = () => import("@/views/Licenses.vue");
 const Gateways = () => import("@/views/Gateways.vue");
 const Register = () => import("@/views/Register.vue");
 const ForgotPassword = () => import("@/views/ForgotPassword.vue");
+const AcceptInvitation = () => import("@/views/AcceptInvitation.vue");
 
 // Route types
 declare module "vue-router" {
@@ -77,6 +78,16 @@ const routes: RouteRecordRaw[] = [
     component: ForgotPassword,
     meta: {
       title: "Forgot Password",
+      layout: "auth",
+      requiresAuth: false,
+    },
+  },
+  {
+    path: "/accept-invitation",
+    name: "AcceptInvitation",
+    component: AcceptInvitation,
+    meta: {
+      title: "Accept Invitation",
       layout: "auth",
       requiresAuth: false,
     },
@@ -238,7 +249,7 @@ const routes: RouteRecordRaw[] = [
         path: "alerts/system-monitor",
         name: "SystemMonitor",
         component: SystemMonitor,
-        meta: { title: "System Monitor" },
+        meta: { title: "System Monitor", requiresSuperuser: true },
       },
       {
         path: "alerts/policies",
@@ -344,12 +355,15 @@ const router = createRouter({
 // Navigation guard
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
-  const isAuthRoute = ["Login", "Register", "ForgotPassword"].includes(
-    String(to.name),
-  );
+  const isAuthRoute = [
+    "Login",
+    "Register",
+    "ForgotPassword",
+    "AcceptInvitation",
+  ].includes(String(to.name));
 
   if (isAuthRoute) {
-    if (authStore.isAuthenticated) {
+    if (authStore.isAuthenticated && to.name !== "AcceptInvitation") {
       next({ name: "Dashboard" });
       return;
     }

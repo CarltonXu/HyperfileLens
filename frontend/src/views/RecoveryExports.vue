@@ -785,14 +785,6 @@ onUnmounted(() => {
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
-          @click="fetchExports"
-        >
-          <ArrowPathIcon :class="['h-4 w-4', isLoading ? 'animate-spin' : '']" />
-          {{ t("common.refresh") }}
-        </button>
-        <button
-          type="button"
           class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90"
           @click="openCreateModal"
         >
@@ -803,7 +795,7 @@ onUnmounted(() => {
     </div>
 
     <div class="rounded-lg border border-border bg-card p-4">
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_220px_220px_220px_170px_auto]">
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_220px_220px_220px_170px_auto_auto]">
         <input
           v-model="searchQuery"
           type="text"
@@ -866,6 +858,14 @@ onUnmounted(() => {
           <option value="failed">{{ t("recoveryExports.statuses.failed") }}</option>
           <option value="cancelled">{{ t("recoveryExports.statuses.cancelled") }}</option>
         </select>
+        <button
+          type="button"
+          class="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
+          @click="fetchExports"
+        >
+          <ArrowPathIcon :class="['h-4 w-4', isLoading ? 'animate-spin' : '']" />
+          {{ t("common.refresh") }}
+        </button>
         <button
           type="button"
           class="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"

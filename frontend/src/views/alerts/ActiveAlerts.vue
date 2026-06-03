@@ -13,6 +13,7 @@ import {
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
+import { useAuthStore } from "@/stores/auth";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
@@ -22,10 +23,13 @@ import AlertTypeTag from "@/components/alerts/AlertTypeTag.vue";
 
 const alerts = ref<any[]>([]);
 const { t } = useI18n();
+const authStore = useAuthStore();
 const { getPageSize, setPageSize } = usePagination();
 const selected = ref<any | null>(null);
 const loading = ref(false);
+const acknowledging = ref(false);
 const filters = reactive({ search: "", severity: "", type: "", status: "" });
+const isSystemAdmin = computed(() => !!authStore.user?.is_superuser);
 const pagination = reactive({
   page: 1,
   page_size: getPageSize("active-alerts"),
@@ -47,6 +51,10 @@ const stats = computed(() => ({
   acknowledged: alerts.value.filter((item) => item.status === "acknowledged")
     .length,
 }));
+
+const acknowledgeableAlerts = computed(() =>
+  alerts.value.filter((item) => ["pending", "firing"].includes(item.status)),
+);
 
 type ActiveAlertColumnKey =
   | "severity"
@@ -170,6 +178,21 @@ async function acknowledge(alert: any) {
   await fetchAlerts();
 }
 
+async function acknowledgeVisibleAlerts() {
+  if (!acknowledgeableAlerts.value.length || acknowledging.value) return;
+  acknowledging.value = true;
+  try {
+    await Promise.all(
+      acknowledgeableAlerts.value.map((alert) =>
+        alertsApi.acknowledgeRecord(alert.id),
+      ),
+    );
+    await fetchAlerts();
+  } finally {
+    acknowledging.value = false;
+  }
+}
+
 async function resolve(alert: any) {
   await alertsApi.resolveRecord(alert.id);
   await fetchAlerts();
@@ -249,21 +272,14 @@ onMounted(fetchAlerts);
           </p>
         </div>
       </div>
-      <div class="flex gap-2">
-        <button
-          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
-        >
-          <CheckIcon class="h-4 w-4" />
-          {{ t("alertsCenter.active.batchAcknowledge") }}
-        </button>
-        <button
-          @click="fetchAlerts"
-          class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover"
-        >
-          <ArrowPathIcon class="h-4 w-4" />
-          {{ $t("common.refresh") }}
-        </button>
-      </div>
+      <button
+        :disabled="acknowledging || acknowledgeableAlerts.length === 0"
+        @click="acknowledgeVisibleAlerts"
+        class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <CheckIcon class="h-4 w-4" />
+        {{ t("alertsCenter.active.batchAcknowledge") }}
+      </button>
     </div>
 
     <div class="grid gap-3 md:grid-cols-4">
@@ -330,9 +346,9 @@ onMounted(fetchAlerts);
     </div>
 
     <div
-      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-5"
+      class="flex flex-wrap items-center gap-3 rounded-lg border border-border p-4 shadow-sm"
     >
-      <div class="relative md:col-span-2">
+      <div class="relative min-w-[240px] flex-1">
         <MagnifyingGlassIcon
           class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-foreground-muted"
         />
@@ -367,7 +383,9 @@ onMounted(fetchAlerts);
         </option>
         <option value="job">{{ t("alertsCenter.values.job") }}</option>
         <option value="event">{{ t("alertsCenter.values.event") }}</option>
-        <option value="system">{{ t("alertsCenter.values.system") }}</option>
+        <option v-if="isSystemAdmin" value="system">
+          {{ t("alertsCenter.values.system") }}
+        </option>
       </select>
       <select
         v-model="filters.status"
@@ -381,6 +399,15 @@ onMounted(fetchAlerts);
           {{ t("alertsCenter.values.acknowledged") }}
         </option>
       </select>
+      <div class="ml-auto flex flex-wrap items-center gap-2">
+        <button
+          @click="fetchAlerts"
+          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
+        >
+          <ArrowPathIcon class="h-4 w-4" />
+          {{ $t("common.refresh") }}
+        </button>
+      </div>
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border shadow-sm">

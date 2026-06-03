@@ -362,6 +362,13 @@ export default {
     resetPassword: "Reset Password",
     goToLogin: "Go to Login",
     backToLogin: "Back to Login",
+    acceptInvitation: "Accept Invitation",
+    acceptInvitationDesc: "Confirm tenant access and complete your account setup",
+    invitationMissingToken: "Invitation token is missing",
+    invitationInvalid: "Invitation link is invalid or expired",
+    invitationAcceptFailed: "Failed to accept invitation",
+    currentPassword: "Current account password",
+    createPassword: "Create login password",
 
     // Links
     or: "or",
@@ -2987,6 +2994,10 @@ export default {
       "Are you sure you want to remove user {email} from this tenant?",
     cannotRemoveSuperuser: "Cannot remove platform admin",
     cannotRemoveSelf: "Cannot remove yourself",
+    userAlreadyInTenant: "This user is already in this tenant.",
+    noUserCandidates: "No users available to add",
+    noUserCandidatesHint:
+      "Only regular users without a tenant are shown. Check the email or name and try again.",
   },
 
   // Users
@@ -3030,6 +3041,10 @@ export default {
     onlyPlatformAdminCanSet: "Only platform admins can set this permission",
     editUser: "Edit User",
     editUserHint: "Edit user {user} information",
+    joinTenant: "Join Tenant",
+    joinTenantHint: "Add user {user} to a tenant",
+    joinTenantSuccess: "User joined tenant successfully",
+    joinTenantFailed: "Failed to join tenant",
     updateUser: "Update User",
     updateSuccess: "User updated successfully",
     updateFailed: "Failed to update user",
@@ -3041,7 +3056,7 @@ export default {
     superuser: "Superuser",
     createSuccess: "User created successfully",
     createFailed: "Failed to create user",
-    inviteSuccess: "Invitation sent successfully",
+    inviteSuccess: "Invitation email sent successfully",
     inviteFailed: "Failed to send invitation",
     roleChangeSuccess: "Role changed successfully",
     roleChangeFailed: "Failed to change role",

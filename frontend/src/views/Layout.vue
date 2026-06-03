@@ -403,6 +403,7 @@ const navigationGroups = computed<NavigationGroup[]>(() => {
           icon: ChartBarIcon,
           iconSolid: ChartBarIconSolid,
           current: route.path === "/alerts/system-monitor",
+          requiresSuperuser: true,
         },
         {
           name: t("alertsCenter.nav.policies"),

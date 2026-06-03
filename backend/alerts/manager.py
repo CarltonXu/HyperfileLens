@@ -30,7 +30,9 @@ class AlertManager:
             severity = AlertSeverity.CRITICAL
 
         fingerprint = f"compat:{source}:{alert_type}:{entity_type}:{entity_id}:{title}"
+        tenant = kwargs.get("tenant") or getattr(kwargs.get("user"), "tenant", None) or getattr(kwargs.get("owner"), "tenant", None)
         active_alert = AlertRecord.objects.filter(
+            tenant=tenant,
             fingerprint=fingerprint,
             status__in=[AlertStatus.PENDING, AlertStatus.FIRING, AlertStatus.ACKNOWLEDGED],
         ).first()
@@ -57,6 +59,7 @@ class AlertManager:
             return active_alert
 
         return AlertRecord.objects.create(
+            tenant=tenant,
             policy_id=None,
             type="event" if source not in {"repository", "proxy"} else "metric",
             severity=severity if severity in AlertSeverity.values else AlertSeverity.WARNING,

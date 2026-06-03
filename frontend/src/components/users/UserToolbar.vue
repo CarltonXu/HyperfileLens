@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import {
+  ArrowPathIcon,
   EnvelopeIcon,
   MagnifyingGlassIcon,
   PlusIcon,
@@ -10,6 +11,7 @@ defineProps<{
   searchQuery: string;
   roleFilter: string;
   statusFilter: string;
+  loading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -18,6 +20,7 @@ const emit = defineEmits<{
   "update:statusFilter": [value: string];
   search: [];
   filter: [];
+  refresh: [];
   invite: [];
   create: [];
 }>();
@@ -120,6 +123,17 @@ const { t } = useI18n();
             {{ t("users.inactive") }}
           </option>
         </select>
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
+          @click="emit('refresh')"
+        >
+          <ArrowPathIcon
+            :class="['h-4 w-4', loading ? 'animate-spin' : '']"
+            aria-hidden="true"
+          />
+          {{ t("common.refresh") }}
+        </button>
       </div>
     </div>
   </div>

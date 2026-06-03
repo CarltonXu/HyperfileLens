@@ -30,7 +30,7 @@ type UserColumnKey =
   | "last_login_at"
   | "actions";
 
-defineProps<{
+const props = defineProps<{
   loading: boolean;
   users: User[];
   userColumns: Array<{
@@ -55,6 +55,7 @@ defineProps<{
 const emit = defineEmits<{
   edit: [user: User];
   resetPassword: [user: User];
+  joinTenant: [user: User];
   toggleSuperuser: [user: User, isSuperuser: boolean];
   toggleStatus: [user: User, active: boolean];
   delete: [user: User];
@@ -63,6 +64,12 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+function canManageUser(user: User) {
+  if (user.id === props.currentUserId) return false;
+  if (props.isPlatformAdmin) return true;
+  return !user.is_superuser;
+}
 </script>
 
 <template>
@@ -222,7 +229,7 @@ const { t } = useI18n();
                   class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-md popover-surface shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
                 >
                   <div class="py-1">
-                    <MenuItem v-slot="{ active }">
+                    <MenuItem v-if="canManageUser(user)" v-slot="{ active }">
                       <button
                         :class="[
                           active
@@ -235,7 +242,7 @@ const { t } = useI18n();
                         {{ t("users.editUser") }}
                       </button>
                     </MenuItem>
-                    <MenuItem v-slot="{ active }">
+                    <MenuItem v-if="canManageUser(user)" v-slot="{ active }">
                       <button
                         :class="[
                           active
@@ -246,6 +253,27 @@ const { t } = useI18n();
                         @click="emit('resetPassword', user)"
                       >
                         {{ t("users.resetPassword") }}
+                      </button>
+                    </MenuItem>
+                    <MenuItem
+                      v-if="
+                        isPlatformAdmin &&
+                        !user.is_superuser &&
+                        !user.tenant_name &&
+                        user.id !== currentUserId
+                      "
+                      v-slot="{ active }"
+                    >
+                      <button
+                        :class="[
+                          active
+                            ? 'bg-hover text-foreground'
+                            : 'text-foreground',
+                          'block w-full px-4 py-2 text-left text-sm',
+                        ]"
+                        @click="emit('joinTenant', user)"
+                      >
+                        {{ t("users.joinTenant") }}
                       </button>
                     </MenuItem>
                     <MenuItem
@@ -284,7 +312,10 @@ const { t } = useI18n();
                         {{ t("users.removePlatformAdmin") }}
                       </button>
                     </MenuItem>
-                    <MenuItem v-if="user.is_active" v-slot="{ active }">
+                    <MenuItem
+                      v-if="canManageUser(user) && user.is_active"
+                      v-slot="{ active }"
+                    >
                       <button
                         :class="[
                           active
@@ -297,7 +328,10 @@ const { t } = useI18n();
                         {{ t("users.disableUser") }}
                       </button>
                     </MenuItem>
-                    <MenuItem v-else v-slot="{ active }">
+                    <MenuItem
+                      v-else-if="canManageUser(user)"
+                      v-slot="{ active }"
+                    >
                       <button
                         :class="[
                           active
@@ -311,10 +345,7 @@ const { t } = useI18n();
                       </button>
                     </MenuItem>
                     <div class="border-t border-border my-1" />
-                    <MenuItem
-                      v-if="user.id !== currentUserId"
-                      v-slot="{ active }"
-                    >
+                    <MenuItem v-if="canManageUser(user)" v-slot="{ active }">
                       <button
                         :class="[
                           active

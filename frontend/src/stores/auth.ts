@@ -21,6 +21,16 @@ export const useAuthStore = defineStore('auth', () => {
   const userRole = computed(() => user.value?.role?.name || 'User')
 
   // Actions
+  function setAuthenticatedSession(data: Record<string, any>) {
+    const { token: authToken, ...userData } = data
+    if (authToken) {
+      token.value = authToken
+      user.value = userData as User
+      localStorage.setItem('token', authToken)
+      sessionStorage.setItem('showWelcome', 'true')
+    }
+  }
+
   async function login(credentials: LoginCredentials): Promise<LoginResponse> {
     loading.value = true
     error.value = null
@@ -48,13 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
       // Extract token and user data separately
       const { token: authToken, ...userData } = data
       
-      if (authToken) {
-        token.value = authToken
-        user.value = userData as User
-        localStorage.setItem('token', authToken)
-        // Set flag for welcome toast
-        sessionStorage.setItem('showWelcome', 'true')
-      }
+      setAuthenticatedSession(data)
 
       return { token: authToken, user: userData, mfa_required: false }
     } catch (err: any) {
@@ -77,13 +81,7 @@ export const useAuthStore = defineStore('auth', () => {
       // Backend returns flat user data with token
       const { token: authToken, ...userData } = data
       
-      if (authToken) {
-        token.value = authToken
-        user.value = userData as User
-        localStorage.setItem('token', authToken)
-        // Set flag for welcome toast
-        sessionStorage.setItem('showWelcome', 'true')
-      }
+      setAuthenticatedSession(data)
 
       return { token: authToken, user: userData, mfa_required: false }
     } catch (err: any) {
@@ -152,11 +150,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       const { token: authToken, ...userData } = response.data
       
-      token.value = authToken
-      user.value = userData as User
-
-      // Store token
-      localStorage.setItem('token', authToken)
+      setAuthenticatedSession(response.data)
 
       return { user: userData as User, token: authToken }
     } catch (err: any) {
@@ -208,6 +202,7 @@ export const useAuthStore = defineStore('auth', () => {
     userFullName,
     userRole,
     // Actions
+    setAuthenticatedSession,
     login,
     verifyMfa,
     logout,

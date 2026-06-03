@@ -20,6 +20,14 @@ class AlertPolicy(models.Model):
     """A user-configured alert policy."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.SET_NULL,
+        related_name="alert_policies",
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
 
@@ -55,6 +63,14 @@ class AlertRecord(models.Model):
     """A concrete alert instance generated from a policy or platform event."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.SET_NULL,
+        related_name="alert_records",
+        null=True,
+        blank=True,
+        db_index=True,
+    )
 
     policy_id = models.UUIDField(null=True, blank=True)
     type = models.CharField(max_length=50, choices=AlertType.choices)
@@ -109,6 +125,14 @@ class NotificationChannel(models.Model):
     """Channel used to deliver alert notifications."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.SET_NULL,
+        related_name="notification_channels",
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     name = models.CharField(max_length=255)
     type = models.CharField(max_length=50, choices=NotificationChannelType.choices)
     enabled = models.BooleanField(default=True)
@@ -128,6 +152,14 @@ class NotificationLog(models.Model):
     """Delivery log for a notification attempt."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.SET_NULL,
+        related_name="notification_logs",
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     alert_record_id = models.UUIDField()
     channel_id = models.UUIDField()
     notification_type = models.CharField(max_length=50, choices=NotificationType.choices, default=NotificationType.FIRING)
@@ -147,6 +179,14 @@ class SystemMetric(models.Model):
     """Control-plane host monitoring sample for the System Monitor page."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.SET_NULL,
+        related_name="system_metrics",
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
     cpu = models.JSONField(default=dict, blank=True)
     memory = models.JSONField(default=dict, blank=True)

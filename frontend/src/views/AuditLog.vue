@@ -227,6 +227,14 @@
             </Transition>
           </div>
 
+          <button
+            @click="refreshAuditLogs"
+            class="h-9 px-3 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-hover flex items-center gap-1.5"
+          >
+            <ArrowPathIcon :class="['w-4 h-4', loading ? 'animate-spin' : '']" />
+            {{ t("common.refresh") }}
+          </button>
+
           <!-- Reset Filters -->
           <button
             v-if="hasActiveFilters"
@@ -780,6 +788,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
+  ArrowPathIcon,
   ArrowDownTrayIcon,
   XMarkIcon,
   ChevronDownIcon,
@@ -1118,6 +1127,11 @@ const fetchStatistics = async () => {
   } catch (error) {
     console.error("Failed to fetch statistics:", error);
   }
+};
+
+const refreshAuditLogs = () => {
+  fetchLogs();
+  fetchStatistics();
 };
 
 const handleSearch = () => {

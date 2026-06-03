@@ -27,7 +27,9 @@ api.interceptors.request.use(
       requestUrl.includes("/api/v1/accounts/forgot-password/") ||
       requestUrl.includes("/api/v1/accounts/verify-reset-code/") ||
       requestUrl.includes("/api/v1/accounts/reset-password/") ||
-      requestUrl.includes("/api/v1/accounts/mfa/");
+      requestUrl.includes("/api/v1/accounts/mfa/") ||
+      requestUrl.includes("/api/v1/tenants/invitations/validate/") ||
+      requestUrl.includes("/api/v1/tenants/invitations/accept/");
     const token = localStorage.getItem("token");
     if (token && !isPublicAuthRequest) {
       config.headers.Authorization = `Token ${token}`;
@@ -64,15 +66,20 @@ api.interceptors.response.use(
       requestUrl.includes("/api/v1/accounts/forgot-password/") ||
       requestUrl.includes("/api/v1/accounts/verify-reset-code/") ||
       requestUrl.includes("/api/v1/accounts/reset-password/") ||
-      requestUrl.includes("/api/v1/accounts/mfa/");
+      requestUrl.includes("/api/v1/accounts/mfa/") ||
+      requestUrl.includes("/api/v1/tenants/invitations/validate/") ||
+      requestUrl.includes("/api/v1/tenants/invitations/accept/");
 
     if (error.response?.status === 401 && isAuthRequest) {
       return Promise.reject(error);
     }
 
-    const isAuthPage = ["/login", "/register", "/forgot-password"].includes(
-      window.location.pathname,
-    );
+    const isAuthPage = [
+      "/login",
+      "/register",
+      "/forgot-password",
+      "/accept-invitation",
+    ].includes(window.location.pathname);
 
     if (error.response?.status === 401 && isAuthPage) {
       localStorage.removeItem("token");

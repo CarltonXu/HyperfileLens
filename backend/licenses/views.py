@@ -21,6 +21,7 @@ from .models import License, LicenseHistory, MachineCode, QuotaUsage, generate_m
 from .serializers import LicenseSerializer, LicenseHistorySerializer, MachineCodeSerializer
 from .crypto import LicenseCrypto
 from audit_log.services import AuditService
+from licenses.quota import SYSTEM_TENANT_NAME, get_platform_tenant_count
 
 
 class LicenseViewSet(viewsets.ModelViewSet):
@@ -83,8 +84,11 @@ class LicenseViewSet(viewsets.ModelViewSet):
         
         try:
             # Tenants count (for super admin)
-            Tenant = apps.get_model('tenants', 'Tenant')
-            stats['tenants_count'] = Tenant.objects.filter(status='active').count()
+            stats['tenants_count'] = (
+                get_platform_tenant_count()
+                if tenant and tenant.name == SYSTEM_TENANT_NAME
+                else 0
+            )
         except Exception:
             stats['tenants_count'] = 0
         
@@ -150,7 +154,11 @@ class LicenseViewSet(viewsets.ModelViewSet):
         try:
             # Policies count
             BackupPolicy = apps.get_model('policies', 'BackupPolicy')
-            stats['policies_count'] = BackupPolicy.objects.filter(tenant=tenant).count()
+            AlertPolicy = apps.get_model('alerts', 'AlertPolicy')
+            stats['policies_count'] = (
+                BackupPolicy.objects.filter(tenant=tenant).count()
+                + AlertPolicy.objects.filter(tenant=tenant).count()
+            )
         except Exception:
             stats['policies_count'] = 0
         
@@ -537,6 +545,20 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 return Response({
                     'is_valid': False,
                     'message': _('No active license'),
+                })
+
+            if quota_type == 'tenants' and (
+                not request.user.tenant
+                or request.user.tenant.name != SYSTEM_TENANT_NAME
+            ):
+                return Response({
+                    'is_valid': True,
+                    'quota_type': quota_type,
+                    'limit': 0,
+                    'current_usage': 0,
+                    'requested': amount,
+                    'remaining': 0,
+                    'message': _('Tenant quota is controlled by the system tenant license'),
                 })
             
             # Map quota_type to license field

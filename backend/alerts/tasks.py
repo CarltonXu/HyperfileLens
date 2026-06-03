@@ -16,7 +16,11 @@ def evaluate_alert_policies():
 @shared_task
 def collect_system_metrics():
     sample = collect_system_sample()
-    SystemMetric.objects.create(**sample)
+    from licenses.quota import SYSTEM_TENANT_NAME
+    from tenants.models import Tenant
+
+    system_tenant = Tenant.objects.filter(name=SYSTEM_TENANT_NAME).first()
+    SystemMetric.objects.create(tenant=system_tenant, **sample)
     return sample
 
 

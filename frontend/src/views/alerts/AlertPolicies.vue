@@ -19,6 +19,7 @@ import {
 } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
 import { useAppStore } from "@/stores/app";
+import { useAuthStore } from "@/stores/auth";
 import { getApiErrorMessage } from "@/utils/errors";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
@@ -51,6 +52,7 @@ interface AlertPolicy {
 const router = useRouter();
 const { t } = useI18n();
 const appStore = useAppStore();
+const authStore = useAuthStore();
 const { getPageSize, setPageSize } = usePagination();
 const loading = ref(false);
 const saving = ref(false);
@@ -72,6 +74,7 @@ const pagination = reactive({
 });
 const PAGE_STORAGE_KEY = "alert-policies";
 const filters = reactive({ search: "", type: "", severity: "", enabled: "" });
+const isSystemAdmin = computed(() => !!authStore.user?.is_superuser);
 
 watch(
   () => pagination.page_size,
@@ -602,22 +605,13 @@ onMounted(async () => {
           </p>
         </div>
       </div>
-      <div class="flex gap-2">
-        <button
-          @click="fetchPolicies"
-          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
-        >
-          <ArrowPathIcon class="h-4 w-4" />
-          {{ $t("common.refresh") }}
-        </button>
-        <button
-          @click="openCreate"
-          class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover"
-        >
-          <PlusIcon class="h-4 w-4" />
-          {{ t("alertsCenter.common.createAlertPolicy") }}
-        </button>
-      </div>
+      <button
+        @click="openCreate"
+        class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover"
+      >
+        <PlusIcon class="h-4 w-4" />
+        {{ t("alertsCenter.common.createAlertPolicy") }}
+      </button>
     </div>
 
     <div class="grid gap-3 md:grid-cols-4">
@@ -684,9 +678,9 @@ onMounted(async () => {
     </div>
 
     <div
-      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-5"
+      class="flex flex-wrap items-center gap-3 rounded-lg border border-border p-4 shadow-sm"
     >
-      <div class="relative md:col-span-2">
+      <div class="relative min-w-[240px] flex-1">
         <MagnifyingGlassIcon
           class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-foreground-muted"
         />
@@ -709,7 +703,9 @@ onMounted(async () => {
         </option>
         <option value="job">{{ t("alertsCenter.values.job") }}</option>
         <option value="event">{{ t("alertsCenter.values.event") }}</option>
-        <option value="system">{{ t("alertsCenter.values.system") }}</option>
+        <option v-if="isSystemAdmin" value="system">
+          {{ t("alertsCenter.values.system") }}
+        </option>
       </select>
       <select
         v-model="filters.severity"
@@ -732,6 +728,13 @@ onMounted(async () => {
         <option value="true">{{ t("alertsCenter.values.enabled") }}</option>
         <option value="false">{{ t("alertsCenter.values.disabled") }}</option>
       </select>
+      <button
+        @click="fetchPolicies"
+        class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
+      >
+        <ArrowPathIcon class="h-4 w-4" />
+        {{ $t("common.refresh") }}
+      </button>
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border shadow-sm">
@@ -1062,7 +1065,7 @@ onMounted(async () => {
                     <option value="event">
                       {{ t("alertsCenter.values.event") }}
                     </option>
-                    <option value="system">
+                    <option v-if="isSystemAdmin" value="system">
                       {{ t("alertsCenter.values.system") }}
                     </option>
                   </select></label

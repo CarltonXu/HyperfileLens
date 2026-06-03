@@ -365,13 +365,6 @@ onMounted(fetchTasks);
           {{ t("taskManagement.subtitle") }}
         </p>
       </div>
-      <button
-        @click="fetchTasks"
-        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:border-indigo-500 transition-colors"
-      >
-        <ArrowPathIcon :class="['w-4 h-4', loading && 'animate-spin']" />
-        {{ t("common.refresh") }}
-      </button>
     </div>
 
     <!-- Stats Cards -->
@@ -452,6 +445,13 @@ onMounted(fetchTasks);
               {{ t("taskManagement.source.proxy") }}
             </option>
           </select>
+          <button
+            @click="fetchTasks"
+            class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-hover"
+          >
+            <ArrowPathIcon :class="['w-4 h-4', loading && 'animate-spin']" />
+            {{ t("common.refresh") }}
+          </button>
         </div>
       </div>
 

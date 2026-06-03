@@ -24,7 +24,7 @@ def evaluate_system_policy(policy):
 def _evaluate_disk_space(policy):
     rule = policy.trigger_rule or {}
     threshold = float(rule.get("threshold") or 90)
-    metric = SystemMetric.objects.order_by("-timestamp").first()
+    metric = SystemMetric.objects.filter(tenant=policy.tenant).order_by("-timestamp").first()
     if not metric:
         return
     disks = metric.disks or []

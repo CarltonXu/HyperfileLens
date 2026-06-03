@@ -355,6 +355,13 @@ export default {
     resetPassword: "重置密码",
     goToLogin: "前往登录",
     backToLogin: "返回登录",
+    acceptInvitation: "接受邀请",
+    acceptInvitationDesc: "确认加入租户并完成账户设置",
+    invitationMissingToken: "邀请链接缺少令牌",
+    invitationInvalid: "邀请链接无效或已过期",
+    invitationAcceptFailed: "接受邀请失败",
+    currentPassword: "当前账户密码",
+    createPassword: "设置登录密码",
 
     // Links
     or: "或",
@@ -2862,6 +2869,9 @@ export default {
     confirmRemoveUserDesc: "确定要将用户 {email} 从此租户移除吗？",
     cannotRemoveSuperuser: "平台管理员不能被移除",
     cannotRemoveSelf: "不能移除自己",
+    userAlreadyInTenant: "该用户已在当前租户中。",
+    noUserCandidates: "未找到可添加用户",
+    noUserCandidatesHint: "仅展示未加入任何租户的普通用户，请检查邮箱或姓名后重试。",
   },
 
   // Users
@@ -2905,6 +2915,10 @@ export default {
     onlyPlatformAdminCanSet: "只有平台管理员可以设置此权限",
     editUser: "编辑用户",
     editUserHint: "编辑用户 {user} 的信息",
+    joinTenant: "加入租户",
+    joinTenantHint: "将用户 {user} 加入指定租户",
+    joinTenantSuccess: "用户已加入租户",
+    joinTenantFailed: "加入租户失败",
     updateUser: "更新用户",
     updateSuccess: "用户更新成功",
     updateFailed: "用户更新失败",
@@ -2916,7 +2930,7 @@ export default {
     superuser: "超级管理员",
     createSuccess: "用户创建成功",
     createFailed: "用户创建失败",
-    inviteSuccess: "邀请发送成功",
+    inviteSuccess: "邀请邮件已发送",
     inviteFailed: "邀请发送失败",
     roleChangeSuccess: "角色修改成功",
     roleChangeFailed: "角色修改失败",

@@ -4,10 +4,16 @@ Views for Tenants API
 
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 from django.db.models import Count, Q
+from django.contrib.auth import login
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.mail import EmailMessage
 
 from .models import Tenant, TenantInvitation
 from .serializers import (
@@ -18,9 +24,10 @@ from .serializers import (
     AcceptInvitationSerializer,
     TenantQuotaSerializer
 )
-from accounts.models import User
+from accounts.models import APIToken, User
+from accounts.serializers import UserProfileSerializer
 from audit_log.services import AuditService
-from licenses.quota import enforce_license_quota
+from licenses.quota import enforce_license_quota, enforce_platform_tenant_quota
 
 
 class IsSuperAdmin(permissions.BasePermission):
@@ -76,7 +83,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         Note: New tenant is created without any users assigned.
         Users need to be explicitly added via user management.
         """
-        enforce_license_quota(getattr(self.request.user, 'tenant', None), 'tenants')
+        enforce_platform_tenant_quota()
         tenant = serializer.save()
         # Record audit log
         AuditService.log_tenant_create(self.request, tenant)
@@ -294,6 +301,36 @@ class TenantViewSet(viewsets.ModelViewSet):
             'current_page': page,
         })
 
+    def user_candidates(self, request, pk=None):
+        """List users that can be added to this tenant."""
+        if not request.user.is_superuser:
+            return Response(
+                {'error': 'Only super admins can search tenant user candidates'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        self.get_object()
+        search = (request.query_params.get('search') or '').strip()
+        users = User.objects.filter(
+            tenant__isnull=True,
+            is_superuser=False,
+            is_active=True,
+        )
+
+        if search:
+            users = users.filter(
+                Q(email__icontains=search)
+                | Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(username__icontains=search)
+            )
+
+        users = users.order_by('email')[:10]
+
+        from accounts.serializers import UserProfileSerializer
+        serializer = UserProfileSerializer(users, many=True)
+        return Response(serializer.data)
+
     def add_user(self, request, pk=None):
         """Add an existing user to a tenant (super admin only)."""
         if not request.user.is_superuser:
@@ -305,7 +342,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         tenant = self.get_object()
         email = request.data.get('email')
         role = request.data.get('role', 'member')
-        is_superuser = request.data.get('is_superuser', False)
         
         if role not in ['admin', 'member']:
             return Response(
@@ -321,12 +357,35 @@ class TenantViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        if user.tenant_id != tenant.id:
-            enforce_license_quota(tenant, 'users')
+        if user.id == request.user.id:
+            return Response(
+                {'error': 'Cannot add yourself to a tenant'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if user.is_superuser:
+            return Response(
+                {'error': 'Platform admins cannot be managed from tenant users'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if user.tenant_id == tenant.id:
+            return Response(
+                {'error': 'User is already in this tenant'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if user.tenant_id:
+            return Response(
+                {'error': 'User already belongs to another tenant'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        enforce_license_quota(tenant, 'users')
 
         user.tenant = tenant
         user.tenant_role = role
-        user.is_superuser = is_superuser
+        user.is_superuser = False
         user.save()
         
         AuditService.log_tenant_add_user(request, tenant, user)
@@ -344,7 +403,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         
         tenant = self.get_object()
         role = request.data.get('role')
-        is_superuser = request.data.get('is_superuser')
         
         try:
             user = User.objects.get(id=user_id, tenant=tenant)
@@ -353,11 +411,21 @@ class TenantViewSet(viewsets.ModelViewSet):
                 {'error': 'User not found in this tenant'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+        if user.id == request.user.id:
+            return Response(
+                {'error': 'Cannot change your own tenant role'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if user.is_superuser:
+            return Response(
+                {'error': 'Platform admins cannot be managed from tenant users'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         if role and role in ['admin', 'member']:
             user.tenant_role = role
-        if is_superuser is not None:
-            user.is_superuser = is_superuser
         user.save()
         
         from accounts.serializers import UserProfileSerializer
@@ -471,6 +539,11 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
     serializer_class = TenantInvitationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in ['validate', 'accept']:
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+
     def get_queryset(self):
         user = self.request.user
         if user.is_superuser:
@@ -482,14 +555,112 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create an invitation."""
         user = self.request.user
+        tenant = self._resolve_invitation_tenant(user)
+        email = serializer.validated_data['email'].strip().lower()
+
+        if User.objects.filter(email=email, tenant=tenant).exists():
+            raise ValidationError({'error': "User already belongs to this tenant"})
+        if TenantInvitation.objects.filter(
+            tenant=tenant,
+            email=email,
+            status=TenantInvitation.InvitationStatus.PENDING,
+            expires_at__gt=timezone.now()
+        ).exists():
+            raise ValidationError({'error': "A pending invitation already exists for this email"})
+
+        enforce_license_quota(tenant, 'users')
+        with transaction.atomic():
+            invitation = serializer.save(
+                tenant=tenant,
+                email=email,
+                invited_by=user,
+                expires_at=timezone.now() + timezone.timedelta(days=7)
+            )
+            self._send_invitation_email(self.request, invitation)
+
+    def _resolve_invitation_tenant(self, user):
+        tenant_id = self.request.data.get('tenant') or self.request.data.get('tenant_id')
+        if user.is_superuser:
+            if not tenant_id:
+                raise ValidationError({'error': "Tenant is required for platform admin invitations"})
+            return get_object_or_404(Tenant, pk=tenant_id)
         if not user.tenant:
-            raise ValueError("User must belong to a tenant to send invitations")
-        enforce_license_quota(user.tenant, 'users')
-        serializer.save(
-            tenant=user.tenant,
-            invited_by=user,
-            expires_at=timezone.now() + timezone.timedelta(days=7)
+            raise ValidationError({'error': "User must belong to a tenant to send invitations"})
+        return user.tenant
+
+    def _invitation_link(self, request, invitation):
+        from system_settings.models import SystemSetting
+
+        base_url = (
+            SystemSetting.get('frontend_base_url')
+            or request.headers.get('Origin')
+            or request.build_absolute_uri('/').rstrip('/')
         )
+        return f"{base_url.rstrip('/')}/accept-invitation?token={invitation.token}"
+
+    def _send_invitation_email(self, request, invitation):
+        from system_settings.models import SMTPConfig
+
+        smtp_config = (
+            SMTPConfig.objects.filter(is_active=True, is_default=True).first()
+            or SMTPConfig.objects.filter(is_active=True).first()
+        )
+        if not smtp_config:
+            raise ValidationError({'error': "No active SMTP configuration found"})
+
+        invitation_link = self._invitation_link(request, invitation)
+        subject = f"HyperFileLens invitation to {invitation.tenant.name}"
+        body = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto;">
+          <div style="padding: 20px 24px; background: #111827; color: #fff;">
+            <h1 style="margin: 0; font-size: 20px;">HyperFileLens</h1>
+          </div>
+          <div style="padding: 24px; background: #f9fafb; color: #111827;">
+            <h2 style="margin-top: 0;">You have been invited</h2>
+            <p>You have been invited to join tenant <strong>{invitation.tenant.name}</strong> as <strong>{invitation.role}</strong>.</p>
+            <p>This invitation expires on {invitation.expires_at.strftime('%Y-%m-%d %H:%M:%S %Z')}.</p>
+            <p style="margin: 24px 0;">
+              <a href="{invitation_link}" style="display: inline-block; padding: 10px 16px; background: #4f46e5; color: #fff; text-decoration: none; border-radius: 6px;">Accept invitation</a>
+            </p>
+            <p style="font-size: 12px; color: #6b7280;">If the button does not work, open this link: {invitation_link}</p>
+          </div>
+        </div>
+        """
+        try:
+            with smtp_config.get_connection() as connection:
+                message = EmailMessage(
+                    subject=subject,
+                    body=body,
+                    from_email=f'{smtp_config.from_name} <{smtp_config.from_email}>',
+                    to=[invitation.email],
+                    connection=connection,
+                )
+                message.content_subtype = 'html'
+                message.send(fail_silently=False)
+        except Exception as exc:
+            raise ValidationError({'error': f"Failed to send invitation email: {exc}"})
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def validate(self, request):
+        """Validate an invitation token and return public invitation info."""
+        token = request.query_params.get('token')
+        if not token:
+            return Response({'error': 'Invitation token is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            invitation = TenantInvitation.objects.select_related('tenant').get(token=token)
+        except TenantInvitation.DoesNotExist:
+            return Response({'error': 'Invalid invitation token'}, status=status.HTTP_400_BAD_REQUEST)
+        if not invitation.is_valid():
+            return Response({'error': 'Invitation has expired or already been used'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email=invitation.email).first()
+        return Response({
+            'email': invitation.email,
+            'tenant': invitation.tenant.name,
+            'role': invitation.role,
+            'expires_at': invitation.expires_at,
+            'user_exists': bool(user),
+        })
 
     @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
     def accept(self, request):
@@ -516,9 +687,24 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
         email = invitation.email
         try:
             user = User.objects.get(email=email)
+            password = serializer.validated_data.get('password')
+            if not password or not user.check_password(password):
+                return Response(
+                    {'error': 'A valid password is required for this existing account'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         except User.DoesNotExist:
             # Create new user
             password = serializer.validated_data.get('password')
+            if not password:
+                return Response(
+                    {'error': 'Password is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            try:
+                validate_password(password)
+            except DjangoValidationError as exc:
+                return Response({'error': ' '.join(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
             first_name = serializer.validated_data.get('first_name', '')
             last_name = serializer.validated_data.get('last_name', '')
             user = User.objects.create_user(
@@ -526,6 +712,22 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
                 password=password,
                 first_name=first_name,
                 last_name=last_name
+            )
+
+        if user.is_superuser:
+            return Response(
+                {'error': 'Platform admin users cannot accept tenant invitations'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not user.is_active:
+            return Response(
+                {'error': 'User account is disabled'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if user.tenant and user.tenant_id != invitation.tenant_id:
+            return Response(
+                {'error': 'User already belongs to another tenant'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         # Assign tenant and role
@@ -539,11 +741,25 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
         invitation.accepted_at = timezone.now()
         invitation.save()
 
-        return Response({
+        import secrets
+        token_key = secrets.token_urlsafe(32)
+        api_token = APIToken.objects.create(
+            user=user,
+            name='Invitation API Token',
+            key=token_key,
+            prefix=token_key[:8]
+        )
+        User.objects.filter(pk=user.pk).update(last_login_at=timezone.now())
+        login(request, user)
+
+        response_data = UserProfileSerializer(user).data
+        response_data['token'] = api_token.key
+        response_data.update({
             'status': 'accepted',
             'tenant': invitation.tenant.name,
             'role': invitation.role
         })
+        return Response(response_data)
 
     @action(detail=True, methods=['post'])
     def resend(self, request, pk=None):
@@ -558,7 +774,7 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
         invitation.expires_at = timezone.now() + timezone.timedelta(days=7)
         invitation.save()
 
-        # TODO: Send email notification
+        self._send_invitation_email(request, invitation)
 
         return Response({'status': 'resent'})
 

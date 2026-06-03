@@ -35,7 +35,7 @@ from .serializers import (
 )
 from audit_log.services import AuditService
 from tenants.models import Tenant
-from licenses.quota import enforce_license_quota
+from licenses.quota import enforce_license_quota, enforce_platform_tenant_quota
 
 
 class IsTenantAdmin(permissions.BasePermission):
@@ -608,6 +608,10 @@ class UserViewSet(viewsets.ModelViewSet):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    admin_actions = {
+        'create', 'update', 'partial_update', 'destroy',
+        'disable', 'enable', 'change_role', 'set_superuser', 'reset_password',
+    }
 
     def get_serializer_class(self):
         """Return appropriate serializer based on action."""
@@ -622,15 +626,33 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return User.objects.all()
         if user.tenant and user.tenant_role in ['owner', 'admin']:
-            return User.objects.filter(tenant=user.tenant)
+            return User.objects.filter(tenant=user.tenant, is_superuser=False)
         # Regular users can only see themselves
         return User.objects.filter(pk=user.pk)
 
     def get_permissions(self):
         """Only tenant admins can create/update/delete users."""
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in self.admin_actions:
             return [permissions.IsAuthenticated(), IsTenantAdmin()]
         return super().get_permissions()
+
+    def _can_manage_user(self, target_user):
+        """Return whether the requester may manage the target user."""
+        requester = self.request.user
+        if requester.is_superuser:
+            return True
+        return (
+            target_user.tenant_id == requester.tenant_id
+            and not target_user.is_superuser
+        )
+
+    def _protected_user_response(self, target_user):
+        if self._can_manage_user(target_user):
+            return None
+        return Response(
+            {'error': 'Cannot manage platform admin users'},
+            status=status.HTTP_403_FORBIDDEN
+        )
 
     def create(self, request, *args, **kwargs):
         """Create a user with validation."""
@@ -675,6 +697,22 @@ class UserViewSet(viewsets.ModelViewSet):
         
         AuditService.log_user_create(self.request, new_user)
 
+    def update(self, request, *args, **kwargs):
+        """Update a user while protecting platform admins."""
+        user = self.get_object()
+        protected_response = self._protected_user_response(user)
+        if protected_response:
+            return protected_response
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        """Partially update a user while protecting platform admins."""
+        user = self.get_object()
+        protected_response = self._protected_user_response(user)
+        if protected_response:
+            return protected_response
+        return super().partial_update(request, *args, **kwargs)
+
     @extend_schema(
         summary='Disable user',
         description='Disable a user account (tenant admin only).',
@@ -684,6 +722,9 @@ class UserViewSet(viewsets.ModelViewSet):
     def disable(self, request, pk=None):
         """Disable a user account."""
         user = self.get_object()
+        protected_response = self._protected_user_response(user)
+        if protected_response:
+            return protected_response
         # Cannot disable yourself
         if user == request.user:
             return Response(
@@ -703,6 +744,9 @@ class UserViewSet(viewsets.ModelViewSet):
     def enable(self, request, pk=None):
         """Enable a user account."""
         user = self.get_object()
+        protected_response = self._protected_user_response(user)
+        if protected_response:
+            return protected_response
         user.is_active = True
         user.save()
         return Response({'status': 'enabled'})
@@ -723,6 +767,9 @@ class UserViewSet(viewsets.ModelViewSet):
     def change_role(self, request, pk=None):
         """Change a user's role within the tenant."""
         user = self.get_object()
+        protected_response = self._protected_user_response(user)
+        if protected_response:
+            return protected_response
         new_role = request.data.get('role')
 
         if new_role not in ['admin', 'member']:
@@ -805,6 +852,14 @@ class UserViewSet(viewsets.ModelViewSet):
     def reset_password(self, request, pk=None):
         """Reset a user's password."""
         user = self.get_object()
+        protected_response = self._protected_user_response(user)
+        if protected_response:
+            return protected_response
+        if user == request.user:
+            return Response(
+                {'error': 'Use the password change endpoint to change your own password'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         new_password = request.data.get('new_password')
 
         if not new_password:
@@ -827,6 +882,15 @@ class UserViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         """Delete a user with validation."""
         user = self.get_object()
+        protected_response = self._protected_user_response(user)
+        if protected_response:
+            AuditService.log_user_delete(
+                request,
+                user,
+                result='failure',
+                error_message='Cannot manage platform admin users'
+            )
+            return protected_response
 
         # Cannot delete yourself
         if user == request.user:
@@ -1094,10 +1158,8 @@ class RegisterView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        from licenses.quota import get_quota_license
-        if get_quota_license():
-            enforce_license_quota(None, 'tenants')
-        
+        enforce_platform_tenant_quota()
+
         with transaction.atomic():
             # Create tenant for new user
             tenant_name = email.split('@')[0]

@@ -9,9 +9,11 @@ import {
   EnvelopeIcon,
   ListBulletIcon,
   MagnifyingGlassIcon,
+  XMarkIcon,
   XCircleIcon,
 } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
+import { useAuthStore } from "@/stores/auth";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
@@ -20,6 +22,7 @@ import AlertStatusTag from "@/components/alerts/AlertStatusTag.vue";
 import AlertTypeTag from "@/components/alerts/AlertTypeTag.vue";
 
 const { t } = useI18n();
+const authStore = useAuthStore();
 const { getPageSize, setPageSize } = usePagination();
 
 const logs = ref<any[]>([]);
@@ -27,6 +30,9 @@ const channels = ref<any[]>([]);
 const stats = ref<any>({ total: 0, success: 0, failed: 0, success_rate: 0 });
 const selected = ref<any | null>(null);
 const loading = ref(false);
+const searchDraft = ref("");
+const showFilterMenu = ref(false);
+const activeFilterKey = ref("channel_id");
 const filters = reactive({
   search: "",
   channel_id: "",
@@ -35,6 +41,7 @@ const filters = reactive({
   type: "",
   severity: "",
 });
+const isSystemAdmin = computed(() => !!authStore.user?.is_superuser);
 const pagination = reactive({
   page: 1,
   page_size: getPageSize("notification-logs"),
@@ -75,6 +82,84 @@ const visiblePages = computed(() => {
     pages.push(total);
   }
   return pages;
+});
+
+const filterFields = computed(() => [
+  {
+    key: "channel_id",
+    label: t("alertsCenter.logs.channel"),
+    options: channels.value.map((channel) => ({
+      value: String(channel.id),
+      label: channel.name,
+    })),
+  },
+  {
+    key: "status",
+    label: t("alertsCenter.logs.deliveryStatus"),
+    options: [
+      { value: "success", label: t("alertsCenter.logs.success") },
+      { value: "failed", label: t("alertsCenter.logs.failed") },
+    ],
+  },
+  {
+    key: "notification_type",
+    label: t("alertsCenter.logs.notificationType"),
+    options: [
+      { value: "firing", label: t("alertsCenter.values.firing") },
+      { value: "resolved", label: t("alertsCenter.values.resolved") },
+    ],
+  },
+  {
+    key: "type",
+    label: t("alertsCenter.common.type"),
+    options: [
+      { value: "metric", label: t("alertsCenter.values.metric") },
+      {
+        value: "availability",
+        label: t("alertsCenter.values.availability"),
+      },
+      { value: "job", label: t("alertsCenter.values.job") },
+      { value: "event", label: t("alertsCenter.values.event") },
+      ...(isSystemAdmin.value
+        ? [{ value: "system", label: t("alertsCenter.values.system") }]
+        : []),
+    ],
+  },
+  {
+    key: "severity",
+    label: t("alertsCenter.common.severity"),
+    options: [
+      { value: "critical", label: t("alertsCenter.values.critical") },
+      { value: "warning", label: t("alertsCenter.values.warning") },
+      { value: "info", label: t("alertsCenter.values.info") },
+    ],
+  },
+]);
+
+const selectedFilterField = computed(
+  () => filterFields.value.find((field) => field.key === activeFilterKey.value),
+);
+
+const activeFilterChips = computed(() => {
+  const chips: Array<{ key: string; label: string; value: string }> = [];
+  if (filters.search) {
+    chips.push({
+      key: "search",
+      label: t("common.search"),
+      value: filters.search,
+    });
+  }
+  filterFields.value.forEach((field) => {
+    const value = filters[field.key as keyof typeof filters];
+    if (!value) return;
+    const option = field.options.find((item) => item.value === value);
+    chips.push({
+      key: field.key,
+      label: field.label,
+      value: option?.label || value,
+    });
+  });
+  return chips;
 });
 
 type NotificationLogColumnKey =
@@ -202,6 +287,34 @@ function applyFilters() {
   fetchLogs();
 }
 
+function applySearchDraft() {
+  const value = searchDraft.value.trim();
+  if (!value) return;
+  filters.search = value;
+  searchDraft.value = "";
+  showFilterMenu.value = false;
+  applyFilters();
+}
+
+function selectFilterField(key: string) {
+  activeFilterKey.value = key;
+}
+
+function selectFilterValue(key: string, value: string) {
+  filters[key as keyof typeof filters] = value;
+  showFilterMenu.value = false;
+  applyFilters();
+}
+
+function removeFilterChip(key: string) {
+  filters[key as keyof typeof filters] = "";
+  applyFilters();
+}
+
+function isFilterValueSelected(key: string, value: string) {
+  return filters[key as keyof typeof filters] === value;
+}
+
 function changePage(page: number) {
   pagination.page = page;
   fetchLogs();
@@ -264,13 +377,6 @@ onMounted(() => {
           </p>
         </div>
       </div>
-      <button
-        @click="fetchLogs"
-        class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
-      >
-        <ArrowPathIcon class="h-4 w-4" :class="{ 'animate-spin': loading }" />
-        {{ t("alertsCenter.common.refresh") }}
-      </button>
     </div>
 
     <div class="grid gap-3 md:grid-cols-4">
@@ -337,77 +443,111 @@ onMounted(() => {
     </div>
 
     <div
-      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-7"
+      class="rounded-lg border border-border bg-background p-3 shadow-sm"
     >
-      <div class="relative md:col-span-2">
-        <MagnifyingGlassIcon
-          class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-foreground-muted"
-        />
-        <input
-          v-model="filters.search"
-          @keyup.enter="applyFilters"
-          :placeholder="t('alertsCenter.logs.searchPlaceholder')"
-          class="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-        />
-      </div>
-      <select
-        v-model="filters.channel_id"
-        @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-      >
-        <option value="">{{ t("alertsCenter.logs.allChannels") }}</option>
-        <option
-          v-for="channel in channels"
-          :key="channel.id"
-          :value="channel.id"
+      <div class="flex flex-wrap items-center gap-3">
+        <div
+          class="relative min-w-[280px] flex-1"
+          @mouseleave="showFilterMenu = false"
         >
-          {{ channel.name }}
-        </option>
-      </select>
-      <select
-        v-model="filters.status"
-        @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-      >
-        <option value="">{{ t("alertsCenter.common.allStatus") }}</option>
-        <option value="success">{{ t("alertsCenter.logs.success") }}</option>
-        <option value="failed">{{ t("alertsCenter.logs.failed") }}</option>
-      </select>
-      <select
-        v-model="filters.notification_type"
-        @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-      >
-        <option value="">{{ t("alertsCenter.logs.allNotificationTypes") }}</option>
-        <option value="firing">{{ t("alertsCenter.values.firing") }}</option>
-        <option value="resolved">{{ t("alertsCenter.values.resolved") }}</option>
-      </select>
-      <select
-        v-model="filters.type"
-        @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-      >
-        <option value="">{{ t("alertsCenter.common.allTypes") }}</option>
-        <option value="metric">{{ t("alertsCenter.values.metric") }}</option>
-        <option value="availability">
-          {{ t("alertsCenter.values.availability") }}
-        </option>
-        <option value="job">{{ t("alertsCenter.values.job") }}</option>
-        <option value="event">{{ t("alertsCenter.values.event") }}</option>
-        <option value="system">{{ t("alertsCenter.values.system") }}</option>
-      </select>
-      <select
-        v-model="filters.severity"
-        @change="applyFilters"
-        class="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-      >
-        <option value="">{{ t("alertsCenter.common.allSeverity") }}</option>
-        <option value="critical">
-          {{ t("alertsCenter.values.critical") }}
-        </option>
-        <option value="warning">{{ t("alertsCenter.values.warning") }}</option>
-        <option value="info">{{ t("alertsCenter.values.info") }}</option>
-      </select>
+          <div
+            class="flex min-h-[42px] w-full flex-wrap items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 py-1.5 text-sm text-foreground outline-none transition hover:border-primary/40 hover:bg-background focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/15"
+            @click="showFilterMenu = true"
+            @mouseenter="showFilterMenu = true"
+          >
+            <MagnifyingGlassIcon
+              class="mr-1 h-4 w-4 shrink-0 text-foreground-muted"
+            />
+            <span
+              v-for="chip in activeFilterChips"
+              :key="chip.key"
+              class="group inline-flex max-w-[320px] items-center gap-1.5 rounded-full border border-border bg-background px-2 py-1 text-xs shadow-sm"
+            >
+              <span
+                class="rounded-full bg-background-secondary px-1.5 py-0.5 font-medium text-foreground-secondary"
+              >
+                {{ chip.label }}
+              </span>
+              <span
+                class="flex min-w-0 items-center font-semibold text-foreground"
+              >
+                <span class="truncate">{{ chip.value }}</span>
+              </span>
+              <button
+                class="rounded-full p-0.5 text-foreground-muted hover:bg-hover hover:text-foreground"
+                @click.stop="removeFilterChip(chip.key)"
+              >
+                <XMarkIcon class="h-3.5 w-3.5" />
+              </button>
+            </span>
+            <input
+              v-model="searchDraft"
+              @focus="showFilterMenu = true"
+              @keydown.enter.prevent="applySearchDraft"
+              @keydown.esc="showFilterMenu = false"
+              :placeholder="
+                activeFilterChips.length
+                  ? ''
+                  : t('alertsCenter.logs.searchPlaceholder')
+              "
+              class="min-w-[180px] flex-1 border-0 bg-transparent py-1 text-sm text-foreground outline-none placeholder:text-foreground-muted"
+            />
+          </div>
+
+          <div
+            v-if="showFilterMenu"
+            class="absolute left-0 top-full z-30 mt-2 w-full min-w-[min(720px,calc(100vw-2rem))] max-w-3xl rounded-xl border border-border bg-background p-3 shadow-xl ring-1 ring-black/5"
+          >
+            <div class="flex flex-wrap gap-2 border-b border-border pb-3">
+              <button
+                v-for="field in filterFields"
+                :key="field.key"
+                @click="selectFilterField(field.key)"
+                :class="[
+                  activeFilterKey === field.key
+                    ? 'border-primary/30 bg-primary/10 text-primary shadow-sm'
+                    : 'border-border bg-background-secondary text-foreground-secondary hover:bg-hover hover:text-foreground',
+                  'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition',
+                ]"
+              >
+                <span>{{ field.label }}</span>
+              </button>
+            </div>
+            <div class="max-h-72 overflow-auto pt-3">
+              <template v-if="selectedFilterField">
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="option in selectedFilterField.options"
+                    :key="option.value"
+                    @click="selectFilterValue(selectedFilterField.key, option.value)"
+                    :class="[
+                      isFilterValueSelected(selectedFilterField.key, option.value)
+                        ? 'border-primary/30 bg-primary/10 text-primary shadow-sm'
+                        : 'border-border bg-background text-foreground hover:bg-hover',
+                      'inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition',
+                    ]"
+                  >
+                    <span class="truncate">{{ option.label }}</span>
+                    <span
+                      v-if="isFilterValueSelected(selectedFilterField.key, option.value)"
+                      class="h-2 w-2 rounded-full bg-primary"
+                    />
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <button
+          @click="fetchLogs"
+          class="ml-auto inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
+        >
+          <ArrowPathIcon class="h-4 w-4" :class="{ 'animate-spin': loading }" />
+          {{ t("alertsCenter.common.refresh") }}
+        </button>
+      </div>
+
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border shadow-sm">

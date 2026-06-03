@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   ArrowDownTrayIcon,
+  ArrowPathIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
@@ -10,6 +11,7 @@ import {
   MagnifyingGlassIcon,
 } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
+import { useAuthStore } from "@/stores/auth";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
@@ -19,9 +21,11 @@ import AlertTypeTag from "@/components/alerts/AlertTypeTag.vue";
 
 const alerts = ref<any[]>([]);
 const { t } = useI18n();
+const authStore = useAuthStore();
 const { getPageSize, setPageSize } = usePagination();
 const selected = ref<any | null>(null);
 const loading = ref(false);
+const exporting = ref(false);
 const filters = reactive({
   search: "",
   severity: "",
@@ -29,6 +33,7 @@ const filters = reactive({
   status: "",
   resource_type: "",
 });
+const isSystemAdmin = computed(() => !!authStore.user?.is_superuser);
 const pagination = reactive({
   page: 1,
   page_size: getPageSize("alert-history"),
@@ -106,6 +111,79 @@ function changePage(page: number) {
 function handlePageSizeChange() {
   pagination.page = 1;
   fetchAlerts();
+}
+
+function csvValue(value: unknown) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function currentFilterParams() {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== ""),
+  );
+}
+
+async function exportAlerts() {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const pageSize = 300;
+    let page = 1;
+    let total = 0;
+    const rows: any[] = [];
+
+    do {
+      const res = await alertsApi.records({
+        ...currentFilterParams(),
+        page,
+        page_size: pageSize,
+      });
+      const data = res.data.results || res.data || [];
+      rows.push(...data);
+      total = res.data.count ?? rows.length;
+      page += 1;
+    } while (rows.length < total);
+
+    const headers = [
+      t("alertsCenter.common.severity"),
+      t("alertsCenter.common.title"),
+      t("alertsCenter.common.type"),
+      t("alertsCenter.common.resource"),
+      t("alertsCenter.common.status"),
+      t("alertsCenter.history.firstTriggered"),
+      t("alertsCenter.history.resolvedAt"),
+      t("alertsCenter.common.duration"),
+    ];
+    const csvRows = rows.map((alert) =>
+      [
+        alert.severity,
+        alert.title,
+        alert.type,
+        alert.resource_name || alert.resource_type || "-",
+        alert.status,
+        formatDate(alert.first_triggered_at),
+        formatDate(alert.resolved_at),
+        duration(alert),
+      ]
+        .map(csvValue)
+        .join(","),
+    );
+    const csv = [headers.map(csvValue).join(","), ...csvRows].join("\n");
+    const blob = new Blob([`\ufeff${csv}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `alert-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } finally {
+    exporting.value = false;
+  }
 }
 
 function duration(alert: any) {
@@ -240,7 +318,9 @@ onMounted(fetchAlerts);
         </div>
       </div>
       <button
-        class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
+        :disabled="exporting"
+        @click="exportAlerts"
+        class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover"
       >
         <ArrowDownTrayIcon class="h-4 w-4" />
         {{ t("alertsCenter.common.export") }}
@@ -248,9 +328,9 @@ onMounted(fetchAlerts);
     </div>
 
     <div
-      class="grid gap-3 rounded-lg border border-border p-4 shadow-sm md:grid-cols-5"
+      class="flex flex-wrap items-center gap-3 rounded-lg border border-border p-4 shadow-sm"
     >
-      <div class="relative md:col-span-2">
+      <div class="relative min-w-[240px] flex-1">
         <MagnifyingGlassIcon
           class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-foreground-muted"
         />
@@ -285,7 +365,9 @@ onMounted(fetchAlerts);
         </option>
         <option value="job">{{ t("alertsCenter.values.job") }}</option>
         <option value="event">{{ t("alertsCenter.values.event") }}</option>
-        <option value="system">{{ t("alertsCenter.values.system") }}</option>
+        <option v-if="isSystemAdmin" value="system">
+          {{ t("alertsCenter.values.system") }}
+        </option>
       </select>
       <select
         v-model="filters.status"
@@ -302,6 +384,13 @@ onMounted(fetchAlerts);
           {{ t("alertsCenter.values.resolved") }}
         </option>
       </select>
+      <button
+        class="ml-auto inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-hover"
+        @click="fetchAlerts"
+      >
+        <ArrowPathIcon class="h-4 w-4" />
+        {{ $t("common.refresh") }}
+      </button>
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border shadow-sm">

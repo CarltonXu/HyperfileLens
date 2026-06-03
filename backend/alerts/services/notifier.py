@@ -118,7 +118,7 @@ def test_channel(channel):
 
 def _send(alert, resolved=False):
     try:
-        policy = AlertPolicy.objects.get(id=alert.policy_id)
+        policy = AlertPolicy.objects.get(id=alert.policy_id, tenant=alert.tenant)
     except AlertPolicy.DoesNotExist:
         return
 
@@ -126,7 +126,11 @@ def _send(alert, resolved=False):
     if not channel_ids:
         return
 
-    channels = NotificationChannel.objects.filter(id__in=channel_ids, enabled=True)
+    channels = NotificationChannel.objects.filter(
+        id__in=channel_ids,
+        tenant=policy.tenant,
+        enabled=True,
+    )
     for channel in channels:
         try:
             lang = _channel_language(channel)
@@ -142,6 +146,7 @@ def _send(alert, resolved=False):
                 logger.info("Notification channel type %s is reserved.", channel.type)
 
             NotificationLog.objects.create(
+                tenant=alert.tenant,
                 alert_record_id=alert.id,
                 channel_id=channel.id,
                 notification_type=NotificationType.RESOLVED if resolved else NotificationType.FIRING,
@@ -150,6 +155,7 @@ def _send(alert, resolved=False):
         except Exception as exc:
             logger.exception("Alert notification failed: %s", exc)
             NotificationLog.objects.create(
+                tenant=alert.tenant,
                 alert_record_id=alert.id,
                 channel_id=channel.id,
                 notification_type=NotificationType.RESOLVED if resolved else NotificationType.FIRING,
@@ -535,7 +541,7 @@ def _policy_for_alert(alert):
     if not alert.policy_id:
         return None
     try:
-        return AlertPolicy.objects.get(id=alert.policy_id)
+        return AlertPolicy.objects.get(id=alert.policy_id, tenant=alert.tenant)
     except AlertPolicy.DoesNotExist:
         return None
 

@@ -1,13 +1,17 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { PlusIcon, UserMinusIcon, XMarkIcon } from "@heroicons/vue/24/outline";
 import type { Tenant } from "@/types/tenant";
 
-defineProps<{
+const props = defineProps<{
   show: boolean;
   tenant: Tenant | null;
   users: any[];
   loading: boolean;
+  userCandidates: any[];
+  loadingUserCandidates: boolean;
+  selectedUserCandidates: any[];
   showAddUserForm: boolean;
   newUserEmail: string;
   newUserRole: string;
@@ -22,11 +26,34 @@ const emit = defineEmits<{
   "update:newUserEmail": [value: string];
   "update:newUserRole": [value: string];
   addUser: [];
+  searchUserCandidates: [query: string];
+  selectUserCandidate: [user: any];
+  removeSelectedUserCandidate: [userId: string];
   updateRole: [userId: string, role: string, isSuperuser: boolean];
   removeUser: [user: any];
 }>();
 
 const { t } = useI18n();
+
+const normalizedNewUserEmail = computed(() =>
+  props.newUserEmail.trim().toLowerCase(),
+);
+
+const existingTenantUser = computed(() =>
+  props.users.find(
+    (user) => user.email?.toLowerCase() === normalizedNewUserEmail.value,
+  ),
+);
+
+const canAddUser = computed(
+  () => props.selectedUserCandidates.length > 0 && !existingTenantUser.value,
+);
+
+function handleEmailInput(event: Event) {
+  const value = (event.target as HTMLInputElement).value;
+  emit("update:newUserEmail", value);
+  emit("searchUserCandidates", value);
+}
 </script>
 
 <template>
@@ -70,7 +97,10 @@ const { t } = useI18n();
             <div class="mb-6">
               <button
                 class="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                @click="emit('update:showAddUserForm', !showAddUserForm)"
+                @click="
+                  emit('update:showAddUserForm', !showAddUserForm);
+                  emit('searchUserCandidates', '');
+                "
               >
                 <PlusIcon class="h-4 w-4" />
                 {{ t("tenants.addUser") }}
@@ -81,24 +111,96 @@ const { t } = useI18n();
                 class="mt-3 p-4 bg-background-secondary rounded-lg space-y-3"
               >
                 <div class="grid grid-cols-2 gap-3">
-                  <div>
+                  <div class="relative">
                     <label
                       class="block text-xs font-medium text-foreground-secondary mb-1"
                     >
                       {{ t("users.email") }}
                     </label>
-                    <input
-                      :value="newUserEmail"
-                      type="email"
-                      :placeholder="t('users.emailPlaceholder')"
-                      class="w-full rounded-lg border border-border bg-background text-foreground px-3 py-2 text-sm"
-                      @input="
-                        emit(
-                          'update:newUserEmail',
-                          ($event.target as HTMLInputElement).value,
-                        )
-                      "
-                    />
+                    <div
+                      class="flex min-h-[40px] w-full flex-wrap items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15"
+                    >
+                      <span
+                        v-for="candidate in selectedUserCandidates"
+                        :key="candidate.id"
+                        class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-background-secondary px-2 py-1 text-xs text-foreground"
+                      >
+                        <span class="font-medium text-foreground-secondary">
+                          {{ t("users.email") }}
+                        </span>
+                        <span class="max-w-[220px] truncate font-semibold">
+                          {{ candidate.email }}
+                        </span>
+                        <button
+                          type="button"
+                          class="rounded-full p-0.5 text-foreground-muted hover:bg-hover hover:text-foreground"
+                          @click="emit('removeSelectedUserCandidate', candidate.id)"
+                        >
+                          <XMarkIcon class="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                      <input
+                        :value="newUserEmail"
+                        type="email"
+                        :placeholder="
+                          selectedUserCandidates.length
+                            ? ''
+                            : t('users.emailPlaceholder')
+                        "
+                        class="min-w-[180px] flex-1 border-0 bg-transparent px-1 py-1 text-sm text-foreground outline-none placeholder:text-foreground-muted"
+                        @input="handleEmailInput"
+                      />
+                    </div>
+                    <div
+                      v-if="newUserEmail.trim().length >= 2"
+                      class="absolute left-0 right-0 top-full z-20 mt-2 max-h-56 overflow-auto rounded-lg border border-border bg-background shadow-lg"
+                    >
+                      <div
+                        v-if="loadingUserCandidates"
+                        class="px-3 py-3 text-xs text-foreground-secondary"
+                      >
+                        {{ t("common.loading") }}
+                      </div>
+                      <button
+                        v-for="candidate in userCandidates"
+                        v-else
+                        :key="candidate.id"
+                        type="button"
+                        class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-hover"
+                        @click="emit('selectUserCandidate', candidate)"
+                      >
+                        <span class="min-w-0">
+                          <span class="block truncate text-sm font-medium text-foreground">
+                            {{ getDisplayName(candidate) }}
+                          </span>
+                          <span class="block truncate text-xs text-foreground-secondary">
+                            {{ candidate.email }}
+                          </span>
+                        </span>
+                        <span class="text-xs text-primary">
+                          {{ t("common.select") }}
+                        </span>
+                      </button>
+                      <div
+                        v-if="
+                          !loadingUserCandidates && userCandidates.length === 0
+                        "
+                        class="px-3 py-3 text-xs text-foreground-secondary"
+                      >
+                        <div class="font-medium text-foreground">
+                          {{ t("tenants.noUserCandidates") }}
+                        </div>
+                        <div class="mt-0.5">
+                          {{ t("tenants.noUserCandidatesHint") }}
+                        </div>
+                      </div>
+                    </div>
+                    <p
+                      v-if="existingTenantUser"
+                      class="mt-1 text-xs text-red-600 dark:text-red-400"
+                    >
+                      {{ t("tenants.userAlreadyInTenant") }}
+                    </p>
                   </div>
                   <div>
                     <label
@@ -133,7 +235,7 @@ const { t } = useI18n();
                     {{ t("common.cancel") }}
                   </button>
                   <button
-                    :disabled="!newUserEmail"
+                    :disabled="!canAddUser"
                     class="bg-indigo-600 text-white rounded-md px-3 py-1.5 text-sm hover:bg-indigo-500 disabled:opacity-50"
                     @click="emit('addUser')"
                   >
