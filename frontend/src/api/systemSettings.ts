@@ -1,28 +1,5 @@
 import api from "./client";
 
-export interface SystemSetting {
-  id: string;
-  key: string;
-  value: string;
-  description: string;
-  category: string;
-  is_public: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export const systemSettingsApi = {
-  list: () => api.get<SystemSetting[]>("/api/v1/system/settings/"),
-
-  get: (id: string) => api.get<SystemSetting>(`/api/v1/system/settings/${id}/`),
-
-  getByKey: (key: string) =>
-    api.get<SystemSetting>(`/api/v1/system/settings/by_key/?key=${key}`),
-
-  update: (id: string, data: Partial<SystemSetting>) =>
-    api.patch<SystemSetting>(`/api/v1/system/settings/${id}/`, data),
-};
-
 export interface SMTPConfig {
   id: string;
   name: string;

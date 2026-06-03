@@ -9,70 +9,6 @@ from django.utils import timezone
 import uuid
 
 
-class SystemSetting(models.Model):
-    """
-    System-wide settings stored in database.
-    Allows dynamic configuration without code changes.
-    """
-    
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-    key = models.CharField(
-        max_length=100,
-        unique=True,
-        help_text='Setting key (e.g., smtp_host, smtp_port)'
-    )
-    value = models.TextField(
-        blank=True,
-        help_text='Setting value (can be string, JSON, etc.)'
-    )
-    description = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text='Description of this setting'
-    )
-    is_secret = models.BooleanField(
-        default=False,
-        help_text='Whether this setting contains sensitive data'
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        db_table = 'system_settings'
-        verbose_name = 'System Setting'
-        verbose_name_plural = 'System Settings'
-        ordering = ['key']
-    
-    def __str__(self):
-        return self.key
-    
-    @classmethod
-    def get(cls, key: str, default=None):
-        """Get a setting value by key."""
-        try:
-            setting = cls.objects.get(key=key)
-            return setting.value
-        except cls.DoesNotExist:
-            return default
-    
-    @classmethod
-    def set(cls, key: str, value: str, description: str = '', is_secret: bool = False):
-        """Set a setting value."""
-        setting, created = cls.objects.update_or_create(
-            key=key,
-            defaults={
-                'value': value,
-                'description': description,
-                'is_secret': is_secret
-            }
-        )
-        return setting
-
-
 class SMTPConfig(models.Model):
     """
     SMTP Configuration for email sending.
@@ -121,8 +57,9 @@ class SMTPConfig(models.Model):
     )
     from_name = models.CharField(
         max_length=100,
+        blank=True,
         default='HyperFileLens',
-        help_text='Default sender name'
+        help_text='Default email subject'
     )
     is_active = models.BooleanField(
         default=True,
@@ -198,9 +135,9 @@ class SMTPConfig(models.Model):
             # Use this configuration's settings
             with self.get_connection() as connection:
                 email = EmailMessage(
-                    subject='HyperFileLens SMTP Test',
+                    subject=self.from_name or 'HyperFileLens SMTP Test',
                     body='This is a test email from HyperFileLens. If you received this, your SMTP configuration is working correctly.',
-                    from_email=f'{self.from_name} <{self.from_email}>',
+                    from_email=self.from_email,
                     to=[to_email],
                     connection=connection,
                 )

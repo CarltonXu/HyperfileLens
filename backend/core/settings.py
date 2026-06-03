@@ -191,6 +191,7 @@ PUBLIC_CONTROL_PLANE_URL = os.environ.get(
     'PUBLIC_CONTROL_PLANE_URL',
     os.environ.get('CONTROL_PLANE_PUBLIC_URL', os.environ.get('INSTALL_SERVER_URL', ''))
 ).rstrip('/')
+FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', '').rstrip('/')
 INSTALL_DOWNLOADS_URL = '/downloads/'
 _source_downloads_root = BASE_DIR / 'static' / 'downloads'
 if os.environ.get('INSTALL_DOWNLOADS_ROOT'):

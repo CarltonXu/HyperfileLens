@@ -91,6 +91,7 @@ class TenantInvitationSerializer(serializers.ModelSerializer):
 
     invited_by_name = serializers.CharField(source='invited_by.get_full_name', read_only=True)
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    expires_at = serializers.DateTimeField(required=False)
 
     class Meta:
         model = TenantInvitation

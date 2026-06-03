@@ -296,7 +296,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: "settings/smtp",
         name: "SettingsSMTP",
-        component: () => import("@/views/SettingsSMTP.vue"),
+        redirect: "/settings?tab=email",
         meta: { title: "SMTP Settings", requiresSuperuser: true },
       },
       {

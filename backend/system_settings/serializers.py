@@ -3,23 +3,7 @@ Serializers for System Settings Application
 """
 
 from rest_framework import serializers
-from .models import SystemSetting, SMTPConfig, EmailTemplate
-
-
-class SystemSettingSerializer(serializers.ModelSerializer):
-    """Serializer for SystemSetting model."""
-    
-    class Meta:
-        model = SystemSetting
-        fields = ['id', 'key', 'value', 'description', 'is_secret', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
-    
-    def to_representation(self, instance):
-        """Hide secret values in API response."""
-        data = super().to_representation(instance)
-        if instance.is_secret:
-            data['value'] = '********'
-        return data
+from .models import SMTPConfig, EmailTemplate
 
 
 class SMTPConfigSerializer(serializers.ModelSerializer):
@@ -34,16 +18,22 @@ class SMTPConfigSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
         extra_kwargs = {
-            'password': {'write_only': True}
+            'username': {'required': False, 'allow_blank': True},
+            'password': {'required': False, 'allow_blank': True},
+            'from_name': {'required': False, 'allow_blank': True},
         }
 
 
 class SMTPConfigBriefSerializer(serializers.ModelSerializer):
-    """Brief serializer for SMTPConfig (without sensitive data)."""
+    """Brief serializer for SMTPConfig."""
     
     class Meta:
         model = SMTPConfig
-        fields = ['id', 'name', 'host', 'port', 'is_active', 'is_default']
+        fields = [
+            'id', 'name', 'host', 'port', 'username', 'password',
+            'use_tls', 'use_ssl', 'from_email', 'from_name',
+            'is_active', 'is_default'
+        ]
 
 
 class SMTPTestSerializer(serializers.Serializer):

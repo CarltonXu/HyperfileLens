@@ -162,7 +162,7 @@
 
     <!-- Delete Confirmation -->
     <TransitionRoot appear :show="showDeleteConfirm" as="template">
-      <Dialog as="div" class="relative z-10" @close="showDeleteConfirm = false">
+      <Dialog as="div" class="relative z-10" @close="closeDeleteConfirm">
         <TransitionChild
           as="template"
           enter="duration-300 ease-out"
@@ -232,7 +232,8 @@
                   <button
                     type="button"
                     class="mt-3 inline-flex w-full justify-center rounded-md bg-card px-3 py-2 text-sm font-semibold text-foreground shadow-sm ring-1 ring-inset ring-border hover:bg-hover sm:mt-0 sm:w-auto"
-                    @click="showDeleteConfirm = false"
+                    :disabled="deleting"
+                    @click="() => closeDeleteConfirm()"
                   >
                     {{ t("common.cancel") }}
                   </button>
@@ -257,8 +258,8 @@ import {
 } from "@headlessui/vue";
 import { ExclamationTriangleIcon } from "@heroicons/vue/24/outline";
 import { tenantsApi } from "@/api";
-import { useToast } from "@/composables/useToast";
 import { useAuthStore } from "@/stores/auth";
+import { useAppStore } from "@/stores/app";
 import type { Tenant } from "@/types/tenant";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
@@ -270,9 +271,16 @@ import TenantUsersDrawer from "@/components/tenants/TenantUsersDrawer.vue";
 import { getApiErrorMessage } from "@/utils/errors";
 
 const { t } = useI18n();
-const { showToast } = useToast();
 const authStore = useAuthStore();
+const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
+
+const showToast = (
+  message: string,
+  type: "success" | "error" | "warning" | "info" = "info",
+) => {
+  appStore.showToast({ type, title: message });
+};
 
 // State
 const tenants = ref<Tenant[]>([]);
@@ -496,10 +504,10 @@ const saveTenant = async () => {
   try {
     if (editingTenant.value) {
       await tenantsApi.update(editingTenant.value.id, formData.value);
-      showToast(t("common.saved"), "success");
+      showToast(t("success.saved"), "success");
     } else {
       await tenantsApi.create(formData.value);
-      showToast(t("common.created"), "success");
+      showToast(t("success.created"), "success");
     }
     closeDialog();
     fetchTenants();
@@ -516,19 +524,25 @@ const confirmDeleteTenant = (tenant: Tenant) => {
   showDeleteConfirm.value = true;
 };
 
+const closeDeleteConfirm = (force = false) => {
+  if (deleting.value && !force) return;
+  showDeleteConfirm.value = false;
+  deletingTenant.value = null;
+};
+
 const deleteTenant = async () => {
   if (!deletingTenant.value) return;
   deleting.value = true;
   try {
     await tenantsApi.delete(deletingTenant.value.id);
-    showToast(t("common.deleted"), "success");
-    showDeleteConfirm.value = false;
+    showToast(t("success.deleted"), "success");
+    closeDeleteConfirm(true);
     fetchTenants();
   } catch (error: any) {
-    showToast(getApiErrorMessage(error, t("common.error")), "error");
+    const message = getApiErrorMessage(error, t("common.error"));
+    showToast(message, "error");
   } finally {
     deleting.value = false;
-    deletingTenant.value = null;
   }
 };
 
@@ -614,7 +628,7 @@ const updateUserRole = async (
       role,
       is_superuser: isSuperuser,
     });
-    showToast(t("common.saved"), "success");
+    showToast(t("success.saved"), "success");
     await fetchTenantUsers(usersTenant.value.id);
   } catch (error: any) {
     showToast(getApiErrorMessage(error, t("common.error")), "error");
@@ -630,7 +644,7 @@ const executeRemoveUser = async () => {
   if (!removingUser.value || !usersTenant.value) return;
   try {
     await tenantsApi.removeUser(usersTenant.value.id, removingUser.value.id);
-    showToast(t("common.deleted"), "success");
+    showToast(t("success.deleted"), "success");
     showRemoveUserConfirm.value = false;
     removingUser.value = null;
     await fetchTenantUsers(usersTenant.value.id);

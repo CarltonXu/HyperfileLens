@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Count, Q
+from django.conf import settings
 from django.contrib.auth import login
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -589,10 +590,8 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
         return user.tenant
 
     def _invitation_link(self, request, invitation):
-        from system_settings.models import SystemSetting
-
         base_url = (
-            SystemSetting.get('frontend_base_url')
+            getattr(settings, 'FRONTEND_BASE_URL', '')
             or request.headers.get('Origin')
             or request.build_absolute_uri('/').rstrip('/')
         )
@@ -623,6 +622,7 @@ class TenantInvitationViewSet(viewsets.ModelViewSet):
               <a href="{invitation_link}" style="display: inline-block; padding: 10px 16px; background: #4f46e5; color: #fff; text-decoration: none; border-radius: 6px;">Accept invitation</a>
             </p>
             <p style="font-size: 12px; color: #6b7280;">If the button does not work, open this link: {invitation_link}</p>
+            <p style="margin-top: 18px; font-size: 11px; color: #9ca3af;">This is a system email, please do not reply</p>
           </div>
         </div>
         """

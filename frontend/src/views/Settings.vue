@@ -1,23 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { aiInsightsApi } from "@/api";
 import {
   UserCircleIcon,
   KeyIcon,
-  PaintBrushIcon,
-  LanguageIcon,
   Cog6ToothIcon,
   SparklesIcon,
   CodeBracketSquareIcon,
   InformationCircleIcon,
   ServerStackIcon,
+  EnvelopeIcon,
 } from "@heroicons/vue/24/outline";
 import ThemeSwitcher from "@/components/ThemeSwitcher.vue";
 import { usePagination } from "@/composables/usePagination";
+import SettingsSMTP from "@/views/SettingsSMTP.vue";
 
 const { t, locale } = useI18n();
+const route = useRoute();
 const authStore = useAuthStore();
 const {
   globalPageSize,
@@ -27,7 +29,7 @@ const {
   DEFAULT_PAGE_SIZE,
 } = usePagination();
 
-const activeTab = ref("profile");
+const activeTab = ref(String(route.query.tab || "profile"));
 
 // Preferences form
 const preferences = ref({
@@ -163,21 +165,26 @@ const tabs = computed(() => [
     label: t("settings.sections.preferences"),
   },
   {
-    id: "appearance",
-    icon: PaintBrushIcon,
-    label: t("settings.sections.appearance"),
-  },
-  {
-    id: "language",
-    icon: LanguageIcon,
-    label: t("settings.sections.language"),
-  },
-  {
     id: "aiInsights",
     icon: SparklesIcon,
     label: t("settings.sections.aiInsights"),
   },
+  ...(authStore.user?.is_superuser
+    ? [
+        {
+          id: "email",
+          icon: EnvelopeIcon,
+          label: t("settings.sections.email"),
+        },
+      ]
+    : []),
 ]);
+
+function ensureActiveTab() {
+  if (!tabs.value.some((tab) => tab.id === activeTab.value)) {
+    activeTab.value = "profile";
+  }
+}
 
 function setLocale(newLocale: string) {
   locale.value = newLocale;
@@ -372,8 +379,11 @@ async function toggleAiInsights() {
 }
 
 onMounted(() => {
+  ensureActiveTab();
   fetchAiProvider();
 });
+
+watch(tabs, ensureActiveTab);
 </script>
 
 <template>
@@ -386,35 +396,45 @@ onMounted(() => {
       <p class="text-foreground-secondary mt-1">{{ t("settings.subtitle") }}</p>
     </div>
 
-    <!-- Top Tabs -->
-    <div class="border-b border-border">
-      <nav class="flex space-x-1">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          :class="[
-            'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
-            activeTab === tab.id
-              ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-              : 'border-transparent text-foreground-secondary hover:text-gray-700 dark:hover:text-slate-300 hover:border-gray-300 dark:hover:border-slate-600',
-          ]"
-          @click="activeTab = tab.id">
-          <component :is="tab.icon" class="w-5 h-5" />
-          {{ tab.label }}
-        </button>
-      </nav>
-    </div>
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[240px_1fr]">
+      <aside class="rounded-xl border border-border bg-card p-2 shadow-sm lg:self-start">
+        <nav class="space-y-1">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            :class="[
+              'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors',
+              activeTab === tab.id
+                ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                : 'text-foreground-secondary hover:bg-hover hover:text-foreground',
+            ]"
+            @click="activeTab = tab.id">
+            <component :is="tab.icon" class="h-5 w-5 flex-shrink-0" />
+            <span class="truncate">{{ tab.label }}</span>
+          </button>
+        </nav>
+      </aside>
 
     <!-- Content -->
-    <div>
+      <div class="min-w-0 max-w-5xl">
       <!-- Profile -->
       <div
         v-if="activeTab === 'profile'"
         class="bg-card rounded-xl border border-border shadow-sm">
         <div class="px-6 py-4 border-b border-border">
-          <h3 class="text-lg font-semibold text-foreground">
-            {{ t("settings.profile.title") }}
-          </h3>
+          <div class="flex items-start gap-3">
+            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+              <UserCircleIcon class="h-5 w-5" />
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold text-foreground">
+                {{ t("settings.profile.title") }}
+              </h3>
+              <p class="mt-1 text-sm text-foreground-secondary">
+                {{ t("settings.profile.description") }}
+              </p>
+            </div>
+          </div>
         </div>
         <div class="p-6 space-y-6">
           <!-- Avatar Section -->
@@ -525,9 +545,19 @@ onMounted(() => {
         v-if="activeTab === 'security'"
         class="bg-card rounded-xl border border-border shadow-sm">
         <div class="px-6 py-4 border-b border-border">
-          <h3 class="text-lg font-semibold text-foreground">
-            {{ t("settings.security.title") }}
-          </h3>
+          <div class="flex items-start gap-3">
+            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+              <KeyIcon class="h-5 w-5" />
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold text-foreground">
+                {{ t("settings.security.title") }}
+              </h3>
+              <p class="mt-1 text-sm text-foreground-secondary">
+                {{ t("settings.security.description") }}
+              </p>
+            </div>
+          </div>
         </div>
         <div class="p-6 space-y-4">
           <!-- Error/Success Messages -->
@@ -595,35 +625,93 @@ onMounted(() => {
         v-if="activeTab === 'preferences'"
         class="bg-card rounded-xl border border-border shadow-sm">
         <div class="px-6 py-4 border-b border-border">
-          <h3 class="text-lg font-semibold text-foreground">
-            {{ t("settings.preferences.title") }}
-          </h3>
-        </div>
-        <div class="p-6 space-y-6">
-          <div>
-            <label
-              class="block text-sm font-medium text-foreground-secondary mb-2"
-              >{{ t("settings.preferences.defaultPageSize") }}</label
-            >
-            <p class="text-xs text-foreground-secondary mb-3">
-              {{ t("settings.preferences.defaultPageSizeDesc") }}
-            </p>
-            <input
-              v-model.number="preferences.defaultPageSize"
-              type="number"
-              min="5"
-              max="100"
-              step="5"
-              class="w-full max-w-xs px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
-            <p class="mt-2 text-xs text-foreground-muted">
-              {{ t("settings.preferences.currentValue") }}:
-              <span class="font-medium text-foreground">{{
-                globalPageSize
-              }}</span>
-            </p>
+          <div class="flex items-start gap-3">
+            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+              <Cog6ToothIcon class="h-5 w-5" />
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold text-foreground">
+                {{ t("settings.preferences.title") }}
+              </h3>
+              <p class="mt-1 text-sm text-foreground-secondary">
+                {{ t("settings.preferences.description") }}
+              </p>
+            </div>
           </div>
+        </div>
+        <div class="divide-y divide-border">
+          <section class="grid grid-cols-1 gap-4 px-6 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div>
+              <h4 class="text-sm font-semibold text-foreground">
+                {{ t("settings.preferences.defaultPageSize") }}
+              </h4>
+              <p class="mt-1 text-sm text-foreground-secondary">
+                {{ t("settings.preferences.defaultPageSizeDesc") }}
+              </p>
+              <p class="mt-2 text-xs text-foreground-muted">
+                {{ t("settings.preferences.currentValue") }}:
+                <span class="font-medium text-foreground">{{ globalPageSize }}</span>
+              </p>
+            </div>
+            <div class="flex items-start lg:justify-end">
+              <input
+                v-model.number="preferences.defaultPageSize"
+                type="number"
+                min="5"
+                max="100"
+                step="5"
+                class="w-full max-w-[180px] px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            </div>
+          </section>
 
-          <div class="flex gap-3">
+          <section class="grid grid-cols-1 gap-4 px-6 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div>
+              <h4 class="text-sm font-semibold text-foreground">
+                {{ t("settings.appearance.theme") }}
+              </h4>
+              <p class="mt-1 text-sm text-foreground-secondary">
+                {{ t("settings.appearance.description") }}
+              </p>
+            </div>
+            <div class="flex items-start lg:justify-end">
+              <ThemeSwitcher />
+            </div>
+          </section>
+
+          <section class="grid grid-cols-1 gap-4 px-6 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div>
+              <h4 class="text-sm font-semibold text-foreground">
+                {{ t("settings.language.title") }}
+              </h4>
+              <p class="mt-1 text-sm text-foreground-secondary">
+                {{ t("settings.language.description") }}
+              </p>
+            </div>
+            <div class="grid grid-cols-2 rounded-lg border border-border bg-background p-1">
+              <button
+                :class="[
+                  'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  locale === 'en'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-foreground-secondary hover:bg-hover hover:text-foreground',
+                ]"
+                @click="setLocale('en')">
+                {{ t("settings.language.english") }}
+              </button>
+              <button
+                :class="[
+                  'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  locale === 'zh-CN'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-foreground-secondary hover:bg-hover hover:text-foreground',
+                ]"
+                @click="setLocale('zh-CN')">
+                {{ t("settings.language.chinese") }}
+              </button>
+            </div>
+          </section>
+
+          <div class="flex flex-wrap justify-end gap-3 bg-background/60 px-6 py-4">
             <button
               @click="savePreferences"
               class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md">
@@ -631,101 +719,8 @@ onMounted(() => {
             </button>
             <button
               @click="resetPreferences"
-              class="px-4 py-2 border border-border bg-background text-foreground hover:bg-hover transition-colors">
+              class="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-hover transition-colors">
               {{ t("settings.preferences.reset") }}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Appearance -->
-      <div
-        v-if="activeTab === 'appearance'"
-        class="bg-card rounded-xl border border-border shadow-sm">
-        <div class="px-6 py-4 border-b border-border">
-          <h3 class="text-lg font-semibold text-foreground">
-            {{ t("settings.appearance.title") }}
-          </h3>
-        </div>
-        <div class="p-6">
-          <div class="space-y-4">
-            <div>
-              <label
-                class="block text-sm font-medium text-foreground-secondary mb-3"
-                >{{ t("settings.appearance.theme") }}</label
-              >
-              <ThemeSwitcher />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Language -->
-      <div
-        v-if="activeTab === 'language'"
-        class="bg-card rounded-xl border border-border shadow-sm">
-        <div class="px-6 py-4 border-b border-border">
-          <h3 class="text-lg font-semibold text-foreground">
-            {{ t("settings.language.title") }}
-          </h3>
-        </div>
-        <div class="p-6">
-          <div class="space-y-3">
-            <button
-              :class="[
-                'w-full flex items-center justify-between p-4 rounded-lg border-2 transition-colors',
-                locale === 'en'
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                  : 'border-border hover:border-gray-300 dark:hover:border-slate-500',
-              ]"
-              @click="setLocale('en')">
-              <div class="flex items-center gap-3">
-                <span class="text-2xl">🇺🇸</span>
-                <div class="text-left">
-                  <p class="font-medium text-foreground">
-                    {{ t("settings.language.english") }}
-                  </p>
-                  <p class="text-sm text-foreground-secondary">English</p>
-                </div>
-              </div>
-              <svg
-                v-if="locale === 'en'"
-                class="w-5 h-5 text-indigo-600 dark:text-indigo-400"
-                fill="currentColor"
-                viewBox="0 0 20 20">
-                <path
-                  fill-rule="evenodd"
-                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                  clip-rule="evenodd" />
-              </svg>
-            </button>
-            <button
-              :class="[
-                'w-full flex items-center justify-between p-4 rounded-lg border-2 transition-colors',
-                locale === 'zh-CN'
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                  : 'border-border hover:border-gray-300 dark:hover:border-slate-500',
-              ]"
-              @click="setLocale('zh-CN')">
-              <div class="flex items-center gap-3">
-                <span class="text-2xl">🇨🇳</span>
-                <div class="text-left">
-                  <p class="font-medium text-foreground">
-                    {{ t("settings.language.chinese") }}
-                  </p>
-                  <p class="text-sm text-foreground-secondary">简体中文</p>
-                </div>
-              </div>
-              <svg
-                v-if="locale === 'zh-CN'"
-                class="w-5 h-5 text-indigo-600 dark:text-indigo-400"
-                fill="currentColor"
-                viewBox="0 0 20 20">
-                <path
-                  fill-rule="evenodd"
-                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                  clip-rule="evenodd" />
-              </svg>
             </button>
           </div>
         </div>
@@ -737,13 +732,18 @@ onMounted(() => {
         class="bg-card rounded-xl border border-border shadow-sm">
         <div class="px-6 py-4 border-b border-border">
           <div class="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h3 class="text-lg font-semibold text-foreground">
-                {{ t("settings.aiInsights.title") }}
-              </h3>
-              <p class="mt-1 text-sm text-foreground-secondary">
-                {{ t("settings.aiInsights.description") }}
-              </p>
+            <div class="flex items-start gap-3">
+              <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+                <SparklesIcon class="h-5 w-5" />
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-foreground">
+                  {{ t("settings.aiInsights.title") }}
+                </h3>
+                <p class="mt-1 text-sm text-foreground-secondary">
+                  {{ t("settings.aiInsights.description") }}
+                </p>
+              </div>
             </div>
             <label class="inline-flex cursor-pointer items-center gap-3">
               <span class="text-sm text-foreground-secondary">
@@ -953,6 +953,10 @@ onMounted(() => {
           </div>
           </template>
         </div>
+      </div>
+
+      <!-- Email Settings -->
+      <SettingsSMTP v-if="activeTab === 'email' && authStore.user?.is_superuser" />
       </div>
     </div>
   </div>

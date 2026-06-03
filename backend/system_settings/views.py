@@ -8,48 +8,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.utils.translation import gettext_lazy as _
 
-from .models import SystemSetting, SMTPConfig, EmailTemplate
+from .models import SMTPConfig, EmailTemplate
 from .serializers import (
-    SystemSettingSerializer,
     SMTPConfigSerializer,
     SMTPConfigBriefSerializer,
     SMTPTestSerializer,
     EmailTemplateSerializer,
 )
-
-
-class SystemSettingViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for system settings management.
-    Only admin users can manage system settings.
-    """
-    
-    queryset = SystemSetting.objects.all()
-    serializer_class = SystemSettingSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
-    filterset_fields = ['key', 'is_secret']
-    search_fields = ['key', 'description']
-    ordering_fields = ['key', 'created_at']
-    
-    @action(detail=False, methods=['get'])
-    def by_key(self, request):
-        """Get setting value by key."""
-        key = request.query_params.get('key')
-        if not key:
-            return Response(
-                {'error': 'Key parameter is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            setting = SystemSetting.objects.get(key=key)
-            serializer = self.get_serializer(setting)
-            return Response(serializer.data)
-        except SystemSetting.DoesNotExist:
-            return Response(
-                {'error': f'Setting not found: {key}'},
-                status=status.HTTP_404_NOT_FOUND
-            )
 
 
 class SMTPConfigViewSet(viewsets.ModelViewSet):
@@ -74,24 +39,42 @@ class SMTPConfigViewSet(viewsets.ModelViewSet):
         """Log SMTP configuration creation."""
         from audit_log.services import AuditService
         instance = serializer.save()
-        AuditService.log_create(
+        AuditService.log_custom(
+            request=self.request,
+            action='create',
             resource_type='smtp_config',
             resource_id=str(instance.id),
             resource_name=instance.name,
-            request=self.request,
-            details={'host': instance.host, 'port': instance.port}
+            details=f'Created SMTP configuration: {instance.name}',
+            changes={
+                'host': instance.host,
+                'port': instance.port,
+                'use_tls': instance.use_tls,
+                'use_ssl': instance.use_ssl,
+                'is_active': instance.is_active,
+                'is_default': instance.is_default,
+            }
         )
     
     def perform_update(self, serializer):
         """Log SMTP configuration update."""
         from audit_log.services import AuditService
         instance = serializer.save()
-        AuditService.log_update(
+        AuditService.log_custom(
+            request=self.request,
+            action='update',
             resource_type='smtp_config',
             resource_id=str(instance.id),
             resource_name=instance.name,
-            request=self.request,
-            details={'host': instance.host, 'port': instance.port}
+            details=f'Updated SMTP configuration: {instance.name}',
+            changes={
+                'host': instance.host,
+                'port': instance.port,
+                'use_tls': instance.use_tls,
+                'use_ssl': instance.use_ssl,
+                'is_active': instance.is_active,
+                'is_default': instance.is_default,
+            }
         )
     
     @action(detail=True, methods=['post'])

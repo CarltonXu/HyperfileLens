@@ -67,6 +67,9 @@ export default {
     upload: "Upload",
     copy: "Copy",
     copied: "Copied!",
+    createSuccess: "Created successfully",
+    updateSuccess: "Updated successfully",
+    deleteSuccess: "Deleted successfully",
     commandCopiedToClipboard: "Command copied to clipboard",
     itemCopiedToClipboard: "{item} copied to clipboard",
     copyFailedToClipboard: "Failed to copy to clipboard",
@@ -81,6 +84,7 @@ export default {
     yes: "Yes",
     no: "No",
     none: "None",
+    default: "Default",
     enabled: "Enabled",
     disabled: "Disabled",
     active: "Active",
@@ -136,6 +140,9 @@ export default {
     confirmDelete: "Confirm Delete",
     deleting: "Deleting...",
     saving: "Saving...",
+    sending: "Sending...",
+    saved: "Saved successfully",
+    deleted: "Deleted successfully",
     showing: "Showing",
     to: "to",
     of: "of",
@@ -2741,10 +2748,12 @@ export default {
       appearance: "Appearance",
       language: "Language",
       aiInsights: "AI Insights",
+      email: "Email Settings",
     },
 
     profile: {
       title: "Profile Information",
+      description: "Maintain your basic profile and account identity details.",
       firstName: "First Name",
       lastName: "Last Name",
       email: "Email",
@@ -2763,6 +2772,7 @@ export default {
 
     security: {
       title: "Security Settings",
+      description: "Update your password and manage account security settings.",
       changePassword: "Change Password",
       currentPassword: "Current Password",
       newPassword: "New Password",
@@ -2780,6 +2790,7 @@ export default {
 
     preferences: {
       title: "Preferences",
+      description: "Configure console display, language, and default pagination behavior.",
       defaultPageSize: "Default Page Size",
       defaultPageSizeDesc: "Default number of items per page in tables",
       currentValue: "Current Value",
@@ -2791,6 +2802,7 @@ export default {
 
     appearance: {
       title: "Appearance",
+      description: "Choose the console display theme.",
       theme: "Theme",
       light: "Light",
       dark: "Dark",
@@ -2799,6 +2811,7 @@ export default {
 
     language: {
       title: "Language",
+      description: "Choose the display language for the console.",
       english: "English",
       chinese: "中文",
     },
@@ -2857,14 +2870,21 @@ export default {
       server: "Server Address",
       host: "SMTP Server",
       port: "Port",
-      username: "Username",
-      password: "Password",
+      username: "SMTP Username (Optional)",
+      usernamePlaceholder: "e.g. smtp-user\\@example.com",
+      password: "SMTP Password (Optional)",
+      passwordPlaceholder: "e.g. SMTP password or app-specific password",
       fromEmail: "From Email",
-      fromName: "From Name",
+      fromName: "Email Subject (Optional)",
+      emailSubjectPlaceholder: "e.g. HyperFileLens Notification",
       useTLS: "Use TLS",
       useSSL: "Use SSL",
+      encryptionHint:
+        "TLS and SSL are mutually exclusive. Enable only one, or turn both off if your provider requires a plain connection.",
       testConnection: "Test Connection",
       sendTestEmail: "Send Test Email",
+      sendTestEmailDescription:
+        "Enter a temporary recipient address to send a test email with the current SMTP configuration.",
       sendTest: "Send",
       testEmailTo: "Recipient Email",
       setDefault: "Set as Default",

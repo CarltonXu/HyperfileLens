@@ -1,4 +1,4 @@
-import api from "./client";
+import api, { type AxiosRequestConfig } from "./client";
 
 export const gateway = {
   aiQuery: (data: {
@@ -68,7 +68,10 @@ export const aiInsightsApi = {
   providers: (params?: { page?: number; page_size?: number }) =>
     api.get("/api/v1/system/ai-providers/", { params }),
 
-  defaultProvider: () => api.get("/api/v1/system/ai-providers/default/"),
+  defaultProvider: () =>
+    api.get("/api/v1/system/ai-providers/default/", {
+      _skipGlobalErrorHandler: true,
+    } as AxiosRequestConfig),
 
   createProvider: (data: any) => api.post("/api/v1/system/ai-providers/", data),
 

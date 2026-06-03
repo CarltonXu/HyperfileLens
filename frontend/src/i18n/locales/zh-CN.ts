@@ -67,6 +67,9 @@ export default {
     upload: "上传",
     copy: "复制",
     copied: "已复制！",
+    createSuccess: "创建成功",
+    updateSuccess: "更新成功",
+    deleteSuccess: "删除成功",
     commandCopiedToClipboard: "命令已复制到剪贴板",
     itemCopiedToClipboard: "{item} 已复制到剪贴板",
     copyFailedToClipboard: "复制到剪贴板失败",
@@ -81,6 +84,7 @@ export default {
     yes: "是",
     no: "否",
     none: "无",
+    default: "默认",
     enabled: "已启用",
     disabled: "已禁用",
     active: "活跃",
@@ -135,6 +139,9 @@ export default {
     confirmDelete: "确认删除",
     deleting: "删除中...",
     saving: "保存中...",
+    sending: "发送中...",
+    saved: "保存成功",
+    deleted: "删除成功",
     showing: "显示",
     to: "至",
     of: "共",
@@ -2623,10 +2630,12 @@ export default {
       appearance: "外观",
       language: "语言",
       aiInsights: "AI 洞察",
+      email: "邮件设置",
     },
 
     profile: {
       title: "个人资料",
+      description: "维护您的基本资料和账户身份信息。",
       firstName: "名",
       lastName: "姓",
       email: "邮箱",
@@ -2645,6 +2654,7 @@ export default {
 
     security: {
       title: "安全设置",
+      description: "更新登录密码并管理账户安全配置。",
       changePassword: "修改密码",
       currentPassword: "当前密码",
       newPassword: "新密码",
@@ -2662,6 +2672,7 @@ export default {
 
     preferences: {
       title: "偏好设置",
+      description: "配置控制台的显示、语言和分页默认行为。",
       defaultPageSize: "默认分页数量",
       defaultPageSizeDesc: "每页默认显示的项目数量",
       currentValue: "当前值",
@@ -2672,6 +2683,7 @@ export default {
 
     appearance: {
       title: "外观",
+      description: "选择控制台的显示主题。",
       theme: "主题",
       light: "浅色",
       dark: "深色",
@@ -2680,6 +2692,7 @@ export default {
 
     language: {
       title: "语言",
+      description: "选择控制台界面的显示语言。",
       english: "English",
       chinese: "中文",
     },
@@ -2734,14 +2747,19 @@ export default {
       server: "服务器地址",
       host: "SMTP 服务器",
       port: "端口",
-      username: "用户名",
-      password: "密码",
-      fromEmail: "发件人邮箱",
-      fromName: "发件人名称",
+      username: "SMTP Username（可选）",
+      usernamePlaceholder: "例如：smtp-user\\@example.com",
+      password: "SMTP Password（可选）",
+      passwordPlaceholder: "例如：邮箱服务商提供的 SMTP 密码或授权码",
+      fromEmail: "From Email",
+      fromName: "Email Subject（可选）",
+      emailSubjectPlaceholder: "例如：HyperFileLens Notification",
       useTLS: "使用 TLS",
       useSSL: "使用 SSL",
+      encryptionHint: "TLS 与 SSL 互斥，只能启用其中一种；如果服务商要求明文连接，可以全部关闭。",
       testConnection: "测试连接",
       sendTestEmail: "发送测试邮件",
+      sendTestEmailDescription: "输入一个临时收件人地址，用当前 SMTP 配置发送测试邮件。",
       sendTest: "发送",
       testEmailTo: "收件人邮箱",
       setDefault: "设为默认",
