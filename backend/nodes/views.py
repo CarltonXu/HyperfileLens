@@ -172,6 +172,47 @@ class ProxyViewSet(viewsets.ModelViewSet):
             name=name,
         )
 
+    def _build_install_commands(self, server_url, proxy):
+        """Build install commands for each supported proxy target OS."""
+        linux_command = self._build_install_command(
+            server_url=server_url,
+            role=proxy.role,
+            proxy_id=proxy.id,
+            install_token=proxy.install_token,
+            os_type='linux',
+            name=proxy.name,
+        )
+        macos_command = self._build_install_command(
+            server_url=server_url,
+            role=proxy.role,
+            proxy_id=proxy.id,
+            install_token=proxy.install_token,
+            os_type='macos',
+            name=proxy.name,
+        )
+        windows_command = self._build_install_command(
+            server_url=server_url,
+            role=proxy.role,
+            proxy_id=proxy.id,
+            install_token=proxy.install_token,
+            os_type='windows',
+            name=proxy.name,
+        )
+
+        selected_os = proxy.target_os or 'linux'
+        selected_command = {
+            'linux': linux_command,
+            'macos': macos_command,
+            'windows': windows_command,
+        }.get(selected_os, linux_command)
+
+        return {
+            'install_command': selected_command,
+            'linux_command': linux_command,
+            'macos_command': macos_command,
+            'windows_command': windows_command,
+        }
+
     def perform_destroy(self, instance):
         """Delete a proxy with audit logging."""
         AuditService.log_proxy_delete(self.request, instance, result='success')
@@ -274,24 +315,8 @@ class ProxyViewSet(viewsets.ModelViewSet):
         # Get public server URL
         server_url = data.get('server_url') or get_public_control_plane_url(request)
 
-        # Build commands
-        install_command = self._build_install_command(
-            server_url=server_url,
-            role=proxy.role,
-            proxy_id=proxy.id,
-            install_token=proxy.install_token,
-            os_type=data['os'],
-            name=proxy.name
-        )
-
-        windows_command = self._build_install_command(
-            server_url=server_url,
-            role=proxy.role,
-            proxy_id=proxy.id,
-            install_token=proxy.install_token,
-            os_type='windows',
-            name=proxy.name
-        )
+        commands = self._build_install_commands(server_url, proxy)
+        install_command = commands['install_command']
 
         # Generate config YAML
         config_yaml = self._generate_config_yaml(
@@ -316,7 +341,9 @@ class ProxyViewSet(viewsets.ModelViewSet):
             'install_token': proxy.install_token,
             'api_token': proxy.api_token,
             'install_command': install_command,
-            'windows_command': windows_command,
+            'linux_command': commands['linux_command'],
+            'macos_command': commands['macos_command'],
+            'windows_command': commands['windows_command'],
             'config_yaml': config_yaml,
             'expires_at': timezone.now() + timezone.timedelta(hours=24)
         }
@@ -362,24 +389,8 @@ class ProxyViewSet(viewsets.ModelViewSet):
         # Get public server URL
         server_url = get_public_control_plane_url(request)
 
-        # Build new commands
-        install_command = self._build_install_command(
-            server_url=server_url,
-            role=proxy.role,
-            proxy_id=proxy.id,
-            install_token=proxy.install_token,
-            os_type=proxy.target_os or 'linux',
-            name=proxy.name
-        )
-
-        windows_command = self._build_install_command(
-            server_url=server_url,
-            role=proxy.role,
-            proxy_id=proxy.id,
-            install_token=proxy.install_token,
-            os_type='windows',
-            name=proxy.name
-        )
+        commands = self._build_install_commands(server_url, proxy)
+        install_command = commands['install_command']
 
         proxy.install_command = install_command
         proxy.save()
@@ -392,7 +403,9 @@ class ProxyViewSet(viewsets.ModelViewSet):
             'install_token': proxy.install_token,
             'api_token': proxy.api_token,
             'install_command': install_command,
-            'windows_command': windows_command,
+            'linux_command': commands['linux_command'],
+            'macos_command': commands['macos_command'],
+            'windows_command': commands['windows_command'],
         })
 
     @action(detail=True, methods=['get'])
@@ -400,22 +413,8 @@ class ProxyViewSet(viewsets.ModelViewSet):
         """Return a freshly generated install command for a proxy."""
         proxy = self.get_object()
         server_url = get_public_control_plane_url(request)
-        install_command = self._build_install_command(
-            server_url=server_url,
-            role=proxy.role,
-            proxy_id=proxy.id,
-            install_token=proxy.install_token,
-            os_type=proxy.target_os or 'linux',
-            name=proxy.name
-        )
-        windows_command = self._build_install_command(
-            server_url=server_url,
-            role=proxy.role,
-            proxy_id=proxy.id,
-            install_token=proxy.install_token,
-            os_type='windows',
-            name=proxy.name
-        )
+        commands = self._build_install_commands(server_url, proxy)
+        install_command = commands['install_command']
         proxy.install_command = install_command
         proxy.save(update_fields=['install_command'])
 
@@ -424,9 +423,14 @@ class ProxyViewSet(viewsets.ModelViewSet):
             'install_token': proxy.install_token,
             'api_token': proxy.api_token,
             'install_command': install_command,
-            'windows_command': windows_command,
+            'linux_command': commands['linux_command'],
+            'macos_command': commands['macos_command'],
+            'windows_command': commands['windows_command'],
             'server_url': server_url,
             'script_url': f'{server_url}/downloads/install-proxy.sh',
+            'linux_script_url': f'{server_url}/downloads/install-proxy.sh',
+            'macos_script_url': f'{server_url}/downloads/install-proxy-macos.sh',
+            'windows_script_url': f'{server_url}/downloads/install-proxy.ps1',
             'install_token_used': proxy.install_token_used,
         })
 

@@ -309,6 +309,8 @@ class InstallCommandResponseSerializer(serializers.Serializer):
     install_token = serializers.CharField()
     api_token = serializers.CharField()
     install_command = serializers.CharField()
+    linux_command = serializers.CharField(required=False)
+    macos_command = serializers.CharField(required=False)
     windows_command = serializers.CharField()
     config_yaml = serializers.CharField()
     expires_at = serializers.DateTimeField()

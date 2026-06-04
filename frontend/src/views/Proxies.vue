@@ -97,6 +97,8 @@ const installResult = ref<{
   install_token: string;
   api_token: string;
   install_command: string;
+  linux_command?: string;
+  macos_command?: string;
   windows_command: string;
   config_yaml: string;
   expires_at: string;
@@ -832,9 +834,13 @@ function downloadConfig() {
 
 function getCommandForOS(): string {
   if (!installResult.value) return "";
-  return installData.value.os === "windows"
-    ? installResult.value.windows_command
-    : installResult.value.install_command;
+  if (installData.value.os === "windows") {
+    return installResult.value.windows_command;
+  }
+  if (installData.value.os === "macos") {
+    return installResult.value.macos_command || installResult.value.install_command;
+  }
+  return installResult.value.linux_command || installResult.value.install_command;
 }
 
 // Proxy Actions

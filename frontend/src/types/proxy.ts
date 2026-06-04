@@ -109,6 +109,8 @@ export interface GenerateInstallCommandResponse {
   install_token: string
   api_token: string
   install_command: string
+  linux_command?: string
+  macos_command?: string
   windows_command: string
   config_yaml: string
   expires_at: string

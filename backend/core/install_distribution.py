@@ -15,6 +15,8 @@ from django.core.exceptions import ImproperlyConfigured
 DOWNLOADS_PATH = "/downloads"
 PACKAGES_PATH = f"{DOWNLOADS_PATH}/packages"
 PROXY_INSTALL_SCRIPT = f"{DOWNLOADS_PATH}/install-proxy.sh"
+PROXY_MACOS_INSTALL_SCRIPT = f"{DOWNLOADS_PATH}/install-proxy-macos.sh"
+PROXY_WINDOWS_INSTALL_SCRIPT = f"{DOWNLOADS_PATH}/install-proxy.ps1"
 GATEWAY_INSTALL_SCRIPT = f"{DOWNLOADS_PATH}/install-gateway.sh"
 
 
@@ -51,19 +53,28 @@ def build_proxy_install_command(
     """Build the proxy install command using the standard public script path."""
     server_url = _strip_trailing_slash(server_url)
     if os_type == "windows":
-        return (
-            "# Windows installer is not published yet.\n"
-            "# Use a Linux/macOS proxy host with the standard installer:\n"
-            f"curl -sSL {server_url}{PROXY_INSTALL_SCRIPT} | bash -s -- \\\n"
-            f"  --proxy-id {proxy_id} \\\n"
-            f"  --role {role} \\\n"
-            f"  --server {server_url} \\\n"
-            f"  --token {install_token} \\\n"
-            f'  --name "{name}"'
-        )
+        return f'''# Windows PowerShell
+# Run PowerShell as Administrator.
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+irm {server_url}{PROXY_WINDOWS_INSTALL_SCRIPT} | iex
+Install-HyperFileLensProxy `
+  -ProxyId "{proxy_id}" `
+  -Role "{role}" `
+  -Server "{server_url}" `
+  -Token "{install_token}" `
+  -Name "{name}"'''
 
-    return f'''# Linux/macOS
-curl -sSL {server_url}{PROXY_INSTALL_SCRIPT} | bash -s -- \\
+    if os_type == "macos":
+        return f'''# macOS
+curl -sSL {server_url}{PROXY_MACOS_INSTALL_SCRIPT} | sudo bash -s -- \\
+  --proxy-id {proxy_id} \\
+  --role {role} \\
+  --server {server_url} \\
+  --token {install_token} \\
+  --name "{name}"'''
+
+    return f'''# Linux
+curl -sSL {server_url}{PROXY_INSTALL_SCRIPT} | sudo bash -s -- \\
   --proxy-id {proxy_id} \\
   --role {role} \\
   --server {server_url} \\
