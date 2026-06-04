@@ -2866,6 +2866,8 @@ export default {
       testPromptPlaceholder: "Enter a short prompt to test this provider",
       sendTest: "Send Test",
       testing: "Testing",
+      waitingForProvider: "Waiting for provider",
+      receivingStream: "Receiving stream",
       testFailed: "Provider test failed",
       testNoAnswer: "The provider returned successfully, but no answer content was found.",
       testSaveFirst: "Save the AI provider before testing.",

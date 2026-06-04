@@ -2741,6 +2741,8 @@ export default {
       testPromptPlaceholder: "输入一句简短提示词来测试该 Provider",
       sendTest: "发送测试",
       testing: "测试中",
+      waitingForProvider: "等待 Provider",
+      receivingStream: "正在接收",
       testFailed: "Provider 测试失败",
       testNoAnswer: "Provider 请求成功，但没有返回可展示的回复内容。",
       testSaveFirst: "请先保存 AI Provider 再测试。",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, nextTick, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
@@ -70,18 +70,21 @@ const aiTestResult = ref<any>(null);
 const aiTestError = ref("");
 const isTestingProvider = ref(false);
 const showAiTestPanel = ref(false);
-const aiTestMessages = ref<
-  Array<{
-    role: "user" | "assistant";
-    content: string;
-    status?: "error";
-    meta?: {
-      model?: string;
-      latency_ms?: number;
-      url?: string;
-    };
-  }>
->([]);
+const aiTestMessagesContainer = ref<HTMLElement | null>(null);
+const aiTestMessageInput = ref<HTMLTextAreaElement | null>(null);
+type AiTestMessage = {
+  role: "user" | "assistant";
+  content: string;
+  isTyping?: boolean;
+  status?: "error";
+  meta?: {
+    model?: string;
+    latency_ms?: number;
+    url?: string;
+  };
+};
+const aiTestMessages = ref<AiTestMessage[]>([]);
+const hasTypingAiTestMessage = computed(() => aiTestMessages.value.some((message) => message.isTyping));
 const providerForm = ref({
   name: "Default AI Provider",
   provider_type: "openai_compatible",
@@ -394,7 +397,330 @@ async function saveAiProvider() {
   }
 }
 
+async function typeAssistantMessage(
+  fullText: string,
+  meta?: {
+    model?: string;
+    latency_ms?: number;
+    url?: string;
+  },
+) {
+  const message = {
+    role: "assistant" as const,
+    content: "",
+    isTyping: true,
+    meta,
+  };
+  aiTestMessages.value.push(message);
+  const messageIndex = aiTestMessages.value.length - 1;
+
+  for (const char of fullText) {
+    aiTestMessages.value[messageIndex].content += char;
+    await new Promise((resolve) => setTimeout(resolve, char.trim() ? 18 : 8));
+  }
+
+  aiTestMessages.value[messageIndex].isTyping = false;
+}
+
+function getCsrfToken(): string | null {
+  const name = "csrftoken=";
+  const cookie = document.cookie
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(name));
+  return cookie ? decodeURIComponent(cookie.slice(name.length)) : null;
+}
+
+function getStreamErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message || "");
+  }
+  return String(error || "");
+}
+
+function scrollAiTestMessagesToBottom() {
+  void nextTick(() => {
+    const container = aiTestMessagesContainer.value;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  });
+}
+
+function waitForAiStreamPaint() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 12);
+  });
+}
+
+function resizeAiTestMessageInput() {
+  void nextTick(() => {
+    const input = aiTestMessageInput.value;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 112)}px`;
+  });
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderInlineMarkdown(value: string) {
+  const codeSpans: string[] = [];
+  let html = escapeHtml(value).replace(/`([^`]+)`/g, (_match, code) => {
+    const token = `@@CODE_SPAN_${codeSpans.length}@@`;
+    codeSpans.push(`<code class="rounded bg-black/5 px-1 py-0.5 font-mono text-[0.92em] dark:bg-white/10">${code}</code>`);
+    return token;
+  });
+
+  html = html
+    .replace(/\*\*([^*]+)\*\*/g, "<strong class=\"font-semibold\">$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong class=\"font-semibold\">$1</strong>")
+    .replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+
+  codeSpans.forEach((code, index) => {
+    html = html.replace(`@@CODE_SPAN_${index}@@`, code);
+  });
+  return html;
+}
+
+function renderMarkdown(content: string) {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const blocks: string[] = [];
+  let paragraph: string[] = [];
+  let listItems: string[] = [];
+  let orderedListItems: string[] = [];
+  let quoteLines: string[] = [];
+  let codeLines: string[] = [];
+  let inCodeBlock = false;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    blocks.push(`<p>${paragraph.map(renderInlineMarkdown).join("<br>")}</p>`);
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (listItems.length) {
+      blocks.push(`<ul>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ul>`);
+      listItems = [];
+    }
+    if (orderedListItems.length) {
+      blocks.push(`<ol>${orderedListItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ol>`);
+      orderedListItems = [];
+    }
+  };
+  const flushQuote = () => {
+    if (!quoteLines.length) return;
+    blocks.push(`<blockquote>${quoteLines.map(renderInlineMarkdown).join("<br>")}</blockquote>`);
+    quoteLines = [];
+  };
+  const flushAll = () => {
+    flushParagraph();
+    flushList();
+    flushQuote();
+  };
+
+  for (const line of lines) {
+    const codeFence = line.match(/^```([\w-]*)\s*$/);
+    if (codeFence) {
+      if (inCodeBlock) {
+        blocks.push(
+          `<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`,
+        );
+        codeLines = [];
+        inCodeBlock = false;
+      } else {
+        flushAll();
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeLines.push(line);
+      continue;
+    }
+
+    if (!line.trim()) {
+      flushAll();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushAll();
+      const level = heading[1].length;
+      blocks.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    const quote = line.match(/^>\s?(.*)$/);
+    if (quote) {
+      flushParagraph();
+      flushList();
+      quoteLines.push(quote[1]);
+      continue;
+    }
+
+    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+    if (unordered) {
+      flushParagraph();
+      flushQuote();
+      listItems.push(unordered[1]);
+      continue;
+    }
+
+    const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (ordered) {
+      flushParagraph();
+      flushQuote();
+      orderedListItems.push(ordered[1]);
+      continue;
+    }
+
+    flushList();
+    flushQuote();
+    paragraph.push(line);
+  }
+
+  if (inCodeBlock) {
+    blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+  }
+  flushAll();
+
+  return blocks.join("");
+}
+
+async function testAiProviderChatStream(providerId: string | number, message: string) {
+  if (!window.ReadableStream) return false;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const token = localStorage.getItem("token");
+  if (token) {
+    headers.Authorization = `Token ${token}`;
+  }
+  const csrfToken = getCsrfToken();
+  if (csrfToken) {
+    headers["X-CSRFToken"] = csrfToken;
+  }
+
+  const response = await fetch(`/api/v1/system/ai-providers/${providerId}/test-chat/`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ message, stream: true, max_tokens: 4096 }),
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.error || data?.detail || response.statusText);
+  }
+  if (!response.body || !contentType.includes("text/event-stream")) {
+    return false;
+  }
+
+  const assistantMessage: AiTestMessage = {
+    role: "assistant",
+    content: "",
+    isTyping: true,
+    meta: {},
+  };
+  aiTestMessages.value.push(assistantMessage);
+  const assistantMessageIndex = aiTestMessages.value.length - 1;
+  scrollAiTestMessagesToBottom();
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const handleEvent = async (eventText: string) => {
+    const dataLines = eventText
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart());
+    if (dataLines.length === 0) return;
+    const event = JSON.parse(dataLines.join("\n"));
+    const currentMessage = aiTestMessages.value[assistantMessageIndex];
+    if (!currentMessage) return;
+    if (event.type === "meta") {
+      currentMessage.meta = {
+        model: event.model,
+        latency_ms: event.latency_ms,
+        url: event.url,
+      };
+    } else if (event.type === "delta") {
+      currentMessage.content += event.content || "";
+      scrollAiTestMessagesToBottom();
+      await waitForAiStreamPaint();
+    } else if (event.type === "done") {
+      currentMessage.isTyping = false;
+      if (event.model) {
+        currentMessage.meta = {
+          ...currentMessage.meta,
+          model: event.model,
+        };
+      }
+      if (!currentMessage.content && event.answer) {
+        currentMessage.content = event.answer;
+      }
+      aiTestResult.value = {
+        success: true,
+        answer: currentMessage.content,
+        model: currentMessage.meta?.model,
+        latency_ms: currentMessage.meta?.latency_ms,
+        url: currentMessage.meta?.url,
+      };
+      scrollAiTestMessagesToBottom();
+    } else if (event.type === "error") {
+      throw new Error(event.error || t("settings.aiInsights.testFailed"));
+    }
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r\n/g, "\n");
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for (const eventText of events) {
+        await handleEvent(eventText);
+      }
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      await handleEvent(buffer);
+    }
+    if (aiTestMessages.value[assistantMessageIndex]) {
+      aiTestMessages.value[assistantMessageIndex].isTyping = false;
+    }
+    scrollAiTestMessagesToBottom();
+    return true;
+  } catch (error) {
+    const currentMessage = aiTestMessages.value[assistantMessageIndex];
+    if (currentMessage) {
+      currentMessage.isTyping = false;
+      currentMessage.status = "error";
+      currentMessage.content = getStreamErrorMessage(error) || t("settings.aiInsights.testFailed");
+    }
+    scrollAiTestMessagesToBottom();
+    return true;
+  }
+}
+
 async function testAiProviderChat() {
+  if (isTestingProvider.value) return;
+
   aiProviderError.value = "";
   aiProviderSuccess.value = "";
   aiTestError.value = "";
@@ -415,26 +741,31 @@ async function testAiProviderChat() {
     role: "user",
     content: message,
   });
+  scrollAiTestMessagesToBottom();
   aiTestMessage.value = "";
+  resizeAiTestMessageInput();
   isTestingProvider.value = true;
   try {
+    const streamed = await testAiProviderChatStream(aiProvider.value.id, message);
+    if (streamed) return;
+
     const response = await aiInsightsApi.testProviderChat(aiProvider.value.id, {
       message,
     });
     aiTestResult.value = response.data;
-    aiTestMessages.value.push({
-      role: "assistant",
-      content: response.data.answer || t("settings.aiInsights.testNoAnswer"),
-      meta: {
+    await typeAssistantMessage(
+      response.data.answer || t("settings.aiInsights.testNoAnswer"),
+      {
         model: response.data.model,
         latency_ms: response.data.latency_ms,
         url: response.data.url,
       },
-    });
+    );
   } catch (error: any) {
     aiTestError.value =
       error?.response?.data?.error ||
       error?.response?.data?.detail ||
+      error?.message ||
       t("settings.aiInsights.testFailed");
     if (error?.response?.data?.url) {
       aiTestResult.value = { url: error.response.data.url };
@@ -450,6 +781,12 @@ async function testAiProviderChat() {
   } finally {
     isTestingProvider.value = false;
   }
+}
+
+function handleAiTestMessageKeydown(event: KeyboardEvent) {
+  if (event.key !== "Enter" || event.shiftKey) return;
+  event.preventDefault();
+  void testAiProviderChat();
 }
 
 async function toggleAiInsights() {
@@ -479,6 +816,7 @@ onMounted(() => {
 });
 
 watch(tabs, ensureActiveTab);
+watch(aiTestMessage, resizeAiTestMessageInput);
 </script>
 
 <template>
@@ -1094,7 +1432,9 @@ watch(tabs, ensureActiveTab);
                 </button>
               </div>
 
-              <div class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-background/50 px-5 py-5">
+              <div
+                ref="aiTestMessagesContainer"
+                class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-background/50 px-5 py-5">
                 <div
                   v-if="aiTestMessages.length === 0"
                   class="rounded-lg border border-dashed border-border bg-card px-4 py-5 text-sm leading-6 text-foreground-secondary">
@@ -1116,7 +1456,47 @@ watch(tabs, ensureActiveTab);
                           ? 'rounded-bl-md border border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300'
                           : 'rounded-bl-md border border-border bg-card text-foreground',
                     ]">
-                    <p class="whitespace-pre-wrap">{{ message.content }}</p>
+                    <div
+                      v-if="message.role === 'assistant' && message.isTyping && !message.content"
+                      class="flex items-center gap-3 text-foreground-secondary">
+                      <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300">
+                        <SparklesIcon class="h-4 w-4 animate-pulse" />
+                      </span>
+                      <span class="text-sm">{{ t("settings.aiInsights.waitingForProvider") }}</span>
+                      <span class="inline-flex items-center gap-1">
+                        <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.24s]" />
+                        <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.12s]" />
+                        <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+                      </span>
+                    </div>
+                    <div
+                      v-else-if="message.role === 'assistant' && message.status !== 'error'"
+                      class="ai-test-markdown"
+                      v-html="renderMarkdown(message.content)" />
+                    <p
+                      v-else
+                      class="whitespace-pre-wrap">
+                      {{ message.content }}<span
+                        v-if="message.isTyping"
+                        class="ml-0.5 inline-block h-4 w-1 translate-y-0.5 animate-pulse rounded-full bg-current" />
+                    </p>
+                    <span
+                      v-if="message.role === 'assistant' && message.status !== 'error' && message.isTyping && message.content"
+                      class="ml-0.5 inline-block h-4 w-1 translate-y-0.5 animate-pulse rounded-full bg-current" />
+                    <div
+                      v-if="message.role === 'assistant' && message.isTyping && message.content"
+                      class="mt-2 flex items-center gap-2 border-t border-current/10 pt-2 text-[11px] leading-4 text-foreground-muted">
+                      <span class="relative flex h-2 w-2">
+                        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75" />
+                        <span class="relative inline-flex h-2 w-2 rounded-full bg-indigo-500" />
+                      </span>
+                      <span>{{ t("settings.aiInsights.receivingStream") }}</span>
+                      <span class="inline-flex items-center gap-0.5 opacity-70">
+                        <span class="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:-0.24s]" />
+                        <span class="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:-0.12s]" />
+                        <span class="h-1 w-1 animate-bounce rounded-full bg-current" />
+                      </span>
+                    </div>
                     <div
                       v-if="message.meta?.model || message.meta?.latency_ms || message.meta?.url"
                       class="mt-2 space-y-1 border-t border-current/10 pt-2 text-[11px] leading-4 opacity-75">
@@ -1135,7 +1515,7 @@ watch(tabs, ensureActiveTab);
                   </div>
                 </div>
                 <div
-                  v-if="isTestingProvider"
+                  v-if="isTestingProvider && !hasTypingAiTestMessage"
                   class="flex justify-start">
                   <div class="rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3 text-sm text-foreground-secondary shadow-sm">
                     {{ t("settings.aiInsights.testing") }}
@@ -1151,10 +1531,13 @@ watch(tabs, ensureActiveTab);
                 </p>
                 <div class="flex items-end gap-2">
                   <textarea
+                    ref="aiTestMessageInput"
                     v-model="aiTestMessage"
-                    rows="3"
-                    class="min-h-[76px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-                    :placeholder="t('settings.aiInsights.testPromptPlaceholder')" />
+                    rows="1"
+                    class="max-h-28 min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm leading-6 text-foreground placeholder:text-foreground-muted focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                    :placeholder="t('settings.aiInsights.testPromptPlaceholder')"
+                    @input="resizeAiTestMessageInput"
+                    @keydown="handleAiTestMessageKeydown" />
                   <button
                     class="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="isTestingProvider || !aiProvider?.id || !aiTestMessage.trim()"
@@ -1176,3 +1559,96 @@ watch(tabs, ensureActiveTab);
   </div>
   </div>
 </template>
+
+<style scoped>
+.ai-test-markdown {
+  white-space: normal;
+}
+
+.ai-test-markdown :deep(p) {
+  margin: 0.35rem 0;
+  white-space: pre-wrap;
+}
+
+.ai-test-markdown :deep(p:first-child),
+.ai-test-markdown :deep(ul:first-child),
+.ai-test-markdown :deep(ol:first-child),
+.ai-test-markdown :deep(pre:first-child),
+.ai-test-markdown :deep(blockquote:first-child),
+.ai-test-markdown :deep(h1:first-child),
+.ai-test-markdown :deep(h2:first-child),
+.ai-test-markdown :deep(h3:first-child) {
+  margin-top: 0;
+}
+
+.ai-test-markdown :deep(p:last-child),
+.ai-test-markdown :deep(ul:last-child),
+.ai-test-markdown :deep(ol:last-child),
+.ai-test-markdown :deep(pre:last-child),
+.ai-test-markdown :deep(blockquote:last-child) {
+  margin-bottom: 0;
+}
+
+.ai-test-markdown :deep(h1),
+.ai-test-markdown :deep(h2),
+.ai-test-markdown :deep(h3) {
+  margin: 0.8rem 0 0.35rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ai-test-markdown :deep(h1) {
+  font-size: 1rem;
+}
+
+.ai-test-markdown :deep(h2) {
+  font-size: 0.96rem;
+}
+
+.ai-test-markdown :deep(h3) {
+  font-size: 0.92rem;
+}
+
+.ai-test-markdown :deep(ul),
+.ai-test-markdown :deep(ol) {
+  margin: 0.4rem 0;
+  padding-left: 1.25rem;
+}
+
+.ai-test-markdown :deep(ul) {
+  list-style: disc;
+}
+
+.ai-test-markdown :deep(ol) {
+  list-style: decimal;
+}
+
+.ai-test-markdown :deep(li) {
+  margin: 0.2rem 0;
+}
+
+.ai-test-markdown :deep(blockquote) {
+  margin: 0.5rem 0;
+  border-left: 3px solid rgb(99 102 241 / 0.45);
+  padding-left: 0.75rem;
+  opacity: 0.82;
+}
+
+.ai-test-markdown :deep(pre) {
+  margin: 0.6rem 0;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: rgb(15 23 42);
+  padding: 0.75rem;
+  color: rgb(226 232 240);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.ai-test-markdown :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+</style>

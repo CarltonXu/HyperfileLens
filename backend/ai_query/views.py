@@ -2,8 +2,13 @@
 HyperFileLens Backend - AI Query Views
 """
 
+import asyncio
+import json
+import queue
+import threading
 import time
 from datetime import timedelta
+from django.http import StreamingHttpResponse
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 import requests
@@ -24,6 +29,26 @@ def _chat_completions_url(base_url):
     if normalized.endswith('/v1'):
         return f'{normalized}/chat/completions'
     return f'{normalized}/v1/chat/completions'
+
+
+def _sse(data):
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _sse_comment(text=''):
+    return f": {text}\n\n"
+
+
+def _chunk_text(text, size=12):
+    for index in range(0, len(text), size):
+        yield text[index:index + size]
+
+
+def _streaming_response(iterator):
+    response = StreamingHttpResponse(iterator, content_type='text/event-stream; charset=utf-8')
+    response['Cache-Control'] = 'no-cache, no-transform'
+    response['X-Accel-Buffering'] = 'no'
+    return response
 
 
 def _format_bytes(value):
@@ -217,12 +242,30 @@ class AIProviderViewSet(viewsets.ModelViewSet):
     def test_chat(self, request, pk=None):
         provider = self.get_object()
         prompt = (request.data.get('message') or 'Hello').strip()
+        stream = request.data.get('stream') is True
         if provider.provider_type == AIProvider.PROVIDER_LOCAL:
+            answer = f'Local fallback is enabled. Test prompt: {prompt}'
+            if stream:
+                async def local_stream():
+                    yield _sse({
+                        'type': 'meta',
+                        'provider': provider.provider_type,
+                        'model': provider.default_model or 'rule-summary',
+                        'url': '',
+                        'latency_ms': 0,
+                    })
+                    yield _sse_comment('stream-start ' + (' ' * 2048))
+                    for piece in _chunk_text(answer):
+                        yield _sse({'type': 'delta', 'content': piece})
+                        await asyncio.sleep(0.012)
+                    yield _sse({'type': 'done'})
+
+                return _streaming_response(local_stream())
             return Response({
                 'success': True,
                 'provider': provider.provider_type,
                 'model': provider.default_model or 'rule-summary',
-                'answer': f'Local fallback is enabled. Test prompt: {prompt}',
+                'answer': answer,
                 'url': '',
                 'latency_ms': 0,
             })
@@ -241,7 +284,7 @@ class AIProviderViewSet(viewsets.ModelViewSet):
             headers.update({str(key): str(value) for key, value in extra_headers.items()})
 
         payload = {
-            'stream': False,
+            'stream': stream,
             'model': provider.default_model,
             'messages': [
                 {
@@ -250,16 +293,101 @@ class AIProviderViewSet(viewsets.ModelViewSet):
                 },
                 {'role': 'user', 'content': prompt},
             ],
-            'max_tokens': int(request.data.get('max_tokens') or 160),
+            'max_tokens': int(request.data.get('max_tokens') or 4096),
             'temperature': 0.2,
         }
         started = time.monotonic()
+        timeout = max(5, min(int(provider.timeout_seconds or 60), 120))
+        if stream:
+            async def provider_stream():
+                events = queue.Queue()
+                sentinel = object()
+
+                def enqueue(data):
+                    events.put(_sse(data))
+
+                def enqueue_comment(text=''):
+                    events.put(_sse_comment(text))
+
+                def worker():
+                    answer = []
+                    model = provider.default_model
+                    try:
+                        with requests.post(
+                            url,
+                            headers=headers,
+                            json=payload,
+                            stream=True,
+                            timeout=timeout,
+                        ) as response:
+                            latency_ms = int((time.monotonic() - started) * 1000)
+                            if response.status_code >= 400:
+                                enqueue({
+                                    'type': 'error',
+                                    'error': response.text[:1000],
+                                    'url': url,
+                                    'status_code': response.status_code,
+                                })
+                                return
+
+                            enqueue({
+                                'type': 'meta',
+                                'provider': provider.provider_type,
+                                'model': model,
+                                'url': url,
+                                'latency_ms': latency_ms,
+                            })
+                            for line in response.iter_lines(chunk_size=1, decode_unicode=True):
+                                if not line:
+                                    continue
+                                if line.startswith('data:'):
+                                    line = line[5:].strip()
+                                if line == '[DONE]':
+                                    break
+                                try:
+                                    chunk = json.loads(line)
+                                except json.JSONDecodeError:
+                                    continue
+                                model = chunk.get('model') or model
+                                choices = chunk.get('choices') or []
+                                if not choices:
+                                    continue
+                                delta = choices[0].get('delta') or {}
+                                message = choices[0].get('message') or {}
+                                content = delta.get('content') or message.get('content') or choices[0].get('text') or ''
+                                if content:
+                                    answer.append(content)
+                                    if message.get('content') or choices[0].get('text'):
+                                        for piece in _chunk_text(content):
+                                            enqueue({'type': 'delta', 'content': piece})
+                                    else:
+                                        enqueue({'type': 'delta', 'content': content})
+                            enqueue({
+                                'type': 'done',
+                                'model': model,
+                                'answer': ''.join(answer),
+                            })
+                    except Exception as exc:
+                        enqueue({'type': 'error', 'error': str(exc), 'url': url})
+                    finally:
+                        events.put(sentinel)
+
+                yield _sse_comment('stream-start ' + (' ' * 2048))
+                threading.Thread(target=worker, daemon=True).start()
+                while True:
+                    event = await asyncio.to_thread(events.get)
+                    if event is sentinel:
+                        break
+                    yield event
+
+            return _streaming_response(provider_stream())
+
         try:
             response = requests.post(
                 url,
                 headers=headers,
                 json=payload,
-                timeout=max(5, min(int(provider.timeout_seconds or 60), 120)),
+                timeout=timeout,
             )
             latency_ms = int((time.monotonic() - started) * 1000)
             response.raise_for_status()
