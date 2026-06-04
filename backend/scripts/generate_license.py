@@ -18,6 +18,11 @@ import sys
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
+try:
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+except Exception:
+    load_pem_private_key = None
+
 # License secret key (must match backend)
 LICENSE_SECRET_KEY = os.environ.get('LICENSE_SECRET_KEY', 'HFL_LICENSE_SECRET_2024_DO_NOT_SHARE')
 
@@ -89,11 +94,34 @@ def generate_signature(data: dict) -> str:
     return signature
 
 
+def canonical_json(data: dict) -> str:
+    return json.dumps(data, sort_keys=True, separators=(',', ':'))
+
+
+def b64url_encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode().rstrip('=')
+
+
+def generate_signed_license_token(data: dict, private_key_path: str) -> str:
+    """Generate an Ed25519 signed license token for open-source deployments."""
+    if not load_pem_private_key:
+        raise RuntimeError("cryptography is required to generate signed license tokens")
+
+    with open(private_key_path, 'rb') as key_file:
+        private_key = load_pem_private_key(key_file.read(), password=None)
+
+    payload_bytes = canonical_json(data).encode()
+    signature = private_key.sign(payload_bytes)
+    return f"HFL-LIC-v1.{b64url_encode(payload_bytes)}.{b64url_encode(signature)}"
+
+
 def generate_activation_code(
     machine_code: str,
     tier: str = 'pro',
     validity_days: int = 365,
-    custom_limits: Optional[Dict[str, int]] = None
+    custom_limits: Optional[Dict[str, int]] = None,
+    private_key_path: Optional[str] = None,
+    version: int = 1,
 ) -> dict:
     """
     Generate an activation code for a machine code.
@@ -128,7 +156,23 @@ def generate_activation_code(
         'limits': limits,
         'issued_at': issued_at.isoformat() + '+00:00',
         'expires_at': expires_at.isoformat() + '+00:00',
+        'version': version,
     }
+
+    if private_key_path:
+        token = generate_signed_license_token(activation_data, private_key_path)
+        return {
+            'license_key': license_key,
+            'machine_code': machine_code,
+            'tier': tier,
+            'activation_code': token,
+            'limits': limits,
+            'issued_at': issued_at.isoformat(),
+            'expires_at': expires_at.isoformat(),
+            'validity_days': validity_days,
+            'version': version,
+            'signature_type': 'ed25519',
+        }
     
     # Generate signature
     signature = generate_signature(activation_data)
@@ -147,6 +191,8 @@ def generate_activation_code(
         'issued_at': issued_at.isoformat(),
         'expires_at': expires_at.isoformat(),
         'validity_days': validity_days,
+        'version': version,
+        'signature_type': 'legacy_hmac',
     }
 
 
@@ -208,6 +254,8 @@ def main():
     parser.add_argument('--verify', '-v', help='Verify an activation code')
     parser.add_argument('--output', '-o', choices=['json', 'text'], default='text',
                         help='Output format')
+    parser.add_argument('--private-key', help='PEM Ed25519 private key path for HFL-LIC-v1 tokens')
+    parser.add_argument('--version', type=int, default=1, help='Signed license version')
     
     args = parser.parse_args()
     
@@ -236,7 +284,9 @@ def main():
     result = generate_activation_code(
         machine_code=args.machine_code,
         tier=args.tier,
-        validity_days=args.days
+        validity_days=args.days,
+        private_key_path=args.private_key,
+        version=args.version,
     )
     
     if args.output == 'json':
@@ -249,6 +299,8 @@ def main():
         print(f"Machine Code:  {result['machine_code']}")
         print(f"Tier:          {result['tier'].upper()}")
         print(f"Validity:      {result['validity_days']} days")
+        print(f"Signature:     {result['signature_type']}")
+        print(f"Version:       {result['version']}")
         print(f"Issued At:     {result['issued_at']}")
         print(f"Expires At:    {result['expires_at']}")
         print(f"\nLimits:")

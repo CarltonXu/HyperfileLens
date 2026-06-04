@@ -150,8 +150,9 @@ def get_license_quota_warnings(license_obj, usage: dict, threshold_percent=80):
     ]
 
     warnings = []
+    limits = license_obj.get_limits()
     for quota_type, limit_field, usage_field, unit in quota_fields:
-        limit = getattr(license_obj, limit_field, 0)
+        limit = limits.get(limit_field, 0)
         if limit in (-1, 0):
             continue
 

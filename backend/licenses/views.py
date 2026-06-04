@@ -26,6 +26,7 @@ from licenses.quota import (
     get_license_quota_warnings,
     get_license_usage_stats,
 )
+from licenses.crypto import payload_hash
 
 
 class LicenseViewSet(viewsets.ModelViewSet):
@@ -113,6 +114,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 })
             
             # Get usage statistics
+            verification = license.verify_signed_payload(update_status=True)
             usage_stats = self._get_usage_stats(tenant)
             
             return Response({
@@ -122,6 +124,16 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 'days_until_expiry': license.days_until_expiry,
                 'usage': usage_stats,
                 'warnings': get_license_quota_warnings(license, usage_stats),
+                'verification': {
+                    'status': verification['status'],
+                    'message': verification['message'],
+                    'payload_hash': license.payload_hash,
+                    'last_verified_at': (
+                        license.last_verified_at.isoformat()
+                        if license.last_verified_at
+                        else None
+                    ),
+                },
                 'machine_code': machine_code,
             })
         except Exception as e:
@@ -290,9 +302,20 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 
                 # Update existing license
                 existing_license.license_key = license_key
+                existing_license.license_token = activation_code
                 existing_license.machine_code = machine_code
                 existing_license.issued_at = issued_at
                 existing_license.expires_at = expires_at
+                existing_license.signature = activation_data.get('signature', '')
+                existing_license.verified_payload = activation_data
+                existing_license.payload_hash = payload_hash(activation_data)
+                existing_license.last_verified_at = timezone.now()
+                existing_license.verification_status = 'valid'
+                existing_license.verification_message = ''
+                existing_license.highest_seen_version = max(
+                    existing_license.highest_seen_version,
+                    int(activation_data.get('version') or existing_license.version + 1),
+                )
                 
                 # Update limits
                 existing_license.max_tenants = limits.get('max_tenants', 1)
@@ -315,10 +338,18 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 license_obj = License.objects.create(
                     tenant=tenant,
                     license_key=license_key,
+                    license_token=activation_code,
                     machine_code=machine_code,
                     issued_at=issued_at,
                     expires_at=expires_at,
                     activated_by=request.user,
+                    signature=activation_data.get('signature', ''),
+                    verified_payload=activation_data,
+                    payload_hash=payload_hash(activation_data),
+                    last_verified_at=timezone.now(),
+                    verification_status='valid',
+                    verification_message='',
+                    highest_seen_version=int(activation_data.get('version') or 1),
                     max_tenants=limits.get('max_tenants', 1),
                     max_users=limits.get('max_users', 10),
                     max_proxies=limits.get('max_proxies', 5),
@@ -505,7 +536,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 })
             
             limit_field, usage_field = quota_map[quota_type]
-            limit = getattr(license, limit_field, 0)
+            limit = license.get_limits().get(limit_field, 0)
             current_usage = self._get_usage_stats(request.user.tenant).get(usage_field, 0)
             
             is_within_limit = limit == -1 or (current_usage + amount) <= limit

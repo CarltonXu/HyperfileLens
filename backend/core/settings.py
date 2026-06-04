@@ -353,6 +353,17 @@ SPECTACULAR_SETTINGS = {
 KOPIA_PATH = os.environ.get('KOPIA_PATH', '/usr/local/bin/kopia')
 KOPIA_REPOSITORY_PATH = os.environ.get('KOPIA_REPOSITORY_PATH', '/data/repository')
 
+# License Configuration
+# Use LICENSE_PUBLIC_KEY for the current production Ed25519 public key.
+# Use LICENSE_PUBLIC_KEYS to keep previous keys during key rotation. Separate
+# PEM values with "||".
+LICENSE_PUBLIC_KEY = os.environ.get('LICENSE_PUBLIC_KEY', '').replace('\\n', '\n')
+LICENSE_PUBLIC_KEYS = [
+    key.replace('\\n', '\n')
+    for key in os.environ.get('LICENSE_PUBLIC_KEYS', '').split('||')
+    if key.strip()
+]
+
 # AI Configuration
 AI_PROVIDER = os.environ.get('AI_PROVIDER', 'openai')
 AI_API_KEY = os.environ.get('AI_API_KEY', '')

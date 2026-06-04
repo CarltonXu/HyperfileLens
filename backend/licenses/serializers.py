@@ -22,6 +22,8 @@ class LicenseSerializer(serializers.ModelSerializer):
             'max_policies', 'max_repositories',
             'issued_at', 'expires_at', 'activated_at', 'updated_at',
             'status', 'is_valid', 'is_expired', 'is_perpetual', 'days_until_expiry',
+            'verification_status', 'verification_message', 'payload_hash',
+            'last_verified_at', 'highest_seen_version',
         ]
         read_only_fields = [
             'id', 'license_key', 'version', 'change_type', 'change_reason',
@@ -31,6 +33,11 @@ class LicenseSerializer(serializers.ModelSerializer):
     
     def get_tenant_name(self, obj):
         return obj.tenant.name if obj.tenant else None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data.update(instance.get_limits())
+        return data
 
 
 class LicenseHistorySerializer(serializers.ModelSerializer):

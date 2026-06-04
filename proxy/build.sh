@@ -6,8 +6,10 @@
 set -e
 
 VERSION=${VERSION:-"1.0.0"}
-BUILD_DIR="build"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUILD_DIR="${ROOT_DIR}/proxy/build"
 BINARY_NAME="hyperfilelens-proxy"
+OUTPUT_DIR="${ROOT_DIR}/backend/static/downloads/packages/proxy"
 
 # Colors
 GREEN='\033[0;32m'
@@ -48,6 +50,8 @@ build() {
     cd ..
     
     log_info "Created: ${BUILD_DIR}/${output_name}.tar.gz"
+
+    copy_package_to_output_dir "${BUILD_DIR}/${output_name}.tar.gz"
 }
 
 build_all() {
@@ -68,6 +72,14 @@ build_current() {
     log_info "Building for current platform..."
     go build -o "${BUILD_DIR}/${BINARY_NAME}" .
     log_info "Created: ${BUILD_DIR}/${BINARY_NAME}"
+    copy_package_to_output_dir "${BUILD_DIR}/${BINARY_NAME}"
+}
+
+copy_package_to_output_dir() {
+    local package_path="$1"
+    rm -f "${OUTPUT_DIR}/$(basename ${package_path})"
+    cp "${package_path}" "${OUTPUT_DIR}/"
+    log_info "Copied: ${OUTPUT_DIR}/$(basename ${package_path})"
 }
 
 case "${1:-all}" in

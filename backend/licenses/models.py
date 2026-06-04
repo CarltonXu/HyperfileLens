@@ -19,6 +19,17 @@ import subprocess
 import platform
 import secrets
 import os
+from datetime import datetime
+
+
+def datetime_from_iso(value):
+    """Parse an ISO datetime string into an aware datetime when possible."""
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value if timezone.is_aware(value) else timezone.make_aware(value)
+    parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    return parsed if timezone.is_aware(parsed) else timezone.make_aware(parsed)
 
 
 class License(models.Model):
@@ -160,6 +171,41 @@ class License(models.Model):
     signature = models.TextField(
         help_text='Digital signature for verification'
     )
+    license_token = models.TextField(
+        blank=True,
+        default='',
+        help_text='Original signed license token. This is the source of truth for licensed limits.'
+    )
+    verified_payload = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Last successfully verified license payload cache'
+    )
+    payload_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        default='',
+        help_text='SHA256 hash of the last verified license payload'
+    )
+    last_verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the license token was last verified'
+    )
+    verification_status = models.CharField(
+        max_length=32,
+        default='unverified',
+        help_text='Latest token verification status'
+    )
+    verification_message = models.TextField(
+        blank=True,
+        default='',
+        help_text='Latest token verification message'
+    )
+    highest_seen_version = models.PositiveIntegerField(
+        default=0,
+        help_text='Highest signed license version seen by this installation'
+    )
     status = models.CharField(
         max_length=20,
         choices=LicenseStatus.choices,
@@ -180,8 +226,14 @@ class License(models.Model):
         """Check if license is currently valid."""
         if self.status != self.LicenseStatus.ACTIVE:
             return False
+
+        verification = self.verify_signed_payload(update_status=False)
+        if not verification['is_valid']:
+            if verification['status'] != 'legacy_unverified':
+                return False
         
-        if self.expires_at and self.expires_at < timezone.now():
+        expires_at = self.get_verified_expires_at()
+        if expires_at and expires_at < timezone.now():
             return False
         
         return True
@@ -189,26 +241,47 @@ class License(models.Model):
     @property
     def is_expired(self) -> bool:
         """Check if license is expired."""
-        if not self.expires_at:
+        expires_at = self.get_verified_expires_at()
+        if not expires_at:
             return False
-        return self.expires_at < timezone.now()
+        return expires_at < timezone.now()
     
     @property
     def days_until_expiry(self) -> int:
         """Get number of days until license expires."""
-        if not self.expires_at:
+        expires_at = self.get_verified_expires_at()
+        if not expires_at:
             return -1  # Perpetual
         
-        delta = self.expires_at - timezone.now()
+        delta = expires_at - timezone.now()
         return max(0, delta.days)
     
     @property
     def is_perpetual(self) -> bool:
         """Check if license is perpetual (no expiration)."""
-        return self.expires_at is None
+        return self.get_verified_expires_at() is None
     
     def get_limits(self) -> dict:
         """Get all limit values as a dictionary."""
+        verified_limits = self.get_verified_limits()
+        if verified_limits:
+            return verified_limits
+
+        if self.license_token:
+            return {
+                'max_tenants': 0,
+                'max_users': 0,
+                'max_proxies': 0,
+                'max_storage_gb': 0,
+                'max_gateways': 0,
+                'ai_insights_quota': 0,
+                'max_backup_tasks': 0,
+                'max_recovery_tasks': 0,
+                'max_source_resources': 0,
+                'max_policies': 0,
+                'max_repositories': 0,
+            }
+
         return {
             'max_tenants': self.max_tenants,
             'max_users': self.max_users,
@@ -221,6 +294,116 @@ class License(models.Model):
             'max_source_resources': self.max_source_resources,
             'max_policies': self.max_policies,
             'max_repositories': self.max_repositories,
+        }
+
+    def get_verified_limits(self) -> dict:
+        """Return signed limits when a verified payload is available."""
+        verification = self.verify_signed_payload(update_status=False)
+        if not verification.get('is_valid'):
+            return {}
+        payload = verification.get('payload') or {}
+        limits = payload.get('limits') or {}
+        if not limits:
+            return {}
+
+        return {
+            'max_tenants': int(limits.get('max_tenants', 0)),
+            'max_users': int(limits.get('max_users', 0)),
+            'max_proxies': int(limits.get('max_proxies', 0)),
+            'max_storage_gb': int(limits.get('max_storage_gb', 0)),
+            'max_gateways': int(limits.get('max_gateways', 0)),
+            'ai_insights_quota': int(limits.get('ai_insights_quota', 0)),
+            'max_backup_tasks': int(limits.get('max_backup_tasks', 0)),
+            'max_recovery_tasks': int(limits.get('max_recovery_tasks', 0)),
+            'max_source_resources': int(limits.get('max_source_resources', 0)),
+            'max_policies': int(limits.get('max_policies', 0)),
+            'max_repositories': int(limits.get('max_repositories', 0)),
+        }
+
+    def get_verified_expires_at(self):
+        """Return signed expiration datetime when present, otherwise DB fallback."""
+        verification = self.verify_signed_payload(update_status=False)
+        payload = verification.get('payload') or {}
+        expires_at = payload.get('expires_at')
+        if expires_at:
+            return datetime_from_iso(expires_at)
+        return self.expires_at
+
+    def verify_signed_payload(self, update_status=True) -> dict:
+        """
+        Verify the stored license token and return status plus payload.
+
+        Existing installations may not have license_token populated. Those are
+        treated as legacy_unverified so upgrades do not immediately invalidate
+        them, but new activations should always use a signed token.
+        """
+        if not self.license_token:
+            if update_status:
+                self.verification_status = 'legacy_unverified'
+                self.verification_message = 'Legacy license has no signed token'
+                self.last_verified_at = timezone.now()
+                self.save(update_fields=[
+                    'verification_status',
+                    'verification_message',
+                    'last_verified_at',
+                    'updated_at',
+                ])
+            return {
+                'is_valid': True,
+                'status': 'legacy_unverified',
+                'message': 'Legacy license has no signed token',
+                'payload': {},
+            }
+
+        from .crypto import payload_hash, verify_license_token
+
+        is_valid, payload, message = verify_license_token(self.license_token)
+        status = 'valid' if is_valid else 'invalid'
+        if is_valid:
+            if payload.get('license_key') and payload['license_key'] != self.license_key:
+                is_valid = False
+                status = 'mismatch'
+                message = 'License key does not match signed payload'
+            elif payload.get('machine_code') and payload['machine_code'] != self.machine_code:
+                is_valid = False
+                status = 'mismatch'
+                message = 'Machine code does not match signed payload'
+            elif payload.get('expires_at'):
+                expires_at = datetime_from_iso(payload['expires_at'])
+                if expires_at and expires_at < timezone.now():
+                    is_valid = False
+                    status = 'expired'
+                    message = 'License has expired'
+            if is_valid:
+                signed_version = int(payload.get('version') or self.version or 0)
+                if self.highest_seen_version and signed_version < self.highest_seen_version:
+                    is_valid = False
+                    status = 'rollback_detected'
+                    message = 'License token version is older than a previously seen version'
+
+        if update_status:
+            update_fields = [
+                'verification_status',
+                'verification_message',
+                'last_verified_at',
+                'updated_at',
+            ]
+            self.verification_status = status
+            self.verification_message = message or ''
+            self.last_verified_at = timezone.now()
+            if is_valid and payload:
+                self.verified_payload = payload
+                self.payload_hash = payload_hash(payload)
+                signed_version = int(payload.get('version') or self.version or 0)
+                self.highest_seen_version = max(self.highest_seen_version, signed_version)
+                update_fields.extend(['verified_payload', 'payload_hash', 'highest_seen_version'])
+            self.save(update_fields=update_fields)
+
+        return {
+            'is_valid': is_valid,
+            'status': status,
+            'message': message,
+            'payload': payload or {},
         }
     
     def archive_to_history(self, change_type: str, reason: str = '', changed_by=None):
@@ -387,7 +570,7 @@ class License(models.Model):
             return True, ""
         
         mapping = quota_mapping[resource_type]
-        limit = getattr(self, mapping['limit'], 0)
+        limit = self.get_limits().get(mapping['limit'], 0)
         
         # Unlimited (-1 means unlimited)
         if limit == -1:

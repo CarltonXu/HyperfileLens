@@ -19,10 +19,75 @@ import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Tuple
 
+from django.conf import settings
+
+try:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key
+except Exception:  # pragma: no cover - optional dependency guard
+    InvalidSignature = Exception
+    Ed25519PublicKey = None
+    load_pem_public_key = None
+
 
 # Shared secret for signature verification
 # MUST match the value in license_generator.py
 LICENSE_SECRET_KEY = "HFL_LICENSE_SECRET_2024_DO_NOT_SHARE"
+
+
+def canonical_json(data: Dict[str, Any]) -> str:
+    """Return stable JSON used for signatures and payload hashes."""
+    return json.dumps(data, sort_keys=True, separators=(',', ':'))
+
+
+def payload_hash(data: Dict[str, Any]) -> str:
+    """Return SHA256 hash for a verified license payload."""
+    return hashlib.sha256(canonical_json(data).encode()).hexdigest()
+
+
+def _b64url_decode(value: str) -> bytes:
+    padding = '=' * (-len(value) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode())
+
+
+def _verify_ed25519_token(token: str) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """
+    Verify the public-key license token format:
+    HFL-LIC-v1.<base64url-json-payload>.<base64url-ed25519-signature>
+    """
+    if not token.startswith("HFL-LIC-v1."):
+        return False, None, "Unsupported license token format"
+
+    if not Ed25519PublicKey or not load_pem_public_key:
+        return False, None, "Ed25519 verification dependency is unavailable"
+
+    public_keys = getattr(settings, 'LICENSE_PUBLIC_KEYS', None) or []
+    public_key = getattr(settings, 'LICENSE_PUBLIC_KEY', '')
+    if public_key:
+        public_keys = [public_key, *public_keys]
+    if not public_keys:
+        return False, None, "No license public key configured"
+
+    try:
+        _, payload_part, signature_part = token.split('.', 2)
+        payload_bytes = _b64url_decode(payload_part)
+        signature = _b64url_decode(signature_part)
+        payload = json.loads(payload_bytes.decode())
+    except Exception as exc:
+        return False, None, f"Invalid license token encoding: {exc}"
+
+    for key_text in public_keys:
+        try:
+            key = load_pem_public_key(key_text.encode() if isinstance(key_text, str) else key_text)
+            key.verify(signature, payload_bytes)
+            return True, payload, ""
+        except InvalidSignature:
+            continue
+        except Exception:
+            continue
+
+    return False, None, "Invalid license token signature"
 
 
 class MachineCodeGenerator:
@@ -437,6 +502,18 @@ class ActivationCodeGenerator:
             return False, None, f"Failed to verify activation code: {str(e)}"
 
 
+def verify_license_token(token: str) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """
+    Verify a license token and return its signed payload.
+
+    New commercial tokens should use the Ed25519 HFL-LIC-v1 format. The legacy
+    HFL-ACT format is accepted for backward compatibility with existing tools.
+    """
+    if token.startswith("HFL-LIC-v1."):
+        return _verify_ed25519_token(token)
+    return ActivationCodeGenerator.verify(token)
+
+
 class LicenseCrypto:
     """
     Wrapper class for license cryptographic operations.
@@ -457,7 +534,7 @@ class LicenseCrypto:
         Raises:
             ValueError: If verification fails
         """
-        is_valid, data, error = ActivationCodeGenerator.verify(activation_code)
+        is_valid, data, error = verify_license_token(activation_code)
         
         if not is_valid:
             raise ValueError(error)

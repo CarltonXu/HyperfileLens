@@ -188,32 +188,32 @@ install_kopia() {
         *) log_warn "Unsupported architecture for Kopia: $KOPIA_ARCH"; return ;;
     esac
     
-    # Use GitHub releases for direct download
+    # Use Hyperfileslen server for direct download
     KOPIA_VERSION="0.22.3"
     KOPIA_DEB="kopia_${KOPIA_VERSION}_linux_${KOPIA_ARCH}.deb"
-    KOPIA_URL="https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/${KOPIA_DEB}"
+    KOPIA_URL="${SERVER_URL}/downloads/packages/kopia/${KOPIA_DEB}"
     
     case $OS in
         ubuntu|debian)
-            log_info "Downloading Kopia from GitHub releases..."
+            log_info "Downloading Kopia from Hyperfileslen server ..."
             if curl -sSL --fail "$KOPIA_URL" -o /tmp/$KOPIA_DEB; then
                 dpkg -i /tmp/$KOPIA_DEB || apt-get install -f -y
                 rm -f /tmp/$KOPIA_DEB
             else
-                log_warn "Failed to download Kopia from GitHub, trying apt..."
+                log_warn "Failed to download Kopia from Hyperfileslen server, trying apt..."
                 # Fallback to apt if available
                 apt-get update && apt-get install -y kopia 2>/dev/null || log_warn "Please install Kopia manually"
             fi
             ;;
         centos|rhel|rocky|almalinux)
-            log_info "Downloading Kopia RPM from GitHub releases..."
-            KOPIA_RPM="kopia-${KOPIA_VERSION}-x86_64.rpm"
-            KOPIA_RPM_URL="https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}/${KOPIA_RPM}"
+            log_info "Downloading Kopia RPM from Hyperfileslen server ..."
+            KOPIA_RPM="kopia-${KOPIA_VERSION}.x86_64.rpm"
+            KOPIA_RPM_URL="${SERVER_URL}/downloads/packages/kopia/${KOPIA_RPM}"
             if curl -sSL --fail "$KOPIA_RPM_URL" -o /tmp/$KOPIA_RPM; then
                 yum localinstall -y /tmp/$KOPIA_RPM || rpm -i /tmp/$KOPIA_RPM
                 rm -f /tmp/$KOPIA_RPM
             else
-                log_warn "Failed to download Kopia, please install manually"
+                log_warn "Failed to download Kopia from Hyperfileslen server, please install manually"
             fi
             ;;
         *)
