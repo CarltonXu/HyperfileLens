@@ -17,11 +17,15 @@ from django.utils import timezone
 from datetime import datetime
 import json
 
-from .models import License, LicenseHistory, MachineCode, QuotaUsage, generate_machine_code
+from .models import License, LicenseHistory, MachineCode, generate_machine_code
 from .serializers import LicenseSerializer, LicenseHistorySerializer, MachineCodeSerializer
 from .crypto import LicenseCrypto
 from audit_log.services import AuditService
-from licenses.quota import SYSTEM_TENANT_NAME, get_platform_tenant_count
+from licenses.quota import (
+    SYSTEM_TENANT_NAME,
+    get_license_quota_warnings,
+    get_license_usage_stats,
+)
 
 
 class LicenseViewSet(viewsets.ModelViewSet):
@@ -78,98 +82,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
     
     def _get_usage_stats(self, tenant) -> dict:
         """Get current usage statistics for the tenant."""
-        from django.apps import apps
-        
-        stats = {}
-        
-        try:
-            # Tenants count (for super admin)
-            stats['tenants_count'] = (
-                get_platform_tenant_count()
-                if tenant and tenant.name == SYSTEM_TENANT_NAME
-                else 0
-            )
-        except Exception:
-            stats['tenants_count'] = 0
-        
-        try:
-            # Users count
-            User = apps.get_model('accounts', 'User')
-            stats['users_count'] = User.objects.filter(tenant=tenant, is_active=True).count()
-        except Exception:
-            stats['users_count'] = 0
-        
-        try:
-            # Proxies count
-            ProxyNode = apps.get_model('nodes', 'ProxyNode')
-            stats['proxies_count'] = ProxyNode.objects.filter(tenant=tenant).count()
-        except Exception:
-            stats['proxies_count'] = 0
-        
-        try:
-            # Storage used (GB) - from repositories
-            Repository = apps.get_model('repository', 'Repository')
-            repos = Repository.objects.filter(tenant=tenant)
-            stats['storage_used_gb'] = sum(r.storage_used_gb or 0 for r in repos)
-        except Exception:
-            stats['storage_used_gb'] = 0
-        
-        try:
-            # Gateways count (if Gateway model exists)
-            Gateway = apps.get_model('nodes', 'Gateway')
-            stats['gateways_count'] = Gateway.objects.filter(tenant=tenant).count()
-        except Exception:
-            stats['gateways_count'] = 0
-        
-        try:
-            # AI Insights used this month
-            stats['ai_insights_used'] = QuotaUsage.get_monthly_usage(
-                tenant=tenant, 
-                quota_type='ai_insights'
-            )
-        except Exception:
-            stats['ai_insights_used'] = 0
-        
-        try:
-            # Backup tasks count
-            BackupTask = apps.get_model('backup_tasks', 'BackupTask')
-            stats['backup_tasks_count'] = BackupTask.objects.filter(tenant=tenant).count()
-        except Exception:
-            stats['backup_tasks_count'] = 0
-        
-        try:
-            # Recovery tasks count
-            RecoveryTask = apps.get_model('recovery_tasks', 'RecoveryTask')
-            stats['recovery_tasks_count'] = RecoveryTask.objects.filter(tenant=tenant).count()
-        except Exception:
-            stats['recovery_tasks_count'] = 0
-        
-        try:
-            # Source resources count
-            SourceResource = apps.get_model('source_resources', 'SourceResource')
-            stats['source_resources_count'] = SourceResource.objects.filter(tenant=tenant).count()
-        except Exception:
-            stats['source_resources_count'] = 0
-        
-        try:
-            # Policies count
-            BackupPolicy = apps.get_model('policies', 'BackupPolicy')
-            AlertPolicy = apps.get_model('alerts', 'AlertPolicy')
-            stats['policies_count'] = (
-                BackupPolicy.objects.filter(tenant=tenant).count()
-                + AlertPolicy.objects.filter(tenant=tenant).count()
-            )
-        except Exception:
-            stats['policies_count'] = 0
-        
-        try:
-            # Repositories count
-            Repository = apps.get_model('repository', 'Repository')
-            stats['repositories_count'] = Repository.objects.filter(tenant=tenant).count()
-        except Exception:
-            stats['repositories_count'] = 0
-        
-        return stats
+        return get_license_usage_stats(tenant)
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def current(self, request):
@@ -208,6 +121,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 'limits': license.get_limits(),
                 'days_until_expiry': license.days_until_expiry,
                 'usage': usage_stats,
+                'warnings': get_license_quota_warnings(license, usage_stats),
                 'machine_code': machine_code,
             })
         except Exception as e:
@@ -530,7 +444,15 @@ class LicenseViewSet(viewsets.ModelViewSet):
         - amount: Amount to check (default 1)
         """
         quota_type = request.query_params.get('quota_type')
-        amount = int(request.query_params.get('amount', 1))
+        raw_amount = request.query_params.get('amount', 1)
+        try:
+            amount = float(raw_amount) if quota_type == 'storage_gb' else int(raw_amount)
+        except (TypeError, ValueError):
+            return Response({
+                'is_valid': False,
+                'error': 'invalid_amount',
+                'message': _('amount must be a number'),
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         if not quota_type:
             return Response({
@@ -586,7 +508,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
             limit = getattr(license, limit_field, 0)
             current_usage = self._get_usage_stats(request.user.tenant).get(usage_field, 0)
             
-            is_within_limit = (current_usage + amount) <= limit
+            is_within_limit = limit == -1 or (current_usage + amount) <= limit
             
             return Response({
                 'is_valid': is_within_limit,
@@ -594,7 +516,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 'limit': limit,
                 'current_usage': current_usage,
                 'requested': amount,
-                'remaining': max(0, limit - current_usage),
+                'remaining': -1 if limit == -1 else max(0, limit - current_usage),
                 'message': _('Within limit') if is_within_limit else _('Quota exceeded'),
             })
             

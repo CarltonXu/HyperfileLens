@@ -17,8 +17,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from licenses.quota import enforce_license_quota
-
 from .choices import (
     AVAILABILITY_CHECK_TYPES,
     EVENT_CATEGORIES,
@@ -129,7 +127,6 @@ class AlertPolicyViewSet(viewsets.ModelViewSet):
             raise ValidationError({
                 "tenant": "System alert policies must belong to the administrator tenant."
             })
-        enforce_license_quota(tenant, "policies")
         serializer.save(
             tenant=tenant,
             created_by=self.request.user.id
@@ -155,7 +152,6 @@ class AlertPolicyViewSet(viewsets.ModelViewSet):
     def duplicate(self, request, pk=None):
         policy = self.get_object()
         tenant = _request_tenant(request) or policy.tenant
-        enforce_license_quota(tenant, "policies")
         policy.pk = None
         policy.id = uuid.uuid4()
         policy.name = f"{policy.name} Copy"

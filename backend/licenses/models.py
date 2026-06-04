@@ -312,21 +312,13 @@ class License(models.Model):
         from source_resources.models import SourceResource
         from policies.models import BackupPolicy
         from tenants.models import Tenant
-        from ai_query.models import AIQuery
         from gateways.models import Gateway
-        from alerts.models import AlertPolicy
-        from licenses.quota import SYSTEM_TENANT_NAME, get_platform_tenant_count
-
-        def repository_reserved_storage_gb():
-            total_bytes = 0
-            for repo in Repository.objects.filter(tenant=self.tenant):
-                if repo.quota_enabled and repo.quota_bytes > 0:
-                    total_bytes += repo.quota_bytes
-                elif repo.capacity > 0:
-                    total_bytes += repo.capacity
-                else:
-                    total_bytes += repo.used_space
-            return total_bytes / (1024 ** 3)
+        from licenses.quota import (
+            SYSTEM_TENANT_NAME,
+            get_monthly_ai_insights_used,
+            get_platform_tenant_count,
+            get_repository_reserved_storage_gb,
+        )
         
         # Mapping of resource types to limit fields and query functions
         quota_mapping = {
@@ -341,7 +333,7 @@ class License(models.Model):
             },
             'users': {
                 'limit': 'max_users',
-                'current': lambda: User.objects.filter(tenant=self.tenant).count(),
+                'current': lambda: User.objects.filter(tenant=self.tenant, is_active=True).count(),
                 'name': 'users'
             },
             'proxies': {
@@ -351,7 +343,7 @@ class License(models.Model):
             },
             'storage': {
                 'limit': 'max_storage_gb',
-                'current': repository_reserved_storage_gb,
+                'current': lambda: get_repository_reserved_storage_gb(self.tenant),
                 'name': 'storage (GB)'
             },
             'gateways': {
@@ -361,7 +353,7 @@ class License(models.Model):
             },
             'ai_insights': {
                 'limit': 'ai_insights_quota',
-                'current': lambda: AIQuery.objects.filter(tenant=self.tenant).count(),
+                'current': lambda: get_monthly_ai_insights_used(self.tenant),
                 'name': 'AI insights'
             },
             'backup_tasks': {
@@ -381,10 +373,7 @@ class License(models.Model):
             },
             'policies': {
                 'limit': 'max_policies',
-                'current': lambda: (
-                    BackupPolicy.objects.filter(tenant=self.tenant).count()
-                    + AlertPolicy.objects.filter(tenant=self.tenant).count()
-                ),
+                'current': lambda: BackupPolicy.objects.filter(tenant=self.tenant).count(),
                 'name': 'policies'
             },
             'repositories': {
