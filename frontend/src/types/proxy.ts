@@ -20,6 +20,7 @@ export interface ProxyNode {
   
   // System info
   os: string | null
+  target_os: 'linux' | 'windows' | 'macos' | string | null
   os_version: string | null
   operating_system: string | null
   cpu_cores: number | null

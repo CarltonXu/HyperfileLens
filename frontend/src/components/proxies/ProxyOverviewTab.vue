@@ -2,10 +2,10 @@
 import { useI18n } from "vue-i18n";
 import {
   ClipboardDocumentIcon,
-  ComputerDesktopIcon,
   CpuChipIcon,
   InformationCircleIcon,
 } from "@heroicons/vue/24/outline";
+import ProxyOsIcon from "./ProxyOsIcon.vue";
 
 defineProps<{
   data: any;
@@ -93,7 +93,12 @@ const { t } = useI18n();
         <h3
           class="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"
         >
-          <ComputerDesktopIcon class="w-4 h-4 text-emerald-500" />
+          <ProxyOsIcon
+            :os="data.operating_system || data.os"
+            :target-os="data.target_os"
+            size="sm"
+            class="text-emerald-500"
+          />
           {{ t("proxies.detail.sections.systemInfo") }}
         </h3>
         <div class="bg-background-secondary rounded-xl p-4">
@@ -118,9 +123,15 @@ const { t } = useI18n();
               <p class="text-xs text-foreground-secondary mb-1">
                 {{ t("proxies.detail.operatingSystem") }}
               </p>
-              <p class="text-sm font-medium text-foreground">
-                {{ data.operating_system || "-" }}
-              </p>
+              <div class="flex items-center gap-2 text-sm font-medium text-foreground">
+                <ProxyOsIcon
+                  :os="data.operating_system || data.os"
+                  :target-os="data.target_os"
+                  size="sm"
+                  class="text-foreground-muted"
+                />
+                <span>{{ data.operating_system || data.target_os || "-" }}</span>
+              </div>
             </div>
             <div>
               <p class="text-xs text-foreground-secondary mb-1">

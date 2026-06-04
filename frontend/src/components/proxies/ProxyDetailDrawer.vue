@@ -2,11 +2,10 @@
 import { useI18n } from "vue-i18n";
 import {
   ArrowPathIcon,
-  CircleStackIcon,
-  ComputerDesktopIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
 import type { ProxyNode } from "@/types/proxy";
+import ProxyOsIcon from "./ProxyOsIcon.vue";
 
 type DetailTab = "overview" | "install" | "monitor" | "tasks" | "heartbeats";
 
@@ -41,23 +40,12 @@ const tabs: DetailTab[] = ["overview", "monitor", "tasks", "heartbeats"];
           class="flex items-center justify-between p-5 border-b border-border drawer-surface flex-shrink-0"
         >
           <div class="flex items-center gap-3">
-            <div
-              :class="[
-                'w-10 h-10 rounded-xl flex items-center justify-center',
-                proxy?.role === 'agent'
-                  ? 'bg-gradient-to-br from-indigo-500 to-blue-600'
-                  : 'bg-gradient-to-br from-purple-500 to-violet-600',
-              ]"
-            >
-              <component
-                :is="
-                  proxy?.role === 'agent'
-                    ? ComputerDesktopIcon
-                    : CircleStackIcon
-                "
-                class="w-5 h-5 text-white"
-              />
-            </div>
+            <ProxyOsIcon
+              :os="proxy?.operating_system || proxy?.os"
+              :target-os="proxy?.target_os"
+              size="lg"
+              class="flex-shrink-0 text-foreground"
+            />
             <div>
               <h2 class="text-lg font-semibold text-foreground">
                 {{ proxy?.name }}

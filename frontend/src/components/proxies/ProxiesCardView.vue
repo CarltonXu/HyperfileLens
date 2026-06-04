@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import {
-  CpuChipIcon,
   EllipsisHorizontalIcon,
   ExclamationTriangleIcon,
   MapPinIcon,
@@ -10,6 +9,7 @@ import {
 } from "@heroicons/vue/24/outline";
 import type { ProxyNode } from "@/types/proxy";
 import ProxyActionMenu from "./ProxyActionMenu.vue";
+import ProxyOsIcon from "./ProxyOsIcon.vue";
 
 defineProps<{
   loading: boolean;
@@ -81,19 +81,12 @@ const { t } = useI18n();
     >
       <div class="flex items-start justify-between mb-4">
         <div class="flex items-center gap-3">
-          <div
-            :class="[
-              'w-11 h-11 rounded-xl flex items-center justify-center',
-              proxy.role === 'agent'
-                ? 'bg-gradient-to-br from-indigo-500 to-blue-600'
-                : 'bg-gradient-to-br from-purple-500 to-violet-600',
-            ]"
-          >
-            <component
-              :is="proxy.role === 'agent' ? agentIcon : syncIcon"
-              class="w-6 h-6 text-white"
-            />
-          </div>
+          <ProxyOsIcon
+            :os="proxy.operating_system || proxy.os"
+            :target-os="proxy.target_os"
+            size="lg"
+            class="flex-shrink-0 text-foreground"
+          />
           <div>
             <h3
               class="font-semibold text-foreground group-hover:text-indigo-600 transition-colors"
@@ -148,7 +141,12 @@ const { t } = useI18n();
           <span>{{ timeSince(proxy.last_heartbeat) }}</span>
         </div>
         <div class="flex items-center gap-2 text-foreground-secondary">
-          <CpuChipIcon class="w-4 h-4 flex-shrink-0" />
+          <ProxyOsIcon
+            :os="proxy.operating_system || proxy.os"
+            :target-os="proxy.target_os"
+            size="sm"
+            class="text-foreground-muted flex-shrink-0"
+          />
           <span>
             {{ proxy.operating_system || "Unknown" }}
             {{ proxy.cpu_cores ? `(${proxy.cpu_cores} cores)` : "" }}

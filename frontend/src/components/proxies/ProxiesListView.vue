@@ -10,6 +10,7 @@ import {
 import Pagination from "@/components/Pagination.vue";
 import type { ProxyNode } from "@/types/proxy";
 import ProxyActionMenu from "./ProxyActionMenu.vue";
+import ProxyOsIcon from "./ProxyOsIcon.vue";
 
 type ProxySortKey =
   | "name"
@@ -177,19 +178,12 @@ const { t } = useI18n();
               class="sticky left-0 bg-card px-4 py-3 whitespace-nowrap z-10 group-hover:bg-hover"
             >
               <div class="flex items-center gap-3">
-                <div
-                  :class="[
-                    'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-                    proxy.role === 'agent'
-                      ? 'bg-gradient-to-br from-indigo-500 to-blue-600'
-                      : 'bg-gradient-to-br from-purple-500 to-violet-600',
-                  ]"
-                >
-                  <component
-                    :is="proxy.role === 'agent' ? agentIcon : syncIcon"
-                    class="w-4 h-4 text-white"
-                  />
-                </div>
+                <ProxyOsIcon
+                  :os="proxy.operating_system || proxy.os"
+                  :target-os="proxy.target_os"
+                  size="lg"
+                  class="flex-shrink-0 text-foreground"
+                />
                 <button
                   class="font-medium text-sm hover:text-indigo-600 cursor-pointer transition-colors text-left"
                   @click="$emit('detail', proxy)"
@@ -228,7 +222,15 @@ const { t } = useI18n();
               :style="columnStyle('hostname')"
               class="px-4 py-3 whitespace-nowrap text-sm text-foreground-secondary"
             >
-              {{ proxy.hostname || "-" }}
+              <div class="flex items-center gap-2">
+                <ProxyOsIcon
+                  :os="proxy.operating_system || proxy.os"
+                  :target-os="proxy.target_os"
+                  size="sm"
+                  class="text-foreground-muted"
+                />
+                <span class="truncate">{{ proxy.hostname || "-" }}</span>
+              </div>
             </td>
             <td
               :style="columnStyle('internal_ip')"
