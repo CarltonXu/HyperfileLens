@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Icon } from "@iconify/vue";
-import linuxTuxIcon from "@iconify-icons/logos/linux-tux";
-import windowsIcon from "@iconify-icons/logos/microsoft-windows";
-import appleIcon from "@iconify-icons/simple-icons/apple";
+import AppleIcon from "@iconify-vue/uiw/apple";
+import LinuxIcon from "@iconify-vue/uiw/linux";
+import WindowsIcon from "@iconify-vue/uiw/windows";
 import { ServerIcon } from "@heroicons/vue/24/outline";
 
 const props = withDefaults(
@@ -43,23 +42,30 @@ const normalizedOs = computed(() => {
   return "unknown";
 });
 
-const osIcon = computed(() => {
-  if (normalizedOs.value === "windows") return windowsIcon;
-  if (normalizedOs.value === "macos") return appleIcon;
-  if (normalizedOs.value === "linux") return linuxTuxIcon;
-  return null;
-});
-
 const sizeClass = computed(() => {
   return {
-    sm: "h-4 w-4",
-    md: "h-6 w-6",
-    lg: "h-8 w-8",
+    sm: "h-3.5 w-3.5",
+    md: "h-5 w-5",
+    lg: "h-6 w-6",
   }[props.size];
 });
 </script>
 
 <template>
-  <Icon v-if="osIcon" :icon="osIcon" :class="sizeClass" aria-hidden="true" />
+  <WindowsIcon
+    v-if="normalizedOs === 'windows'"
+    :class="sizeClass"
+    aria-hidden="true"
+  />
+  <AppleIcon
+    v-else-if="normalizedOs === 'macos'"
+    :class="sizeClass"
+    aria-hidden="true"
+  />
+  <LinuxIcon
+    v-else-if="normalizedOs === 'linux'"
+    :class="sizeClass"
+    aria-hidden="true"
+  />
   <ServerIcon v-else :class="sizeClass" aria-hidden="true" />
 </template>
