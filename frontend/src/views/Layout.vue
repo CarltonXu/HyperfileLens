@@ -983,7 +983,7 @@ watch(
     <!-- Sidebar -->
     <aside
       :class="[
-        'fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out',
+        'fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] transition-all duration-300 ease-in-out',
         'bg-card border-r border-border',
         isCollapsed ? 'w-16' : 'w-64',
       ]"
@@ -999,17 +999,9 @@ watch(
         <ChevronRightIcon v-else class="h-4 w-4" />
       </button>
 
-      <!-- Logo -->
-      <div
-        class="flex items-center justify-center h-16 px-4 border-b border-border"
-      >
-        <BrandLogo v-if="!isCollapsed" variant="full" size="sm" />
-        <BrandLogo v-else variant="mark" size="sm" />
-      </div>
-
       <!-- Navigation -->
       <nav
-        class="flex-1 px-2 py-4 space-y-1 overflow-y-auto h-[calc(100vh-8rem)]"
+        class="flex-1 px-2 py-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]"
       >
         <div v-for="group in navigationGroups" :key="group.id">
           <!-- Expanded state: show group header and items -->
@@ -1468,15 +1460,20 @@ watch(
       </Transition>
     </aside>
 
-    <!-- Main Content -->
-    <div
-      :class="['transition-all duration-300', isCollapsed ? 'ml-16' : 'ml-64']"
-    >
-      <!-- Header -->
-      <header class="sticky top-0 z-30 surface-card border-b border-border">
+    <!-- Header -->
+    <header class="fixed left-0 right-0 top-0 z-50 surface-card border-b border-border">
+      <div class="flex h-16 min-w-0 items-center">
         <div
-          class="relative flex min-w-0 items-center justify-between h-16 px-6"
+          :class="[
+            'flex h-16 shrink-0 items-center justify-center border-r border-border px-4 transition-all duration-300',
+            isCollapsed ? 'w-16' : 'w-64',
+          ]"
         >
+          <BrandLogo v-if="!isCollapsed" variant="full" size="sm" />
+          <BrandLogo v-else variant="mark" size="sm" />
+        </div>
+
+        <div class="relative flex h-16 min-w-0 flex-1 items-center justify-between px-6">
           <!-- Left side - empty or can show breadcrumbs -->
           <div class="hidden min-w-0 items-center gap-4 flex-1 lg:flex">
             <!-- Reserved for future use -->
@@ -1753,8 +1750,13 @@ watch(
             </div>
           </div>
         </div>
-      </header>
+      </div>
+    </header>
 
+    <!-- Main Content -->
+    <div
+      :class="['pt-16 transition-all duration-300', isCollapsed ? 'ml-16' : 'ml-64']"
+    >
       <!-- Page Content -->
       <main class="p-6">
         <router-view />
