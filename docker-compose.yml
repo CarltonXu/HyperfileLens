@@ -73,7 +73,9 @@ services:
         condition: service_healthy
     command: >
       sh -c "python manage.py migrate &&
-             python manage.py collectstatic --noinput"
+             python manage.py collectstatic --noinput &&
+             python manage.py register_periodic_tasks &&
+             python manage.py verify_licenses"
 
   control:
     build:
@@ -111,7 +113,7 @@ services:
       control-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/schema/', timeout=5).read()\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=5).read()\""]
       interval: 20s
       timeout: 10s
       retries: 6

@@ -11,8 +11,11 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.static import serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from core.views import health_check
 
 urlpatterns = [
+    path('health/', health_check, name='health-check'),
+
     # Admin interface
     path('admin/', admin.site.urls),
 

@@ -4,16 +4,16 @@ FROM node:20-alpine as builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json pnpm-lock.yaml ./
+COPY package.json package-lock.json ./
 
-# Install pnpm and dependencies
-RUN npm install -g pnpm && pnpm install
+# Install dependencies from the committed npm lockfile.
+RUN npm ci
 
 # Copy source code
 COPY . .
 
 # Build the application
-RUN pnpm build
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine
@@ -24,9 +24,10 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.cjs ./
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
 
-# Install pnpm and production dependencies
-RUN npm install -g pnpm && pnpm install --prod
+# Install only production dependencies.
+RUN npm ci --omit=dev
 
 # Expose port
 EXPOSE 5000
