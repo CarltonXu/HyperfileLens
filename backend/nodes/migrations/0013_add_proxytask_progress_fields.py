@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     operations = [
         # Fields were added manually via SQL, no operations needed
         migrations.RunSQL(
-            sql="-- Progress fields already added manually via SQL",
-            reverse_sql="-- No reverse operation needed"
+            sql="SELECT 1; -- Progress fields already added manually via SQL",
+            reverse_sql="SELECT 1; -- No reverse operation needed"
         ),
     ]
