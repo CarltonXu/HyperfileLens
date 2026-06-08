@@ -18,6 +18,7 @@ from .views import (
     data_heatmap,
     redundancy_analysis,
     smart_search,
+    scope_options,
 )
 
 
@@ -37,6 +38,7 @@ urlpatterns = [
     
     # AI Insights feature endpoints
     path('overview/', insights_overview, name='insights-overview'),
+    path('scopes/options/', scope_options, name='ai-insights-scope-options'),
     path('sensitive-data/', sensitive_data_scan, name='sensitive-data-scan'),
     path('content-profile/', content_profile, name='content-profile'),
     path('data-heatmap/', data_heatmap, name='data-heatmap'),

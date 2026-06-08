@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
   FolderIcon,
@@ -20,9 +20,9 @@ import {
 } from "@heroicons/vue/24/outline";
 import { aiInsightsApi } from "@/api";
 import AIQueryPanel from "@/components/ai-insights/AIQueryPanel.vue";
+import AIInsightScopeSelector from "@/components/ai-insights/AIInsightScopeSelector.vue";
 
 const route = useRoute();
-const router = useRouter();
 const { t, locale } = useI18n();
 
 // Gateway status
@@ -52,10 +52,13 @@ const scopeType = computed(() => String(route.query.scope_type || "tenant"));
 const scopeId = computed(() => String(route.query.scope_id || ""));
 const scopeName = computed(() => String(route.query.scope_name || ""));
 const scopeParams = computed(() => {
-  if (!scopeType.value || scopeType.value === "tenant" || !scopeId.value) {
+  if (!scopeType.value || scopeType.value === "tenant") {
     return { scope_type: "tenant" };
   }
-  return { scope_type: scopeType.value, scope_id: scopeId.value };
+  return {
+    scope_type: scopeType.value,
+    scope_id: scopeId.value || "__unselected__",
+  };
 });
 const scopeLabel = computed(() => {
   const name = scopeName.value || scopeId.value;
@@ -67,12 +70,8 @@ const scopeLabel = computed(() => {
   };
   return scopeType.value === "tenant"
     ? labels.tenant
-    : `${labels[scopeType.value] || scopeType.value}: ${name || "-"}`;
+    : `${labels[scopeType.value] || scopeType.value}: ${name || "Not selected"}`;
 });
-
-function clearScope() {
-  router.push({ path: route.path });
-}
 
 function resetScopedData() {
   overviewData.value = null;
@@ -303,18 +302,6 @@ onMounted(() => {
         <p class="text-foreground-secondary mt-1">
           {{ t("aiInsights.subtitle") }}
         </p>
-        <div class="mt-3 flex flex-wrap items-center gap-2">
-          <span class="rounded-md border border-border bg-background-secondary px-2.5 py-1 text-xs font-medium text-foreground-secondary">
-            {{ scopeLabel }}
-          </span>
-          <button
-            v-if="scopeType !== 'tenant'"
-            class="rounded-md px-2.5 py-1 text-xs font-medium text-foreground-muted hover:bg-hover hover:text-foreground"
-            @click="clearScope"
-          >
-            Clear scope
-          </button>
-        </div>
       </div>
       <div class="flex items-center gap-4">
         <!-- Gateway Status -->
@@ -354,6 +341,8 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <AIInsightScopeSelector />
 
     <!-- Content based on current route -->
     <div class="min-h-[500px]">

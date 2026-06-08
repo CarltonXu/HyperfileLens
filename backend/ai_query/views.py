@@ -144,6 +144,28 @@ def _indexed_files_queryset(request):
     return queryset
 
 
+def _accessible_repository_queryset(user):
+    from repository.models import Repository
+
+    queryset = Repository.objects.select_related('tenant')
+    if user.is_superuser:
+        return queryset
+    if user.tenant:
+        return queryset.filter(tenant=user.tenant)
+    return queryset.filter(user=user)
+
+
+def _accessible_backup_task_queryset(user):
+    from backup_tasks.models import BackupTask
+
+    queryset = BackupTask.objects.select_related('tenant', 'target_repository')
+    if user.is_superuser:
+        return queryset
+    if user.tenant:
+        return queryset.filter(tenant=user.tenant)
+    return queryset.filter(user=user)
+
+
 def _insights_queryset(request):
     from insights.models import SnapshotInsight
 
@@ -607,12 +629,13 @@ def gateway_mount_status(request):
 def gateway_index_status(request):
     """Return indexed snapshot/file counts."""
     from insights.models import SnapshotFileIndex, SnapshotIndexJob
-    snapshot_ids = _tenant_snapshot_filter(request.user).values('id')
+    scope = _scope_filter_kwargs(request)
     scoped_snapshots = _apply_snapshot_scope(
         _tenant_snapshot_filter(request.user),
         scope.get('scope_type'),
         scope.get('scope_id'),
     )
+    snapshot_ids = scoped_snapshots.values('id')
 
     return Response({
         'indexed_files': SnapshotFileIndex.objects.filter(snapshot_id__in=snapshot_ids).count(),
@@ -682,6 +705,140 @@ def gateway_list_files(request):
 
 
 # ============== AI Insights Feature APIs ==============
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def scope_options(request):
+    """Return tenant-safe AI Insights analysis scopes."""
+    from insights.models import SnapshotFileIndex
+
+    scope_type = (request.query_params.get('scope_type') or 'repository').strip()
+    search = (request.query_params.get('search') or '').strip()
+    try:
+        limit = int(request.query_params.get('limit') or 100)
+    except (TypeError, ValueError):
+        limit = 100
+    limit = min(max(limit, 1), 200)
+
+    accessible_snapshots = _tenant_snapshot_filter(request.user)
+    repository_id = (request.query_params.get('repository_id') or '').strip()
+    task_id = (request.query_params.get('task_id') or '').strip()
+    if repository_id:
+        accessible_snapshots = accessible_snapshots.filter(repository_id=repository_id)
+    if task_id:
+        accessible_snapshots = accessible_snapshots.filter(task_id=task_id)
+
+    files = SnapshotFileIndex.objects.filter(
+        snapshot_id__in=accessible_snapshots.values('id'),
+        is_directory=False,
+    )
+
+    def grouped_stats(group_field):
+        return {
+            str(row[group_field]): {
+                'indexed_files': row['indexed_files'] or 0,
+                'indexed_snapshots': row['indexed_snapshots'] or 0,
+                'total_size': row['total_size'] or 0,
+            }
+            for row in files.values(group_field).annotate(
+                indexed_files=Count('id'),
+                indexed_snapshots=Count('snapshot_id', distinct=True),
+                total_size=Sum('size'),
+            )
+            if row[group_field]
+        }
+
+    if scope_type == 'tenant':
+        stats = files.aggregate(
+            indexed_files=Count('id'),
+            indexed_snapshots=Count('snapshot_id', distinct=True),
+            total_size=Sum('size'),
+        )
+        return Response({
+            'scope_type': 'tenant',
+            'results': [{
+                'id': '',
+                'name': getattr(getattr(request.user, 'tenant', None), 'name', '') or 'Current tenant',
+                'description': 'All indexed snapshots available to the current user.',
+                'indexed_files': stats['indexed_files'] or 0,
+                'indexed_snapshots': stats['indexed_snapshots'] or 0,
+                'total_size': stats['total_size'] or 0,
+            }],
+        })
+
+    if scope_type == 'repository':
+        queryset = _accessible_repository_queryset(request.user)
+        if search:
+            queryset = queryset.filter(Q(name__icontains=search) | Q(description__icontains=search))
+        stats_by_id = grouped_stats('snapshot__repository_id')
+        results = []
+        for repository in queryset.order_by('-updated_at')[:limit]:
+            stats = stats_by_id.get(str(repository.id), {})
+            results.append({
+                'id': str(repository.id),
+                'name': repository.name,
+                'description': repository.description,
+                'status': repository.status,
+                'type': repository.repo_type,
+                'indexed_files': stats.get('indexed_files', 0),
+                'indexed_snapshots': stats.get('indexed_snapshots', 0),
+                'total_size': stats.get('total_size', 0),
+            })
+        return Response({'scope_type': scope_type, 'results': results})
+
+    if scope_type in {'backup_task', 'task'}:
+        queryset = _accessible_backup_task_queryset(request.user)
+        if repository_id:
+            queryset = queryset.filter(target_repository_id=repository_id)
+        if search:
+            queryset = queryset.filter(Q(name__icontains=search) | Q(description__icontains=search))
+        stats_by_id = grouped_stats('snapshot__task_id')
+        results = []
+        for task in queryset.order_by('-updated_at')[:limit]:
+            stats = stats_by_id.get(str(task.id), {})
+            results.append({
+                'id': str(task.id),
+                'name': task.name,
+                'description': task.description,
+                'status': task.status,
+                'repository_id': str(task.target_repository_id),
+                'repository_name': task.target_repository.name if task.target_repository_id else '',
+                'indexed_files': stats.get('indexed_files', 0),
+                'indexed_snapshots': stats.get('indexed_snapshots', 0),
+                'total_size': stats.get('total_size', 0),
+            })
+        return Response({'scope_type': 'backup_task', 'results': results})
+
+    if scope_type == 'snapshot':
+        queryset = accessible_snapshots.select_related('task', 'repository')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search)
+                | Q(description__icontains=search)
+                | Q(task__name__icontains=search)
+                | Q(repository__name__icontains=search)
+            )
+        stats_by_id = grouped_stats('snapshot_id')
+        results = []
+        for snapshot in queryset.order_by('-created_at')[:limit]:
+            stats = stats_by_id.get(str(snapshot.id), {})
+            results.append({
+                'id': str(snapshot.id),
+                'name': snapshot.name,
+                'description': snapshot.description,
+                'status': snapshot.snapshot_status,
+                'repository_id': str(snapshot.repository_id),
+                'repository_name': snapshot.repository.name if snapshot.repository_id else '',
+                'task_id': str(snapshot.task_id),
+                'task_name': snapshot.task.name if snapshot.task_id else '',
+                'created_at': snapshot.created_at.isoformat() if snapshot.created_at else None,
+                'indexed_files': stats.get('indexed_files', 0),
+                'indexed_snapshots': 1 if stats.get('indexed_files', 0) else 0,
+                'total_size': stats.get('total_size', 0),
+            })
+        return Response({'scope_type': scope_type, 'results': results})
+
+    return Response({'error': 'Invalid scope_type'}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

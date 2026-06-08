@@ -5,6 +5,30 @@ export type AIInsightScopeParams = {
   scope_id?: string;
 };
 
+export type AIInsightScopeOption = {
+  id: string;
+  name: string;
+  description?: string;
+  status?: string;
+  type?: string;
+  repository_id?: string;
+  repository_name?: string;
+  task_id?: string;
+  task_name?: string;
+  created_at?: string;
+  indexed_files: number;
+  indexed_snapshots: number;
+  total_size: number;
+};
+
+export type AIInsightScopeOptionsParams = {
+  scope_type: "tenant" | "repository" | "backup_task" | "snapshot" | string;
+  search?: string;
+  repository_id?: string;
+  task_id?: string;
+  limit?: number;
+};
+
 export const gateway = {
   aiQuery: (data: {
     query: string;
@@ -56,6 +80,12 @@ export const aiInsightsApi = {
 
   overview: (params?: AIInsightScopeParams) =>
     api.get("/api/v1/ai-insights/overview/", { params }),
+
+  scopeOptions: (params: AIInsightScopeOptionsParams) =>
+    api.get<{ scope_type: string; results: AIInsightScopeOption[] }>(
+      "/api/v1/ai-insights/scopes/options/",
+      { params },
+    ),
 
   sensitiveData: (params?: { repository_id?: string } & AIInsightScopeParams) =>
     api.get("/api/v1/ai-insights/sensitive-data/", { params }),
