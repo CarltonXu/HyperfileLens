@@ -28,6 +28,7 @@ RUN curl -sL https://mirrors.aliyun.com/golang/go1.26.3.linux-amd64.tar.gz | tar
 ENV PATH=$PATH:/usr/local/go/bin
 ENV GOPATH=/root/go
 ENV CGO_ENABLED=0
+ENV GOPROXY=https://goproxy.cn,direct
 
 # Install Python dependencies
 COPY backend/requirements.prod.txt .
