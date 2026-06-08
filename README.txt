@@ -98,6 +98,47 @@ Production Quick Start
    http://<host>:5001
 
 
+Build Acceleration
+------------------
+If the build is slow at a step like:
+
+   RUN pip install --no-cache-dir ... -r requirements.prod.txt
+
+edit .env.prod and use nearby mirrors:
+
+   PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+   PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+   NPM_REGISTRY=https://registry.npmmirror.com
+   GOPROXY=https://goproxy.cn,direct
+
+These variables are passed into Docker builds for the backend, frontend,
+Gateway Agent, and Proxy Agent.
+
+The production backend image installs backend/requirements.prod.txt only. The
+full backend/requirements.txt file keeps test and code-quality tools for local
+development.
+
+If you prefer official sources:
+
+   PIP_INDEX_URL=https://pypi.org/simple
+   PIP_TRUSTED_HOST=pypi.org
+   NPM_REGISTRY=https://registry.npmjs.org
+   GOPROXY=https://proxy.golang.org,direct
+
+After changing mirror settings, rebuild:
+
+   docker compose --env-file .env.prod up -d --build
+
+If an old failed layer keeps being reused, force a clean rebuild of the main
+application images:
+
+   docker compose --env-file .env.prod build --no-cache control-init control frontend
+   docker compose --env-file .env.prod up -d
+
+For Docker Compose v1, replace "docker compose" with "docker-compose" and keep
+the same arguments.
+
+
 Default Services
 ----------------
 docker compose --env-file .env.prod up -d --build starts:
@@ -239,6 +280,29 @@ Stop and remove volumes:
    docker compose --env-file .env.prod down -v
 
 Warning: down -v removes database, Redis data, media, logs, and agent data.
+
+
+Troubleshooting
+---------------
+Docker Hub or mirror 401/timeout while pulling base images:
+
+   The compose files can speed up language package downloads, but base images
+   such as python:3.11-slim, node:20-alpine, postgres:15, and redis:7-alpine
+   still come from your Docker registry configuration. Configure a working
+   Docker registry mirror on the host, or remove a broken mirror from Docker's
+   daemon configuration.
+
+"Docker Compose is configured to build using Bake, but buildx isn't installed":
+
+   This warning is not the cause of a failed build. Install Docker buildx if
+   you want Bake builds, or ignore the warning when normal Compose builds
+   continue.
+
+Build gets stuck for a long time at pip/npm/go downloads:
+
+   Check .env.prod mirror variables, then rebuild with --no-cache for the image
+   that was stuck. Backend dependencies are usually the largest first-time
+   download.
 
 
 Backup Targets

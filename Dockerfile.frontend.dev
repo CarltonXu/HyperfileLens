@@ -1,12 +1,14 @@
 FROM node:20-alpine
 
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 WORKDIR /app
 
 # Copy package files first for better caching
 COPY package.json package-lock.json ./
 
 # Install dependencies from the committed npm lockfile.
-RUN npm ci
+RUN npm ci --registry="$NPM_REGISTRY"
 
 # Copy source code
 COPY . .
