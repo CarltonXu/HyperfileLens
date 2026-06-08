@@ -32,6 +32,8 @@ export const aiInsightsApi = {
     gateway_id?: string;
   }) => api.post("/api/v1/ai-insights/queries/", data),
 
+  queryStreamUrl: () => "/api/v1/ai-insights/queries/stream/",
+
   gatewayQuery: (data: {
     query: string;
     repository_id?: string;

@@ -19,7 +19,14 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import AIProvider, AIQuery
 from .serializers import AIProviderSerializer, AIQuerySerializer, AIQueryCreateSerializer
-from .services import dispatch_ai_query
+from .provider_client import AIProviderClient, sse_comment, sse_event
+from .services import (
+    build_ai_query_messages,
+    dispatch_ai_query,
+    local_metadata_answer,
+    prepare_query_context,
+    run_ai_query_direct,
+)
 
 
 def _chat_completions_url(base_url):
@@ -135,7 +142,12 @@ class AIQueryViewSet(viewsets.ModelViewSet):
         return queryset.filter(user=user)
     
     def create(self, request, *args, **kwargs):
-        """Create a new AI query and dispatch it to an online Gateway."""
+        """Create a new AI query.
+
+        Prefer Gateway execution when available because it can read backup
+        content samples. Fall back to direct control-plane metadata RAG so the
+        AI Insights page remains usable without an online Gateway.
+        """
         payload = request.data.copy()
         if not payload.get('query_text') and payload.get('query'):
             payload['query_text'] = payload.get('query')
@@ -151,21 +163,115 @@ class AIQueryViewSet(viewsets.ModelViewSet):
             tenant=getattr(request.user, 'tenant', None),
             **data
         )
-        try:
-            query = dispatch_ai_query(
+        use_gateway = request.data.get('execution') != 'direct'
+        if use_gateway:
+            try:
+                query = dispatch_ai_query(
+                    query,
+                    gateway_id=gateway_id,
+                    snapshot_id=snapshot_id,
+                    repository_id=repository_id,
+                )
+            except Exception:
+                query = run_ai_query_direct(
+                    query,
+                    snapshot_id=snapshot_id,
+                    repository_id=repository_id,
+                    language=request.data.get('language') or 'zh-CN',
+                )
+        else:
+            query = run_ai_query_direct(
                 query,
-                gateway_id=gateway_id,
                 snapshot_id=snapshot_id,
                 repository_id=repository_id,
+                language=request.data.get('language') or 'zh-CN',
             )
-        except Exception as exc:
-            query.mark_failed(str(exc))
-            return Response(AIQuerySerializer(query).data, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             AIQuerySerializer(query).data,
             status=status.HTTP_201_CREATED
         )
+
+    @action(detail=False, methods=['post'], url_path='stream')
+    def stream(self, request):
+        """Stream an AI Insights answer from the default provider and persist it."""
+        payload = request.data.copy()
+        if not payload.get('query_text') and payload.get('query'):
+            payload['query_text'] = payload.get('query')
+        serializer = AIQueryCreateSerializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        snapshot_id = data.pop('snapshot_id', None)
+        repository_id = data.pop('repository_id', None)
+        data.pop('gateway_id', None)
+        query = AIQuery.objects.create(
+            user=request.user,
+            tenant=getattr(request.user, 'tenant', None),
+            status=AIQuery.STATUS_PROCESSING,
+            **data,
+        )
+
+        def iterator():
+            answer_parts = []
+            result = {}
+            model = 'metadata-query'
+            try:
+                yield sse_comment('stream-start ' + (' ' * 2048))
+                context = prepare_query_context(query, snapshot_id=snapshot_id, repository_id=repository_id)
+                provider = __import__('insights.services', fromlist=['select_ai_provider']).select_ai_provider(
+                    getattr(request.user, 'tenant', None)
+                )
+                client = AIProviderClient(provider)
+                yield sse_event({
+                    'type': 'query',
+                    'query_id': str(query.id),
+                    'candidate_count': len(context.get('candidate_files') or []),
+                })
+                if client.is_external():
+                    messages = build_ai_query_messages(
+                        query,
+                        context,
+                        language=request.data.get('language') or 'zh-CN',
+                    )
+                    for event in client.stream_chat(messages, temperature=0.1):
+                        if event.get('type') == 'delta':
+                            answer_parts.append(event.get('content') or '')
+                        if event.get('model'):
+                            model = event.get('model')
+                        yield sse_event(event)
+                    answer = ''.join(answer_parts)
+                    result = {
+                        'answer': answer,
+                        'summary': answer,
+                        'sources': [
+                            {
+                                'path': item.get('path'),
+                                'snapshot_name': item.get('snapshot_name'),
+                                'repository_name': item.get('repository_name'),
+                                'reason': 'Candidate context used for AI answer',
+                            }
+                            for item in (context.get('candidate_files') or [])[:12]
+                        ],
+                        'candidate_count': len(context.get('candidate_files') or []),
+                        'provider': client.provider_type,
+                        'model': model,
+                        'query_id': str(query.id),
+                    }
+                else:
+                    result = local_metadata_answer(query, context)
+                    model = result.get('model') or model
+                    answer = result.get('answer') or ''
+                    for piece in _chunk_text(answer, size=16):
+                        answer_parts.append(piece)
+                        yield sse_event({'type': 'delta', 'content': piece})
+
+                query.mark_completed(result=result, model_used=model)
+                yield sse_event({'type': 'done', 'query_id': str(query.id), 'answer': result.get('answer') or ''.join(answer_parts)})
+            except Exception as exc:
+                query.mark_failed(str(exc))
+                yield sse_event({'type': 'error', 'query_id': str(query.id), 'error': str(exc)})
+
+        return _streaming_response(iterator())
     
     @action(detail=True, methods=['post'])
     def retry(self, request, pk=None):
@@ -546,6 +652,15 @@ def insights_overview(request):
         })
 
     insights = _insights_queryset(request)
+    from insights.services import build_sensitive_findings
+    sensitive_findings = build_sensitive_findings(files)
+    sensitive_files = len({
+        file_item.get('path')
+        for finding in sensitive_findings
+        for file_item in finding.get('files', [])
+        if file_item.get('path')
+    })
+    high_risk_count = sum(finding['count'] for finding in sensitive_findings if finding.get('severity') == 'high')
     duplicate_groups = 0
     duplicate_size = 0
     for insight in insights.filter(insight_type='duplicates'):
@@ -568,9 +683,10 @@ def insights_overview(request):
         'last_sync': timezone.now().isoformat(),
         'file_categories': file_categories,
         'risk_summary': {
-            'sensitive_files': 0,
-            'ransomware_risk': 'safe',
-            'permission_issues': 0
+            'sensitive_files': sensitive_files,
+            'ransomware_risk': 'review_required' if high_risk_count else 'safe',
+            'permission_issues': high_risk_count,
+            'findings': sensitive_findings[:5],
         },
         'optimization_suggestions': {
             'duplicate_files': {'size': _format_bytes(duplicate_size), 'size_bytes': duplicate_size, 'count': duplicate_groups},
@@ -592,14 +708,25 @@ def sensitive_data_scan(request):
     Sensitive Data Scanner - 敏感数据扫描
     Scans for PII, sensitive information, compliance issues.
     """
+    from insights.services import build_sensitive_findings
+    files = _indexed_files_queryset(request)
+    findings = build_sensitive_findings(files)
+    high = sum(item['count'] for item in findings if item['severity'] == 'high')
+    medium = sum(item['count'] for item in findings if item['severity'] == 'medium')
     return Response({
         'scan_status': 'completed',
         'last_scan': timezone.now().isoformat(),
-        'findings': [],
+        'findings': findings,
+        'summary': {
+            'high': high,
+            'medium': medium,
+            'low': sum(item['count'] for item in findings if item['severity'] == 'low'),
+            'total_findings': sum(item['count'] for item in findings),
+        },
         'compliance_status': {
-            'gdpr': {'status': 'not_scanned', 'issues': 0},
-            'pci_dss': {'status': 'pass', 'issues': 0},
-            'hipaa': {'status': 'not_applicable', 'issues': 0}
+            'gdpr': {'status': 'review_required' if high or medium else 'pass', 'issues': high + medium},
+            'pci_dss': {'status': 'review_required' if high else 'pass', 'issues': high},
+            'hipaa': {'status': 'not_applicable', 'issues': 0},
         }
     })
 

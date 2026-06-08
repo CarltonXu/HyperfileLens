@@ -1,159 +1,218 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { ArrowPathIcon, ChatBubbleLeftRightIcon } from "@heroicons/vue/24/outline";
+import {
+  ArrowPathIcon,
+  ChatBubbleLeftRightIcon,
+  DocumentTextIcon,
+  ExclamationTriangleIcon,
+  PaperAirplaneIcon,
+} from "@heroicons/vue/24/outline";
 import { aiInsightsApi } from "@/api";
 
-type QueryRecord = {
-  id: string;
-  query_text: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  result?: Record<string, any>;
-  error_message?: string;
+type Source = {
+  path?: string;
+  snapshot_name?: string;
+  repository_name?: string;
+  reason?: string;
 };
 
 const { t } = useI18n();
 
 const queryText = ref("");
-const isSubmitting = ref(false);
-const activeQuery = ref<QueryRecord | null>(null);
-const pollTimer = ref<number | null>(null);
+const isStreaming = ref(false);
+const answer = ref("");
+const errorMessage = ref("");
+const activeQueryId = ref("");
+const providerMeta = ref<Record<string, any> | null>(null);
+const candidateCount = ref<number | null>(null);
+const sources = ref<Source[]>([]);
 
-const answer = computed(() => {
-  const result = activeQuery.value?.result || {};
-  return result.answer || result.summary || "";
-});
+const canSubmit = computed(() => queryText.value.trim().length > 0 && !isStreaming.value);
 
-const sources = computed(() => {
-  const result = activeQuery.value?.result || {};
-  return Array.isArray(result.sources) ? result.sources : [];
-});
-
-function clearTimer() {
-  if (pollTimer.value) {
-    window.clearTimeout(pollTimer.value);
-    pollTimer.value = null;
-  }
+function getCsrfToken(): string | null {
+  const cookie = document.cookie
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith("csrftoken="));
+  return cookie ? decodeURIComponent(cookie.substring("csrftoken=".length)) : null;
 }
 
-async function pollQuery(id: string) {
-  clearTimer();
-  try {
-    const response = await aiInsightsApi.getQuery(id);
-    activeQuery.value = response.data;
-    if (["pending", "processing"].includes(activeQuery.value?.status || "")) {
-      pollTimer.value = window.setTimeout(() => pollQuery(id), 2000);
-    }
-  } catch (error) {
-    console.error("Failed to poll AI query:", error);
-  }
+function parseSsePayload(raw: string) {
+  return raw
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trim())
+    .filter(Boolean);
 }
 
 async function submitQuery() {
   const text = queryText.value.trim();
-  if (!text || isSubmitting.value) return;
-  isSubmitting.value = true;
-  clearTimer();
+  if (!text || isStreaming.value) return;
+
+  isStreaming.value = true;
+  answer.value = "";
+  errorMessage.value = "";
+  activeQueryId.value = "";
+  providerMeta.value = null;
+  candidateCount.value = null;
+  sources.value = [];
+
   try {
-    const response = await aiInsightsApi.query({
-      query_text: text,
-      query_type: "search",
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    };
+    const token = localStorage.getItem("token");
+    if (token) headers.Authorization = `Token ${token}`;
+    const csrf = getCsrfToken();
+    if (csrf) headers["X-CSRFToken"] = csrf;
+
+    const response = await fetch(aiInsightsApi.queryStreamUrl(), {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        query_text: text,
+        query_type: "search",
+      }),
     });
-    activeQuery.value = response.data;
+
+    if (!response.ok || !response.body) {
+      const body = await response.text();
+      throw new Error(body || `Request failed: ${response.status}`);
+    }
+
     queryText.value = "";
-    if (activeQuery.value?.id) {
-      await pollQuery(activeQuery.value.id);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+
+      for (const event of events) {
+        for (const payload of parseSsePayload(event)) {
+          const data = JSON.parse(payload);
+          if (data.type === "query") {
+            activeQueryId.value = data.query_id || "";
+            candidateCount.value = Number(data.candidate_count || 0);
+          } else if (data.type === "meta") {
+            providerMeta.value = data;
+          } else if (data.type === "delta") {
+            answer.value += data.content || "";
+          } else if (data.type === "done") {
+            if (data.query_id) activeQueryId.value = data.query_id;
+            if (!answer.value && data.answer) answer.value = data.answer;
+          } else if (data.type === "error") {
+            errorMessage.value = data.error || "AI query failed";
+          }
+        }
+      }
+    }
+
+    if (activeQueryId.value) {
+      try {
+        const saved = await aiInsightsApi.getQuery(activeQueryId.value);
+        const result = saved.data?.result || {};
+        sources.value = Array.isArray(result.sources) ? result.sources : [];
+        if (!answer.value) answer.value = result.answer || result.summary || "";
+        providerMeta.value = providerMeta.value || {
+          provider: result.provider,
+          model: result.model || saved.data?.model_used,
+        };
+      } catch (error) {
+        console.error("Failed to load saved AI query:", error);
+      }
     }
   } catch (error: any) {
-    activeQuery.value = {
-      id: "",
-      query_text: text,
-      status: "failed",
-      error_message: error?.response?.data?.error || error?.message || t("aiInsights.chat.failed"),
-    };
+    errorMessage.value = error?.message || t("aiInsights.chat.failed");
   } finally {
-    isSubmitting.value = false;
+    isStreaming.value = false;
   }
 }
 </script>
 
 <template>
   <div class="space-y-5">
-    <div class="bg-card border border-border rounded-xl p-6">
-      <div class="flex items-center gap-3 mb-5">
-        <div class="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-          <ChatBubbleLeftRightIcon class="w-5 h-5 text-violet-600 dark:text-violet-400" />
+    <div class="rounded-lg border border-border bg-card p-5">
+      <div class="mb-4 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <ChatBubbleLeftRightIcon class="h-6 w-6 text-primary" />
+          <div>
+            <h3 class="text-base font-semibold text-foreground">
+              {{ t("aiInsights.chat.title") }}
+            </h3>
+            <p class="text-sm text-foreground-secondary">
+              {{ t("aiInsights.chat.description") }}
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 class="text-lg font-semibold text-foreground">
-            {{ t("aiInsights.chat.title") }}
-          </h3>
-          <p class="text-sm text-foreground-secondary">
-            {{ t("aiInsights.chat.description") }}
+        <div v-if="providerMeta || candidateCount !== null" class="text-right text-xs text-foreground-muted">
+          <p v-if="providerMeta">
+            {{ providerMeta.provider || "local" }} / {{ providerMeta.model || "-" }}
           </p>
+          <p v-if="candidateCount !== null">{{ candidateCount }} candidate files</p>
         </div>
       </div>
 
-      <div class="flex gap-3">
-        <input
+      <div class="flex items-end gap-3">
+        <textarea
           v-model="queryText"
-          type="text"
+          rows="2"
           :placeholder="t('aiInsights.chat.placeholder')"
-          class="flex-1 px-4 py-3 bg-background-secondary border border-border rounded-lg text-foreground placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
-          @keyup.enter="submitQuery" />
+          class="min-h-[44px] flex-1 resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm leading-6 text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
+          @keydown.enter.exact.prevent="submitQuery"
+        />
         <button
-          class="px-5 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          :disabled="isSubmitting || !queryText.trim()"
-          @click="submitQuery">
-          <ArrowPathIcon v-if="isSubmitting" class="w-5 h-5 animate-spin" />
-          <ChatBubbleLeftRightIcon v-else class="w-5 h-5" />
+          class="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="!canSubmit"
+          @click="submitQuery"
+        >
+          <ArrowPathIcon v-if="isStreaming" class="h-4 w-4 animate-spin" />
+          <PaperAirplaneIcon v-else class="h-4 w-4" />
           {{ t("aiInsights.chat.ask") }}
         </button>
       </div>
     </div>
 
-    <div v-if="activeQuery" class="bg-card border border-border rounded-xl p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h4 class="text-sm font-semibold text-foreground">
-          {{ activeQuery.query_text }}
-        </h4>
-        <span
-          class="px-2.5 py-1 text-xs font-medium rounded-full"
-          :class="{
-            'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300': ['pending', 'processing'].includes(activeQuery.status),
-            'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300': activeQuery.status === 'completed',
-            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300': activeQuery.status === 'failed',
-          }">
-          {{ t(`aiInsights.chat.status.${activeQuery.status}`) }}
-        </span>
-      </div>
-
-      <div v-if="['pending', 'processing'].includes(activeQuery.status)" class="flex items-center gap-2 text-sm text-foreground-secondary">
-        <ArrowPathIcon class="w-4 h-4 animate-spin" />
+    <div v-if="isStreaming || answer || errorMessage" class="rounded-lg border border-border bg-card p-5">
+      <div v-if="isStreaming && !answer" class="flex items-center gap-2 text-sm text-foreground-secondary">
+        <span class="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary" />
         {{ t("aiInsights.chat.processing") }}
       </div>
-      <div v-else-if="activeQuery.status === 'failed'" class="text-sm text-red-600 dark:text-red-400">
-        {{ activeQuery.error_message || t("aiInsights.chat.failed") }}
+
+      <div v-if="errorMessage" class="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
+        <ExclamationTriangleIcon class="mt-0.5 h-4 w-4 shrink-0" />
+        <span>{{ errorMessage }}</span>
       </div>
-      <div v-else class="space-y-5">
-        <p class="text-sm leading-6 text-foreground-secondary whitespace-pre-wrap">
-          {{ answer || t("aiInsights.chat.noAnswer") }}
+
+      <div v-if="answer" class="space-y-5">
+        <p class="whitespace-pre-wrap text-sm leading-7 text-foreground-secondary">
+          {{ answer }}<span v-if="isStreaming" class="ml-1 inline-block h-4 w-1 animate-pulse bg-primary align-[-2px]" />
         </p>
 
         <div v-if="sources.length" class="space-y-2">
-          <h5 class="text-xs font-semibold uppercase tracking-wide text-foreground-muted">
+          <h5 class="text-xs font-semibold uppercase text-foreground-muted">
             {{ t("aiInsights.chat.sources") }}
           </h5>
           <div
             v-for="source in sources"
             :key="`${source.snapshot_name}-${source.path}`"
-            class="p-3 bg-background-secondary rounded-lg">
-            <p class="text-sm font-medium text-foreground truncate">
-              {{ source.path }}
-            </p>
-            <p class="text-xs text-foreground-muted truncate">
-              {{ source.snapshot_name || "-" }} · {{ source.repository_name || "-" }} · {{ source.reason || "-" }}
-            </p>
+            class="rounded-lg bg-background-secondary p-3"
+          >
+            <div class="flex items-start gap-2">
+              <DocumentTextIcon class="mt-0.5 h-4 w-4 shrink-0 text-foreground-muted" />
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-foreground">{{ source.path }}</p>
+                <p class="truncate text-xs text-foreground-muted">
+                  {{ source.snapshot_name || "-" }} · {{ source.repository_name || "-" }} · {{ source.reason || "-" }}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

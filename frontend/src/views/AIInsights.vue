@@ -119,26 +119,19 @@ async function fetchOverview() {
   } catch (error) {
     console.error("Failed to fetch overview:", error);
     gatewayStatus.value = "offline";
-    // Set mock data
     overviewData.value = {
-      total_files: 125847,
-      total_size: "2.4 TB",
-      file_categories: [
-        { name: "Documents", name_zh: "文档", percentage: 45, size: "1.1 TB" },
-        { name: "Images", name_zh: "图片", percentage: 20, size: "480 GB" },
-        { name: "Archives", name_zh: "压缩包", percentage: 15, size: "360 GB" },
-        { name: "Videos", name_zh: "视频", percentage: 10, size: "240 GB" },
-        { name: "Others", name_zh: "其他", percentage: 10, size: "220 GB" },
-      ],
+      total_files: 0,
+      total_size: "0 B",
+      file_categories: [],
       risk_summary: {
-        sensitive_files: 12,
-        ransomware_risk: "safe",
-        permission_issues: 32,
+        sensitive_files: 0,
+        ransomware_risk: "unknown",
+        permission_issues: 0,
       },
       optimization_suggestions: {
-        duplicate_files: { count: 1250, size: "1.2 TB" },
-        cold_data: { size: "4.5 TB", percentage: 35 },
-        fastest_growing: { path: "/var/log", growth_rate: "+200%" },
+        duplicate_files: { count: 0, size: "0 B" },
+        cold_data: { size: "0 B", percentage: 0 },
+        fastest_growing: { path: "-", growth_rate: 0 },
       },
     };
   } finally {
@@ -155,25 +148,9 @@ async function fetchSensitiveData() {
   } catch (error) {
     console.error("Failed to fetch sensitive data:", error);
     sensitiveData.value = {
-      last_scan: "2026-04-23 10:30",
-      findings: [
-        {
-          type: "ID Card Numbers",
-          type_zh: "身份证号",
-          severity: "high",
-          count: 15,
-          recommendation: "建议对包含身份证号的文件进行加密存储或脱敏处理",
-          files: [{ path: "/data/contracts/contract_001.pdf" }],
-        },
-        {
-          type: "Phone Numbers",
-          type_zh: "手机号码",
-          severity: "medium",
-          count: 48,
-          recommendation: "建议检查文件访问权限，确保仅授权人员可访问",
-          files: [{ path: "/data/contacts/customers.xlsx" }],
-        },
-      ],
+      last_scan: "-",
+      findings: [],
+      summary: { high: 0, medium: 0, low: 0, total_findings: 0 },
     };
   } finally {
     isLoadingSensitive.value = false;
@@ -189,36 +166,8 @@ async function fetchContentProfile() {
   } catch (error) {
     console.error("Failed to fetch content profile:", error);
     contentProfile.value = {
-      categories: [
-        {
-          name: "Contracts",
-          name_zh: "合同",
-          count: 234,
-          size: "45 MB",
-          tags: ["legal", "business"],
-        },
-        {
-          name: "Financial Reports",
-          name_zh: "财务报表",
-          count: 89,
-          size: "120 MB",
-          tags: ["finance", "quarterly"],
-        },
-        {
-          name: "Technical Docs",
-          name_zh: "技术文档",
-          count: 567,
-          size: "89 MB",
-          tags: ["technical", "api"],
-        },
-        {
-          name: "Marketing Materials",
-          name_zh: "营销材料",
-          count: 123,
-          size: "2.1 GB",
-          tags: ["marketing", "media"],
-        },
-      ],
+      categories: [],
+      auto_tags: [],
     };
   } finally {
     isLoadingProfile.value = false;
@@ -234,37 +183,12 @@ async function fetchDataHeatmap() {
   } catch (error) {
     console.error("Failed to fetch data heatmap:", error);
     dataHeatmap.value = {
-      heatmap: [
-        {
-          category: "hot",
-          category_zh: "热数据",
-          description: "最近30天内访问",
-          size: "800 GB",
-          percentage: 35,
-          file_count: 45000,
-        },
-        {
-          category: "warm",
-          category_zh: "温数据",
-          description: "30-90天内访问",
-          size: "1.2 TB",
-          percentage: 50,
-          file_count: 60000,
-        },
-        {
-          category: "cold",
-          category_zh: "冷数据",
-          description: "超过90天未访问",
-          size: "400 GB",
-          percentage: 15,
-          file_count: 20847,
-        },
-      ],
+      heatmap: [],
       zombie_data: {
-        description: "超过180天未访问的数据",
-        size: "250 GB",
-        file_count: 15000,
-        potential_savings: "预计可节省存储成本 ¥2,500/月",
+        description: "-",
+        size: "0 B",
+        file_count: 0,
+        potential_savings: "-",
       },
     };
   } finally {
@@ -281,27 +205,10 @@ async function fetchRedundancy() {
   } catch (error) {
     console.error("Failed to fetch redundancy:", error);
     redundancyData.value = {
-      total_duplicates: 1250,
-      duplicate_size: "1.2 TB",
-      potential_savings: "800 GB",
-      duplicate_groups: [
-        {
-          file_name: "backup_2024.zip",
-          count: 5,
-          locations: [
-            "/backup/q1",
-            "/backup/q2",
-            "/backup/q3",
-            "/backup/q4",
-            "/archive",
-          ],
-        },
-        {
-          file_name: "database_dump.sql",
-          count: 3,
-          locations: ["/db/daily", "/db/weekly", "/db/monthly"],
-        },
-      ],
+      total_duplicates: 0,
+      duplicate_size: "0 B",
+      potential_savings: "0 B",
+      duplicate_groups: [],
     };
   } finally {
     isLoadingRedundancy.value = false;

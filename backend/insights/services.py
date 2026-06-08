@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import timedelta
 import logging
 
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 
@@ -11,6 +11,7 @@ from backup_tasks.services.execution import build_repository_config
 from gateways.gateway_service import GatewayService
 from gateways.models import Gateway
 from ai_query.models import AIProvider
+from ai_query.provider_client import AIProviderClient
 
 from .models import SnapshotAIJob, SnapshotFileIndex, SnapshotIndexJob, SnapshotInsight
 
@@ -25,6 +26,14 @@ AUDIO_EXTENSIONS = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'}
 ARCHIVE_EXTENSIONS = {'.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.tgz'}
 CODE_EXTENSIONS = {'.py', '.js', '.ts', '.vue', '.go', '.java', '.rb', '.php', '.c', '.cpp', '.h', '.cs', '.json', '.yaml', '.yml', '.xml', '.html', '.css', '.scss', '.sh'}
 DATABASE_EXTENSIONS = {'.db', '.sqlite', '.sqlite3', '.sql', '.mdb'}
+SECRET_EXTENSIONS = {'.pem', '.key', '.p12', '.pfx', '.crt', '.cer', '.jks', '.keystore'}
+CONFIG_EXTENSIONS = {'.env', '.ini', '.conf', '.config', '.yaml', '.yml', '.json', '.properties', '.toml'}
+DATABASE_DUMP_EXTENSIONS = {'.sql', '.dump', '.bak', '.db', '.sqlite', '.sqlite3', '.mdb'}
+RISK_NAME_KEYWORDS = {
+    'password', 'passwd', 'pwd', 'secret', 'credential', 'credentials',
+    'token', 'apikey', 'api_key', 'access_key', 'private_key', 'id_rsa',
+    'id_dsa', 'wallet', 'keystore', 'cert', 'certificate',
+}
 
 
 def categorize_file(name, extension='', is_directory=False):
@@ -217,7 +226,10 @@ def dispatch_snapshot_ai_summary(snapshot, user, gateway_id=None, language='zh-C
         else:
             raise ValueError('Snapshot must be indexed before AI summary')
 
-    gateway = select_gateway(gateway_id, getattr(user, 'tenant', None))
+    try:
+        gateway = select_gateway(gateway_id, getattr(user, 'tenant', None))
+    except Exception:
+        return run_snapshot_ai_summary_direct(snapshot, user, language=language)
     job = SnapshotAIJob.objects.create(
         snapshot=snapshot,
         gateway=gateway,
@@ -245,6 +257,97 @@ def dispatch_snapshot_ai_summary(snapshot, user, gateway_id=None, language='zh-C
     job.status = SnapshotAIJob.STATUS_DISPATCHED
     job.save(update_fields=['task_id', 'status', 'provider', 'model', 'updated_at'])
     return job
+
+
+def _snapshot_summary_messages(snapshot_context, language='zh-CN'):
+    compact = {
+        **snapshot_context,
+        'candidate_files': (snapshot_context.get('candidate_files') or [])[:40],
+        'content_samples': (snapshot_context.get('content_samples') or [])[:5],
+    }
+    return [
+        {
+            'role': 'system',
+            'content': (
+                'You are HyperFileLens AI Insights, a backup data intelligence analyst. '
+                'Return JSON only. Focus on backup data risks, cost optimization, retention, '
+                'and concrete administrator actions.'
+            ),
+        },
+        {
+            'role': 'user',
+            'content': (
+                f'Language: {language}\n\n'
+                'Analyze this backup snapshot. Return JSON with keys: '
+                'title, summary, risk_level(info|warning|critical), findings array, '
+                'recommended_actions array, related_paths array.\n\n'
+                f'Context JSON:\n{compact}'
+            ),
+        },
+    ]
+
+
+def run_snapshot_ai_summary_direct(snapshot, user, language='zh-CN'):
+    if not SnapshotInsight.objects.filter(snapshot=snapshot).exclude(insight_type=SnapshotInsight.TYPE_AI_SUMMARY).exists():
+        if SnapshotFileIndex.objects.filter(snapshot=snapshot).exists():
+            generate_snapshot_insights(snapshot)
+        else:
+            raise ValueError('Snapshot must be indexed before AI summary')
+
+    provider = select_ai_provider(getattr(user, 'tenant', None))
+    job = SnapshotAIJob.objects.create(
+        snapshot=snapshot,
+        gateway=None,
+        tenant=getattr(user, 'tenant', None),
+        user=user,
+        job_type=SnapshotAIJob.TYPE_SUMMARIZE,
+        status=SnapshotAIJob.STATUS_RUNNING,
+        progress=20,
+        language=language or 'zh-CN',
+        provider=provider.provider_type if provider else 'local',
+        model=provider.default_model if provider else 'rule-summary',
+        started_at=timezone.now(),
+    )
+    context = build_snapshot_ai_context(snapshot)
+    client = AIProviderClient(provider)
+    try:
+        if client.is_external():
+            result = client.complete_json(_snapshot_summary_messages(context, language=job.language))
+        else:
+            raise ValueError('No external AI provider configured')
+    except Exception:
+        result = {
+            'title': 'Backup snapshot summary',
+            'summary': (
+                f"Snapshot {snapshot.name} has {context['snapshot'].get('file_count') or 0} files. "
+                "The summary is generated from indexed metadata and rule insights."
+            ),
+            'risk_level': 'warning' if any(item.get('severity') == SnapshotInsight.SEVERITY_WARNING for item in context.get('insights', [])) else 'info',
+            'findings': [
+                {
+                    'title': item.get('title'),
+                    'severity': item.get('severity'),
+                    'description': item.get('summary'),
+                    'evidence': item.get('evidence'),
+                }
+                for item in context.get('insights', [])[:8]
+            ],
+            'recommended_actions': [
+                {'type': 'review_risks', 'label': 'Review sensitive candidates', 'description': 'Check high-risk files before broad restore access.'},
+                {'type': 'optimize_storage', 'label': 'Review cold and duplicate data', 'description': 'Use cold-data and duplicate candidates to tune retention.'},
+            ],
+            'related_paths': [
+                path
+                for item in context.get('insights', [])[:5]
+                for path in (item.get('related_paths') or [])[:3]
+            ],
+            'provider': 'local',
+            'model': 'rule-summary',
+        }
+    result.setdefault('provider', provider.provider_type if provider else 'local')
+    result.setdefault('model', provider.default_model if provider else 'rule-summary')
+    complete_ai_summary_job(str(job.id), {'result': result})
+    return SnapshotAIJob.objects.get(id=job.id)
 
 
 def select_ai_provider(tenant=None):
@@ -534,6 +637,24 @@ def generate_snapshot_insights(snapshot):
         growth,
     )
 
+    risk_summary = build_sensitive_findings(files)
+    high_count = sum(item['count'] for item in risk_summary if item['severity'] == 'high')
+    medium_count = sum(item['count'] for item in risk_summary if item['severity'] == 'medium')
+    upsert_insight(
+        snapshot,
+        SnapshotInsight.TYPE_SUMMARY,
+        'Risk and optimization summary',
+        f'{high_count} high-risk and {medium_count} medium-risk sensitive candidates found.',
+        {'sensitive_findings': risk_summary[:20]},
+        severity=SnapshotInsight.SEVERITY_WARNING if high_count or medium_count else SnapshotInsight.SEVERITY_INFO,
+        related_paths=[
+            file_item.get('path')
+            for finding in risk_summary[:5]
+            for file_item in finding.get('files', [])[:3]
+            if file_item.get('path')
+        ],
+    )
+
 
 def upsert_insight(snapshot, insight_type, title, summary, evidence, severity=SnapshotInsight.SEVERITY_INFO, related_paths=None):
     SnapshotInsight.objects.update_or_create(
@@ -549,3 +670,105 @@ def upsert_insight(snapshot, insight_type, title, summary, evidence, severity=Sn
             'generated_by': 'rule',
         },
     )
+
+
+def _risk_file_payload(item, reason):
+    return {
+        'id': str(item.id),
+        'path': item.path,
+        'name': item.name,
+        'extension': item.extension,
+        'category': item.category,
+        'size': item.size,
+        'snapshot_id': str(item.snapshot_id),
+        'snapshot_name': item.snapshot.name,
+        'repository_id': str(item.snapshot.repository_id),
+        'repository_name': item.snapshot.repository.name if item.snapshot.repository_id else '',
+        'reason': reason,
+    }
+
+
+def _finding(finding_type, type_zh, severity, recommendation, files):
+    return {
+        'type': finding_type,
+        'type_zh': type_zh,
+        'severity': severity,
+        'count': len(files),
+        'recommendation': recommendation,
+        'files': files[:20],
+    }
+
+
+def build_sensitive_findings(files_queryset, limit_per_type=50):
+    files = files_queryset.select_related('snapshot', 'snapshot__repository')
+    findings = []
+
+    secret_files = [
+        _risk_file_payload(item, 'Secret/certificate extension')
+        for item in files.filter(extension__in=SECRET_EXTENSIONS).order_by('-size')[:limit_per_type]
+    ]
+    if secret_files:
+        findings.append(_finding(
+            'Secret and certificate files',
+            '密钥和证书文件',
+            'high',
+            '建议确认这些密钥/证书文件是否必须保留在备份中，并限制恢复权限。',
+            secret_files,
+        ))
+
+    credential_query = Q()
+    for keyword in RISK_NAME_KEYWORDS:
+        credential_query |= Q(name__icontains=keyword) | Q(path__icontains=keyword)
+    credential_files = [
+        _risk_file_payload(item, 'Credential keyword in name or path')
+        for item in files.filter(credential_query).order_by('-size')[:limit_per_type]
+    ]
+    if credential_files:
+        findings.append(_finding(
+            'Credential-like file names',
+            '疑似凭据文件名',
+            'high',
+            '建议检查文件内容是否包含密码、Token、私钥或云访问密钥。',
+            credential_files,
+        ))
+
+    env_files = [
+        _risk_file_payload(item, 'Environment/configuration file')
+        for item in files.filter(Q(name__iexact='.env') | Q(extension__in=CONFIG_EXTENSIONS)).order_by('-size')[:limit_per_type]
+    ]
+    if env_files:
+        findings.append(_finding(
+            'Configuration files',
+            '配置文件',
+            'medium',
+            '配置文件可能包含连接串、访问密钥或内部地址，建议纳入敏感数据审查。',
+            env_files,
+        ))
+
+    db_files = [
+        _risk_file_payload(item, 'Database or dump extension')
+        for item in files.filter(extension__in=DATABASE_DUMP_EXTENSIONS).order_by('-size')[:limit_per_type]
+    ]
+    if db_files:
+        findings.append(_finding(
+            'Database dumps',
+            '数据库和转储文件',
+            'high',
+            '数据库备份通常包含业务敏感数据，建议确认加密、保留周期和恢复审批。',
+            db_files,
+        ))
+
+    archive_files = [
+        _risk_file_payload(item, 'Large archive may contain bundled sensitive data')
+        for item in files.filter(category=SnapshotFileIndex.CATEGORY_ARCHIVE, size__gte=1024 * 1024 * 1024).order_by('-size')[:limit_per_type]
+    ]
+    if archive_files:
+        findings.append(_finding(
+            'Large archives',
+            '大型压缩包',
+            'medium',
+            '大型压缩包可能绕过细粒度审查，建议抽检内容并评估归档策略。',
+            archive_files,
+        ))
+
+    return findings

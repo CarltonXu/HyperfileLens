@@ -6,6 +6,7 @@ from backup_tasks.services.execution import build_repository_config
 from gateways.gateway_service import GatewayService
 from insights.models import SnapshotFileIndex
 from insights.services import select_ai_provider, select_gateway
+from .provider_client import AIProviderClient, extract_json_object
 
 from .models import AIQuery
 
@@ -108,6 +109,102 @@ def _query_context(query, candidates, snapshot=None, repository_id=None):
         'candidate_files': [_serialize_file_index(item) for item in candidates],
         'candidate_count': len(candidates),
     }
+
+
+def build_ai_query_messages(query, context, language='zh-CN'):
+    compact_context = {
+        **context,
+        'candidate_files': (context.get('candidate_files') or [])[:80],
+        'content_samples': (context.get('content_samples') or [])[:8],
+    }
+    return [
+        {
+            'role': 'system',
+            'content': (
+                'You are HyperFileLens AI Insights, a backup data intelligence analyst. '
+                'Answer only from the provided indexed backup metadata and content samples. '
+                'If evidence is insufficient, say so clearly. Return practical operations advice.'
+            ),
+        },
+        {
+            'role': 'user',
+            'content': (
+                f'Language: {language}\n\n'
+                f'User question:\n{query.query_text}\n\n'
+                'Context JSON:\n'
+                f'{compact_context}'
+            ),
+        },
+    ]
+
+
+def local_metadata_answer(query, context):
+    candidates = context.get('candidate_files') or []
+    sources = [
+        {
+            'path': item.get('path'),
+            'snapshot_name': item.get('snapshot_name'),
+            'repository_name': item.get('repository_name'),
+            'reason': 'Matched indexed metadata',
+        }
+        for item in candidates[:12]
+    ]
+    if candidates:
+        answer = (
+            f"Found {len(candidates)} indexed file candidates for '{query.query_text}'. "
+            "The answer is based on metadata only because no external AI provider is configured."
+        )
+    else:
+        answer = (
+            f"No indexed file candidates matched '{query.query_text}'. "
+            "Index snapshots first, or narrow the query by repository, snapshot, path, or file type."
+        )
+    return {
+        'answer': answer,
+        'summary': answer,
+        'confidence': 0.45 if candidates else 0.1,
+        'sources': sources,
+        'suggestions': [
+            'Use indexed snapshots as the query scope.',
+            'Add file type, path, repository, or snapshot filters for sharper results.',
+            'Configure an AI Provider to generate richer reasoning and recommendations.',
+        ],
+        'provider': 'local',
+        'model': 'metadata-query',
+        'candidate_count': len(candidates),
+        'query_id': str(query.id),
+    }
+
+
+def prepare_query_context(query, snapshot_id=None, repository_id=None):
+    snapshot = None
+    if snapshot_id:
+        snapshot = _tenant_snapshots(query.user).get(id=snapshot_id)
+        repository_id = snapshot.repository_id
+    candidates = _candidate_files(query, snapshot_id=snapshot_id, repository_id=repository_id)
+    return _query_context(query, candidates, snapshot=snapshot, repository_id=repository_id)
+
+
+def run_ai_query_direct(query, snapshot_id=None, repository_id=None, language='zh-CN'):
+    context = prepare_query_context(query, snapshot_id=snapshot_id, repository_id=repository_id)
+    provider = select_ai_provider(getattr(query.user, 'tenant', None))
+    client = AIProviderClient(provider)
+    if not client.is_external():
+        result = local_metadata_answer(query, context)
+    else:
+        messages = build_ai_query_messages(query, context, language=language)
+        result = client.complete_json(messages, temperature=0.1)
+        result.setdefault('answer', result.get('summary') or '')
+        result.setdefault('summary', result.get('answer') or '')
+        result.setdefault('sources', [])
+        result.setdefault('candidate_count', len(context.get('candidate_files') or []))
+        result['query_id'] = str(query.id)
+    query.mark_completed(
+        result=result,
+        model_used=result.get('model') or client.model,
+        tokens_used=int(result.get('tokens_used') or (result.get('usage') or {}).get('total_tokens') or 0),
+    )
+    return query
 
 
 def dispatch_ai_query(query, gateway_id=None, snapshot_id=None, repository_id=None):
