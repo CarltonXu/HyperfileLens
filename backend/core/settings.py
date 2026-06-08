@@ -82,7 +82,6 @@ PROJECT_APPS = [
     'recovery_tasks',
     'repository',
     'policies',
-    'schedules',     # 定时任务调度
     'alerts',       # 告警管理
     'checkpoints',   # 断点续传检查点
     'ai_query',
