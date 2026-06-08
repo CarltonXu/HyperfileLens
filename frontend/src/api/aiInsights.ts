@@ -1,5 +1,10 @@
 import api, { type AxiosRequestConfig } from "./client";
 
+export type AIInsightScopeParams = {
+  scope_type?: "tenant" | "repository" | "backup_task" | "snapshot" | string;
+  scope_id?: string;
+};
+
 export const gateway = {
   aiQuery: (data: {
     query: string;
@@ -30,6 +35,8 @@ export const aiInsightsApi = {
     snapshot_id?: string;
     repository_id?: string;
     gateway_id?: string;
+    scope_type?: string;
+    scope_id?: string;
   }) => api.post("/api/v1/ai-insights/queries/", data),
 
   queryStreamUrl: () => "/api/v1/ai-insights/queries/stream/",
@@ -47,25 +54,26 @@ export const aiInsightsApi = {
 
   cancel: (id: number) => api.post(`/api/v1/ai-insights/queries/${id}/cancel/`),
 
-  overview: () => api.get("/api/v1/ai-insights/overview/"),
+  overview: (params?: AIInsightScopeParams) =>
+    api.get("/api/v1/ai-insights/overview/", { params }),
 
-  sensitiveData: (params?: { repository_id?: string }) =>
+  sensitiveData: (params?: { repository_id?: string } & AIInsightScopeParams) =>
     api.get("/api/v1/ai-insights/sensitive-data/", { params }),
 
-  contentProfiling: (params?: { repository_id?: string }) =>
+  contentProfiling: (params?: { repository_id?: string } & AIInsightScopeParams) =>
     api.get("/api/v1/ai-insights/content-profile/", { params }),
 
-  dataHeatmap: (params?: { repository_id?: string; days?: number }) =>
+  dataHeatmap: (params?: { repository_id?: string; days?: number } & AIInsightScopeParams) =>
     api.get("/api/v1/ai-insights/data-heatmap/", { params }),
 
-  redundancy: (params?: { repository_id?: string }) =>
+  redundancy: (params?: { repository_id?: string } & AIInsightScopeParams) =>
     api.get("/api/v1/ai-insights/redundancy/", { params }),
 
   smartSearch: (params?: {
     query?: string;
     repository_id?: string;
     filters?: Record<string, unknown>;
-  }) => api.get("/api/v1/ai-insights/smart-search/", { params }),
+  } & AIInsightScopeParams) => api.get("/api/v1/ai-insights/smart-search/", { params }),
 
   providers: (params?: { page?: number; page_size?: number }) =>
     api.get("/api/v1/system/ai-providers/", { params }),

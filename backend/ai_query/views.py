@@ -79,10 +79,55 @@ def _tenant_snapshot_filter(user):
     return queryset.filter(task__user=user)
 
 
+def _request_scope(request):
+    data = getattr(request, 'data', {}) or {}
+    scope_type = request.query_params.get('scope_type') or data.get('scope_type') or ''
+    scope_id = request.query_params.get('scope_id') or data.get('scope_id') or ''
+    scope_type = str(scope_type or '').strip()
+    scope_id = str(scope_id or '').strip()
+
+    legacy_snapshot = request.query_params.get('snapshot_id') or data.get('snapshot_id')
+    legacy_repository = request.query_params.get('repository_id') or data.get('repository_id')
+    legacy_task = request.query_params.get('task_id') or data.get('task_id')
+
+    if not scope_type:
+        if legacy_snapshot:
+            return 'snapshot', str(legacy_snapshot)
+        if legacy_repository:
+            return 'repository', str(legacy_repository)
+        if legacy_task:
+            return 'backup_task', str(legacy_task)
+        return 'tenant', ''
+    return scope_type, scope_id
+
+
+def _apply_snapshot_scope(queryset, scope_type, scope_id):
+    if scope_type == 'snapshot' and scope_id:
+        return queryset.filter(id=scope_id)
+    if scope_type == 'repository' and scope_id:
+        return queryset.filter(repository_id=scope_id)
+    if scope_type in {'backup_task', 'task'} and scope_id:
+        return queryset.filter(task_id=scope_id)
+    return queryset
+
+
+def _scope_filter_kwargs(request):
+    scope_type, scope_id = _request_scope(request)
+    return {
+        'scope_type': scope_type,
+        'scope_id': scope_id,
+        'snapshot_id': scope_id if scope_type == 'snapshot' and scope_id else None,
+        'repository_id': scope_id if scope_type == 'repository' and scope_id else None,
+        'task_id': scope_id if scope_type in {'backup_task', 'task'} and scope_id else None,
+    }
+
+
 def _indexed_files_queryset(request):
     from insights.models import SnapshotFileIndex
 
-    snapshot_ids = _tenant_snapshot_filter(request.user).values_list('id', flat=True)
+    scope_type, scope_id = _request_scope(request)
+    snapshots = _apply_snapshot_scope(_tenant_snapshot_filter(request.user), scope_type, scope_id)
+    snapshot_ids = snapshots.values_list('id', flat=True)
     queryset = SnapshotFileIndex.objects.select_related('snapshot', 'snapshot__task', 'snapshot__repository').filter(
         snapshot_id__in=snapshot_ids,
         is_directory=False,
@@ -102,7 +147,9 @@ def _indexed_files_queryset(request):
 def _insights_queryset(request):
     from insights.models import SnapshotInsight
 
-    snapshot_ids = _tenant_snapshot_filter(request.user).values_list('id', flat=True)
+    scope_type, scope_id = _request_scope(request)
+    snapshots = _apply_snapshot_scope(_tenant_snapshot_filter(request.user), scope_type, scope_id)
+    snapshot_ids = snapshots.values_list('id', flat=True)
     queryset = SnapshotInsight.objects.select_related('snapshot', 'snapshot__task', 'snapshot__repository').filter(
         snapshot_id__in=snapshot_ids,
     )
@@ -154,16 +201,20 @@ class AIQueryViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=payload)
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
+        scope = _scope_filter_kwargs(request)
         snapshot_id = data.pop('snapshot_id', None)
         repository_id = data.pop('repository_id', None)
         gateway_id = data.pop('gateway_id', None)
+        task_id = scope.get('task_id')
+        snapshot_id = snapshot_id or scope.get('snapshot_id')
+        repository_id = repository_id or scope.get('repository_id')
         
         query = AIQuery.objects.create(
             user=request.user,
             tenant=getattr(request.user, 'tenant', None),
             **data
         )
-        use_gateway = request.data.get('execution') != 'direct'
+        use_gateway = request.data.get('execution') != 'direct' and not task_id
         if use_gateway:
             try:
                 query = dispatch_ai_query(
@@ -177,6 +228,7 @@ class AIQueryViewSet(viewsets.ModelViewSet):
                     query,
                     snapshot_id=snapshot_id,
                     repository_id=repository_id,
+                    task_id=task_id,
                     language=request.data.get('language') or 'zh-CN',
                 )
         else:
@@ -184,6 +236,7 @@ class AIQueryViewSet(viewsets.ModelViewSet):
                 query,
                 snapshot_id=snapshot_id,
                 repository_id=repository_id,
+                task_id=task_id,
                 language=request.data.get('language') or 'zh-CN',
             )
         
@@ -201,9 +254,13 @@ class AIQueryViewSet(viewsets.ModelViewSet):
         serializer = AIQueryCreateSerializer(data=payload)
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
+        scope = _scope_filter_kwargs(request)
         snapshot_id = data.pop('snapshot_id', None)
         repository_id = data.pop('repository_id', None)
         data.pop('gateway_id', None)
+        task_id = scope.get('task_id')
+        snapshot_id = snapshot_id or scope.get('snapshot_id')
+        repository_id = repository_id or scope.get('repository_id')
         query = AIQuery.objects.create(
             user=request.user,
             tenant=getattr(request.user, 'tenant', None),
@@ -217,7 +274,12 @@ class AIQueryViewSet(viewsets.ModelViewSet):
             model = 'metadata-query'
             try:
                 yield sse_comment('stream-start ' + (' ' * 2048))
-                context = prepare_query_context(query, snapshot_id=snapshot_id, repository_id=repository_id)
+                context = prepare_query_context(
+                    query,
+                    snapshot_id=snapshot_id,
+                    repository_id=repository_id,
+                    task_id=task_id,
+                )
                 provider = __import__('insights.services', fromlist=['select_ai_provider']).select_ai_provider(
                     getattr(request.user, 'tenant', None)
                 )
@@ -226,6 +288,8 @@ class AIQueryViewSet(viewsets.ModelViewSet):
                     'type': 'query',
                     'query_id': str(query.id),
                     'candidate_count': len(context.get('candidate_files') or []),
+                    'scope_type': scope.get('scope_type'),
+                    'scope_id': scope.get('scope_id'),
                 })
                 if client.is_external():
                     messages = build_ai_query_messages(
@@ -544,6 +608,12 @@ def gateway_index_status(request):
     """Return indexed snapshot/file counts."""
     from insights.models import SnapshotFileIndex, SnapshotIndexJob
     snapshot_ids = _tenant_snapshot_filter(request.user).values('id')
+    scoped_snapshots = _apply_snapshot_scope(
+        _tenant_snapshot_filter(request.user),
+        scope.get('scope_type'),
+        scope.get('scope_id'),
+    )
+
     return Response({
         'indexed_files': SnapshotFileIndex.objects.filter(snapshot_id__in=snapshot_ids).count(),
         'running_jobs': SnapshotIndexJob.objects.filter(snapshot_id__in=snapshot_ids, status__in=['pending', 'dispatched', 'running']).count(),
@@ -620,6 +690,7 @@ def insights_overview(request):
     AI Insights Overview - 洞察看板
     Returns comprehensive statistics about the backup data.
     """
+    scope = _scope_filter_kwargs(request)
     files = _indexed_files_queryset(request)
     total_files = files.count()
     total_size_bytes = files.aggregate(total=Sum('size'))['total'] or 0
@@ -697,7 +768,11 @@ def insights_overview(request):
                 'period': 'snapshot'
             }
         },
-        'indexed_snapshots': _tenant_snapshot_filter(request.user).filter(index_jobs__status='completed').distinct().count(),
+        'indexed_snapshots': scoped_snapshots.filter(index_jobs__status='completed').distinct().count(),
+        'scope': {
+            'type': scope.get('scope_type') or 'tenant',
+            'id': scope.get('scope_id') or '',
+        },
     })
 
 

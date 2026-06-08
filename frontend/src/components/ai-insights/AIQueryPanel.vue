@@ -17,6 +17,11 @@ type Source = {
   reason?: string;
 };
 
+const props = defineProps<{
+  scope?: { scope_type?: string; scope_id?: string };
+  scopeLabel?: string;
+}>();
+
 const { t } = useI18n();
 
 const queryText = ref("");
@@ -74,6 +79,7 @@ async function submitQuery() {
       body: JSON.stringify({
         query_text: text,
         query_type: "search",
+        ...(props.scope || {}),
       }),
     });
 
@@ -152,6 +158,7 @@ async function submitQuery() {
           </div>
         </div>
         <div v-if="providerMeta || candidateCount !== null" class="text-right text-xs text-foreground-muted">
+          <p v-if="scopeLabel">{{ scopeLabel }}</p>
           <p v-if="providerMeta">
             {{ providerMeta.provider || "local" }} / {{ providerMeta.model || "-" }}
           </p>

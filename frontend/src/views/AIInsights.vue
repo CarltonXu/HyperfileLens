@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
   FolderIcon,
@@ -22,6 +22,7 @@ import { aiInsightsApi } from "@/api";
 import AIQueryPanel from "@/components/ai-insights/AIQueryPanel.vue";
 
 const route = useRoute();
+const router = useRouter();
 const { t, locale } = useI18n();
 
 // Gateway status
@@ -46,6 +47,42 @@ const redundancyData = ref<any>(null);
 const searchQuery = ref("");
 const searchResults = ref<any[]>([]);
 const hasSearched = ref(false);
+
+const scopeType = computed(() => String(route.query.scope_type || "tenant"));
+const scopeId = computed(() => String(route.query.scope_id || ""));
+const scopeName = computed(() => String(route.query.scope_name || ""));
+const scopeParams = computed(() => {
+  if (!scopeType.value || scopeType.value === "tenant" || !scopeId.value) {
+    return { scope_type: "tenant" };
+  }
+  return { scope_type: scopeType.value, scope_id: scopeId.value };
+});
+const scopeLabel = computed(() => {
+  const name = scopeName.value || scopeId.value;
+  const labels: Record<string, string> = {
+    tenant: "Tenant scope",
+    repository: "Repository scope",
+    backup_task: "Backup task scope",
+    snapshot: "Snapshot scope",
+  };
+  return scopeType.value === "tenant"
+    ? labels.tenant
+    : `${labels[scopeType.value] || scopeType.value}: ${name || "-"}`;
+});
+
+function clearScope() {
+  router.push({ path: route.path });
+}
+
+function resetScopedData() {
+  overviewData.value = null;
+  sensitiveData.value = null;
+  contentProfile.value = null;
+  dataHeatmap.value = null;
+  redundancyData.value = null;
+  searchResults.value = [];
+  hasSearched.value = false;
+}
 
 // Current tab from route
 const currentTab = computed(() => {
@@ -113,7 +150,7 @@ async function fetchOverview() {
   if (overviewData.value) return;
   isLoadingOverview.value = true;
   try {
-    const response = await aiInsightsApi.overview();
+    const response = await aiInsightsApi.overview(scopeParams.value);
     overviewData.value = response.data;
     gatewayStatus.value = "online";
   } catch (error) {
@@ -143,7 +180,7 @@ async function fetchSensitiveData() {
   if (sensitiveData.value) return;
   isLoadingSensitive.value = true;
   try {
-    const response = await aiInsightsApi.sensitiveData();
+    const response = await aiInsightsApi.sensitiveData(scopeParams.value);
     sensitiveData.value = response.data;
   } catch (error) {
     console.error("Failed to fetch sensitive data:", error);
@@ -161,7 +198,7 @@ async function fetchContentProfile() {
   if (contentProfile.value) return;
   isLoadingProfile.value = true;
   try {
-    const response = await aiInsightsApi.contentProfiling();
+    const response = await aiInsightsApi.contentProfiling(scopeParams.value);
     contentProfile.value = response.data;
   } catch (error) {
     console.error("Failed to fetch content profile:", error);
@@ -178,7 +215,7 @@ async function fetchDataHeatmap() {
   if (dataHeatmap.value) return;
   isLoadingHeatmap.value = true;
   try {
-    const response = await aiInsightsApi.dataHeatmap();
+    const response = await aiInsightsApi.dataHeatmap(scopeParams.value);
     dataHeatmap.value = response.data;
   } catch (error) {
     console.error("Failed to fetch data heatmap:", error);
@@ -200,7 +237,7 @@ async function fetchRedundancy() {
   if (redundancyData.value) return;
   isLoadingRedundancy.value = true;
   try {
-    const response = await aiInsightsApi.redundancy();
+    const response = await aiInsightsApi.redundancy(scopeParams.value);
     redundancyData.value = response.data;
   } catch (error) {
     console.error("Failed to fetch redundancy:", error);
@@ -222,6 +259,7 @@ async function handleSearch() {
   try {
     const response = await aiInsightsApi.smartSearch({
       query: searchQuery.value,
+      ...scopeParams.value,
     });
     searchResults.value = response.data?.results || [];
   } catch (error) {
@@ -236,6 +274,14 @@ async function handleSearch() {
 watch(
   () => route.meta?.tab,
   () => {
+    fetchData();
+  },
+);
+
+watch(
+  () => [route.query.scope_type, route.query.scope_id],
+  () => {
+    resetScopedData();
     fetchData();
   },
 );
@@ -257,6 +303,18 @@ onMounted(() => {
         <p class="text-foreground-secondary mt-1">
           {{ t("aiInsights.subtitle") }}
         </p>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <span class="rounded-md border border-border bg-background-secondary px-2.5 py-1 text-xs font-medium text-foreground-secondary">
+            {{ scopeLabel }}
+          </span>
+          <button
+            v-if="scopeType !== 'tenant'"
+            class="rounded-md px-2.5 py-1 text-xs font-medium text-foreground-muted hover:bg-hover hover:text-foreground"
+            @click="clearScope"
+          >
+            Clear scope
+          </button>
+        </div>
       </div>
       <div class="flex items-center gap-4">
         <!-- Gateway Status -->
@@ -877,7 +935,7 @@ onMounted(() => {
 
       <!-- AI Chat (Placeholder) -->
       <div v-if="currentTab === 'chat'" class="space-y-6">
-        <AIQueryPanel />
+        <AIQueryPanel :scope="scopeParams" :scope-label="scopeLabel" />
       </div>
     </div>
   </div>

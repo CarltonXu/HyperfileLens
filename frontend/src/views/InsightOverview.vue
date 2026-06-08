@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
@@ -141,35 +141,25 @@ async function fetchOverview() {
     overviewData.value = response.data;
   } catch (error) {
     console.error("Failed to fetch overview:", error);
-    // Set mock data for demonstration
     overviewData.value = {
-      total_files: 125847,
-      total_size: "2.4 TB",
-      file_categories: [
-        { name: "Documents", name_zh: "文档", percentage: 45, size: "1.1 TB" },
-        { name: "Images", name_zh: "图片", percentage: 20, size: "480 GB" },
-        { name: "Archives", name_zh: "压缩包", percentage: 15, size: "360 GB" },
-        { name: "Videos", name_zh: "视频", percentage: 10, size: "240 GB" },
-        { name: "Others", name_zh: "其他", percentage: 10, size: "220 GB" },
-      ],
+      total_files: 0,
+      total_size: "0 B",
+      file_categories: [],
       risk_summary: {
-        sensitive_files: 12,
-        ransomware_risk: "safe",
-        permission_issues: 32,
+        sensitive_files: 0,
+        ransomware_risk: "unknown",
+        permission_issues: 0,
       },
       optimization_suggestions: {
-        duplicate_files: { count: 1250, size: "1.2 TB" },
-        cold_data: { size: "4.5 TB", percentage: 35 },
-        fastest_growing: { path: "/var/log", growth_rate: "+200%" },
+        duplicate_files: { count: 0, size: "0 B" },
+        cold_data: { size: "0 B", percentage: 0 },
+        fastest_growing: { path: "-", growth_rate: 0 },
       },
     };
   } finally {
     isLoading.value = false;
   }
 }
-
-// Import computed for quickAccessCards
-import { computed } from "vue";
 
 onMounted(() => {
   fetchOverview();

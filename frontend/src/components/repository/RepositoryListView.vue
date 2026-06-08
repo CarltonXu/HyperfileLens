@@ -13,6 +13,7 @@ import {
   PencilIcon,
   PlayIcon,
   SignalIcon,
+  SparklesIcon,
   TrashIcon,
 } from "@heroicons/vue/24/outline";
 
@@ -49,6 +50,7 @@ const emit = defineEmits<{
   testConnection: [repo: Repository];
   edit: [repo: Repository];
   detail: [repo: Repository];
+  analyze: [repo: Repository];
   delete: [repo: Repository];
 }>();
 
@@ -333,6 +335,13 @@ const { t } = useI18n();
                     class="w-4 h-4"
                   />
                   <LinkIcon v-else class="w-4 h-4" />
+                </button>
+                <button
+                  @click="emit('analyze', repo)"
+                  class="p-1.5 text-foreground-muted hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 rounded-lg transition-colors"
+                  :title="t('aiInsights.title')"
+                >
+                  <SparklesIcon class="w-4 h-4" />
                 </button>
                 <button
                   @click="emit('edit', repo)"

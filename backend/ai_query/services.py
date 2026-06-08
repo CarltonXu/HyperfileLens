@@ -24,12 +24,14 @@ def _query_terms(text):
     return [term.strip() for term in (text or '').replace('\n', ' ').split(' ') if term.strip()]
 
 
-def _candidate_files(query, snapshot_id=None, repository_id=None, limit=80):
+def _candidate_files(query, snapshot_id=None, repository_id=None, task_id=None, limit=80):
     snapshots = _tenant_snapshots(query.user)
     if snapshot_id:
         snapshots = snapshots.filter(id=snapshot_id)
     if repository_id:
         snapshots = snapshots.filter(repository_id=repository_id)
+    if task_id:
+        snapshots = snapshots.filter(task_id=task_id)
 
     files = SnapshotFileIndex.objects.select_related(
         'snapshot',
@@ -92,7 +94,7 @@ def _serialize_file_index(item):
     }
 
 
-def _query_context(query, candidates, snapshot=None, repository_id=None):
+def _query_context(query, candidates, snapshot=None, repository_id=None, task_id=None):
     return {
         'query': {
             'id': str(query.id),
@@ -105,6 +107,7 @@ def _query_context(query, candidates, snapshot=None, repository_id=None):
             'snapshot_id': str(snapshot.id) if snapshot else None,
             'snapshot_name': snapshot.name if snapshot else '',
             'repository_id': str(repository_id or (snapshot.repository_id if snapshot else '') or ''),
+            'backup_task_id': str(task_id or (snapshot.task_id if snapshot else '') or ''),
         },
         'candidate_files': [_serialize_file_index(item) for item in candidates],
         'candidate_count': len(candidates),
@@ -176,17 +179,18 @@ def local_metadata_answer(query, context):
     }
 
 
-def prepare_query_context(query, snapshot_id=None, repository_id=None):
+def prepare_query_context(query, snapshot_id=None, repository_id=None, task_id=None):
     snapshot = None
     if snapshot_id:
         snapshot = _tenant_snapshots(query.user).get(id=snapshot_id)
         repository_id = snapshot.repository_id
-    candidates = _candidate_files(query, snapshot_id=snapshot_id, repository_id=repository_id)
-    return _query_context(query, candidates, snapshot=snapshot, repository_id=repository_id)
+        task_id = snapshot.task_id
+    candidates = _candidate_files(query, snapshot_id=snapshot_id, repository_id=repository_id, task_id=task_id)
+    return _query_context(query, candidates, snapshot=snapshot, repository_id=repository_id, task_id=task_id)
 
 
-def run_ai_query_direct(query, snapshot_id=None, repository_id=None, language='zh-CN'):
-    context = prepare_query_context(query, snapshot_id=snapshot_id, repository_id=repository_id)
+def run_ai_query_direct(query, snapshot_id=None, repository_id=None, task_id=None, language='zh-CN'):
+    context = prepare_query_context(query, snapshot_id=snapshot_id, repository_id=repository_id, task_id=task_id)
     provider = select_ai_provider(getattr(query.user, 'tenant', None))
     client = AIProviderClient(provider)
     if not client.is_external():

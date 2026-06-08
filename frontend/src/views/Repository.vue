@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { repositoriesApi, nodesApi } from "@/api";
 import { useAppStore } from "@/stores/app";
 import { getApiErrorMessage } from "@/utils/errors";
@@ -29,6 +29,7 @@ import {
 
 const { t } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const appStore = useAppStore();
 const { getPageSize, setPageSize } = usePagination();
 const VIEW_MODE_STORAGE_KEY = "hyperfilelens:repository:viewMode";
@@ -767,6 +768,17 @@ function openEditModal(repo: Repository) {
   showCreateModal.value = true;
 }
 
+function analyzeRepository(repo: Repository) {
+  router.push({
+    path: "/ai-insights/overview",
+    query: {
+      scope_type: "repository",
+      scope_id: String(repo.id),
+      scope_name: repo.name,
+    },
+  });
+}
+
 watch(
   () => route.query.detail,
   () => {
@@ -835,6 +847,7 @@ onMounted(async () => {
           showDetailModal = true;
         }
       "
+      @analyze="analyzeRepository"
       @delete="deleteRepository"
     />
 
@@ -865,6 +878,7 @@ onMounted(async () => {
           showDetailModal = true;
         }
       "
+      @analyze="analyzeRepository"
       @delete="deleteRepository"
     />
 
