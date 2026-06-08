@@ -23,8 +23,8 @@ RUN sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sourc
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go for building proxy binaries
-RUN curl -sL https://go.dev/dl/go1.22.5.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+# Install Go for building proxy binaries (using GoChina mirror)
+RUN curl -sL https://mirrors.aliyun.com/golang/go1.26.3.linux-amd64.tar.gz | tar -C /usr/local -xzf -
 ENV PATH=$PATH:/usr/local/go/bin
 ENV GOPATH=/root/go
 ENV CGO_ENABLED=0
