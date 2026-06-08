@@ -18,19 +18,43 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
     netcat-openbsd \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Go for building proxy binaries
+RUN curl -sL https://go.dev/dl/go1.22.5.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+ENV PATH=$PATH:/usr/local/go/bin
+ENV GOPATH=/root/go
+ENV CGO_ENABLED=0
+
 # Install Python dependencies
-COPY requirements.prod.txt .
+COPY backend/requirements.prod.txt .
 RUN pip install --no-cache-dir --timeout 120 --retries 5 \
     -i "$PIP_INDEX_URL" --trusted-host "$PIP_TRUSTED_HOST" \
     -r requirements.prod.txt
 
-# Copy project
+# Copy project (context is repo root, so backend/* goes to /app/backend/*)
 COPY . .
+
+# Create symlink so backend/static points to /app/static (for downloads)
+RUN if [ -d "/app/backend/static" ] && [ ! -L "/app/backend/static/downloads" ]; then \
+    ln -s /app/static /app/backend/static; \
+    fi
 
 # Create directories for static, media and logs
 RUN mkdir -p /app/static /app/staticfiles /app/media /app/logs
+
+# Build proxy binaries if source exists
+RUN if [ -d "/app/proxy" ]; then \
+    cd /app/proxy && \
+    ./build.sh all; \
+    fi
+
+# Build gateway packages if source exists
+RUN if [ -d "/app/gateway" ]; then \
+    cd /app/gateway && \
+    ./build.sh; \
+    fi
 
 # Expose port
 EXPOSE 8000

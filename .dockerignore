@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment
+.env
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Documentation
+docs/_build/
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Frontend
+frontend/node_modules/
+frontend/.nuxt/
+frontend/.next/
+frontend/dist/
+frontend/.cache/
+frontend/.vite/
+frontend/package-lock.json
+frontend/pnpm-lock.yaml
+
+# Proxy build outputs
+proxy/build/
+backend/static/downloads/packages/proxy/
+backend/static/downloads/packages/gateway/
+
+# Claude
+.claude/
