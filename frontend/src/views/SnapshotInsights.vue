@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
   ArrowPathIcon,
@@ -17,6 +17,7 @@ import { useAppStore } from "@/stores/app";
 import { getApiErrorMessage } from "@/utils/errors";
 
 const route = useRoute();
+const router = useRouter();
 const { t, locale } = useI18n();
 const appStore = useAppStore();
 
@@ -172,6 +173,17 @@ async function search() {
   }
 }
 
+function openAIInsightsForSnapshot() {
+  router.push({
+    path: "/ai-insights/overview",
+    query: {
+      scope_type: "snapshot",
+      scope_id: snapshotId.value,
+      scope_name: snapshot.value?.name || snapshot.value?.version || snapshotId.value,
+    },
+  });
+}
+
 onMounted(fetchAll);
 onUnmounted(stopIndexPolling);
 </script>
@@ -201,6 +213,10 @@ onUnmounted(stopIndexPolling);
         <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50" :disabled="aiSummarizing || !indexJob" @click="generateAiSummary">
           <SparklesIcon class="h-4 w-4" />
           {{ t("snapshotInsights.generateAiSummary") }}
+        </button>
+        <button class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover" @click="openAIInsightsForSnapshot">
+          <DocumentMagnifyingGlassIcon class="h-4 w-4" />
+          AI Insights
         </button>
       </div>
     </div>

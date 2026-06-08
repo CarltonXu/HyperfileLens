@@ -11,9 +11,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterField(
+        # Step 1: Add new UUID column with temporary name
+        migrations.AddField(
             model_name="user",
-            name="id",
+            name="id_new",
             field=models.UUIDField(
                 default=uuid.uuid4,
                 editable=False,
@@ -22,6 +23,23 @@ class Migration(migrations.Migration):
                 serialize=False,
             ),
         ),
+        # Step 2: Copy data from old id to new id (via text conversion)
+        migrations.RunSQL(
+            sql="UPDATE accounts_user SET id_new = gen_random_uuid()",
+            reverse_sql="",
+        ),
+        # Step 3: Remove old id column
+        migrations.RemoveField(
+            model_name="user",
+            name="id",
+        ),
+        # Step 4: Rename new column back to id
+        migrations.RenameField(
+            model_name="user",
+            old_name="id_new",
+            new_name="id",
+        ),
+        # tenant_role change
         migrations.AlterField(
             model_name="user",
             name="tenant_role",

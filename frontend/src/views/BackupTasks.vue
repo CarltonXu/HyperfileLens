@@ -516,6 +516,21 @@ function openSelectedSnapshotInsights() {
   });
 }
 
+function openSelectedSnapshotAIInsights() {
+  if (!selectedSnapshot.value?.id) return;
+  router.push({
+    path: "/ai-insights/overview",
+    query: {
+      scope_type: "snapshot",
+      scope_id: selectedSnapshot.value.id,
+      scope_name:
+        selectedSnapshot.value.name ||
+        selectedSnapshot.value.version ||
+        selectedSnapshot.value.id,
+    },
+  });
+}
+
 function openRunInTaskManagement(run: any) {
   const taskId = run.management_task_id || run.proxy_task_id || run.id;
   if (!taskId) return;
@@ -905,6 +920,7 @@ onMounted(() => {
               @export-selected="exportSelectedSnapshotPaths"
               @index-snapshot="indexSelectedSnapshot"
               @view-insights="openSelectedSnapshotInsights"
+              @analyze-ai-insights="openSelectedSnapshotAIInsights"
             />
 
             <BackupTaskRunsTab

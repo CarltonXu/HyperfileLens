@@ -7,6 +7,7 @@ import json
 import queue
 import threading
 import time
+import uuid
 from datetime import timedelta
 from django.http import StreamingHttpResponse
 from django.db.models import Count, Q, Sum
@@ -102,6 +103,13 @@ def _request_scope(request):
 
 
 def _apply_snapshot_scope(queryset, scope_type, scope_id):
+    scoped_types = {'snapshot', 'repository', 'backup_task', 'task'}
+    if scope_type in scoped_types:
+        try:
+            uuid.UUID(str(scope_id))
+        except (TypeError, ValueError, AttributeError):
+            return queryset.none()
+
     if scope_type == 'snapshot' and scope_id:
         return queryset.filter(id=scope_id)
     if scope_type == 'repository' and scope_id:
@@ -848,6 +856,11 @@ def insights_overview(request):
     Returns comprehensive statistics about the backup data.
     """
     scope = _scope_filter_kwargs(request)
+    scoped_snapshots = _apply_snapshot_scope(
+        _tenant_snapshot_filter(request.user),
+        scope.get('scope_type'),
+        scope.get('scope_id'),
+    )
     files = _indexed_files_queryset(request)
     total_files = files.count()
     total_size_bytes = files.aggregate(total=Sum('size'))['total'] or 0

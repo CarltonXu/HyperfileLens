@@ -18,7 +18,6 @@ const Repository = () => import("@/views/Repository.vue");
 const SourceResources = () => import("@/views/SourceResources.vue");
 const Policies = () => import("@/views/Policies.vue");
 const AIInsights = () => import("@/views/AIInsights.vue");
-const InsightOverview = () => import("@/views/InsightOverview.vue");
 const AuditLog = () => import("@/views/AuditLog.vue");
 const EventLog = () => import("@/views/EventLog.vue");
 const SystemMonitor = () => import("@/views/SystemMonitor.vue");
@@ -184,8 +183,8 @@ const routes: RouteRecordRaw[] = [
           {
             path: "overview",
             name: "AIInsightsOverview",
-            component: InsightOverview,
-            meta: { title: "Insight Overview" },
+            component: AIInsights,
+            meta: { title: "Insight Overview", tab: "overview" },
           },
           {
             path: "",

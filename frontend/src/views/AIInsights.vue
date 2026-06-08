@@ -55,10 +55,9 @@ const scopeParams = computed(() => {
   if (!scopeType.value || scopeType.value === "tenant") {
     return { scope_type: "tenant" };
   }
-  return {
-    scope_type: scopeType.value,
-    scope_id: scopeId.value || "__unselected__",
-  };
+  return scopeId.value
+    ? { scope_type: scopeType.value, scope_id: scopeId.value }
+    : { scope_type: scopeType.value };
 });
 const scopeLabel = computed(() => {
   const name = scopeName.value || scopeId.value;
@@ -342,12 +341,12 @@ onMounted(() => {
       </div>
     </div>
 
-    <AIInsightScopeSelector />
-
     <!-- Content based on current route -->
     <div class="min-h-[500px]">
       <!-- Overview -->
       <div v-if="currentTab === 'overview'" class="space-y-6">
+        <AIInsightScopeSelector />
+
         <div
           v-if="isLoadingOverview"
           class="flex items-center justify-center py-12"

@@ -267,9 +267,10 @@ class Migration(migrations.Migration):
             name="error_message",
             field=models.TextField(blank=True, verbose_name="错误信息"),
         ),
-        migrations.AlterField(
+        # Convert id from bigint to UUID using proper PostgreSQL migration
+        migrations.AddField(
             model_name="auditlog",
-            name="id",
+            name="id_new",
             field=models.UUIDField(
                 default=uuid.uuid4,
                 editable=False,
@@ -277,6 +278,19 @@ class Migration(migrations.Migration):
                 serialize=False,
                 verbose_name="日志ID",
             ),
+        ),
+        migrations.RunSQL(
+            sql="UPDATE audit_logs SET id_new = gen_random_uuid()",
+            reverse_sql="",
+        ),
+        migrations.RemoveField(
+            model_name="auditlog",
+            name="id",
+        ),
+        migrations.RenameField(
+            model_name="auditlog",
+            old_name="id_new",
+            new_name="id",
         ),
         migrations.AlterField(
             model_name="auditlog",

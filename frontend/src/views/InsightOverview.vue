@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { computed, ref, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
   MagnifyingGlassIcon,
@@ -18,7 +18,9 @@ import {
   SparklesIcon,
 } from "@heroicons/vue/24/outline";
 import { aiInsightsApi } from "@/api";
+import AIInsightScopeSelector from "@/components/ai-insights/AIInsightScopeSelector.vue";
 
+const route = useRoute();
 const router = useRouter();
 const { t, locale } = useI18n();
 
@@ -27,6 +29,17 @@ const isLoading = ref(true);
 
 // Overview data
 const overviewData = ref<any>(null);
+
+const scopeType = computed(() => String(route.query.scope_type || "tenant"));
+const scopeId = computed(() => String(route.query.scope_id || ""));
+const scopeParams = computed(() => {
+  if (!scopeType.value || scopeType.value === "tenant") {
+    return { scope_type: "tenant" };
+  }
+  return scopeId.value
+    ? { scope_type: scopeType.value, scope_id: scopeId.value }
+    : { scope_type: scopeType.value };
+});
 
 // Quick access cards for AI Insights features
 const quickAccessCards = computed(() => [
@@ -130,14 +143,14 @@ const statsSummary = computed(() => [
 
 // Navigate to feature
 function navigateTo(path: string) {
-  router.push(path);
+  router.push({ path, query: { ...route.query } });
 }
 
 // Fetch overview data
 async function fetchOverview() {
   isLoading.value = true;
   try {
-    const response = await aiInsightsApi.overview();
+    const response = await aiInsightsApi.overview(scopeParams.value);
     overviewData.value = response.data;
   } catch (error) {
     console.error("Failed to fetch overview:", error);
@@ -164,6 +177,13 @@ async function fetchOverview() {
 onMounted(() => {
   fetchOverview();
 });
+
+watch(
+  () => [route.query.scope_type, route.query.scope_id],
+  () => {
+    fetchOverview();
+  },
+);
 </script>
 
 <template>
@@ -186,6 +206,8 @@ onMounted(() => {
         >
       </div>
     </div>
+
+    <AIInsightScopeSelector />
 
     <!-- Stats Summary -->
     <div v-if="isLoading" class="flex items-center justify-center py-12">

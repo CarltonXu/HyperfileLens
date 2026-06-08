@@ -47,6 +47,7 @@ const emit = defineEmits<{
   exportSelected: [];
   indexSnapshot: [];
   viewInsights: [];
+  analyzeAiInsights: [];
 }>();
 
 const { t } = useI18n();
@@ -97,6 +98,13 @@ const vIndeterminate = {
           @click="emit('viewInsights')"
         >
           {{ t("snapshotInsights.viewInsights") }}
+        </button>
+        <button
+          type="button"
+          class="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-hover"
+          @click="emit('analyzeAiInsights')"
+        >
+          AI Insights
         </button>
       </div>
     </div>

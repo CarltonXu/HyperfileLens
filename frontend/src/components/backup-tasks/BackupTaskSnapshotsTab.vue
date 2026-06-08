@@ -64,6 +64,7 @@ defineEmits<{
   exportSelected: [];
   indexSnapshot: [];
   viewInsights: [];
+  analyzeAiInsights: [];
 }>();
 
 const { t } = useI18n();
@@ -177,6 +178,7 @@ const { t } = useI18n();
           @export-selected="$emit('exportSelected')"
           @index-snapshot="$emit('indexSnapshot')"
           @view-insights="$emit('viewInsights')"
+          @analyze-ai-insights="$emit('analyzeAiInsights')"
         />
       </div>
     </template>

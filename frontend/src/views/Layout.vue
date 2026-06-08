@@ -131,6 +131,21 @@ interface NavigationGroup {
   aiInsightsCategories?: AIInsightsCategory[];
 }
 
+function currentAIInsightQuery() {
+  const query: Record<string, string> = {};
+  for (const key of ["scope_type", "scope_id", "scope_name"]) {
+    const value = route.query[key];
+    if (typeof value === "string" && value) {
+      query[key] = value;
+    }
+  }
+  return query;
+}
+
+function aiInsightTo(path: string) {
+  return { path, query: currentAIInsightQuery() };
+}
+
 // 欢迎弹窗
 const showWelcome = ref(false);
 const welcomeVisible = ref(false);
@@ -1079,9 +1094,9 @@ watch(
                     v-for="subItem in item.subItems"
                     :key="subItem.path"
                     class="relative group/subitem"
-                  >
+                    >
                     <router-link
-                      :to="subItem.path"
+                      :to="aiInsightTo(subItem.path)"
                       :data-tour="getNavTourTarget(subItem.path)"
                       :class="[
                         'group flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors pr-8',
@@ -1329,7 +1344,7 @@ watch(
                     class="relative group/popup-subitem"
                   >
                     <router-link
-                      :to="subItem.path"
+                      :to="aiInsightTo(subItem.path)"
                       @click="hideGroupPopup"
                       :class="[
                         'group flex items-center gap-2 px-3 py-1.5 pr-8 text-sm transition-colors',
