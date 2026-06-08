@@ -83,7 +83,6 @@ PROJECT_APPS = [
     'repository',
     'policies',
     'alerts',       # 告警管理
-    'checkpoints',   # 断点续传检查点
     'ai_query',
     'insights',
     'audit_log',
