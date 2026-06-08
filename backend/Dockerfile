@@ -56,6 +56,10 @@ RUN if [ -d "/app/gateway" ]; then \
     ./build.sh; \
     fi
 
+# Runtime commands in docker-compose expect manage.py and core.* to be
+# importable from the Django project directory.
+WORKDIR /app/backend
+
 # Expose port
 EXPOSE 8000
 
