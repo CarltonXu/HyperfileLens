@@ -39,16 +39,13 @@ RUN pip install --no-cache-dir --timeout 120 --retries 5 \
 # Copy project (context is repo root, so backend/* goes to /app/backend/*)
 COPY . .
 
-# Create symlink so backend/static points to /app/static (for downloads)
-RUN if [ -d "/app/backend/static" ] && [ ! -L "/app/backend/static/downloads" ]; then \
-    ln -s /app/static /app/backend/static; \
-    fi
-
 # Create directories for static, media and logs
 RUN mkdir -p /app/static /app/staticfiles /app/media /app/logs
 
 # Build proxy binaries if source exists
+# First create the target directory structure that build.sh expects
 RUN if [ -d "/app/proxy" ]; then \
+    mkdir -p /app/backend/static/downloads/packages/proxy /app/backend/static/downloads/packages/gateway && \
     cd /app/proxy && \
     ./build.sh all; \
     fi
