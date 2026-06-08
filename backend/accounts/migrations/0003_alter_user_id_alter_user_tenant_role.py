@@ -20,7 +20,6 @@ class Migration(migrations.Migration):
             ALTER TABLE accounts_user DROP COLUMN id;
             -- Add new UUID column as primary key
             ALTER TABLE accounts_user ADD COLUMN id uuid DEFAULT gen_random_uuid() PRIMARY KEY;
-            -- Recreate foreign key constraints (Django will handle these via subsequent migrations/orm)
             """,
             reverse_sql="""
             -- This migration is not reversible for fresh databases
@@ -36,5 +35,18 @@ class Migration(migrations.Migration):
                 help_text="Role within the tenant",
                 max_length=20,
             ),
+        ),
+        # Also handle the django_admin_log foreign key that references auth.User (which is accounts.User)
+        migrations.RunSQL(
+            sql="""
+            -- Drop the incompatible foreign key from django_admin_log
+            ALTER TABLE django_admin_log DROP CONSTRAINT IF EXISTS django_admin_log_user_id_c564eba6_fk_accounts_user_id;
+            -- Change the user_id column type to uuid
+            ALTER TABLE django_admin_log ALTER COLUMN user_id TYPE uuid USING user_id::uuid;
+            -- Re-add the foreign key constraint (Django will recreate it)
+            """,
+            reverse_sql="""
+            SELECT 1;
+            """,
         ),
     ]
