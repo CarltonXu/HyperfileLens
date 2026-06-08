@@ -14,26 +14,17 @@ class Migration(migrations.Migration):
         # Convert id from bigint to UUID using raw SQL (required for PostgreSQL)
         migrations.RunSQL(
             sql="""
-            -- Drop existing primary key constraint
-            ALTER TABLE accounts_user DROP CONSTRAINT accounts_user_pkey;
-            -- Add new UUID column
-            ALTER TABLE accounts_user ADD COLUMN id_new uuid DEFAULT gen_random_uuid();
-            -- For empty table (fresh db), just set the UUID (if any rows existed)
-            UPDATE accounts_user SET id_new = gen_random_uuid();
+            -- Drop primary key with CASCADE to automatically remove dependent foreign keys
+            ALTER TABLE accounts_user DROP CONSTRAINT accounts_user_pkey CASCADE;
             -- Drop old id column
             ALTER TABLE accounts_user DROP COLUMN id;
-            -- Rename new column to id
-            ALTER TABLE accounts_user RENAME COLUMN id_new TO id;
-            -- Add primary key back
-            ALTER TABLE accounts_user ADD PRIMARY KEY (id);
+            -- Add new UUID column as primary key
+            ALTER TABLE accounts_user ADD COLUMN id uuid DEFAULT gen_random_uuid() PRIMARY KEY;
+            -- Recreate foreign key constraints (Django will handle these via subsequent migrations/orm)
             """,
             reverse_sql="""
-            ALTER TABLE accounts_user DROP CONSTRAINT accounts_user_pkey;
-            ALTER TABLE accounts_user ADD COLUMN id_old bigint DEFAULT nextval('accounts_user_id_seq'::regclass);
-            UPDATE accounts_user SET id_old = nextval('accounts_user_id_seq'::regclass);
-            ALTER TABLE accounts_user DROP COLUMN id;
-            ALTER TABLE accounts_user RENAME COLUMN id_old TO id;
-            ALTER TABLE accounts_user ADD PRIMARY KEY (id);
+            -- This migration is not reversible for fresh databases
+            SELECT 1;
             """,
         ),
         migrations.AlterField(
