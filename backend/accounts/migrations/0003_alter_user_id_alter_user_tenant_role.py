@@ -11,35 +11,31 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Step 1: Add new UUID column with temporary name
-        migrations.AddField(
-            model_name="user",
-            name="id_new",
-            field=models.UUIDField(
-                default=uuid.uuid4,
-                editable=False,
-                help_text="Unique identifier (UUID4 format)",
-                primary_key=True,
-                serialize=False,
-            ),
-        ),
-        # Step 2: Copy data from old id to new id (via text conversion)
+        # Convert id from bigint to UUID using raw SQL (required for PostgreSQL)
         migrations.RunSQL(
-            sql="UPDATE accounts_user SET id_new = gen_random_uuid()",
-            reverse_sql="",
+            sql="""
+            -- Drop existing primary key constraint
+            ALTER TABLE accounts_user DROP CONSTRAINT accounts_user_pkey;
+            -- Add new UUID column
+            ALTER TABLE accounts_user ADD COLUMN id_new uuid DEFAULT gen_random_uuid();
+            -- For empty table (fresh db), just set the UUID (if any rows existed)
+            UPDATE accounts_user SET id_new = gen_random_uuid();
+            -- Drop old id column
+            ALTER TABLE accounts_user DROP COLUMN id;
+            -- Rename new column to id
+            ALTER TABLE accounts_user RENAME COLUMN id_new TO id;
+            -- Add primary key back
+            ALTER TABLE accounts_user ADD PRIMARY KEY (id);
+            """,
+            reverse_sql="""
+            ALTER TABLE accounts_user DROP CONSTRAINT accounts_user_pkey;
+            ALTER TABLE accounts_user ADD COLUMN id_old bigint DEFAULT nextval('accounts_user_id_seq'::regclass);
+            UPDATE accounts_user SET id_old = nextval('accounts_user_id_seq'::regclass);
+            ALTER TABLE accounts_user DROP COLUMN id;
+            ALTER TABLE accounts_user RENAME COLUMN id_old TO id;
+            ALTER TABLE accounts_user ADD PRIMARY KEY (id);
+            """,
         ),
-        # Step 3: Remove old id column
-        migrations.RemoveField(
-            model_name="user",
-            name="id",
-        ),
-        # Step 4: Rename new column back to id
-        migrations.RenameField(
-            model_name="user",
-            old_name="id_new",
-            new_name="id",
-        ),
-        # tenant_role change
         migrations.AlterField(
             model_name="user",
             name="tenant_role",

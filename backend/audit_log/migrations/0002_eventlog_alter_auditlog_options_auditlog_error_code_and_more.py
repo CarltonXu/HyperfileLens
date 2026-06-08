@@ -267,30 +267,24 @@ class Migration(migrations.Migration):
             name="error_message",
             field=models.TextField(blank=True, verbose_name="错误信息"),
         ),
-        # Convert id from bigint to UUID using proper PostgreSQL migration
-        migrations.AddField(
-            model_name="auditlog",
-            name="id_new",
-            field=models.UUIDField(
-                default=uuid.uuid4,
-                editable=False,
-                primary_key=True,
-                serialize=False,
-                verbose_name="日志ID",
-            ),
-        ),
+        # Convert id from bigint to UUID using raw SQL (required for PostgreSQL)
         migrations.RunSQL(
-            sql="UPDATE audit_logs SET id_new = gen_random_uuid()",
-            reverse_sql="",
-        ),
-        migrations.RemoveField(
-            model_name="auditlog",
-            name="id",
-        ),
-        migrations.RenameField(
-            model_name="auditlog",
-            old_name="id_new",
-            new_name="id",
+            sql="""
+            ALTER TABLE audit_logs DROP CONSTRAINT audit_logs_pkey;
+            ALTER TABLE audit_logs ADD COLUMN id_new uuid DEFAULT gen_random_uuid();
+            UPDATE audit_logs SET id_new = gen_random_uuid();
+            ALTER TABLE audit_logs DROP COLUMN id;
+            ALTER TABLE audit_logs RENAME COLUMN id_new TO id;
+            ALTER TABLE audit_logs ADD PRIMARY KEY (id);
+            """,
+            reverse_sql="""
+            ALTER TABLE audit_logs DROP CONSTRAINT audit_logs_pkey;
+            ALTER TABLE audit_logs ADD COLUMN id_old bigint DEFAULT nextval('audit_logs_id_seq'::regclass);
+            UPDATE audit_logs SET id_old = nextval('audit_logs_id_seq'::regclass);
+            ALTER TABLE audit_logs DROP COLUMN id;
+            ALTER TABLE audit_logs RENAME COLUMN id_old TO id;
+            ALTER TABLE audit_logs ADD PRIMARY KEY (id);
+            """,
         ),
         migrations.AlterField(
             model_name="auditlog",
