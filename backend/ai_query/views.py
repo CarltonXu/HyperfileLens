@@ -17,6 +17,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.renderers import JSONRenderer
 
 from .models import AIProvider, AIQuery
 from .serializers import AIProviderSerializer, AIQuerySerializer, AIQueryCreateSerializer
@@ -28,6 +29,11 @@ from .services import (
     prepare_query_context,
     run_ai_query_direct,
 )
+
+
+class EventStreamRenderer(JSONRenderer):
+    media_type = 'text/event-stream'
+    format = 'event-stream'
 
 
 def _chat_completions_url(base_url):
@@ -199,6 +205,7 @@ class AIQueryViewSet(viewsets.ModelViewSet):
     """ViewSet for managing AI queries."""
     queryset = AIQuery.objects.all()
     permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer, EventStreamRenderer]
     
     def get_serializer_class(self):
         if self.action == 'create':
