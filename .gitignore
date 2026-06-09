@@ -168,6 +168,8 @@ backend/static/downloads/packages/**
 !backend/static/downloads/packages/proxy/.gitkeep
 !backend/static/downloads/packages/gateway/
 !backend/static/downloads/packages/gateway/.gitkeep
+!backend/static/downloads/packages/kopia/
+!backend/static/downloads/packages/kopia/*
 
 # Coverage
 htmlcov/

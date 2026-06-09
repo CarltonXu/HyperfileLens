@@ -41,6 +41,7 @@ SERVER_URL=""
 INSTALL_TOKEN=""
 NAME=""
 SKIP_KOPIA=false
+KOPIA_PATH="kopia"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -143,19 +144,19 @@ detect_os() {
 get_system_info() {
     # Get hostname
     HOSTNAME=$(hostname)
-    
+
     # Get internal IP
     INTERNAL_IP=$(hostname -I | awk '{print $1}')
-    
+
     # Get CPU cores
     CPU_CORES=$(nproc 2>/dev/null || echo "1")
-    
+
     # Get total memory in bytes
     MEMORY_TOTAL=$(awk '/MemTotal/ {print $2*1024}' /proc/meminfo 2>/dev/null || echo "0")
-    
+
     # Get total disk space in bytes (root partition)
     DISK_TOTAL=$(df -B1 / | awk 'NR==2 {print $2}' 2>/dev/null || echo "0")
-    
+
     log_info "System: $CPU_CORES cores, $((MEMORY_TOTAL/1024/1024))MB RAM, $((DISK_TOTAL/1024/1024/1024))GB disk"
 }
 
@@ -173,7 +174,8 @@ install_kopia() {
     fi
     
     if command -v kopia &> /dev/null; then
-        KOPIA_VERSION=$(kopia --version 2>/dev/null || echo "unknown")
+        KOPIA_PATH=$(command -v kopia)
+        KOPIA_VERSION=$("$KOPIA_PATH" --version 2>/dev/null || echo "unknown")
         log_info "Kopia already installed: $KOPIA_VERSION"
         return
     fi
@@ -188,32 +190,34 @@ install_kopia() {
         *) log_warn "Unsupported architecture for Kopia: $KOPIA_ARCH"; return ;;
     esac
     
-    # Use Hyperfileslen server for direct download
+    # Use HyperFileLens control server for offline/internal deployments.
     KOPIA_VERSION="0.22.3"
     KOPIA_DEB="kopia_${KOPIA_VERSION}_linux_${KOPIA_ARCH}.deb"
     KOPIA_URL="${SERVER_URL}/downloads/packages/kopia/${KOPIA_DEB}"
     
     case $OS in
         ubuntu|debian)
-            log_info "Downloading Kopia from Hyperfileslen server ..."
+            log_info "Downloading Kopia from HyperFileLens control server..."
             if curl -sSL --fail "$KOPIA_URL" -o /tmp/$KOPIA_DEB; then
                 dpkg -i /tmp/$KOPIA_DEB || apt-get install -f -y
                 rm -f /tmp/$KOPIA_DEB
             else
-                log_warn "Failed to download Kopia from Hyperfileslen server, trying apt..."
+                log_warn "Failed to download Kopia from control server: $KOPIA_URL"
+                log_warn "Trying apt fallback..."
                 # Fallback to apt if available
                 apt-get update && apt-get install -y kopia 2>/dev/null || log_warn "Please install Kopia manually"
             fi
             ;;
         centos|rhel|rocky|almalinux)
-            log_info "Downloading Kopia RPM from Hyperfileslen server ..."
+            log_info "Downloading Kopia RPM from HyperFileLens control server..."
             KOPIA_RPM="kopia-${KOPIA_VERSION}.x86_64.rpm"
             KOPIA_RPM_URL="${SERVER_URL}/downloads/packages/kopia/${KOPIA_RPM}"
             if curl -sSL --fail "$KOPIA_RPM_URL" -o /tmp/$KOPIA_RPM; then
                 yum localinstall -y /tmp/$KOPIA_RPM || rpm -i /tmp/$KOPIA_RPM
                 rm -f /tmp/$KOPIA_RPM
             else
-                log_warn "Failed to download Kopia from Hyperfileslen server, please install manually"
+                log_warn "Failed to download Kopia from control server: $KOPIA_RPM_URL"
+                log_warn "Please install Kopia manually"
             fi
             ;;
         *)
@@ -222,8 +226,10 @@ install_kopia() {
     esac
     
     if command -v kopia &> /dev/null; then
-        log_success "Kopia installed: $(kopia --version)"
+        KOPIA_PATH=$(command -v kopia)
+        log_success "Kopia installed: $("$KOPIA_PATH" --version)"
     else
+        KOPIA_PATH="kopia"
         log_warn "Kopia installation failed. Proxy will still work but backup features may be limited."
     fi
 }
@@ -248,9 +254,9 @@ download_proxy() {
     BINARY_NAME="hyperfilelens-proxy-${OS_TYPE}-${ARCH}"
     PACKAGE_URL="${SERVER_URL}/downloads/packages/proxy/${BINARY_NAME}.tar.gz"
     LEGACY_DOWNLOAD_URL="${SERVER_URL}/downloads/packages/proxy/${BINARY_NAME}"
-    
+
     log_info "Downloading from: $PACKAGE_URL"
-    
+
     TMP_DIR="$(mktemp -d)"
     if curl -sSL --fail "$PACKAGE_URL" | tar xz -C "$TMP_DIR"; then
         if [[ -f "$TMP_DIR/hyperfilelens-proxy" ]]; then
@@ -281,7 +287,8 @@ register_proxy() {
     # Get Kopia version if installed
     KOPIA_VERSION=""
     if command -v kopia &> /dev/null; then
-        KOPIA_VERSION=$(kopia --version 2>/dev/null | head -1 || echo "")
+        KOPIA_PATH=$(command -v kopia)
+        KOPIA_VERSION=$("$KOPIA_PATH" --version 2>/dev/null | head -1 || echo "")
     fi
     
     # Build registration payload
@@ -382,7 +389,7 @@ agent:
   hostname: "${HOSTNAME}"
 
 kopia:
-  path: "/usr/bin/kopia"
+  path: "${KOPIA_PATH}"
   cache_path: "/var/lib/hyperfilelens/cache"
 
 mount:
