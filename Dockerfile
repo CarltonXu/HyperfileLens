@@ -6,6 +6,8 @@
 
 FROM python:3.11-slim
 
+FROM python:3.11-slim-bookworm
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -14,20 +16,27 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Use faster Debian mirror
+RUN sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|http://security.debian.org|https://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gcc \
     libpq-dev \
     netcat-openbsd \
     postgresql-client \
-    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+RUN pip install --no-cache-dir \
+    -i https://mirrors.aliyun.com/pypi/simple/ \
+    --trusted-host mirrors.aliyun.com \
+    -r requirements.txt
 
 COPY backend/ .
 COPY docker/entrypoint.sh /app/entrypoint.sh
+
 RUN chmod +x /app/entrypoint.sh \
     && mkdir -p /app/static /app/staticfiles /app/media /app/logs
 
