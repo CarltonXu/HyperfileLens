@@ -85,6 +85,25 @@ HFL_ADMIN_EMAIL=admin@example.com
 HFL_ADMIN_PASSWORD=替换为强管理员密码
 ```
 
+如果部署服务器不能访问 GitHub，可以提前把 Kopia 安装包放到：
+
+```text
+local-packages/kopia/
+```
+
+需要的文件名：
+
+```text
+kopia_0.22.3_linux_amd64.deb
+kopia-0.22.3-linux-x64.tar.gz
+kopia-0.22.3-macOS-arm64.tar.gz
+kopia-0.22.3-macOS-x64.tar.gz
+kopia-0.22.3-windows-x64.zip
+kopia-0.22.3.x86_64.rpm
+```
+
+`control-init` 会优先复制本地包，缺失时再从 `KOPIA_DOWNLOAD_BASE_URL` 下载。
+
 ### 3. 启动平台
 
 ```bash

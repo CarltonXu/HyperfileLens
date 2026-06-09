@@ -84,6 +84,25 @@ HFL_ADMIN_EMAIL=admin@example.com
 HFL_ADMIN_PASSWORD=replace-with-a-strong-admin-password
 ```
 
+If the deployment host cannot reach GitHub, place Kopia packages in:
+
+```text
+local-packages/kopia/
+```
+
+Required filenames:
+
+```text
+kopia_0.22.3_linux_amd64.deb
+kopia-0.22.3-linux-x64.tar.gz
+kopia-0.22.3-macOS-arm64.tar.gz
+kopia-0.22.3-macOS-x64.tar.gz
+kopia-0.22.3-windows-x64.zip
+kopia-0.22.3.x86_64.rpm
+```
+
+`control-init` uses local packages first and downloads missing files from `KOPIA_DOWNLOAD_BASE_URL`.
+
 ### 3. Start the platform
 
 ```bash

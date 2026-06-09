@@ -5,6 +5,7 @@ set -euo pipefail
 KOPIA_VERSION="${KOPIA_VERSION:-0.22.3}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="${KOPIA_OUTPUT_DIR:-${ROOT_DIR}/backend/static/downloads/packages/kopia}"
+LOCAL_PACKAGE_DIR="${KOPIA_LOCAL_PACKAGE_DIR:-${ROOT_DIR}/local-packages/kopia}"
 BASE_URL="${KOPIA_DOWNLOAD_BASE_URL:-https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}}"
 DOWNLOAD_TIMEOUT="${KOPIA_DOWNLOAD_TIMEOUT:-120}"
 
@@ -20,6 +21,12 @@ download() {
     return
   fi
 
+  if [[ -s "${LOCAL_PACKAGE_DIR}/${filename}" ]]; then
+    echo "Using local Kopia package: ${LOCAL_PACKAGE_DIR}/${filename}"
+    cp "${LOCAL_PACKAGE_DIR}/${filename}" "$target"
+    return
+  fi
+
   echo "Downloading Kopia package: $url"
   if ! curl -fL \
     --retry 2 \
@@ -31,7 +38,7 @@ download() {
     "$url"; then
     rm -f "${target}.tmp"
     echo "Failed to download Kopia package: $url" >&2
-    echo "Set KOPIA_DOWNLOAD_BASE_URL to an internal mirror, or pre-place the package at: $target" >&2
+    echo "Set KOPIA_DOWNLOAD_BASE_URL to an internal mirror, or place the package at: ${LOCAL_PACKAGE_DIR}/${filename}" >&2
     exit 1
   fi
   mv "${target}.tmp" "$target"

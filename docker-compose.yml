@@ -70,10 +70,12 @@ services:
       KOPIA_VERSION: ${KOPIA_VERSION:-0.22.3}
       KOPIA_DOWNLOAD_BASE_URL: ${KOPIA_DOWNLOAD_BASE_URL:-https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION:-0.22.3}}
       KOPIA_DOWNLOAD_TIMEOUT: ${KOPIA_DOWNLOAD_TIMEOUT:-120}
+      KOPIA_LOCAL_PACKAGE_DIR: ${KOPIA_LOCAL_PACKAGE_DIR:-/app/local-packages/kopia}
     volumes:
       - backend_static:/app/staticfiles
       - backend_media:/app/media
       - backend_logs:/app/logs
+      - ./local-packages:/app/local-packages:ro
     depends_on:
       postgres:
         condition: service_healthy

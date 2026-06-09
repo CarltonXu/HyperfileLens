@@ -52,6 +52,24 @@ The production Nginx config serves that directory as:
 /downloads/ -> STATIC_ROOT/downloads/
 ```
 
+## Kopia Packages
+
+Kopia packages are not stored in Git or baked into backend images. During
+`control-init`, `scripts/download-kopia-packages.sh` publishes them into:
+
+```text
+STATIC_ROOT/downloads/packages/kopia/
+```
+
+For offline or slow-network deployments, place the packages in:
+
+```text
+local-packages/kopia/
+```
+
+The script uses local files first and downloads missing files from
+`KOPIA_DOWNLOAD_BASE_URL`.
+
 ## Uninstall
 
 Use the common uninstaller:

@@ -173,6 +173,13 @@ backend/static/downloads/packages/gateway/*
 backend/static/downloads/packages/kopia/*
 !backend/static/downloads/packages/kopia/.gitkeep
 
+# Local third-party packages for offline/private deployments.
+local-packages/*
+!local-packages/.gitkeep
+!local-packages/kopia/
+local-packages/kopia/*
+!local-packages/kopia/.gitkeep
+
 # Coverage
 htmlcov/
 coverage.xml
