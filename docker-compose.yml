@@ -39,8 +39,6 @@ services:
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
         PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
-        KOPIA_VERSION: ${KOPIA_VERSION:-0.22.3}
-        KOPIA_DOWNLOAD_BASE_URL: ${KOPIA_DOWNLOAD_BASE_URL:-https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION:-0.22.3}}
     container_name: hyperfilelens-control-init
     restart: "no"
     environment:
@@ -69,6 +67,8 @@ services:
       HFL_ADMIN_PASSWORD: ${HFL_ADMIN_PASSWORD:-}
       HFL_ADMIN_FIRST_NAME: ${HFL_ADMIN_FIRST_NAME:-System}
       HFL_ADMIN_LAST_NAME: ${HFL_ADMIN_LAST_NAME:-Administrator}
+      KOPIA_VERSION: ${KOPIA_VERSION:-0.22.3}
+      KOPIA_DOWNLOAD_BASE_URL: ${KOPIA_DOWNLOAD_BASE_URL:-https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION:-0.22.3}}
     volumes:
       - backend_static:/app/staticfiles
       - backend_media:/app/media
@@ -82,6 +82,7 @@ services:
       sh -c "python manage.py migrate &&
              python manage.py ensure_initial_superuser &&
              python manage.py collectstatic --noinput &&
+             KOPIA_OUTPUT_DIR=/app/staticfiles/downloads/packages/kopia /app/scripts/download-kopia-packages.sh &&
              python manage.py ensure_install_packages &&
              python manage.py register_periodic_tasks &&
              python manage.py verify_licenses"
@@ -93,8 +94,6 @@ services:
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
         PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
-        KOPIA_VERSION: ${KOPIA_VERSION:-0.22.3}
-        KOPIA_DOWNLOAD_BASE_URL: ${KOPIA_DOWNLOAD_BASE_URL:-https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION:-0.22.3}}
     container_name: hyperfilelens-control
     restart: unless-stopped
     environment:
@@ -141,8 +140,6 @@ services:
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
         PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
-        KOPIA_VERSION: ${KOPIA_VERSION:-0.22.3}
-        KOPIA_DOWNLOAD_BASE_URL: ${KOPIA_DOWNLOAD_BASE_URL:-https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION:-0.22.3}}
     container_name: hyperfilelens-celery-worker
     restart: unless-stopped
     environment:
@@ -172,8 +169,6 @@ services:
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
         PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
-        KOPIA_VERSION: ${KOPIA_VERSION:-0.22.3}
-        KOPIA_DOWNLOAD_BASE_URL: ${KOPIA_DOWNLOAD_BASE_URL:-https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION:-0.22.3}}
     container_name: hyperfilelens-celery-beat
     restart: unless-stopped
     environment:
