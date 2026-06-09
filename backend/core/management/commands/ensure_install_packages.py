@@ -6,12 +6,18 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 
-REQUIRED_PACKAGES = [
-    "packages/kopia/kopia_0.22.3_linux_amd64.deb",
-    "packages/kopia/kopia-0.22.3.x86_64.rpm",
-    "packages/proxy/hyperfilelens-proxy-linux-amd64.tar.gz",
-    "packages/gateway/hyperfilelens-gateway-linux-amd64.tar.gz",
-]
+def required_packages():
+    kopia_version = getattr(settings, "KOPIA_PACKAGE_VERSION", "0.22.3")
+    return [
+        f"packages/kopia/kopia_{kopia_version}_linux_amd64.deb",
+        f"packages/kopia/kopia-{kopia_version}-linux-x64.tar.gz",
+        f"packages/kopia/kopia-{kopia_version}-macOS-arm64.tar.gz",
+        f"packages/kopia/kopia-{kopia_version}-macOS-x64.tar.gz",
+        f"packages/kopia/kopia-{kopia_version}-windows-x64.zip",
+        f"packages/kopia/kopia-{kopia_version}.x86_64.rpm",
+        "packages/proxy/hyperfilelens-proxy-linux-amd64.tar.gz",
+        "packages/gateway/hyperfilelens-gateway-linux-amd64.tar.gz",
+    ]
 
 
 class Command(BaseCommand):
@@ -21,7 +27,7 @@ class Command(BaseCommand):
         downloads_root = Path(settings.STATIC_ROOT) / "downloads"
         missing = [
             str(downloads_root / package)
-            for package in REQUIRED_PACKAGES
+            for package in required_packages()
             if not (downloads_root / package).is_file()
         ]
 

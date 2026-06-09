@@ -27,6 +27,11 @@ Nginx should expose these paths:
 /downloads/packages/gateway/hyperfilelens-gateway-linux-amd64.tar.gz
 /downloads/packages/gateway/hyperfilelens-gateway-linux-arm64.tar.gz
 /downloads/packages/kopia/kopia_0.22.3_linux_amd64.deb
+/downloads/packages/kopia/kopia-0.22.3-linux-x64.tar.gz
+/downloads/packages/kopia/kopia-0.22.3-macOS-arm64.tar.gz
+/downloads/packages/kopia/kopia-0.22.3-macOS-x64.tar.gz
+/downloads/packages/kopia/kopia-0.22.3-windows-x64.zip
+/downloads/packages/kopia/kopia-0.22.3.x86_64.rpm
 ```
 
 The source directory in this repository is:

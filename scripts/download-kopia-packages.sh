@@ -6,6 +6,7 @@ KOPIA_VERSION="${KOPIA_VERSION:-0.22.3}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="${KOPIA_OUTPUT_DIR:-${ROOT_DIR}/backend/static/downloads/packages/kopia}"
 BASE_URL="${KOPIA_DOWNLOAD_BASE_URL:-https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}}"
+DOWNLOAD_TIMEOUT="${KOPIA_DOWNLOAD_TIMEOUT:-120}"
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -20,11 +21,27 @@ download() {
   fi
 
   echo "Downloading Kopia package: $url"
-  curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 -o "${target}.tmp" "$url"
+  if ! curl -fL \
+    --retry 2 \
+    --retry-delay 2 \
+    --retry-all-errors \
+    --connect-timeout 15 \
+    --max-time "$DOWNLOAD_TIMEOUT" \
+    -o "${target}.tmp" \
+    "$url"; then
+    rm -f "${target}.tmp"
+    echo "Failed to download Kopia package: $url" >&2
+    echo "Set KOPIA_DOWNLOAD_BASE_URL to an internal mirror, or pre-place the package at: $target" >&2
+    exit 1
+  fi
   mv "${target}.tmp" "$target"
 }
 
 download "kopia_${KOPIA_VERSION}_linux_amd64.deb"
+download "kopia-${KOPIA_VERSION}-linux-x64.tar.gz"
+download "kopia-${KOPIA_VERSION}-macOS-arm64.tar.gz"
+download "kopia-${KOPIA_VERSION}-macOS-x64.tar.gz"
+download "kopia-${KOPIA_VERSION}-windows-x64.zip"
 download "kopia-${KOPIA_VERSION}.x86_64.rpm"
 
 echo "Kopia packages ready in: $OUTPUT_DIR"

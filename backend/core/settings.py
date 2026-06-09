@@ -350,6 +350,7 @@ SPECTACULAR_SETTINGS = {
 # Kopia Configuration
 KOPIA_PATH = os.environ.get('KOPIA_PATH', '/usr/local/bin/kopia')
 KOPIA_REPOSITORY_PATH = os.environ.get('KOPIA_REPOSITORY_PATH', '/data/repository')
+KOPIA_PACKAGE_VERSION = os.environ.get('KOPIA_VERSION', '0.22.3')
 
 # License Configuration
 # Use LICENSE_PUBLIC_KEY for the current production Ed25519 public key.
