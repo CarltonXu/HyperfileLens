@@ -422,13 +422,13 @@ onMounted(() => {
                   v-model="captcha"
                   type="text"
                   maxlength="6"
-                  class="h-12 w-full pl-9 pr-3 text-base bg-background-secondary border border-border rounded-lg text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 uppercase tracking-wider text-center"
+                  class="h-10 w-full pl-9 pr-3 text-sm bg-background-secondary border border-border rounded-lg text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 uppercase tracking-wider text-center"
                   :placeholder="t('auth.captchaPlaceholder')"
                   required
                 />
               </div>
               <div
-                class="relative h-12 w-36 rounded-lg border border-border bg-white cursor-pointer overflow-hidden hover:border-purple-500/50 transition-colors dark:bg-slate-100"
+                class="relative h-10 w-28 rounded-lg border border-border bg-white cursor-pointer overflow-hidden hover:border-purple-500/50 transition-colors dark:bg-slate-100"
                 @click="refreshCaptcha"
                 :title="t('auth.refreshCaptcha')"
               >
