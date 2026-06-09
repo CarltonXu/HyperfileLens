@@ -88,17 +88,17 @@ class ProxyNode(models.Model):
         help_text='Operating system of the proxy'
     )
     os_version = models.CharField(
-        max_length=100,
+        max_length=255,
         blank=True,
         help_text='OS version details'
     )
     version = models.CharField(
-        max_length=50,
+        max_length=255,
         blank=True,
         help_text='Proxy software version'
     )
     kopia_version = models.CharField(
-        max_length=50,
+        max_length=255,
         blank=True,
         help_text='Kopia version installed on proxy'
     )

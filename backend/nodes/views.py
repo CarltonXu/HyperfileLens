@@ -1246,7 +1246,7 @@ logging:
         # Update proxy with registration info
         proxy.hostname = data.get('hostname', '')
         proxy.internal_ip = data.get('internal_ip', '')
-        proxy.os_type = data.get('os', '')
+        proxy.operating_system = data.get('os', '')
         proxy.os_version = data.get('os_version', '')
         proxy.version = data.get('version', '')
         proxy.kopia_version = data.get('kopia_version', '')
@@ -1257,7 +1257,27 @@ logging:
             proxy.capabilities = data['capabilities']
         proxy.status = ProxyNode.NodeStatus.ONLINE
         proxy.install_token_used = True  # Mark install token as used
-        proxy.save()
+        if not proxy.registered_at:
+            proxy.registered_at = timezone.now()
+        if not proxy.installed_at:
+            proxy.installed_at = timezone.now()
+        proxy.save(update_fields=[
+            'hostname',
+            'internal_ip',
+            'operating_system',
+            'os_version',
+            'version',
+            'kopia_version',
+            'cpu_cores',
+            'memory_total',
+            'disk_total',
+            'capabilities',
+            'status',
+            'install_token_used',
+            'registered_at',
+            'installed_at',
+            'updated_at',
+        ])
         
         return Response({
             'proxy_id': str(proxy.id),
