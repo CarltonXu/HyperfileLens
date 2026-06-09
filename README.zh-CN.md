@@ -67,7 +67,7 @@ HyperFileLens 是一个面向备份和归档数据的 AI 数据保护与文件�
 ```bash
 git clone <your-repository-url> HyperFileLens
 cd HyperFileLens
-cp env.sample .env
+cp env.prod.sample .env
 ```
 
 编辑 `.env`，至少修改：
@@ -88,7 +88,7 @@ HFL_ADMIN_PASSWORD=替换为强管理员密码
 ### 3. 启动平台
 
 ```bash
-docker compose up -d --build
+./scripts/deploy.sh
 ```
 
 默认启动：
@@ -101,7 +101,8 @@ docker compose up -d --build
 - Frontend 静态服务，自动把 `/api/*` 代理到后端
 
 `control-init` 会自动创建初始超级管理员。
-如果没有配置 `HFL_ADMIN_PASSWORD`，系统会生成随机密码，并只在 `control-init` 日志中输出一次：
+部署脚本会在服务启动后输出初始超级管理员信息。
+如果直接执行 `docker compose up -d --build`，Compose 不会显示容器内部输出，需要查看 `control-init` 日志：
 
 ```bash
 docker compose logs control-init

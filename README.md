@@ -66,7 +66,7 @@ HyperFileLens is an AI-powered data protection and file intelligence platform fo
 ```bash
 git clone <your-repository-url> HyperFileLens
 cd HyperFileLens
-cp env.sample .env
+cp env.prod.sample .env
 ```
 
 Edit `.env` for your host:
@@ -87,7 +87,7 @@ HFL_ADMIN_PASSWORD=replace-with-a-strong-admin-password
 ### 3. Start the platform
 
 ```bash
-docker compose up -d --build
+./scripts/deploy.sh
 ```
 
 The default compose stack starts:
@@ -102,7 +102,8 @@ The default compose stack starts:
   `/media/*`, and `/downloads/*`
 
 An initial administrator is created automatically by `control-init`.
-If `HFL_ADMIN_PASSWORD` is omitted, a random password is generated and printed once in the `control-init` logs:
+The deployment script prints the initial administrator output after services start.
+If you run `docker compose up -d --build` directly, Compose does not show container command output; inspect `control-init` logs instead:
 
 ```bash
 docker compose logs control-init
