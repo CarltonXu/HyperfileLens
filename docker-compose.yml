@@ -63,6 +63,10 @@ services:
       CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-false}
       CSRF_COOKIE_HTTPONLY: ${CSRF_COOKIE_HTTPONLY:-false}
       SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-false}
+      HFL_ADMIN_EMAIL: ${HFL_ADMIN_EMAIL:-admin@hyperfilelens.local}
+      HFL_ADMIN_PASSWORD: ${HFL_ADMIN_PASSWORD:-}
+      HFL_ADMIN_FIRST_NAME: ${HFL_ADMIN_FIRST_NAME:-System}
+      HFL_ADMIN_LAST_NAME: ${HFL_ADMIN_LAST_NAME:-Administrator}
     volumes:
       - backend_static:/app/staticfiles
       - backend_media:/app/media
@@ -74,6 +78,7 @@ services:
         condition: service_healthy
     command: >
       sh -c "python manage.py migrate &&
+             python manage.py ensure_initial_superuser &&
              python manage.py collectstatic --noinput &&
              python manage.py register_periodic_tasks &&
              python manage.py verify_licenses"

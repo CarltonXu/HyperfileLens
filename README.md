@@ -80,6 +80,8 @@ CORS_ALLOWED_ORIGINS=http://10.147.18.11:5001
 PUBLIC_CONTROL_PLANE_URL=http://10.147.18.11:5001
 POSTGRES_PASSWORD=replace-with-a-strong-password
 PUBLIC_HTTP_PORT=5001
+HFL_ADMIN_EMAIL=admin@example.com
+HFL_ADMIN_PASSWORD=replace-with-a-strong-admin-password
 ```
 
 ### 3. Start the platform
@@ -99,10 +101,11 @@ The default compose stack starts:
 - Nginx public entrypoint for frontend, `/api/*`, `/ws/*`, `/static/*`,
   `/media/*`, and `/downloads/*`
 
-Create an administrator:
+An initial administrator is created automatically by `control-init`.
+If `HFL_ADMIN_PASSWORD` is omitted, a random password is generated and printed once in the `control-init` logs:
 
 ```bash
-docker compose exec control python manage.py createsuperuser
+docker compose logs control-init
 ```
 
 Access:

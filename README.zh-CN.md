@@ -81,6 +81,8 @@ CORS_ALLOWED_ORIGINS=http://10.147.18.11:5001,http://10.147.18.11:8000
 POSTGRES_PASSWORD=替换为强密码
 BACKEND_PORT=8000
 FRONTEND_PORT=5001
+HFL_ADMIN_EMAIL=admin@example.com
+HFL_ADMIN_PASSWORD=替换为强管理员密码
 ```
 
 ### 3. 启动平台
@@ -98,10 +100,11 @@ docker compose up -d --build
 - Celery Beat
 - Frontend 静态服务，自动把 `/api/*` 代理到后端
 
-创建管理员：
+`control-init` 会自动创建初始超级管理员。
+如果没有配置 `HFL_ADMIN_PASSWORD`，系统会生成随机密码，并只在 `control-init` 日志中输出一次：
 
 ```bash
-docker compose exec control python manage.py createsuperuser
+docker compose logs control-init
 ```
 
 访问地址：
