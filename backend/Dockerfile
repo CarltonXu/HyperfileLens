@@ -3,6 +3,8 @@ FROM python:3.11-slim
 
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+ARG KOPIA_VERSION=0.22.3
+ARG KOPIA_DOWNLOAD_BASE_URL=https://github.com/kopia/kopia/releases/download/v${KOPIA_VERSION}
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -42,6 +44,11 @@ COPY . .
 
 # Create directories for static, media and logs
 RUN mkdir -p /app/static /app/staticfiles /app/media /app/logs
+
+# Prepare third-party installer packages exposed under /downloads/.
+RUN KOPIA_VERSION="${KOPIA_VERSION}" \
+    KOPIA_DOWNLOAD_BASE_URL="${KOPIA_DOWNLOAD_BASE_URL}" \
+    /app/scripts/download-kopia-packages.sh
 
 # Build proxy binaries if source exists
 # First create the target directory structure that build.sh expects

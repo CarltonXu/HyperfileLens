@@ -29,8 +29,8 @@ class Command(BaseCommand):
             raise CommandError(
                 "Missing install package files:\n"
                 + "\n".join(f"  - {path}" for path in missing)
-                + "\nRun collectstatic after rebuilding the image, and make sure "
-                "backend/static/downloads/packages is included in the deployment package."
+                + "\nRebuild the backend image so scripts/download-kopia-packages.sh "
+                "can download third-party packages, then rerun control-init."
             )
 
         self.stdout.write(
