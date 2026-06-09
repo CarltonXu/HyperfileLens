@@ -143,13 +143,26 @@ install_kopia() {
     cd /tmp
     if ! curl -fsSL "$LOCAL_KOPIA_URL" -o kopia.deb; then
         echo -e "${YELLOW}Kopia package not found on control plane, falling back to GitHub.${NC}"
-        curl -fsSL "$FALLBACK_KOPIA_URL" -o kopia.deb
+        if ! curl -fsSL "$FALLBACK_KOPIA_URL" -o kopia.deb; then
+            echo -e "${RED}Failed to download Kopia from control plane and GitHub.${NC}"
+            echo -e "${RED}Control plane URL: $LOCAL_KOPIA_URL${NC}"
+            echo -e "${RED}GitHub URL: $FALLBACK_KOPIA_URL${NC}"
+            echo -e "${RED}Publish the Kopia package on the control plane or install Kopia manually before running this script.${NC}"
+            exit 1
+        fi
     fi
-    dpkg -i kopia.deb || apt-get install -f -y
+    dpkg -i kopia.deb || apt-get install -f -y || {
+        echo -e "${RED}Failed to install Kopia package.${NC}"
+        rm -f kopia.deb
+        exit 1
+    }
     rm -f kopia.deb
     
     # Verify
-    KOPIA_BIN=$(which kopia)
+    if ! KOPIA_BIN=$(which kopia); then
+        echo -e "${RED}Kopia installation finished but kopia command was not found.${NC}"
+        exit 1
+    fi
     echo -e "${GREEN}Kopia installed: $(kopia version)${NC}"
 }
 

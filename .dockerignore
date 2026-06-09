@@ -73,6 +73,8 @@ frontend/pnpm-lock.yaml
 proxy/build/
 backend/static/downloads/packages/proxy/
 backend/static/downloads/packages/gateway/
+!backend/static/downloads/packages/kopia/
+!backend/static/downloads/packages/kopia/*
 
 # Claude
 .claude/

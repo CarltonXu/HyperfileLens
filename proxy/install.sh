@@ -187,7 +187,7 @@ install_kopia() {
     case $KOPIA_ARCH in
         x86_64) KOPIA_ARCH="amd64" ;;
         aarch64) KOPIA_ARCH="arm64" ;;
-        *) log_warn "Unsupported architecture for Kopia: $KOPIA_ARCH"; return ;;
+        *) log_error "Unsupported architecture for Kopia: $KOPIA_ARCH"; exit 1 ;;
     esac
     
     # Use HyperFileLens control server for offline/internal deployments.
@@ -199,13 +199,20 @@ install_kopia() {
         ubuntu|debian)
             log_info "Downloading Kopia from HyperFileLens control server..."
             if curl -sSL --fail "$KOPIA_URL" -o /tmp/$KOPIA_DEB; then
-                dpkg -i /tmp/$KOPIA_DEB || apt-get install -f -y
+                dpkg -i /tmp/$KOPIA_DEB || apt-get install -f -y || {
+                    rm -f /tmp/$KOPIA_DEB
+                    log_error "Failed to install Kopia package: /tmp/$KOPIA_DEB"
+                    exit 1
+                }
                 rm -f /tmp/$KOPIA_DEB
             else
                 log_warn "Failed to download Kopia from control server: $KOPIA_URL"
                 log_warn "Trying apt fallback..."
                 # Fallback to apt if available
-                apt-get update && apt-get install -y kopia 2>/dev/null || log_warn "Please install Kopia manually"
+                apt-get update && apt-get install -y kopia 2>/dev/null || {
+                    log_error "Kopia installation failed. Ensure the control server exposes $KOPIA_URL or install Kopia manually before running this script."
+                    exit 1
+                }
             fi
             ;;
         centos|rhel|rocky|almalinux)
@@ -213,15 +220,22 @@ install_kopia() {
             KOPIA_RPM="kopia-${KOPIA_VERSION}.x86_64.rpm"
             KOPIA_RPM_URL="${SERVER_URL}/downloads/packages/kopia/${KOPIA_RPM}"
             if curl -sSL --fail "$KOPIA_RPM_URL" -o /tmp/$KOPIA_RPM; then
-                yum localinstall -y /tmp/$KOPIA_RPM || rpm -i /tmp/$KOPIA_RPM
+                yum localinstall -y /tmp/$KOPIA_RPM || rpm -i /tmp/$KOPIA_RPM || {
+                    rm -f /tmp/$KOPIA_RPM
+                    log_error "Failed to install Kopia package: /tmp/$KOPIA_RPM"
+                    exit 1
+                }
                 rm -f /tmp/$KOPIA_RPM
             else
-                log_warn "Failed to download Kopia from control server: $KOPIA_RPM_URL"
-                log_warn "Please install Kopia manually"
+                log_error "Failed to download Kopia from control server: $KOPIA_RPM_URL"
+                log_error "Install Kopia manually before running this script, or publish the RPM package on the control server."
+                exit 1
             fi
             ;;
         *)
-            log_warn "Please install Kopia manually from: https://kopia.io/docs/installation/"
+            log_error "Unsupported OS for automatic Kopia installation: $OS"
+            log_error "Install Kopia manually from https://kopia.io/docs/installation/ before running this script."
+            exit 1
             ;;
     esac
     
@@ -230,7 +244,8 @@ install_kopia() {
         log_success "Kopia installed: $("$KOPIA_PATH" --version)"
     else
         KOPIA_PATH="kopia"
-        log_warn "Kopia installation failed. Proxy will still work but backup features may be limited."
+        log_error "Kopia installation failed. Aborting proxy installation."
+        exit 1
     fi
 }
 
@@ -345,6 +360,7 @@ create_config() {
     log_info "Creating configuration..."
     
     mkdir -p "$PROXY_HOME"
+    mkdir -p /var/lib/hyperfilelens/cache /var/lib/hyperfilelens/tmp
     mkdir -p "$(dirname "$LOG_FILE")"
     
     # Mount dependencies for sync role
@@ -403,6 +419,7 @@ EOF
     # Secure the config file (contains api_token)
     chmod 600 "$PROXY_HOME/config.yaml"
     chown -R "$PROXY_USER:$PROXY_USER" "$PROXY_HOME"
+    chown -R "$PROXY_USER:$PROXY_USER" /var/lib/hyperfilelens
     chown -R "$PROXY_USER:$PROXY_USER" "$(dirname "$LOG_FILE")"
     
     log_success "Configuration created at $PROXY_HOME/config.yaml"
