@@ -14,7 +14,7 @@ function Install-HyperFileLensProxy {
     $InstallDir = Join-Path $env:ProgramFiles "HyperFileLens\Proxy"
     $ConfigDir = Join-Path $InstallDir "config"
     $ConfigPath = Join-Path $ConfigDir "config.yaml"
-    $LogDir = Join-Path $env:ProgramData "HyperFileLens\logs"
+    $LogDir = Join-Path $InstallDir "logs"
     $ServiceName = "HyperFileLensProxy"
 
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -93,9 +93,11 @@ function Install-HyperFileLensProxy {
             $kopiaTempZip = Join-Path $env:TEMP "kopia.zip"
             $kopiaInstalled = $false
 
-            Write-Host "[INFO] Downloading Kopia v${kopiaVersion} from control server..."
+            Write-Host "[INFO] Downloading Kopia v${kopiaVersion} from control server..." -NoNewline
+            $Host.UI.FlushOutput()
             try {
                 Invoke-WebRequest -Uri $kopiaZipUrl -OutFile $kopiaTempZip -UseBasicParsing -ErrorAction Stop
+                Write-Host " Done"
                 Expand-Archive -Path $kopiaTempZip -DestinationPath $InstallDir -Force
                 Remove-Item $kopiaTempZip -Force -ErrorAction SilentlyContinue
                 # Find kopia.exe in subdirectory and move to InstallDir root
