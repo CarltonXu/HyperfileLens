@@ -12,7 +12,8 @@ function Install-HyperFileLensProxy {
     $Version = "1.0.0"
     $Server = $Server.TrimEnd("/")
     $InstallDir = Join-Path $env:ProgramFiles "HyperFileLens\Proxy"
-    $ConfigPath = Join-Path $InstallDir "config.yaml"
+    $ConfigDir = Join-Path $InstallDir "config"
+    $ConfigPath = Join-Path $ConfigDir "config.yaml"
     $LogDir = Join-Path $env:ProgramData "HyperFileLens\logs"
     $ServiceName = "HyperFileLensProxy"
 
@@ -22,6 +23,7 @@ function Install-HyperFileLensProxy {
     }
 
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
     New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
     $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
@@ -58,6 +60,8 @@ function Install-HyperFileLensProxy {
             if (-not $candidate) { throw "Proxy zip does not contain executable" }
             if ($candidate.FullName -ne $exePath) {
                 Copy-Item $candidate.FullName $exePath -Force
+                # Remove the original file to avoid duplicates
+                Remove-Item $candidate.FullName -Force -ErrorAction SilentlyContinue
             }
             $downloaded = $true
         } catch {
@@ -94,8 +98,16 @@ function Install-HyperFileLensProxy {
                 Invoke-WebRequest -Uri $kopiaZipUrl -OutFile $kopiaTempZip -UseBasicParsing -ErrorAction Stop
                 Expand-Archive -Path $kopiaTempZip -DestinationPath $InstallDir -Force
                 Remove-Item $kopiaTempZip -Force -ErrorAction SilentlyContinue
+                # Find kopia.exe in subdirectory and move to InstallDir root
                 $kopiaExe = Get-ChildItem -Path $InstallDir -Recurse -Filter "kopia.exe" | Select-Object -First 1
                 if ($kopiaExe) {
+                    $kopiaDir = $kopiaExe.DirectoryName
+                    if ($kopiaDir -ne $InstallDir) {
+                        # Move all files from subdirectory to InstallDir
+                        Get-ChildItem -Path $kopiaDir -File | Move-Item -Destination $InstallDir -Force
+                        # Clean up empty subdirectory
+                        Remove-Item $kopiaDir -Force -Recurse -ErrorAction SilentlyContinue
+                    }
                     $env:Path = "$($InstallDir);$env:Path"
                     Write-Host "[INFO] Kopia installed successfully."
                     $kopiaInstalled = $true
@@ -140,7 +152,7 @@ function Install-HyperFileLensProxy {
     $logDirUnix = $LogDir -replace '\\', '/'
     $kopiaPathUnix = $kopiaPath -replace '\\', '/'
 
-    @"
+    $configContent = @"
 version: "$Version"
 role: "$Role"
 
@@ -167,7 +179,10 @@ mount:
 logging:
   level: "info"
   file: "$logDirUnix/proxy.log"
-"@ | Set-Content -Path $ConfigPath -Encoding UTF8
+"@
+    # Save with UTF-8 BOM so Windows Notepad shows correctly
+    $utf8Bom = New-Object System.Text.UTF8Encoding $true
+    [System.IO.File]::WriteAllText($ConfigPath, $configContent, $utf8Bom)
 
     if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
         Stop-Service -Name $ServiceName -ErrorAction SilentlyContinue
