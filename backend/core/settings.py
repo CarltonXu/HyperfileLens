@@ -265,6 +265,9 @@ CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 # Redis Configuration
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/1')
+CHANNEL_REDIS_URL = os.environ.get('CHANNEL_REDIS_URL', REDIS_URL)
+CHANNEL_REDIS_SOCKET_TIMEOUT = float(os.environ.get('CHANNEL_REDIS_SOCKET_TIMEOUT', '15'))
+CHANNEL_REDIS_CONNECT_TIMEOUT = float(os.environ.get('CHANNEL_REDIS_CONNECT_TIMEOUT', '5'))
 
 # Cookie and HTTPS related settings.
 SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', '86400'))
@@ -399,7 +402,12 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [REDIS_URL],
+            "hosts": [{
+                "address": CHANNEL_REDIS_URL,
+                "socket_timeout": CHANNEL_REDIS_SOCKET_TIMEOUT,
+                "socket_connect_timeout": CHANNEL_REDIS_CONNECT_TIMEOUT,
+                "health_check_interval": 30,
+            }],
         },
     },
 }

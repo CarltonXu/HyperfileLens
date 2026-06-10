@@ -85,7 +85,7 @@ services:
       sh -c "python manage.py migrate &&
              python manage.py ensure_initial_superuser &&
              python manage.py collectstatic --noinput &&
-             KOPIA_OUTPUT_DIR=/app/staticfiles/downloads/packages/kopia /app/scripts/download-kopia-packages.sh &&
+             KOPIA_OUTPUT_DIR=/app/backend/staticfiles/downloads/packages/kopia /app/scripts/download-kopia-packages.sh &&
              python manage.py ensure_install_packages &&
              python manage.py register_periodic_tasks &&
              python manage.py verify_licenses"
