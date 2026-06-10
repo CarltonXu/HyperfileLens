@@ -30,7 +30,7 @@ function Install-HyperFileLensProxy {
     }
 
     $tarUrl = "$Server/downloads/packages/proxy/hyperfilelens-proxy-windows-$arch.exe.tar.gz"
-    $zipUrl = "$Server/downloads/packages/proxy/hyperfilelens-proxy-windows-$arch.zip"
+    $zipUrl = "$Server/downloads/packages/proxy/hyperfilelens-proxy-windows-$arch.exe.zip"
     $exeUrl = "$Server/downloads/packages/proxy/hyperfilelens-proxy-windows-$arch.exe"
     $tmpTar = Join-Path $env:TEMP "hyperfilelens-proxy.tar.gz"
     $tmpZip = Join-Path $env:TEMP "hyperfilelens-proxy.zip"
@@ -82,11 +82,37 @@ function Install-HyperFileLensProxy {
         $kopia = Get-Command kopia -ErrorAction SilentlyContinue
         if ($kopia) {
             Write-Host "[INFO] Kopia already installed: $($kopia.Source)"
-        } elseif (Get-Command winget -ErrorAction SilentlyContinue) {
-            Write-Host "[INFO] Installing Kopia with winget..."
-            winget install Kopia.Kopia --accept-package-agreements --accept-source-agreements
         } else {
-            Write-Host "[WARN] Kopia is not installed and winget is unavailable. Install Kopia manually if backup tasks need it."
+            # Try to download from control server first
+            $kopiaVersion = "0.22.3"
+            $kopiaZipUrl = "$Server/downloads/packages/kopia/kopia-${kopiaVersion}-windows-x64.zip"
+            $kopiaTempZip = Join-Path $env:TEMP "kopia.zip"
+            $kopiaInstalled = $false
+
+            Write-Host "[INFO] Downloading Kopia v${kopiaVersion} from control server..."
+            try {
+                Invoke-WebRequest -Uri $kopiaZipUrl -OutFile $kopiaTempZip -UseBasicParsing -ErrorAction Stop
+                Expand-Archive -Path $kopiaTempZip -DestinationPath $InstallDir -Force
+                Remove-Item $kopiaTempZip -Force -ErrorAction SilentlyContinue
+                $kopiaExe = Get-ChildItem -Path $InstallDir -Recurse -Filter "kopia.exe" | Select-Object -First 1
+                if ($kopiaExe) {
+                    $env:Path = "$($InstallDir);$env:Path"
+                    Write-Host "[INFO] Kopia installed successfully."
+                    $kopiaInstalled = $true
+                }
+            } catch {
+                Write-Host "[WARN] Failed to download Kopia from control server: $($_.Exception.Message)"
+            }
+
+            if (-not $kopiaInstalled) {
+                # Try winget
+                if (Get-Command winget -ErrorAction SilentlyContinue) {
+                    Write-Host "[INFO] Installing Kopia with winget..."
+                    winget install Kopia.Kopia --accept-package-agreements --accept-source-agreements
+                } else {
+                    Write-Host "[WARN] Kopia is not installed. Install Kopia manually if backup tasks need it."
+                }
+            }
         }
     }
 
@@ -109,6 +135,11 @@ function Install-HyperFileLensProxy {
     $kopiaPath = (Get-Command kopia -ErrorAction SilentlyContinue).Source
     if (-not $kopiaPath) { $kopiaPath = "kopia.exe" }
 
+    # Convert Windows paths to forward slashes for YAML compatibility
+    $installDirUnix = $InstallDir -replace '\\', '/'
+    $logDirUnix = $LogDir -replace '\\', '/'
+    $kopiaPathUnix = $kopiaPath -replace '\\', '/'
+
     @"
 version: "$Version"
 role: "$Role"
@@ -127,15 +158,15 @@ agent:
   install_token: "$Token"
 
 kopia:
-  path: "$kopiaPath"
-  cache_path: "$InstallDir\cache"
+  path: "$kopiaPathUnix"
+  cache_path: "$installDirUnix/cache"
 
 mount:
   enabled: false
 
 logging:
   level: "info"
-  file: "$LogDir\proxy.log"
+  file: "$logDirUnix/proxy.log"
 "@ | Set-Content -Path $ConfigPath -Encoding UTF8
 
     if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
@@ -151,8 +182,18 @@ logging:
         -StartupType Automatic `
         -Description "HyperFileLens source-side proxy agent"
 
-    Start-Service -Name $ServiceName
-    Write-Host "[SUCCESS] HyperFileLens proxy installed."
+    Start-Service -Name $ServiceName -ErrorAction Continue
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($service.Status -eq "Running") {
+        Write-Host "[SUCCESS] HyperFileLens proxy installed and running."
+    } else {
+        Write-Host "[WARN] Service created but not running. Check logs: $LogDir\proxy.log"
+        # Try to get more error info
+        $wmiService = Get-WmiObject -Class Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
+        if ($wmiService) {
+            Write-Host "[ERROR] Exit Code: $($wmiService.ExitCode), State: $($wmiService.State)"
+        }
+    }
     Write-Host "Status: Get-Service $ServiceName"
     Write-Host "Logs: $LogDir\proxy.log"
 }
