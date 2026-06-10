@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -117,6 +118,12 @@ func (l *StructuredLogger) log(level LogLevel, msg string, fields map[string]int
 		for k, v := range fields {
 			output = append(output, []byte(fmt.Sprintf(" %s=%v", k, v))...)
 		}
+	}
+
+	// Use CRLF on Windows, LF on other platforms
+	if runtime.GOOS == "windows" {
+		output = append(output, '\r', '\n')
+	} else {
 		output = append(output, '\n')
 	}
 
