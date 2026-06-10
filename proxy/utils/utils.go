@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/hyperfilelens/proxy/logger"
 )
 
 // EnsureDir creates directory if not exists
@@ -82,7 +84,7 @@ func ReadPIDFile(path string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	
+
 	var pid int
 	_, err = fmt.Sscanf(string(data), "%d", &pid)
 	return pid, err
@@ -93,26 +95,22 @@ func Timestamp() string {
 	return time.Now().Format(time.RFC3339)
 }
 
-// LogInfo logs info message
+// LogInfo logs info message using the logger package
 func LogInfo(format string, args ...interface{}) {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	fmt.Printf("[%s] [INFO] %s\n", timestamp, fmt.Sprintf(format, args...))
+	logger.Info(fmt.Sprintf(format, args...), nil)
 }
 
-// LogError logs error message
+// LogError logs error message using the logger package
 func LogError(format string, args ...interface{}) {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	fmt.Fprintf(os.Stderr, "[%s] [ERROR] %s\n", timestamp, fmt.Sprintf(format, args...))
+	logger.Error(fmt.Sprintf(format, args...), nil)
 }
 
-// LogWarn logs warning message
+// LogWarn logs warning message using the logger package
 func LogWarn(format string, args ...interface{}) {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	fmt.Printf("[%s] [WARN] %s\n", timestamp, fmt.Sprintf(format, args...))
+	logger.Warn(fmt.Sprintf(format, args...), nil)
 }
 
-// LogDebug logs debug message
+// LogDebug logs debug message using the logger package
 func LogDebug(format string, args ...interface{}) {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	fmt.Printf("[%s] [DEBUG] %s\n", timestamp, fmt.Sprintf(format, args...))
+	logger.Debug(fmt.Sprintf(format, args...), nil)
 }

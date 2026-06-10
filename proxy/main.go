@@ -127,44 +127,15 @@ func main() {
 	// Print banner
 	printBanner(cfg)
 
-	// Initialize logger based on configuration
-	var appLogger *logger.StructuredLogger
-
-	// Try to create file logger if log file path is specified
-	if cfg.Logging.File != "" {
-		appLogger, err = logger.NewFileLogger("proxy", cfg.Logging.File, logger.LevelInfo, cfg.Logging.Format == "json")
-		if err != nil {
-			utils.LogError("Failed to create file logger, falling back to stdout: %v", err)
-			appLogger = logger.NewLogger("proxy", logger.LevelInfo, cfg.Logging.Format == "json")
-		} else {
-			utils.LogInfo("Logging to file: %s", cfg.Logging.File)
-		}
+	// Initialize global logger from configuration
+	if err := logger.InitFromConfig(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Format == "json"); err != nil {
+		utils.LogError("Failed to initialize logger: %v", err)
 	} else {
-		appLogger = logger.NewLogger("proxy", logger.LevelInfo, cfg.Logging.Format == "json")
-	}
-
-	// Set log level from configuration
-	logLevel := logger.LevelInfo
-	switch cfg.Logging.Level {
-	case "debug":
-		logLevel = logger.LevelDebug
-	case "info":
-		logLevel = logger.LevelInfo
-	case "warn":
-		logLevel = logger.LevelWarn
-	case "error":
-		logLevel = logger.LevelError
-	}
-	appLogger.SetLevel(logLevel)
-
-	// Replace the global logger with our configured one
-	logger.SetLevel(logLevel)
-	if cfg.Logging.Format == "json" {
-		logger.SetJSONOutput(true)
+		utils.LogInfo("Logging to file: %s", cfg.Logging.File)
 	}
 
 	// Log startup information
-	appLogger.Info("HyperFileLens Proxy starting", map[string]interface{}{
+	logger.Info("HyperFileLens Proxy starting", map[string]interface{}{
 		"version":    Version,
 		"git_commit": GitCommit,
 		"build_time": BuildTime,

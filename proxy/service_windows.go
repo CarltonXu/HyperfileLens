@@ -377,15 +377,63 @@ func stopWindowsService() error {
 
 // runWindowsService runs the proxy as a Windows service
 func runWindowsService() error {
+	// Parse config path from command line args
+	configPath := ""
+	for i, arg := range os.Args {
+		if arg == "--config" && i+1 < len(os.Args) {
+			configPath = os.Args[i+1]
+			break
+		}
+	}
+	if configPath == "" {
+		configPath = os.Getenv("HFL_CONFIG_PATH")
+	}
+
+	// Load config to get log settings
+	logFile := ""
+	logLevel := "info"
+	isJSON := false
+	if configPath != "" {
+		if cfg, err := config.Load(configPath); err == nil {
+			logFile = cfg.Logging.File
+			logLevel = cfg.Logging.Level
+			isJSON = cfg.Logging.Format == "json"
+		}
+	}
+
+	// If no log file configured, use a default in ProgramData
+	var f *os.File
+	if logFile == "" {
+		logDir := "C:\\ProgramData\\HyperFileLens\\Proxy\\logs"
+		os.MkdirAll(logDir, 0755)
+		logFile = logDir + "\\service.log"
+	}
+
+	// Open log file and initialize global logger
+	var err error
+	f, err = os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err == nil {
+		os.Stdout = f
+		os.Stderr = f
+		logger.SetOutput(f)
+	}
+
+	// Set log level and format from config
+	logger.SetLevel(logger.LogLevel(logLevel))
+	logger.SetJSONOutput(isJSON)
+
 	// Recover from any panic in the service
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "Service panicked: %v\n", r)
 		}
+		if f != nil {
+			f.Close()
+		}
 	}()
 
 	// Run the service
-	err := svc.Run("HyperFileLensProxy", &proxyService{})
+	err = svc.Run("HyperFileLensProxy", &proxyService{})
 	if err != nil {
 		return fmt.Errorf("service failed: %w", err)
 	}

@@ -201,6 +201,34 @@ func (tl *TaskLogger) Fatal(msg string, fields map[string]interface{}) {
 // Global logger instance
 var defaultLogger = NewLogger("proxy", LevelInfo, false)
 
+// InitFromConfig initializes the global logger from configuration
+// This should be called early in main() or when starting as a service
+func InitFromConfig(logFile string, level string, isJSON bool) error {
+	if logFile != "" {
+		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open log file: %w", err)
+		}
+		SetOutput(f)
+	}
+
+	switch level {
+	case "debug":
+		SetLevel(LevelDebug)
+	case "info":
+		SetLevel(LevelInfo)
+	case "warn":
+		SetLevel(LevelWarn)
+	case "error":
+		SetLevel(LevelError)
+	default:
+		SetLevel(LevelInfo)
+	}
+
+	SetJSONOutput(isJSON)
+	return nil
+}
+
 // Package-level functions for convenience
 func SetLevel(level LogLevel) {
 	defaultLogger.SetLevel(level)
@@ -212,8 +240,8 @@ func SetJSONOutput(enabled bool) {
 
 func SetOutput(w io.Writer) {
 	defaultLogger.mu.Lock()
+	defer defaultLogger.mu.Unlock()
 	defaultLogger.output = w
-	defaultLogger.mu.Unlock()
 }
 
 func Debug(msg string, fields map[string]interface{}) {

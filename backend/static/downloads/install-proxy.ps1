@@ -26,6 +26,14 @@ function Install-HyperFileLensProxy {
     New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
     New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
+    # Grant service account (LocalSystem) write access to logs directory
+    # This allows the HyperFileLensProxy service to write to the logs folder
+    $acl = Get-Acl $LogDir
+    $permission = "NT AUTHORITY\SYSTEM","FullControl","ContainerInherit,ObjectInherit","None","Allow"
+    $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule $permission
+    $acl.SetAccessRule($accessRule)
+    Set-Acl -Path $LogDir -AclObject $acl
+
     $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
     if ($arch -ne "amd64") {
         throw "Only Windows amd64 is currently supported."
