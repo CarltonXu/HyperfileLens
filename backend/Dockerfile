@@ -21,6 +21,7 @@ RUN sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sourc
     libpq-dev \
     netcat-openbsd \
     curl \
+    zip \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 

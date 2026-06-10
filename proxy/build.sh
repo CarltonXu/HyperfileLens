@@ -32,39 +32,46 @@ build() {
     local os=$(echo $platform | cut -d'/' -f1)
     local arch=$(echo $platform | cut -d'/' -f2)
     local output_name="${BINARY_NAME}-${os}-${arch}"
-    
+    local ext="tar.gz"
+
     if [[ "$os" == "windows" ]]; then
         output_name="${output_name}.exe"
+        ext="zip"
     fi
-    
+
     log_info "Building for $platform..."
-    
+
     (cd "$SOURCE_DIR" && CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build \
         -ldflags="-s -w -X main.Version=${VERSION}" \
         -o "${BUILD_DIR}/${output_name}" \
         .)
-    
+
     # Create archive
     cd "$BUILD_DIR"
-    tar -czf "${output_name}.tar.gz" "${output_name}"
+    if [[ "$ext" == "zip" ]]; then
+        zip -q "${output_name}.zip" "${output_name}"
+    else
+        tar -czf "${output_name}.tar.gz" "${output_name}"
+    fi
     rm -f "${output_name}"
     cd ..
-    
-    log_info "Created: ${BUILD_DIR}/${output_name}.tar.gz"
 
-    copy_package_to_output_dir "${BUILD_DIR}/${output_name}.tar.gz"
+    log_info "Created: ${BUILD_DIR}/${output_name}.${ext}"
+
+    copy_package_to_output_dir "${BUILD_DIR}/${output_name}.${ext}"
 }
 
 build_all() {
     log_info "Building HyperFileLens Proxy v${VERSION}..."
-    
+
     rm -rf "$BUILD_DIR"
     mkdir -p "$BUILD_DIR"
-    
+    mkdir -p "$OUTPUT_DIR"
+
     for platform in "${PLATFORMS[@]}"; do
         build "$platform"
     done
-    
+
     log_info "All builds completed!"
     ls -la "$BUILD_DIR"
 }
