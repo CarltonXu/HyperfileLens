@@ -93,11 +93,9 @@ function Install-HyperFileLensProxy {
             $kopiaTempZip = Join-Path $env:TEMP "kopia.zip"
             $kopiaInstalled = $false
 
-            Write-Host "[INFO] Downloading Kopia v${kopiaVersion} from control server..." -NoNewline
-            $Host.UI.FlushOutput()
+            Write-Host "[INFO] Downloading Kopia v${kopiaVersion} from control server..."
             try {
                 Invoke-WebRequest -Uri $kopiaZipUrl -OutFile $kopiaTempZip -UseBasicParsing -ErrorAction Stop
-                Write-Host " Done"
                 Expand-Archive -Path $kopiaTempZip -DestinationPath $InstallDir -Force
                 Remove-Item $kopiaTempZip -Force -ErrorAction SilentlyContinue
                 # Find kopia.exe in subdirectory and move to InstallDir root
@@ -186,31 +184,37 @@ logging:
     $utf8Bom = New-Object System.Text.UTF8Encoding $true
     [System.IO.File]::WriteAllText($ConfigPath, $configContent, $utf8Bom)
 
+    # Remove old service if exists
     if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
         Stop-Service -Name $ServiceName -ErrorAction SilentlyContinue
         sc.exe delete $ServiceName | Out-Null
         Start-Sleep -Seconds 1
     }
 
-    New-Service `
-        -Name $ServiceName `
-        -BinaryPathName "`"$exePath`" --config `"$ConfigPath`"" `
-        -DisplayName "HyperFileLens Proxy" `
-        -StartupType Automatic `
-        -Description "HyperFileLens source-side proxy agent"
-
-    Start-Service -Name $ServiceName -ErrorAction Continue
-    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-    if ($service.Status -eq "Running") {
-        Write-Host "[SUCCESS] HyperFileLens proxy installed and running."
-    } else {
-        Write-Host "[WARN] Service created but not running. Check logs: $LogDir\proxy.log"
-        # Try to get more error info
-        $wmiService = Get-WmiObject -Class Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
-        if ($wmiService) {
-            Write-Host "[ERROR] Exit Code: $($wmiService.ExitCode), State: $($wmiService.State)"
+    # Register the proxy as a Windows service using built-in support
+    Write-Host "[INFO] Registering proxy as Windows service..."
+    $installOutput = & $exePath --install-service --config $ConfigPath 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[INFO] Service registered successfully."
+        # Set environment variable for the service to read
+        [Environment]::SetEnvironmentVariable("HFL_CONFIG_PATH", $ConfigPath, "Machine")
+        # Start the service
+        Start-Service -Name $ServiceName -ErrorAction Continue
+        Start-Sleep -Seconds 3
+        $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if ($service.Status -eq "Running") {
+            Write-Host "[SUCCESS] HyperFileLens proxy installed and running."
+        } else {
+            Write-Host "[WARN] Service registered but not running. Check logs: $LogDir\proxy.log"
+            # Try to manually start for debugging
+            Write-Host "[INFO] Attempting manual start..."
+            & $exePath --config $ConfigPath
         }
+    } else {
+        Write-Host "[ERROR] Failed to register service: $installOutput"
+        Write-Host "[INFO] To run manually: $exePath --config $ConfigPath"
     }
+
     Write-Host "Status: Get-Service $ServiceName"
     Write-Host "Logs: $LogDir\proxy.log"
 }

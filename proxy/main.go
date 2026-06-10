@@ -34,12 +34,62 @@ func main() {
 	apiToken := flag.String("token", os.Getenv("API_TOKEN"), "API token")
 	nodeID := flag.String("node", os.Getenv("NODE_ID"), "Node ID")
 	showVersion := flag.Bool("version", false, "Show version")
+
+	// Service management flags
+	installService := flag.Bool("install-service", false, "Install as Windows service")
+	uninstallService := flag.Bool("uninstall-service", false, "Uninstall Windows service")
+	startService := flag.Bool("start-service", false, "Start Windows service")
+	stopService := flag.Bool("stop-service", false, "Stop Windows service")
+	runAsService := flag.Bool("run-as-service", false, "Run as Windows service")
+
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("HyperFileLens Proxy v%s\n", Version)
 		fmt.Printf("Git Commit: %s\n", GitCommit)
 		fmt.Printf("Build Time: %s\n", BuildTime)
+		return
+	}
+
+	// Handle service management commands (Windows only)
+	if *installService {
+		if err := registerWindowsService(*configPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to install service: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *uninstallService {
+		if err := unregisterWindowsService(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to uninstall service: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *startService {
+		if err := startWindowsService(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to start service: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *stopService {
+		if err := stopWindowsService(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to stop service: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Run as Windows service
+	if *runAsService {
+		if err := runWindowsService(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to run as service: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 
