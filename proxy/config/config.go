@@ -31,8 +31,9 @@ type Config struct {
 	Storage     Storage     `yaml:"storage"`
 
 	// Runtime state
-	NodeID   string `yaml:"-"`
-	TenantID string `yaml:"-"` // Assigned by control plane during registration
+	NodeID     string `yaml:"-"`
+	TenantID   string `yaml:"-"` // Assigned by control plane during registration
+	ConfigPath string `yaml:"-"`
 }
 
 // Server holds server connection configuration
@@ -48,9 +49,10 @@ type Server struct {
 
 // Agent holds agent-specific configuration
 type Agent struct {
-	ID       string `yaml:"id"` // Proxy ID from control plane
-	Name     string `yaml:"name"`
-	Hostname string `yaml:"hostname"`
+	ID           string `yaml:"id"` // Proxy ID from control plane
+	Name         string `yaml:"name"`
+	Hostname     string `yaml:"hostname"`
+	InstallToken string `yaml:"install_token"`
 }
 
 // Kopia holds Kopia configuration
@@ -206,6 +208,7 @@ func Load(path string) (*Config, error) {
 		if err := yaml.Unmarshal(data, cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config file: %w", err)
 		}
+		cfg.ConfigPath = path
 	}
 
 	// Override with environment variables
@@ -217,6 +220,67 @@ func Load(path string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// SaveRuntimeCredentials persists runtime registration credentials to config.yaml.
+func (c *Config) SaveRuntimeCredentials(apiToken string, installToken string) error {
+	if apiToken != "" {
+		c.Server.APIToken = apiToken
+	}
+	c.Agent.InstallToken = installToken
+
+	if c.ConfigPath == "" {
+		return nil
+	}
+
+	data, err := os.ReadFile(c.ConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	setYAMLScalar(&root, []string{"server", "api_token"}, c.Server.APIToken)
+	setYAMLScalar(&root, []string{"agent", "install_token"}, c.Agent.InstallToken)
+
+	output, err := yaml.Marshal(&root)
+	if err != nil {
+		return fmt.Errorf("failed to render config file: %w", err)
+	}
+	if err := os.WriteFile(c.ConfigPath, output, 0600); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+	return nil
+}
+
+func setYAMLScalar(root *yaml.Node, path []string, value string) {
+	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		setYAMLScalar(root.Content[0], path, value)
+		return
+	}
+	if root.Kind != yaml.MappingNode || len(path) == 0 {
+		return
+	}
+
+	for i := 0; i < len(root.Content)-1; i += 2 {
+		key := root.Content[i]
+		child := root.Content[i+1]
+		if key.Value != path[0] {
+			continue
+		}
+		if len(path) == 1 {
+			child.Kind = yaml.ScalarNode
+			child.Tag = "!!str"
+			child.Value = value
+			child.Content = nil
+			return
+		}
+		setYAMLScalar(child, path[1:], value)
+		return
+	}
 }
 
 // applyEnvironment applies environment variable overrides

@@ -151,8 +151,8 @@ register_proxy() {
             \"capabilities\": {}
         }" 2>> "$LOG_FILE")
 
-    HTTP_BODY="$(echo "$HTTP_RESPONSE" | head -n -1)"
-    HTTP_STATUS="$(echo "$HTTP_RESPONSE" | tail -n 1)"
+    HTTP_BODY="$(printf '%s\n' "$HTTP_RESPONSE" | sed '$d')"
+    HTTP_STATUS="$(printf '%s\n' "$HTTP_RESPONSE" | tail -n 1)"
 
     if [[ "$HTTP_STATUS" != "200" ]]; then
         log_error "Registration failed (HTTP $HTTP_STATUS): $HTTP_BODY"
@@ -177,7 +177,7 @@ role: "${ROLE}"
 
 server:
   url: "${SERVER_URL}"
-  api_token: "${API_TOKEN}"
+  api_token: ""
   ws_protocol: "$(echo "$SERVER_URL" | grep -q '^https' && echo 'wss' || echo 'ws')"
   reconnect_delay: 5s
   heartbeat_interval: 10s
@@ -186,6 +186,7 @@ agent:
   id: "${PROXY_ID}"
   name: "${NAME:-$HOSTNAME}"
   hostname: "${HOSTNAME}"
+  install_token: "${INSTALL_TOKEN}"
 
 kopia:
   path: "$(command -v kopia || echo /usr/local/bin/kopia)"
@@ -246,7 +247,6 @@ main() {
     detect_system
     install_kopia
     download_proxy
-    register_proxy
     create_config
     create_service
     log_success "HyperFileLens proxy installed"

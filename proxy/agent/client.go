@@ -17,20 +17,27 @@ import (
 
 // Registration represents registration request
 type Registration struct {
-	Name         string                 `json:"name"`
-	Role         string                 `json:"role"`
+	ProxyID      string                 `json:"proxy_id"`
+	InstallToken string                 `json:"install_token"`
 	Hostname     string                 `json:"hostname"`
-	IPAddress    string                 `json:"ip_address"`
-	Platform     string                 `json:"platform"`
-	Capabilities map[string]interface{} `json:"capabilities"`
+	InternalIP   string                 `json:"internal_ip"`
+	OS           string                 `json:"os"`
+	OSVersion    string                 `json:"os_version"`
 	Version      string                 `json:"version"`
+	KopiaVersion string                 `json:"kopia_version,omitempty"`
+	CPUCores     int                    `json:"cpu_cores,omitempty"`
+	MemoryTotal  int64                  `json:"memory_total,omitempty"`
+	DiskTotal    int64                  `json:"disk_total,omitempty"`
+	Capabilities map[string]interface{} `json:"capabilities"`
 }
 
 // RegistrationResponse represents registration response
 type RegistrationResponse struct {
 	NodeID   string `json:"node_id"`
+	ProxyID  string `json:"proxy_id"`
 	ID       string `json:"id"`
 	TenantID string `json:"tenant_id"`
+	APIToken string `json:"api_token"`
 	Status   string `json:"status"`
 	Error    string `json:"error,omitempty"`
 }
@@ -47,15 +54,15 @@ type HeartbeatPayload struct {
 	KopiaVersion string `json:"kopia_version,omitempty"`
 
 	// Host info
-	Hostname    string `json:"hostname,omitempty"`
-	InternalIP  string `json:"internal_ip,omitempty"`
-	OS          string `json:"os,omitempty"`
-	OSVersion   string `json:"os_version,omitempty"`
+	Hostname   string `json:"hostname,omitempty"`
+	InternalIP string `json:"internal_ip,omitempty"`
+	OS         string `json:"os,omitempty"`
+	OSVersion  string `json:"os_version,omitempty"`
 
 	// Hardware info
-	CPUCores   int   `json:"cpu_cores,omitempty"`
+	CPUCores    int   `json:"cpu_cores,omitempty"`
 	MemoryTotal int64 `json:"memory_total,omitempty"`
-	DiskTotal  int64 `json:"disk_total,omitempty"`
+	DiskTotal   int64 `json:"disk_total,omitempty"`
 
 	// Current usage
 	CPUUsage    float64 `json:"cpu_usage,omitempty"`
@@ -63,27 +70,26 @@ type HeartbeatPayload struct {
 	DiskUsage   float64 `json:"disk_usage,omitempty"`
 
 	// Network
-	NetworkIn       int64 `json:"network_in,omitempty"`
-	NetworkOut      int64 `json:"network_out,omitempty"`
-	MemoryUsed       int64 `json:"memory_used,omitempty"`
-	MemoryFree       int64 `json:"memory_free,omitempty"`
-	DiskUsed         int64 `json:"disk_used,omitempty"`
-	DiskFree         int64 `json:"disk_free,omitempty"`
-	NetworkBytesSent int64 `json:"network_bytes_sent,omitempty"`
-	NetworkBytesRecv int64 `json:"network_bytes_recv,omitempty"`
+	NetworkIn         int64                          `json:"network_in,omitempty"`
+	NetworkOut        int64                          `json:"network_out,omitempty"`
+	MemoryUsed        int64                          `json:"memory_used,omitempty"`
+	MemoryFree        int64                          `json:"memory_free,omitempty"`
+	DiskUsed          int64                          `json:"disk_used,omitempty"`
+	DiskFree          int64                          `json:"disk_free,omitempty"`
+	NetworkBytesSent  int64                          `json:"network_bytes_sent,omitempty"`
+	NetworkBytesRecv  int64                          `json:"network_bytes_recv,omitempty"`
 	NetworkInterfaces []monitor.NetworkInterfaceInfo `json:"network_interfaces"`
 	DiskIOStats       []monitor.DiskIOStats          `json:"disk_io_stats"`
 
 	// Task stats
-	ActiveTasks     int `json:"active_tasks,omitempty"`
-	CompletedTasks  int `json:"completed_tasks,omitempty"`
-	FailedTasks     int `json:"failed_tasks,omitempty"`
+	ActiveTasks    int `json:"active_tasks,omitempty"`
+	CompletedTasks int `json:"completed_tasks,omitempty"`
+	FailedTasks    int `json:"failed_tasks,omitempty"`
 
 	// Additional info
 	Capabilities map[string]interface{} `json:"capabilities,omitempty"`
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
-
 
 // Client handles agent operations
 type Client struct {
@@ -110,13 +116,20 @@ func NewClient(cfg *config.Config, collector *monitor.Collector) *Client {
 // Register registers this proxy with the control plane
 func (c *Client) Register() (string, error) {
 	hostInfo := monitor.GetHostInfo()
-	
+
+	if c.config.Agent.ID == "" {
+		return "", fmt.Errorf("agent.id is required for registration")
+	}
+	if c.config.Agent.InstallToken == "" {
+		return "", fmt.Errorf("agent.install_token is required for registration")
+	}
+
 	reg := Registration{
-		Name:      c.config.Agent.Name,
-		Role:      string(c.config.Role),
-		Hostname:  c.config.Agent.Hostname,
-		IPAddress: c.getIPAddress(),
-		Platform:  getPlatform(),
+		ProxyID:      c.config.Agent.ID,
+		InstallToken: c.config.Agent.InstallToken,
+		Hostname:     c.config.Agent.Hostname,
+		InternalIP:   c.getIPAddress(),
+		OS:           runtime.GOOS,
 		Capabilities: map[string]interface{}{
 			"backup":         true,
 			"restore":        true,
@@ -126,18 +139,30 @@ func (c *Client) Register() (string, error) {
 			"arch":           runtime.GOARCH,
 			"cpu_cores":      runtime.NumCPU(),
 		},
-		Version: c.config.Version,
+		Version:  c.config.Version,
+		CPUCores: runtime.NumCPU(),
 	}
 
-	// Use hostname as name if not set
-	if reg.Name == "" {
-		reg.Name = reg.Hostname
-	}
-	
 	// Add hostname from hostInfo if not set
 	if reg.Hostname == "" {
 		if hn, ok := hostInfo["hostname"].(string); ok {
 			reg.Hostname = hn
+		}
+	}
+	if osName, ok := hostInfo["os"].(string); ok && osName != "" {
+		reg.OS = osName
+	}
+	if osVersion, ok := hostInfo["os_version"].(string); ok {
+		reg.OSVersion = osVersion
+	}
+	if platformVersion, ok := hostInfo["platform_version"].(string); ok && reg.OSVersion == "" {
+		reg.OSVersion = platformVersion
+	}
+	if c.collector != nil {
+		if metrics := c.collector.GetCurrent(); metrics != nil {
+			reg.CPUCores = metrics.CPUCores
+			reg.MemoryTotal = int64(metrics.MemoryTotal)
+			reg.DiskTotal = int64(metrics.DiskTotal)
 		}
 	}
 
@@ -176,11 +201,22 @@ func (c *Client) Register() (string, error) {
 	// Store node ID
 	c.nodeID = result.NodeID
 	if c.nodeID == "" {
+		c.nodeID = result.ProxyID
+	}
+	if c.nodeID == "" {
 		c.nodeID = result.ID
 	}
 
 	// Store tenant ID
 	c.tenantID = result.TenantID
+	if result.APIToken != "" {
+		c.config.Server.APIToken = result.APIToken
+		if err := c.config.SaveRuntimeCredentials(result.APIToken, ""); err != nil {
+			return "", fmt.Errorf("registration succeeded but failed to persist credentials: %w", err)
+		}
+	} else {
+		return "", fmt.Errorf("registration response did not include api_token")
+	}
 
 	// Save node ID to file for persistence
 	c.saveNodeID()
@@ -221,22 +257,21 @@ func (c *Client) Heartbeat() error {
 		}
 	}
 
-		// Add metrics if available
-		if metrics != nil {
-			payload.CPUUsage = metrics.CPUUsage
-			payload.MemoryUsage = metrics.MemoryUsage
-			payload.DiskUsage = metrics.DiskUsage
-			payload.CPUCores = metrics.CPUCores
-			payload.MemoryTotal = int64(metrics.MemoryTotal)
-			payload.DiskTotal = int64(metrics.DiskTotal)
-			payload.MemoryUsed = int64(metrics.MemoryUsed)
-			payload.DiskUsed = int64(metrics.DiskUsed)
-			payload.MemoryFree = int64(metrics.MemoryFree)
-			payload.DiskFree = int64(metrics.DiskFree)
-			payload.NetworkBytesSent = int64(metrics.NetworkBytesSent)
-			payload.NetworkBytesRecv = int64(metrics.NetworkBytesRecv)
-		}
-
+	// Add metrics if available
+	if metrics != nil {
+		payload.CPUUsage = metrics.CPUUsage
+		payload.MemoryUsage = metrics.MemoryUsage
+		payload.DiskUsage = metrics.DiskUsage
+		payload.CPUCores = metrics.CPUCores
+		payload.MemoryTotal = int64(metrics.MemoryTotal)
+		payload.DiskTotal = int64(metrics.DiskTotal)
+		payload.MemoryUsed = int64(metrics.MemoryUsed)
+		payload.DiskUsed = int64(metrics.DiskUsed)
+		payload.MemoryFree = int64(metrics.MemoryFree)
+		payload.DiskFree = int64(metrics.DiskFree)
+		payload.NetworkBytesSent = int64(metrics.NetworkBytesSent)
+		payload.NetworkBytesRecv = int64(metrics.NetworkBytesRecv)
+	}
 
 	// Add network interfaces
 	payload.NetworkInterfaces = monitor.GetNetworkInterfaces()
@@ -337,7 +372,7 @@ func (c *Client) GetSystemInfo() map[string]interface{} {
 func (c *Client) saveNodeID() {
 	nodeIDFile := "/var/lib/hyperfilelens/node_id"
 	os.MkdirAll("/var/lib/hyperfilelens", 0755)
-	
+
 	data := map[string]string{
 		"node_id":   c.nodeID,
 		"tenant_id": c.tenantID,
@@ -353,12 +388,12 @@ func (c *Client) loadNodeID() (string, string) {
 	if err != nil {
 		return "", ""
 	}
-	
+
 	var result map[string]string
 	if err := json.Unmarshal(data, &result); err != nil {
 		return string(data), "" // Legacy format - just node_id
 	}
-	
+
 	return result["node_id"], result["tenant_id"]
 }
 

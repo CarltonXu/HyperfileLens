@@ -37,30 +37,45 @@ function Install-HyperFileLensProxy {
     $exePath = Join-Path $InstallDir "hyperfilelens-proxy.exe"
 
     Write-Host "[INFO] Downloading HyperFileLens proxy..."
+    $downloaded = $false
+    $downloadErrors = New-Object System.Collections.Generic.List[string]
     try {
-        Invoke-WebRequest -Uri $tarUrl -OutFile $tmpTar -UseBasicParsing
+        Invoke-WebRequest -Uri $tarUrl -OutFile $tmpTar -UseBasicParsing -ErrorAction Stop
         tar -xzf $tmpTar -C $InstallDir
         $candidate = Get-ChildItem -Path $InstallDir -Recurse -Filter "hyperfilelens-proxy*.exe" | Select-Object -First 1
         if (-not $candidate) { throw "Proxy package does not contain executable" }
         if ($candidate.FullName -ne $exePath) {
             Copy-Item $candidate.FullName $exePath -Force
         }
+        $downloaded = $true
     } catch {
+        $downloadErrors.Add("${tarUrl}: $($_.Exception.Message)") | Out-Null
         Write-Host "[WARN] tar.gz package download failed, trying zip/direct exe..."
         try {
-            Invoke-WebRequest -Uri $zipUrl -OutFile $tmpZip -UseBasicParsing
+            Invoke-WebRequest -Uri $zipUrl -OutFile $tmpZip -UseBasicParsing -ErrorAction Stop
             Expand-Archive -Path $tmpZip -DestinationPath $InstallDir -Force
             $candidate = Get-ChildItem -Path $InstallDir -Recurse -Filter "hyperfilelens-proxy*.exe" | Select-Object -First 1
             if (-not $candidate) { throw "Proxy zip does not contain executable" }
             if ($candidate.FullName -ne $exePath) {
                 Copy-Item $candidate.FullName $exePath -Force
             }
+            $downloaded = $true
         } catch {
-            Invoke-WebRequest -Uri $exeUrl -OutFile $exePath -UseBasicParsing
+            $downloadErrors.Add("${zipUrl}: $($_.Exception.Message)") | Out-Null
+            try {
+                Invoke-WebRequest -Uri $exeUrl -OutFile $exePath -UseBasicParsing -ErrorAction Stop
+                $downloaded = $true
+            } catch {
+                $downloadErrors.Add("${exeUrl}: $($_.Exception.Message)") | Out-Null
+            }
         }
     } finally {
         Remove-Item $tmpTar -Force -ErrorAction SilentlyContinue
         Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
+    }
+    if (-not $downloaded) {
+        $details = ($downloadErrors | ForEach-Object { "  - $_" }) -join [Environment]::NewLine
+        throw "Failed to download HyperFileLens proxy package. Publish the Windows proxy package on the control plane and retry.$([Environment]::NewLine)$details"
     }
 
     if (-not $SkipKopia) {
@@ -89,28 +104,6 @@ function Install-HyperFileLensProxy {
         $kopiaVersion = (kopia --version 2>$null | Select-Object -First 1)
     }
 
-    Write-Host "[INFO] Registering proxy..."
-    $body = @{
-        proxy_id = $ProxyId
-        install_token = $Token
-        hostname = $hostname
-        internal_ip = $ip
-        os = "windows"
-        os_version = $osVersion
-        version = $Version
-        kopia_version = $kopiaVersion
-        cpu_cores = $cpu
-        memory_total = [int64]$memory
-        disk_total = [int64]$disk
-        capabilities = @{}
-    } | ConvertTo-Json -Depth 5
-
-    $registration = Invoke-RestMethod -Method Post -Uri "$Server/api/v1/proxies/register/" -ContentType "application/json" -Body $body
-    $apiToken = $registration.api_token
-    if (-not $apiToken) {
-        throw "Registration did not return api_token."
-    }
-
     $wsProtocol = if ($Server.StartsWith("https")) { "wss" } else { "ws" }
     $displayName = if ($Name) { $Name } else { $hostname }
     $kopiaPath = (Get-Command kopia -ErrorAction SilentlyContinue).Source
@@ -122,7 +115,7 @@ role: "$Role"
 
 server:
   url: "$Server"
-  api_token: "$apiToken"
+  api_token: ""
   ws_protocol: "$wsProtocol"
   reconnect_delay: 5s
   heartbeat_interval: 10s
@@ -131,6 +124,7 @@ agent:
   id: "$ProxyId"
   name: "$displayName"
   hostname: "$hostname"
+  install_token: "$Token"
 
 kopia:
   path: "$kopiaPath"

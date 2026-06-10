@@ -20,8 +20,10 @@ server:
 
 # Agent settings
 agent:
+  id: ""  # Proxy ID from the control plane install command
   name: ""  # Auto-detected hostname if empty
   hostname: ""  # Auto-detected if empty
+  install_token: ""  # Cleared after the proxy registers and saves api_token
 
 # Kopia settings
 kopia:

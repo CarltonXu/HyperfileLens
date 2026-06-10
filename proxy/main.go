@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hyperfilelens/proxy/agent"
@@ -143,25 +144,9 @@ func main() {
 	}
 	utils.LogInfo("Kopia version: %s", kopiaClient.GetVersion())
 
-	// Register with control plane or use existing credentials
-	if cfg.Server.APIToken != "" && cfg.Agent.ID != "" {
-		// Already registered, use existing credentials
-		utils.LogInfo("Using existing API token for node: %s", cfg.NodeID)
-		agentClient.SetNodeID(cfg.NodeID)
-	} else {
-		// Need to register
-		utils.LogInfo("Registering with control plane...")
-		if _, err := agentClient.Register(); err != nil {
-			utils.LogError("Registration failed: %v", err)
-			utils.LogInfo("Continuing without registration...")
-		} else {
-			cfg.NodeID = agentClient.GetNodeID()
-			cfg.TenantID = agentClient.GetTenantID()
-			utils.LogInfo("Registered with node ID: %s", cfg.NodeID)
-			if cfg.TenantID != "" {
-				utils.LogInfo("Assigned to tenant: %s", cfg.TenantID)
-			}
-		}
+	if err := ensureRegistered(cfg, agentClient); err != nil {
+		utils.LogError("Registration failed: %v", err)
+		os.Exit(1)
 	}
 
 	// Start heartbeat
@@ -203,6 +188,44 @@ func main() {
 	}
 
 	utils.LogInfo("Proxy stopped")
+}
+
+func ensureRegistered(cfg *config.Config, agentClient *agent.Client) error {
+	if cfg.Server.APIToken != "" && cfg.Agent.ID != "" {
+		utils.LogInfo("Using existing API token for node: %s", cfg.NodeID)
+		agentClient.SetNodeID(cfg.NodeID)
+		return nil
+	}
+
+	if cfg.Agent.ID == "" {
+		return fmt.Errorf("agent.id is required")
+	}
+	if cfg.Agent.InstallToken == "" {
+		return fmt.Errorf("agent.install_token is required when api_token is empty")
+	}
+
+	delay := cfg.Server.ReconnectDelay
+	if delay <= 0 {
+		delay = 5 * time.Second
+	}
+
+	for {
+		utils.LogInfo("Registering with control plane...")
+		if _, err := agentClient.Register(); err != nil {
+			utils.LogError("Registration failed: %v", err)
+			utils.LogInfo("Retrying registration in %s...", delay)
+			time.Sleep(delay)
+			continue
+		}
+
+		cfg.NodeID = agentClient.GetNodeID()
+		cfg.TenantID = agentClient.GetTenantID()
+		utils.LogInfo("Registered with node ID: %s", cfg.NodeID)
+		if cfg.TenantID != "" {
+			utils.LogInfo("Assigned to tenant: %s", cfg.TenantID)
+		}
+		return nil
+	}
 }
 
 func printBanner(cfg *config.Config) {

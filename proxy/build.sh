@@ -7,6 +7,7 @@ set -e
 
 VERSION=${VERSION:-"1.0.0"}
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE_DIR="${ROOT_DIR}/proxy"
 BUILD_DIR="${ROOT_DIR}/proxy/build"
 BINARY_NAME="hyperfilelens-proxy"
 OUTPUT_DIR="${ROOT_DIR}/backend/static/downloads/packages/proxy"
@@ -38,10 +39,10 @@ build() {
     
     log_info "Building for $platform..."
     
-    CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build \
+    (cd "$SOURCE_DIR" && CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build \
         -ldflags="-s -w -X main.Version=${VERSION}" \
         -o "${BUILD_DIR}/${output_name}" \
-        .
+        .)
     
     # Create archive
     cd "$BUILD_DIR"
@@ -70,7 +71,7 @@ build_all() {
 
 build_current() {
     log_info "Building for current platform..."
-    go build -o "${BUILD_DIR}/${BINARY_NAME}" .
+    (cd "$SOURCE_DIR" && go build -o "${BUILD_DIR}/${BINARY_NAME}" .)
     log_info "Created: ${BUILD_DIR}/${BINARY_NAME}"
     copy_package_to_output_dir "${BUILD_DIR}/${BINARY_NAME}"
 }

@@ -248,10 +248,10 @@ class ProxyConsumer(AsyncWebsocketConsumer):
         """
         Handle registration confirmation message from proxy.
 
-        Registration is already done via HTTP API during installation.
+        Registration is done by the proxy runtime before opening WebSocket.
         This message just confirms that the proxy is connecting via WebSocket.
         """
-        # The proxy has already been registered via HTTP API
+        # The proxy has already been registered via HTTP API by the runtime.
         # This is just a connection confirmation
         await self.send(text_data=json.dumps({
             'type': 'register_ack',

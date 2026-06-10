@@ -221,10 +221,6 @@ class ProxyRegisterSerializer(serializers.Serializer):
                 id=attrs['proxy_id'],
                 install_token=attrs['install_token']
             )
-            if proxy.status != ProxyNode.NodeStatus.PENDING:
-                raise serializers.ValidationError('Proxy already registered')
-            if proxy.install_token_used:
-                raise serializers.ValidationError('Install token already used')
             attrs['proxy'] = proxy
         except ProxyNode.DoesNotExist:
             raise serializers.ValidationError('Invalid proxy_id or install_token')
