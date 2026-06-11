@@ -14,6 +14,8 @@ import SystemRuleForm from "@/components/alerts/SystemRuleForm.vue";
 import RecoveryRuleForm from "@/components/alerts/RecoveryRuleForm.vue";
 import ResourceSelector from "@/components/alerts/ResourceSelector.vue";
 import NotificationChannelSelector from "@/components/alerts/NotificationChannelSelector.vue";
+import PageTitle from "@/components/PageTitle.vue";
+import { PencilSquareIcon } from "@heroicons/vue/24/outline";
 
 const route = useRoute();
 const router = useRouter();
@@ -278,14 +280,12 @@ onMounted(async () => {
 <template>
   <form class="space-y-5" @submit.prevent="submit">
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-semibold text-foreground">
-          {{ t("alertsCenter.policies.editTitle") }}
-        </h1>
-        <p class="mt-1 text-sm text-foreground-secondary">
-          {{ t("alertsCenter.policies.editDesc") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="PencilSquareIcon"
+        :title="t('alertsCenter.policies.editTitle')"
+        :subtitle="t('alertsCenter.policies.editDesc')"
+        icon-class="text-indigo-600 dark:text-indigo-400"
+      />
       <div class="flex gap-2">
         <button
           type="button"

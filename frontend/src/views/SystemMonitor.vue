@@ -21,6 +21,7 @@ import {
   ChevronDownIcon,
 } from "@heroicons/vue/24/outline";
 import { alertsApi } from "@/api";
+import PageTitle from "@/components/PageTitle.vue";
 
 use([
   CanvasRenderer,
@@ -616,15 +617,12 @@ onUnmounted(() => {
     <!-- Header -->
     <div
       class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div>
-        <h1 class="text-2xl font-semibold text-foreground">
-          {{ t("alertsPage.tabs.monitor") }}
-        </h1>
-        <p class="mt-1 text-sm text-foreground-secondary">
-          {{ data.host.hostname || "-" }} ·
-          {{ data.host.platform || t("alertsPage.monitor.subtitle") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="CpuChipIcon"
+        :title="t('alertsPage.tabs.monitor')"
+        :subtitle="`${data.host.hostname || '-'} · ${data.host.platform || t('alertsPage.monitor.subtitle')}`"
+        icon-class="text-sky-600 dark:text-sky-400"
+      />
       <div class="flex items-center gap-2 flex-wrap">
         <!-- Time Range Selector -->
         <div class="relative">

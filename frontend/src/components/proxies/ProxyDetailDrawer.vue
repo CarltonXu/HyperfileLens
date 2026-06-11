@@ -9,7 +9,7 @@ import ProxyOsIcon from "./ProxyOsIcon.vue";
 
 type DetailTab = "overview" | "install" | "monitor" | "tasks" | "heartbeats";
 
-defineProps<{
+const props = defineProps<{
   proxy: ProxyNode | null;
   detailTab: DetailTab;
   loading: boolean;
@@ -26,6 +26,16 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const tabs: DetailTab[] = ["overview", "monitor", "tasks", "heartbeats"];
+const installVisibleStatuses = new Set([
+  "pending",
+  "installing",
+  "offline",
+  "error",
+]);
+
+function showInstallTab() {
+  return !!props.proxy && installVisibleStatuses.has(props.proxy.status);
+}
 </script>
 
 <template>
@@ -67,12 +77,6 @@ const tabs: DetailTab[] = ["overview", "monitor", "tasks", "heartbeats"];
                 >
                   {{ t(`proxies.status.${proxy?.status}`) }}
                 </span>
-                <span
-                  v-if="proxy?.is_online"
-                  class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium"
-                >
-                  {{ t("proxies.online") }}
-                </span>
               </div>
             </div>
           </div>
@@ -111,7 +115,7 @@ const tabs: DetailTab[] = ["overview", "monitor", "tasks", "heartbeats"];
               {{ t(`proxies.detail.tabs.${tab}`) }}
             </button>
             <button
-              v-if="proxy?.status === 'pending'"
+              v-if="showInstallTab()"
               @click="emit('update:detailTab', 'install')"
               :class="[
                 'px-4 py-3 text-sm font-medium border-b-2 transition-colors',

@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { ExclamationTriangleIcon } from "@heroicons/vue/24/outline";
+import {
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
+} from "@heroicons/vue/24/outline";
 import type { ProxyNode } from "@/types/proxy";
 
 defineProps<{
   proxy: ProxyNode;
+  deleting?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -36,15 +40,18 @@ const { t } = useI18n();
       <div class="flex justify-center gap-3 p-5 border-t border-border">
         <button
           @click="emit('cancel')"
-          class="px-4 py-2 text-sm font-medium text-foreground-secondary bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+          :disabled="deleting"
+          class="px-4 py-2 text-sm font-medium text-foreground-secondary bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors disabled:cursor-wait disabled:opacity-70"
         >
           {{ t("common.cancel") }}
         </button>
         <button
           @click="emit('confirm')"
-          class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+          :disabled="deleting"
+          class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:cursor-wait disabled:opacity-70"
         >
-          {{ t("common.delete") }}
+          <ArrowPathIcon v-if="deleting" class="w-4 h-4 animate-spin" />
+          {{ deleting ? t("common.deleting") : t("common.delete") }}
         </button>
       </div>
     </div>

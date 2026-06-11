@@ -7,6 +7,7 @@ import { getApiErrorMessage } from "@/utils/errors";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import Pagination from "@/components/Pagination.vue";
+import PageTitle from "@/components/PageTitle.vue";
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 import {
   ArrowPathIcon,
@@ -567,12 +568,12 @@ onMounted(fetchPolicies);
 <template>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">
-          {{ t("policies.title") }}
-        </h1>
-        <p class="mt-1 text-slate-500">{{ t("policies.subtitle") }}</p>
-      </div>
+      <PageTitle
+        :icon="ShieldCheckIcon"
+        :title="t('policies.title')"
+        :subtitle="t('policies.subtitle')"
+        icon-class="text-violet-600 dark:text-violet-400"
+      />
       <button
         data-tour="policy-create-button"
         @click="openCreateModal"

@@ -18,6 +18,7 @@ import {
   SparklesIcon,
 } from "@heroicons/vue/24/outline";
 import { aiInsightsApi } from "@/api";
+import PageTitle from "@/components/PageTitle.vue";
 import AIInsightScopeSelector from "@/components/ai-insights/AIInsightScopeSelector.vue";
 
 const route = useRoute();
@@ -190,14 +191,12 @@ watch(
   <div class="p-6 space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">
-          {{ t("insightOverview.title") }}
-        </h1>
-        <p class="text-foreground-secondary mt-1">
-          {{ t("insightOverview.subtitle") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="SparklesIcon"
+        :title="t('insightOverview.title')"
+        :subtitle="t('insightOverview.subtitle')"
+        icon-class="text-amber-600 dark:text-amber-400"
+      />
       <div class="flex items-center gap-2 text-sm text-foreground-secondary">
         <ClockIcon class="w-4 h-4" />
         <span

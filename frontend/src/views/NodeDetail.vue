@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
+import PageTitle from "@/components/PageTitle.vue";
+import { ServerIcon } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -8,7 +10,11 @@ const route = useRoute();
 
 <template>
   <div class="space-y-6">
-    <h1 class="text-2xl font-bold text-gray-900">{{ t("nav.nodeDetails") }}</h1>
-    <p class="text-gray-500">Node ID: {{ route.params.id }}</p>
+    <PageTitle
+      :icon="ServerIcon"
+      :title="t('nav.nodeDetails')"
+      :subtitle="`Node ID: ${route.params.id}`"
+      icon-class="text-indigo-600 dark:text-indigo-400"
+    />
   </div>
 </template>

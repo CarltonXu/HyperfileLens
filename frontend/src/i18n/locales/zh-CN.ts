@@ -589,6 +589,7 @@ export default {
     installProxy: "安装代理",
     online: "在线",
     noConnection: "未连接",
+    tokenRegenerated: "令牌重新生成成功",
 
     stats: {
       total: "代理总数",
@@ -3107,6 +3108,10 @@ export default {
     searchPlaceholder: "搜索网关...",
     allStatus: "全部状态",
     noGateways: "暂无网关",
+    empty: {
+      title: "暂无网关",
+      description: "创建网关以挂载备份数据并启用 AI 洞察能力。",
+    },
     confirmDelete: "确定要删除此网关吗？",
 
     // Stats

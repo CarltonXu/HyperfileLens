@@ -38,6 +38,17 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const installVisibleStatuses = new Set([
+  "pending",
+  "installing",
+  "offline",
+  "error",
+]);
+
+function shouldShowInstall(proxy: ProxyNode) {
+  return installVisibleStatuses.has(proxy.status);
+}
 </script>
 
 <template>
@@ -118,6 +129,7 @@ const { t } = useI18n();
             @detail="$emit('detail', $event)"
             @edit="$emit('edit', $event)"
             @regenerate-token="$emit('regenerateToken', $event)"
+            @install-info="$emit('installInfo', $event)"
             @update-status="
               (item, status) => $emit('updateStatus', item, status)
             "
@@ -204,7 +216,7 @@ const { t } = useI18n();
         </div>
         <div class="flex items-center gap-2">
           <button
-            v-if="proxy.status === 'pending'"
+            v-if="shouldShowInstall(proxy)"
             class="text-sm font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 flex items-center gap-1"
             @click="$emit('installInfo', proxy)"
           >

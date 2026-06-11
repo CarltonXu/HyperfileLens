@@ -168,9 +168,29 @@ function displayStatusLabel(gateway: Gateway): string {
     <ArrowPathIcon class="w-8 h-8 text-slate-400 animate-spin" />
   </div>
 
-  <div v-else-if="filteredGateways.length === 0" class="text-center py-12">
-    <ServerIcon class="w-16 h-16 text-foreground-muted mx-auto mb-4" />
-    <p class="text-foreground-secondary">{{ t("gateways.noGateways") }}</p>
+  <div
+    v-else-if="filteredGateways.length === 0"
+    class="rounded-xl border border-border p-12 text-center"
+  >
+    <div
+      class="w-16 h-16 bg-background-tertiary/50 rounded-full flex items-center justify-center mx-auto mb-4"
+    >
+      <ServerIcon class="w-8 h-8 text-foreground-muted" />
+    </div>
+    <h3 class="text-lg font-medium text-foreground mb-1">
+      {{
+        totalItems === 0
+          ? t("gateways.empty.title")
+          : t("gateways.noGateways")
+      }}
+    </h3>
+    <p class="text-foreground-secondary">
+      {{
+        totalItems === 0
+          ? t("gateways.empty.description")
+          : t("common.noData")
+      }}
+    </p>
   </div>
 
   <div v-else-if="viewMode === 'card'" class="space-y-4">

@@ -2,17 +2,12 @@
   <div class="space-y-6">
     <!-- Header -->
     <div class="sm:flex sm:items-center sm:justify-between">
-      <div>
-        <h1 class="text-2xl font-semibold text-foreground">
-          {{ t("licenses.title") }}
-        </h1>
-        <p class="mt-2 text-sm text-foreground-secondary">
-          {{
-            t("licenses.description") ||
-            "Manage product licenses and authorization"
-          }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="KeyIcon"
+        :title="t('licenses.title')"
+        :subtitle="t('licenses.description') || 'Manage product licenses and authorization'"
+        icon-class="text-indigo-600 dark:text-indigo-400"
+      />
       <div class="mt-4 sm:mt-0 flex gap-2">
         <button
           type="button"
@@ -608,6 +603,7 @@ import {
   ComputerDesktopIcon,
 } from "@heroicons/vue/24/outline";
 import { licensesApi } from "@/api";
+import PageTitle from "@/components/PageTitle.vue";
 import { useToast } from "@/composables/useToast";
 import type { License, LicenseHistory } from "@/types/license";
 

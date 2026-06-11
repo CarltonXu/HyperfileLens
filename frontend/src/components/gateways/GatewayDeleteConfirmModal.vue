@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { ExclamationTriangleIcon } from "@heroicons/vue/24/outline";
+import {
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
+  XMarkIcon,
+} from "@heroicons/vue/24/outline";
 
 interface Gateway {
   id: string;
@@ -9,6 +13,7 @@ interface Gateway {
 
 defineProps<{
   gateway: Gateway | null;
+  deleting?: boolean;
 }>();
 
 defineEmits<{
@@ -30,11 +35,10 @@ const { t } = useI18n();
         </h2>
         <button
           @click="$emit('close')"
+          :disabled="deleting"
           class="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-hover rounded-lg"
         >
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <XMarkIcon class="w-5 h-5" />
         </button>
       </div>
 
@@ -60,15 +64,18 @@ const { t } = useI18n();
       <div class="flex justify-end gap-3">
         <button
           @click="$emit('close')"
-          class="px-4 py-2 text-sm font-medium text-foreground-secondary bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+          :disabled="deleting"
+          class="px-4 py-2 text-sm font-medium text-foreground-secondary bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors disabled:cursor-wait disabled:opacity-70"
         >
           {{ t("common.cancel") }}
         </button>
         <button
           @click="$emit('confirm')"
-          class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+          :disabled="deleting"
+          class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:cursor-wait disabled:opacity-70"
         >
-          {{ t("gateways.delete.confirm") }}
+          <ArrowPathIcon v-if="deleting" class="w-4 h-4 animate-spin" />
+          {{ deleting ? t("common.deleting") : t("gateways.delete.confirm") }}
         </button>
       </div>
     </div>

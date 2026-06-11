@@ -3,6 +3,7 @@ import { useI18n } from "vue-i18n";
 import {
   ArrowPathIcon,
   InformationCircleIcon,
+  CommandLineIcon,
   PauseIcon,
   PencilIcon,
   PlayIcon,
@@ -20,12 +21,24 @@ defineEmits<{
   close: [];
   detail: [proxy: ProxyNode];
   edit: [proxy: ProxyNode];
+  installInfo: [proxy: ProxyNode];
   regenerateToken: [proxy: ProxyNode];
   updateStatus: [proxy: ProxyNode, status: string];
   delete: [proxy: ProxyNode];
 }>();
 
 const { t } = useI18n();
+
+const installVisibleStatuses = new Set([
+  "pending",
+  "installing",
+  "offline",
+  "error",
+]);
+
+function shouldShowInstall(proxy: ProxyNode) {
+  return installVisibleStatuses.has(proxy.status);
+}
 </script>
 
 <template>
@@ -35,6 +48,17 @@ const { t } = useI18n();
       class="fixed popover-surface rounded-lg shadow-lg border border-border py-1 z-[9999]"
       :style="menuStyle"
     >
+      <button
+        v-if="shouldShowInstall(proxy)"
+        class="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-hover flex items-center gap-2"
+        @click="
+          $emit('installInfo', proxy);
+          $emit('close');
+        "
+      >
+        <CommandLineIcon class="w-4 h-4" />
+        {{ t("proxies.actions.viewInstall") }}
+      </button>
       <button
         class="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-hover flex items-center gap-2"
         @click="

@@ -604,6 +604,7 @@ export default {
     installProxy: "Install Proxy",
     online: "Online",
     noConnection: "No connection",
+    tokenRegenerated: "Token regenerated successfully",
 
     stats: {
       total: "Total Proxies",
@@ -3239,6 +3240,11 @@ export default {
     searchPlaceholder: "Search gateways...",
     allStatus: "All Status",
     noGateways: "No gateways found",
+    empty: {
+      title: "No gateways yet",
+      description:
+        "Create a gateway to mount backup data and enable AI insights.",
+    },
     confirmDelete: "Are you sure you want to delete this gateway?",
 
     // Stats

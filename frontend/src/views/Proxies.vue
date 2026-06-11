@@ -20,7 +20,9 @@ import ProxyHeartbeatsTab from "@/components/proxies/ProxyHeartbeatsTab.vue";
 import ProxyMonitorTab from "@/components/proxies/ProxyMonitorTab.vue";
 import ProxyOverviewTab from "@/components/proxies/ProxyOverviewTab.vue";
 import ProxyTasksTab from "@/components/proxies/ProxyTasksTab.vue";
+import PageTitle from "@/components/PageTitle.vue";
 import { useAppStore } from "@/stores/app";
+import { getApiErrorMessage } from "@/utils/errors";
 import {
   PlusIcon,
   ArrowPathIcon,
@@ -53,6 +55,8 @@ function getStoredViewMode(): "card" | "list" {
 
 // State
 const isLoading = ref(true);
+const isRefreshing = ref(false);
+const isFetchingProxies = ref(false);
 const proxies = ref<ProxyNode[]>([]);
 const stats = ref<ProxyStats | null>(null);
 const selectedRole = ref<string>("all");
@@ -111,6 +115,12 @@ const selectedProxy = ref<ProxyNode | null>(null);
 const detailTab = ref<
   "overview" | "install" | "monitor" | "tasks" | "heartbeats"
 >("overview");
+const installVisibleStatuses = new Set([
+  "pending",
+  "installing",
+  "offline",
+  "error",
+]);
 
 // Tab data states with loading and caching
 const tabData = ref({
@@ -186,6 +196,7 @@ const {
 } = useProxyMonitorCharts(monitorData, selectedNetIOInterface, selectedDiskIO);
 
 const showEditModal = ref(false);
+const isEditingProxy = ref(false);
 const editFormData = ref({
   name: "",
   hostname: "",
@@ -197,6 +208,7 @@ const editFormData = ref({
 // Delete Confirm
 const showDeleteConfirm = ref(false);
 const proxyToDelete = ref<ProxyNode | null>(null);
+const isDeletingProxy = ref(false);
 
 // Dropdown menu
 const openMenuId = ref<string | null>(null);
@@ -562,19 +574,36 @@ watch(viewMode, (mode) => {
   }
 });
 
-async function fetchProxies() {
-  isLoading.value = true;
+async function fetchProxies(silent = false, showFeedback = false) {
+  if (isFetchingProxies.value) return;
+  isFetchingProxies.value = true;
+  if (!silent) isLoading.value = true;
+  if (showFeedback) isRefreshing.value = true;
   try {
     const [proxiesRes, statsRes] = await Promise.all([
       proxiesApi.list(),
       proxiesApi.stats(),
     ]);
-    proxies.value = proxiesRes.data.results || proxiesRes.data || [];
+    const nextProxies = proxiesRes.data.results || proxiesRes.data || [];
+    proxies.value = nextProxies;
     stats.value = statsRes.data;
+    if (selectedProxy.value) {
+      const latest = nextProxies.find(
+        (proxy: ProxyNode) => proxy.id === selectedProxy.value?.id,
+      );
+      if (latest) {
+        selectedProxy.value = {
+          ...selectedProxy.value,
+          ...latest,
+        };
+      }
+    }
   } catch (error) {
     console.error("Failed to fetch proxies:", error);
   } finally {
-    isLoading.value = false;
+    if (!silent) isLoading.value = false;
+    if (showFeedback) isRefreshing.value = false;
+    isFetchingProxies.value = false;
   }
 }
 
@@ -663,6 +692,24 @@ async function fetchProxyMonitor(proxyId: string, silent = false) {
     if (!silent) tabData.value.monitor.data = null;
   } finally {
     if (!silent) tabData.value.monitor.loading = false;
+  }
+}
+
+async function fetchProxyInstall(proxyId: string, silent = false) {
+  if (!silent) tabData.value.install.loading = true;
+  try {
+    const res = await proxiesApi.installCommand(proxyId);
+    selectedProxy.value = {
+      ...(selectedProxy.value as ProxyNode),
+      ...res.data,
+      id: selectedProxy.value?.id || res.data.proxy_id || proxyId,
+    };
+    tabData.value.install.data = res.data;
+    tabData.value.install.loaded = true;
+  } catch (error) {
+    console.error("Failed to fetch proxy install command:", error);
+  } finally {
+    if (!silent) tabData.value.install.loading = false;
   }
 }
 
@@ -844,10 +891,15 @@ function getCommandForOS(): string {
 }
 
 // Proxy Actions
-function viewProxyDetail(proxy: ProxyNode) {
+function shouldShowInstallForProxy(proxy: ProxyNode | null) {
+  return !!proxy && installVisibleStatuses.has(proxy.status);
+}
+
+function viewProxyDetail(proxy: ProxyNode, initialTab?: typeof detailTab.value) {
   selectedProxy.value = proxy;
   showDetailDrawer.value = true;
-  detailTab.value = "overview";
+  detailTab.value =
+    initialTab || (shouldShowInstallForProxy(proxy) ? "install" : "overview");
 
   // Reset tab data cache
   Object.keys(tabData.value).forEach((key) => {
@@ -861,8 +913,12 @@ function viewProxyDetail(proxy: ProxyNode) {
     }
   });
 
-  // Load overview data immediately (方案A)
-  fetchProxyOverview(proxy.id);
+  if (detailTab.value === "install") {
+    fetchProxyInstall(proxy.id);
+  } else {
+    // Load overview data immediately (方案A)
+    fetchProxyOverview(proxy.id);
+  }
 
   openMenuId.value = null;
 }
@@ -899,6 +955,9 @@ watch(detailTab, (newTab) => {
         break;
       case "monitor":
         fetchProxyMonitor(proxyId);
+        break;
+      case "install":
+        fetchProxyInstall(proxyId);
         break;
       case "tasks":
         fetchProxyTasks(proxyId);
@@ -953,6 +1012,9 @@ function refreshCurrentTab() {
     case "monitor":
       fetchProxyMonitor(proxyId, true);
       break;
+    case "install":
+      fetchProxyInstall(proxyId, true);
+      break;
     case "tasks":
       fetchProxyTasks(proxyId, 1, true);
       break;
@@ -996,6 +1058,11 @@ async function viewInstallInfo(proxy: ProxyNode) {
     openMenuId.value = null;
   } catch (error) {
     console.error("Failed to fetch proxy install info:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(error, t("common.actionFailed")),
+    });
   }
 }
 
@@ -1014,12 +1081,25 @@ function editProxy(proxy: ProxyNode) {
 
 async function updateProxy() {
   if (!selectedProxy.value) return;
+  isEditingProxy.value = true;
   try {
     await proxiesApi.update(selectedProxy.value.id, editFormData.value);
     showEditModal.value = false;
-    await fetchProxies();
+    await fetchProxies(true);
+    appStore.showToast({
+      type: "success",
+      title: t("common.success"),
+      message: t("common.updateSuccess"),
+    });
   } catch (error) {
     console.error("Failed to update proxy:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(error, t("common.updateFailed")),
+    });
+  } finally {
+    isEditingProxy.value = false;
   }
 }
 
@@ -1031,23 +1111,47 @@ function confirmDeleteProxy(proxy: ProxyNode) {
 
 async function deleteProxy() {
   if (!proxyToDelete.value) return;
+  isDeletingProxy.value = true;
   try {
     await proxiesApi.delete(proxyToDelete.value.id);
     showDeleteConfirm.value = false;
     proxyToDelete.value = null;
-    await fetchProxies();
+    await fetchProxies(true);
+    appStore.showToast({
+      type: "success",
+      title: t("common.success"),
+      message: t("common.deleteSuccess"),
+    });
   } catch (error) {
     console.error("Failed to delete proxy:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(error, t("common.deleteFailed")),
+    });
+  } finally {
+    isDeletingProxy.value = false;
   }
 }
 
 async function updateProxyStatus(proxy: ProxyNode, newStatus: string) {
   try {
     await proxiesApi.setStatus(proxy.id, newStatus);
-    await fetchProxies();
+    await fetchProxies(true);
     openMenuId.value = null;
+    appStore.showToast({
+      type: "success",
+      title: t("common.success"),
+      message: t("common.updateSuccess"),
+      duration: 2000,
+    });
   } catch (error) {
     console.error("Failed to update status:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(error, t("common.actionFailed")),
+    });
   }
 }
 
@@ -1055,10 +1159,20 @@ async function regenerateToken(proxy: ProxyNode) {
   if (!confirm(t("proxies.actions.regenerateTokenConfirm"))) return;
   try {
     await proxiesApi.regenerateToken(proxy.id);
-    await fetchProxies();
+    await fetchProxies(true);
     openMenuId.value = null;
+    appStore.showToast({
+      type: "success",
+      title: t("common.success"),
+      message: t("proxies.tokenRegenerated"),
+    });
   } catch (error) {
     console.error("Failed to regenerate token:", error);
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(error, t("common.actionFailed")),
+    });
   }
 }
 
@@ -1079,13 +1193,23 @@ async function regenerateTokenFromModal() {
       ...response.data,
       id: response.data.id || response.data.proxy_id || proxyId, // Ensure id is always set
     };
-    await fetchProxies();
+    await fetchProxies(true);
+    appStore.showToast({
+      type: "success",
+      title: t("common.success"),
+      message: t("proxies.tokenRegenerated"),
+    });
   } catch (error) {
     console.error("Failed to regenerate token:", error);
-    alert(
-      t("proxies.actions.regenerateTokenFailed") ||
-        "Failed to regenerate token",
-    );
+    appStore.showToast({
+      type: "error",
+      title: t("common.error"),
+      message: getApiErrorMessage(
+        error,
+        t("proxies.actions.regenerateTokenFailed") ||
+          "Failed to regenerate token",
+      ),
+    });
   }
 }
 
@@ -1205,8 +1329,8 @@ onMounted(async () => {
   await openRouteDetail();
   document.addEventListener("click", closeMenu);
 
-  // Poll for updates every 30 seconds
-  pollInterval = window.setInterval(fetchProxies, 30000);
+  // Poll silently so status changes appear without a full-page loading state.
+  pollInterval = window.setInterval(() => fetchProxies(true), 5000);
 });
 
 onUnmounted(() => {
@@ -1224,14 +1348,12 @@ onUnmounted(() => {
   <div class="space-y-6" @click.stop>
     <!-- Page Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">
-          {{ t("proxies.title") }}
-        </h1>
-        <p class="text-foreground-secondary mt-1">
-          {{ t("proxies.subtitle") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="ComputerDesktopIcon"
+        :title="t('proxies.title')"
+        :subtitle="t('proxies.subtitle')"
+        icon-class="text-indigo-600 dark:text-indigo-400"
+      />
       <button
         data-tour="proxy-install-button"
         @click="openInstallWizard"
@@ -1249,7 +1371,8 @@ onUnmounted(() => {
       v-model:selected-role="selectedRole"
       v-model:selected-status="selectedStatus"
       v-model:view-mode="viewMode"
-      @refresh="fetchProxies"
+      :refreshing="isRefreshing"
+      @refresh="fetchProxies(true, true)"
     />
 
     <ProxiesCardView
@@ -1325,7 +1448,7 @@ onUnmounted(() => {
       @copy-command="copyCommand"
       @done="
         showInstallWizard = false;
-        fetchProxies();
+        fetchProxies(true);
       "
     />
 
@@ -1358,11 +1481,7 @@ onUnmounted(() => {
 
       <!-- Install Tab -->
       <ProxyInstallTab
-        v-else-if="
-          detailTab === 'install' &&
-          selectedProxy &&
-          selectedProxy.status === 'pending'
-        "
+        v-else-if="detailTab === 'install' && selectedProxy"
         :proxy="selectedProxy"
         @copy="copyToClipboard"
         @regenerate-token="regenerateTokenFromModal"
@@ -1422,6 +1541,7 @@ onUnmounted(() => {
     <ProxyEditModal
       v-if="showEditModal"
       :form="editFormData"
+      :saving="isEditingProxy"
       @close="showEditModal = false"
       @submit="updateProxy"
     />
@@ -1429,6 +1549,7 @@ onUnmounted(() => {
     <ProxyDeleteConfirmModal
       v-if="showDeleteConfirm && proxyToDelete"
       :proxy="proxyToDelete"
+      :deleting="isDeletingProxy"
       @cancel="
         showDeleteConfirm = false;
         proxyToDelete = null;

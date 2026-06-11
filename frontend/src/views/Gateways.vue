@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { gatewaysApi } from "@/api";
@@ -20,7 +20,8 @@ import GatewayInstallWizardModal from "@/components/gateways/GatewayInstallWizar
 import GatewayOverviewTab from "@/components/gateways/GatewayOverviewTab.vue";
 import GatewayMountsTab from "@/components/gateways/GatewayMountsTab.vue";
 import GatewayMonitoringTab from "@/components/gateways/GatewayMonitoringTab.vue";
-import { PlusIcon } from "@heroicons/vue/24/outline";
+import PageTitle from "@/components/PageTitle.vue";
+import { CircleStackIcon, PlusIcon } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -74,10 +75,13 @@ interface GatewayStats {
 
 // State
 const isLoading = ref(true);
+const isRefreshing = ref(false);
+const isFetchingGateways = ref(false);
 const gateways = ref<Gateway[]>([]);
 const stats = ref<GatewayStats | null>(null);
 const searchQuery = ref("");
 const selectedStatus = ref<string>("all");
+let pollInterval: number | null = null;
 
 // Pagination
 const currentPage = ref(1);
@@ -97,10 +101,10 @@ const viewMode = ref<"card" | "list">(
 
 watch(pageSize, (newSize) => {
   setPageSize(newSize, PAGE_STORAGE_KEY);
-  fetchGateways();
+  fetchGateways(true);
 });
 watch(currentPage, () => {
-  fetchGateways();
+  fetchGateways(true);
 });
 watch(viewMode, (mode) => {
   try {
@@ -157,6 +161,7 @@ const editFormData = ref({
 // Delete Confirm Modal
 const showDeleteConfirm = ref(false);
 const gatewayToDelete = ref<Gateway | null>(null);
+const isDeletingGateway = ref(false);
 
 // Mounts data
 const mountsData = ref<any[]>([]);
@@ -330,20 +335,37 @@ const gatewayTable = useResizableSortableTable<Gateway, GatewayColumnKey>({
 });
 
 // Methods
-async function fetchGateways() {
-  isLoading.value = true;
+async function fetchGateways(silent = false, showFeedback = false) {
+  if (isFetchingGateways.value) return;
+  isFetchingGateways.value = true;
+  if (!silent) isLoading.value = true;
+  if (showFeedback) isRefreshing.value = true;
   try {
     const [listRes, statsRes] = await Promise.all([
       gatewaysApi.list({ page: currentPage.value, page_size: pageSize.value }),
       gatewaysApi.stats(),
     ]);
-    gateways.value = listRes.data.results || listRes.data;
+    const nextGateways = listRes.data.results || listRes.data;
+    gateways.value = nextGateways;
     totalItems.value = listRes.data.count || gateways.value.length;
     stats.value = statsRes.data;
+    if (selectedGateway.value) {
+      const latest = nextGateways.find(
+        (gateway: Gateway) => gateway.id === selectedGateway.value?.id,
+      );
+      if (latest) {
+        selectedGateway.value = {
+          ...selectedGateway.value,
+          ...latest,
+        };
+      }
+    }
   } catch (error) {
     console.error("Failed to fetch gateways:", error);
   } finally {
-    isLoading.value = false;
+    if (!silent) isLoading.value = false;
+    if (showFeedback) isRefreshing.value = false;
+    isFetchingGateways.value = false;
   }
 }
 
@@ -382,7 +404,7 @@ async function createGateway() {
     // Load install command
     await loadWizardInstallCommand();
 
-    await fetchGateways();
+    await fetchGateways(true);
   } catch (error) {
     console.error("Failed to create gateway:", error);
     appStore.showToast({
@@ -545,7 +567,7 @@ async function submitEdit() {
     await gatewaysApi.update(gatewayToDelete.value.id, editFormData.value);
     showEditModal.value = false;
     gatewayToDelete.value = null;
-    await fetchGateways();
+    await fetchGateways(true);
   } catch (error) {
     console.error("Failed to update gateway:", error);
     appStore.showToast({
@@ -563,6 +585,7 @@ async function handleRegenerateToken(gateway: Gateway) {
 
   try {
     await gatewaysApi.regenerateToken(gateway.id);
+    await fetchGateways(true);
     appStore.showToast({
       type: "success",
       title: t("common.success"),
@@ -611,10 +634,16 @@ async function handleUpdateStatus(gateway: Gateway, status: string) {
     } else {
       return;
     }
-    await fetchGateways();
+    await fetchGateways(true);
     if (selectedGateway.value?.id === gateway.id) {
       selectedGateway.value = { ...selectedGateway.value, status };
     }
+    appStore.showToast({
+      type: "success",
+      title: t("common.success"),
+      message: t("common.updateSuccess"),
+      duration: 2000,
+    });
   } catch (error) {
     console.error("Failed to update status:", error);
     appStore.showToast({
@@ -633,12 +662,18 @@ function openDeleteConfirm(gateway: Gateway) {
 async function confirmDelete() {
   if (!gatewayToDelete.value) return;
 
+  isDeletingGateway.value = true;
   try {
     await gatewaysApi.delete(gatewayToDelete.value.id);
     showDeleteConfirm.value = false;
     showDetailDrawer.value = false;
     gatewayToDelete.value = null;
-    await fetchGateways();
+    await fetchGateways(true);
+    appStore.showToast({
+      type: "success",
+      title: t("common.success"),
+      message: t("common.deleteSuccess"),
+    });
   } catch (error) {
     console.error("Failed to delete gateway:", error);
     appStore.showToast({
@@ -646,6 +681,8 @@ async function confirmDelete() {
       title: t("common.error"),
       message: getApiErrorMessage(error, t("common.deleteFailed")),
     });
+  } finally {
+    isDeletingGateway.value = false;
   }
 }
 
@@ -778,6 +815,13 @@ watch(
 onMounted(async () => {
   await fetchGateways();
   await openRouteDetail();
+  pollInterval = window.setInterval(() => fetchGateways(true), 5000);
+});
+
+onUnmounted(() => {
+  if (pollInterval) {
+    clearInterval(pollInterval);
+  }
 });
 </script>
 
@@ -808,14 +852,12 @@ onMounted(async () => {
   <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">
-          {{ t("gateways.title") }}
-        </h1>
-        <p class="text-foreground-secondary mt-1">
-          {{ t("gateways.subtitle") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="CircleStackIcon"
+        :title="t('gateways.title')"
+        :subtitle="t('gateways.subtitle')"
+        icon-class="text-violet-600 dark:text-violet-400"
+      />
       <button
         data-tour="gateway-create-button"
         @click="showCreateModal = true"
@@ -832,7 +874,8 @@ onMounted(async () => {
       v-model:search-query="searchQuery"
       v-model:selected-status="selectedStatus"
       v-model:view-mode="viewMode"
-      @refresh="fetchGateways"
+      :refreshing="isRefreshing"
+      @refresh="fetchGateways(true, true)"
     />
 
     <GatewayListView
@@ -860,6 +903,7 @@ onMounted(async () => {
     <GatewayEditModal
       v-if="showEditModal"
       :form="editFormData"
+      :saving="isEditing"
       @close="showEditModal = false"
       @submit="submitEdit"
     />
@@ -868,6 +912,7 @@ onMounted(async () => {
     <GatewayDeleteConfirmModal
       v-if="showDeleteConfirm"
       :gateway="gatewayToDelete"
+      :deleting="isDeletingGateway"
       @close="showDeleteConfirm = false"
       @confirm="confirmDelete"
     />
@@ -912,7 +957,7 @@ onMounted(async () => {
       :loading="isLoadingDetail"
       :status-colors="statusColors"
       @close="showDetailDrawer = false"
-      @refresh="fetchGateways"
+      @refresh="fetchGateways(true)"
       @update:detail-tab="(tab) => (detailTab = tab)"
     >
       <!-- Overview Tab -->

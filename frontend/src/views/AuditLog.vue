@@ -3,14 +3,12 @@
     <!-- Page Header -->
     <div class="flex-shrink-0">
       <div class="flex justify-between items-center">
-        <div>
-          <h1 class="text-2xl font-semibold text-foreground">
-            {{ t("auditLog.title") }}
-          </h1>
-          <p class="mt-1 text-sm text-foreground-secondary">
-            {{ t("auditLog.description") }}
-          </p>
-        </div>
+        <PageTitle
+          :icon="ClipboardDocumentListIcon"
+          :title="t('auditLog.title')"
+          :subtitle="t('auditLog.description')"
+          icon-class="text-slate-600 dark:text-slate-300"
+        />
         <div class="flex gap-2">
           <button
             @click="exportLogs('json')"
@@ -815,6 +813,7 @@ import {
   XCircleIcon,
 } from "@heroicons/vue/24/outline";
 import { auditLogApi } from "@/api";
+import PageTitle from "@/components/PageTitle.vue";
 import { useAppStore } from "@/stores/app";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";

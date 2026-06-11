@@ -13,6 +13,7 @@ import {
   SparklesIcon,
 } from "@heroicons/vue/24/outline";
 import { backupTasksApi, insightsApi } from "@/api";
+import PageTitle from "@/components/PageTitle.vue";
 import { useAppStore } from "@/stores/app";
 import { getApiErrorMessage } from "@/utils/errors";
 
@@ -191,12 +192,12 @@ onUnmounted(stopIndexPolling);
 <template>
   <div class="space-y-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-semibold text-foreground">{{ t("snapshotInsights.title") }}</h1>
-        <p class="mt-1 text-sm text-foreground-secondary">
-          {{ snapshot?.name || snapshot?.version || snapshotId }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="DocumentMagnifyingGlassIcon"
+        :title="t('snapshotInsights.title')"
+        :subtitle="snapshot?.name || snapshot?.version || snapshotId"
+        icon-class="text-amber-600 dark:text-amber-400"
+      />
       <div class="flex flex-wrap gap-2">
         <button class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-hover" @click="fetchAll">
           <ArrowPathIcon class="h-4 w-4" />

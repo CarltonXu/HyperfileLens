@@ -32,6 +32,7 @@ import RecoveryScopeSelector from "@/components/recovery-tasks/RecoveryScopeSele
 import RecoveryTargetSelector from "@/components/recovery-tasks/RecoveryTargetSelector.vue";
 import RecoveryWizardReviewAside from "@/components/recovery-tasks/RecoveryWizardReviewAside.vue";
 import RecoveryWizardStepper from "@/components/recovery-tasks/RecoveryWizardStepper.vue";
+import PageTitle from "@/components/PageTitle.vue";
 import {
   PlusIcon,
   CheckCircleIcon,
@@ -40,6 +41,7 @@ import {
   BoltIcon,
   PauseIcon,
   XCircleIcon,
+  ArrowUturnLeftIcon,
 } from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
@@ -887,12 +889,12 @@ onMounted(() => {
   <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">
-          {{ t("recoveryTasks.title") }}
-        </h1>
-        <p class="text-slate-500 mt-1">{{ t("recoveryTasks.subtitle") }}</p>
-      </div>
+      <PageTitle
+        :icon="ArrowUturnLeftIcon"
+        :title="t('recoveryTasks.title')"
+        :subtitle="t('recoveryTasks.subtitle')"
+        icon-class="text-emerald-600 dark:text-emerald-400"
+      />
       <button
         data-tour="recovery-create-button"
         @click="openCreateRecovery"

@@ -14,6 +14,7 @@ import RepositoryListView from "@/components/repository/RepositoryListView.vue";
 import RepositoryStats from "@/components/repository/RepositoryStats.vue";
 import RepositoryTestResultModal from "@/components/repository/RepositoryTestResultModal.vue";
 import RepositoryToolbar from "@/components/repository/RepositoryToolbar.vue";
+import PageTitle from "@/components/PageTitle.vue";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import { useRepositoryFormatting } from "@/features/repository/useRepositoryFormatting";
@@ -21,6 +22,7 @@ import { useRepositoryLocalBrowser } from "@/features/repository/useRepositoryLo
 import { useRepositoryS3Buckets } from "@/features/repository/useRepositoryS3Buckets";
 import { useRepositoryActions } from "@/features/repository/useRepositoryActions";
 import {
+  CircleStackIcon,
   PlusIcon,
   CloudIcon,
   ServerIcon,
@@ -796,14 +798,12 @@ onMounted(async () => {
   <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">
-          {{ t("repository.title") }}
-        </h1>
-        <p class="text-foreground-secondary mt-1">
-          {{ t("repository.subtitle") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="CircleStackIcon"
+        :title="t('repository.title')"
+        :subtitle="t('repository.subtitle')"
+        icon-class="text-cyan-600 dark:text-cyan-400"
+      />
       <button
         data-tour="repository-create-button"
         @click="showCreateModal = true"

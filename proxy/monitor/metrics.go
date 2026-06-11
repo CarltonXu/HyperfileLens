@@ -9,6 +9,8 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
+
+	"github.com/hyperfilelens/proxy/logger"
 )
 
 // Metrics holds system metrics
@@ -85,6 +87,8 @@ func (c *Collector) GetCurrent() *Metrics {
 	// CPU usage and physical cores
 	if cpuPercent, err := cpu.Percent(time.Second, false); err == nil && len(cpuPercent) > 0 {
 		m.CPUUsage = cpuPercent[0]
+	} else {
+		logger.Debug("Failed to get CPU usage: %v", map[string]interface{}{"error": err.Error()})
 	}
 	if physicalCores, err := cpu.Counts(false); err == nil {
 		m.CPUPhysical = physicalCores
@@ -96,6 +100,8 @@ func (c *Collector) GetCurrent() *Metrics {
 		m.MemoryTotal = memInfo.Total
 		m.MemoryUsed = memInfo.Used
 		m.MemoryFree = memInfo.Free
+	} else {
+		logger.Debug("Failed to get memory info: %v", map[string]interface{}{"error": err.Error()})
 	}
 
 	// Disk usage (root partition)
@@ -104,6 +110,8 @@ func (c *Collector) GetCurrent() *Metrics {
 		m.DiskTotal = diskInfo.Total
 		m.DiskUsed = diskInfo.Used
 		m.DiskFree = diskInfo.Free
+	} else {
+		logger.Debug("Failed to get disk usage: %v", map[string]interface{}{"error": err.Error()})
 	}
 
 	// Network I/O

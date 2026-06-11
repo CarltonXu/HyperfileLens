@@ -16,6 +16,7 @@ import {
   taskManagementApi,
 } from "@/api";
 import DashboardGlobalTopology from "@/components/DashboardGlobalTopology.vue";
+import PageTitle from "@/components/PageTitle.vue";
 import ProductTour, {
   type ProductTourStep,
 } from "@/components/ProductTour.vue";
@@ -717,14 +718,12 @@ onMounted(() => {
   <div class="space-y-6">
     <!-- Page Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">
-          {{ t("dashboard.title") }}
-        </h1>
-        <p class="text-foreground-secondary mt-1">
-          {{ t("dashboard.subtitle") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="ChartBarIcon"
+        :title="t('dashboard.title')"
+        :subtitle="t('dashboard.subtitle')"
+        icon-class="text-sky-600 dark:text-sky-400"
+      />
       <button
         @click="fetchDashboardData"
         class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground-secondary surface-card border border-border rounded-lg hover:bg-hover hover:border-slate-300 dark:hover:border-slate-500 transition-colors shadow-sm"

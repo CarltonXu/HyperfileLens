@@ -17,8 +17,10 @@ import {
   TagIcon,
   FireIcon,
   ServerIcon,
+  SparklesIcon,
 } from "@heroicons/vue/24/outline";
 import { aiInsightsApi } from "@/api";
+import PageTitle from "@/components/PageTitle.vue";
 import AIQueryPanel from "@/components/ai-insights/AIQueryPanel.vue";
 import AIInsightScopeSelector from "@/components/ai-insights/AIInsightScopeSelector.vue";
 
@@ -296,12 +298,12 @@ onMounted(() => {
       data-tour="ai-insights-entry"
       class="flex items-center justify-between"
     >
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">{{ pageTitle }}</h1>
-        <p class="text-foreground-secondary mt-1">
-          {{ t("aiInsights.subtitle") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="SparklesIcon"
+        :title="pageTitle"
+        :subtitle="t('aiInsights.subtitle')"
+        icon-class="text-amber-600 dark:text-amber-400"
+      />
       <div class="flex items-center gap-4">
         <!-- Gateway Status -->
         <div

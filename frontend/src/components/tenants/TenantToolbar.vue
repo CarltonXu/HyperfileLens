@@ -2,9 +2,11 @@
 import { useI18n } from "vue-i18n";
 import {
   ArrowPathIcon,
+  BuildingOffice2Icon,
   MagnifyingGlassIcon,
   PlusIcon,
 } from "@heroicons/vue/24/outline";
+import PageTitle from "@/components/PageTitle.vue";
 
 defineProps<{
   searchQuery: string;
@@ -26,16 +28,12 @@ const { t } = useI18n();
 
 <template>
   <div class="sm:flex sm:items-center sm:justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold text-foreground">
-        {{ t("tenants.title") }}
-      </h1>
-      <p class="mt-2 text-sm text-foreground-secondary">
-        {{
-          t("tenants.description") || "Manage tenants and resource isolation"
-        }}
-      </p>
-    </div>
+    <PageTitle
+      :icon="BuildingOffice2Icon"
+      :title="t('tenants.title')"
+      :subtitle="t('tenants.description') || 'Manage tenants and resource isolation'"
+      icon-class="text-indigo-600 dark:text-indigo-400"
+    />
     <div class="mt-4 sm:mt-0">
       <button
         type="button"

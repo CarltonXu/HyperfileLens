@@ -5,7 +5,9 @@ import {
   EnvelopeIcon,
   MagnifyingGlassIcon,
   PlusIcon,
+  UsersIcon,
 } from "@heroicons/vue/24/outline";
+import PageTitle from "@/components/PageTitle.vue";
 
 defineProps<{
   searchQuery: string;
@@ -30,14 +32,12 @@ const { t } = useI18n();
 
 <template>
   <div class="sm:flex sm:items-center sm:justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold text-foreground">
-        {{ t("users.title") }}
-      </h1>
-      <p class="mt-2 text-sm text-foreground-secondary">
-        {{ t("users.description") }}
-      </p>
-    </div>
+    <PageTitle
+      :icon="UsersIcon"
+      :title="t('users.title')"
+      :subtitle="t('users.description')"
+      icon-class="text-indigo-600 dark:text-indigo-400"
+    />
     <div class="mt-4 sm:mt-0 flex gap-3">
       <button
         type="button"

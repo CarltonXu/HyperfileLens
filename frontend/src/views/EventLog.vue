@@ -14,6 +14,7 @@ import {
   ChevronRightIcon,
 } from "@heroicons/vue/24/outline";
 import { taskManagementApi } from "@/api";
+import PageTitle from "@/components/PageTitle.vue";
 import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
@@ -357,14 +358,12 @@ onMounted(fetchTasks);
     <div
       class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
     >
-      <div>
-        <h1 class="text-2xl font-semibold text-foreground">
-          {{ t("taskManagement.title") }}
-        </h1>
-        <p class="mt-1 text-sm text-foreground-secondary">
-          {{ t("taskManagement.subtitle") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="ClockIcon"
+        :title="t('taskManagement.title')"
+        :subtitle="t('taskManagement.subtitle')"
+        icon-class="text-slate-600 dark:text-slate-300"
+      />
     </div>
 
     <!-- Stats Cards -->

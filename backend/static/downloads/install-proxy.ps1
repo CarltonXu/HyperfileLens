@@ -39,8 +39,8 @@ function Install-HyperFileLensProxy {
         throw "Only Windows amd64 is currently supported."
     }
 
-    $tarUrl = "$Server/downloads/packages/proxy/hyperfilelens-proxy-windows-$arch.exe.tar.gz"
     $zipUrl = "$Server/downloads/packages/proxy/hyperfilelens-proxy-windows-$arch.exe.zip"
+    $tarUrl = "$Server/downloads/packages/proxy/hyperfilelens-proxy-windows-$arch.exe.tar.gz"
     $exeUrl = "$Server/downloads/packages/proxy/hyperfilelens-proxy-windows-$arch.exe"
     $tmpTar = Join-Path $env:TEMP "hyperfilelens-proxy.tar.gz"
     $tmpZip = Join-Path $env:TEMP "hyperfilelens-proxy.zip"
@@ -50,30 +50,33 @@ function Install-HyperFileLensProxy {
     $downloaded = $false
     $downloadErrors = New-Object System.Collections.Generic.List[string]
     try {
-        Invoke-WebRequest -Uri $tarUrl -OutFile $tmpTar -UseBasicParsing -ErrorAction Stop
-        tar -xzf $tmpTar -C $InstallDir
+        Invoke-WebRequest -Uri $zipUrl -OutFile $tmpZip -UseBasicParsing -ErrorAction Stop
+        Expand-Archive -Path $tmpZip -DestinationPath $InstallDir -Force
         $candidate = Get-ChildItem -Path $InstallDir -Recurse -Filter "hyperfilelens-proxy*.exe" | Select-Object -First 1
-        if (-not $candidate) { throw "Proxy package does not contain executable" }
+        if (-not $candidate) { throw "Proxy zip does not contain executable" }
         if ($candidate.FullName -ne $exePath) {
             Copy-Item $candidate.FullName $exePath -Force
+            Remove-Item $candidate.FullName -Force -ErrorAction SilentlyContinue
         }
         $downloaded = $true
     } catch {
-        $downloadErrors.Add("${tarUrl}: $($_.Exception.Message)") | Out-Null
-        Write-Host "[WARN] tar.gz package download failed, trying zip/direct exe..."
+        $downloadErrors.Add("${zipUrl}: $($_.Exception.Message)") | Out-Null
+        Write-Host "[WARN] zip package download failed, trying tar.gz/direct exe..."
         try {
-            Invoke-WebRequest -Uri $zipUrl -OutFile $tmpZip -UseBasicParsing -ErrorAction Stop
-            Expand-Archive -Path $tmpZip -DestinationPath $InstallDir -Force
+            if (-not (Get-Command tar -ErrorAction SilentlyContinue)) {
+                throw "tar is not available on this Windows host"
+            }
+            Invoke-WebRequest -Uri $tarUrl -OutFile $tmpTar -UseBasicParsing -ErrorAction Stop
+            tar -xzf $tmpTar -C $InstallDir
             $candidate = Get-ChildItem -Path $InstallDir -Recurse -Filter "hyperfilelens-proxy*.exe" | Select-Object -First 1
-            if (-not $candidate) { throw "Proxy zip does not contain executable" }
+            if (-not $candidate) { throw "Proxy tar.gz does not contain executable" }
             if ($candidate.FullName -ne $exePath) {
                 Copy-Item $candidate.FullName $exePath -Force
-                # Remove the original file to avoid duplicates
                 Remove-Item $candidate.FullName -Force -ErrorAction SilentlyContinue
             }
             $downloaded = $true
         } catch {
-            $downloadErrors.Add("${zipUrl}: $($_.Exception.Message)") | Out-Null
+            $downloadErrors.Add("${tarUrl}: $($_.Exception.Message)") | Out-Null
             try {
                 Invoke-WebRequest -Uri $exeUrl -OutFile $exePath -UseBasicParsing -ErrorAction Stop
                 $downloaded = $true

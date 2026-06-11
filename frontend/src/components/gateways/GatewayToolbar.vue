@@ -13,6 +13,10 @@ const selectedStatus = defineModel<string>("selectedStatus", {
 });
 const viewMode = defineModel<"card" | "list">("viewMode", { required: true });
 
+defineProps<{
+  refreshing?: boolean;
+}>();
+
 defineEmits<{
   refresh: [];
 }>();
@@ -49,10 +53,11 @@ const { t } = useI18n();
         </option>
       </select>
       <button
-        class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover transition-colors"
+        class="inline-flex items-center gap-2 px-3 py-2 text-sm text-foreground-secondary border border-border rounded-lg hover:bg-hover transition-colors disabled:cursor-wait disabled:opacity-70"
+        :disabled="refreshing"
         @click="$emit('refresh')"
       >
-        <ArrowPathIcon class="w-4 h-4" />
+        <ArrowPathIcon :class="['w-4 h-4', refreshing ? 'animate-spin' : '']" />
         {{ t("common.refresh") }}
       </button>
       <div class="flex items-center gap-1 border border-border rounded-lg p-1">

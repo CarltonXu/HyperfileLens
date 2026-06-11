@@ -16,6 +16,7 @@ import {
   PaperAirplaneIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
+import PageTitle from "@/components/PageTitle.vue";
 import ThemeSwitcher from "@/components/ThemeSwitcher.vue";
 import { usePagination } from "@/composables/usePagination";
 import SettingsSMTP from "@/views/SettingsSMTP.vue";
@@ -822,12 +823,12 @@ watch(aiTestMessage, resizeAiTestMessageInput);
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div>
-      <h1 class="text-2xl font-bold text-foreground">
-        {{ t("settings.title") }}
-      </h1>
-      <p class="text-foreground-secondary mt-1">{{ t("settings.subtitle") }}</p>
-    </div>
+    <PageTitle
+      :icon="Cog6ToothIcon"
+      :title="t('settings.title')"
+      :subtitle="t('settings.subtitle')"
+      icon-class="text-slate-600 dark:text-slate-300"
+    />
 
     <div class="space-y-6">
       <div class="rounded-xl border border-border bg-card px-2 shadow-sm">

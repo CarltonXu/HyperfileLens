@@ -31,6 +31,7 @@ import { usePagination } from "@/composables/usePagination";
 import { useResizableSortableTable } from "@/composables/useResizableSortableTable";
 import { useSnapshotFileBrowser } from "@/features/backup-tasks/useSnapshotFileBrowser";
 import Pagination from "@/components/Pagination.vue";
+import PageTitle from "@/components/PageTitle.vue";
 import ResizableSortableTh from "@/components/ResizableSortableTh.vue";
 import SnapshotFileBrowser from "@/components/backup-tasks/SnapshotFileBrowser.vue";
 
@@ -761,10 +762,12 @@ onUnmounted(() => {
 <template>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">{{ t("nav.recoveryExports") }}</h1>
-        <p class="mt-1 text-sm text-foreground-secondary">{{ t("recoveryExports.subtitle") }}</p>
-      </div>
+      <PageTitle
+        :icon="ArchiveBoxIcon"
+        :title="t('nav.recoveryExports')"
+        :subtitle="t('recoveryExports.subtitle')"
+        icon-class="text-emerald-600 dark:text-emerald-400"
+      />
       <div class="flex items-center gap-2">
         <button
           v-if="selectedIds.size"

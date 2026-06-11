@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { XMarkIcon } from "@heroicons/vue/24/outline";
+import { ArrowPathIcon, XMarkIcon } from "@heroicons/vue/24/outline";
 
 interface ProxyEditForm {
   name: string;
@@ -10,6 +10,7 @@ interface ProxyEditForm {
 
 defineProps<{
   form: ProxyEditForm;
+  saving?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -31,6 +32,7 @@ const { t } = useI18n();
         </h2>
         <button
           @click="emit('close')"
+          :disabled="saving"
           class="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-hover rounded-lg"
         >
           <XMarkIcon class="w-5 h-5" />
@@ -74,15 +76,18 @@ const { t } = useI18n();
           <button
             type="button"
             @click="emit('close')"
-            class="px-4 py-2 text-sm font-medium text-foreground-secondary bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+            :disabled="saving"
+            class="px-4 py-2 text-sm font-medium text-foreground-secondary bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors disabled:cursor-wait disabled:opacity-70"
           >
             {{ t("common.cancel") }}
           </button>
           <button
             type="submit"
-            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+            :disabled="saving"
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:cursor-wait disabled:opacity-70"
           >
-            {{ t("common.save") }}
+            <ArrowPathIcon v-if="saving" class="w-4 h-4 animate-spin" />
+            {{ saving ? t("common.saving") : t("common.save") }}
           </button>
         </div>
       </form>

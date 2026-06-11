@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { PlusIcon, ServerIcon } from "@heroicons/vue/24/outline";
+import PageTitle from "@/components/PageTitle.vue";
 import Pagination from "@/components/Pagination.vue";
 import SourceResourceWizard from "@/components/SourceResourceWizard.vue";
 import SourceResourceCardView from "@/components/source-resources/SourceResourceCardView.vue";
@@ -282,14 +283,12 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">
-          {{ t("sourceResources.title") }}
-        </h1>
-        <p class="mt-1 text-sm text-foreground-secondary dark:text-slate-400">
-          {{ t("sourceResources.subtitle") }}
-        </p>
-      </div>
+      <PageTitle
+        :icon="ServerIcon"
+        :title="t('sourceResources.title')"
+        :subtitle="t('sourceResources.subtitle')"
+        icon-class="text-indigo-600 dark:text-indigo-400"
+      />
       <button
         data-tour="source-create-button"
         class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"

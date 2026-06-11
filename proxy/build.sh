@@ -41,7 +41,13 @@ build() {
 
     log_info "Building for $platform..."
 
-    (cd "$SOURCE_DIR" && CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build \
+    # macOS requires CGO for gopsutil (memory, disk metrics)
+    local cgo_enabled=0
+    if [[ "$os" == "darwin" ]]; then
+        cgo_enabled=1
+    fi
+
+    (cd "$SOURCE_DIR" && CGO_ENABLED=$cgo_enabled GOOS=$os GOARCH=$arch go build \
         -ldflags="-s -w -X main.Version=${VERSION}" \
         -o "${BUILD_DIR}/${output_name}" \
         .)
@@ -103,8 +109,17 @@ case "${1:-all}" in
     linux-arm64)
         build "linux/arm64"
         ;;
+    windows-amd64)
+        build "windows/amd64"
+        ;;
+    darwin-amd64)
+        build "darwin/amd64"
+        ;;
+    darwin-arm64)
+        build "darwin/arm64"
+        ;;
     *)
-        echo "Usage: $0 [all|current|linux-amd64|linux-arm64]"
+        echo "Usage: $0 [all|current|linux-amd64|linux-arm64|windows-amd64|darwin-amd64|darwin-arm64]"
         exit 1
         ;;
 esac

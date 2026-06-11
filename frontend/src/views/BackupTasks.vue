@@ -33,6 +33,7 @@ import BackupTaskSnapshotsTab from "@/components/backup-tasks/BackupTaskSnapshot
 import BackupTaskStatsCards from "@/components/backup-tasks/BackupTaskStats.vue";
 import BackupTaskTable from "@/components/backup-tasks/BackupTaskTable.vue";
 import BackupTaskToolbar from "@/components/backup-tasks/BackupTaskToolbar.vue";
+import PageTitle from "@/components/PageTitle.vue";
 import ResourceFlowTopology from "@/components/ResourceFlowTopology.vue";
 import SnapshotHoverCard from "@/components/backup-tasks/SnapshotHoverCard.vue";
 import { snapshotDisplayTime } from "@/features/backup-tasks/snapshotDisplay";
@@ -47,7 +48,7 @@ import { useSnapshotTooltips } from "@/features/backup-tasks/useSnapshotTooltips
 import { useBackupTaskFormatting } from "@/features/backup-tasks/useBackupTaskFormatting";
 import { useBackupTaskSnapshots } from "@/features/backup-tasks/useBackupTaskSnapshots";
 import { useBackupTaskEdit } from "@/features/backup-tasks/useBackupTaskEdit";
-import { PlusIcon } from "@heroicons/vue/24/outline";
+import { ClipboardDocumentListIcon, PlusIcon } from "@heroicons/vue/24/outline";
 
 const { t, locale } = useI18n();
 const router = useRouter();
@@ -737,12 +738,12 @@ onMounted(() => {
   <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-foreground">
-          {{ t("backupTasks.title") }}
-        </h1>
-        <p class="text-slate-500 mt-1">{{ t("backupTasks.subtitle") }}</p>
-      </div>
+      <PageTitle
+        :icon="ClipboardDocumentListIcon"
+        :title="t('backupTasks.title')"
+        :subtitle="t('backupTasks.subtitle')"
+        icon-class="text-indigo-600 dark:text-indigo-400"
+      />
       <button
         data-tour="backup-create-button"
         @click="showCreateModal = true"
