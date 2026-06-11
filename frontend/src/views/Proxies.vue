@@ -574,6 +574,29 @@ watch(viewMode, (mode) => {
   }
 });
 
+function mergeProxyListUpdate(
+  current: ProxyNode,
+  latest: Partial<ProxyNode>,
+): ProxyNode {
+  const merged = {
+    ...current,
+    ...latest,
+  } as ProxyNode;
+
+  // The list endpoint does not include install-command details. Preserve them
+  // when silent polling merges a row update into the selected proxy.
+  merged.install_command =
+    latest.install_command || current.install_command || null;
+  merged.api_token = latest.api_token || current.api_token || null;
+  merged.install_token = latest.install_token || current.install_token || null;
+  merged.install_token_used =
+    typeof latest.install_token_used === "boolean"
+      ? latest.install_token_used
+      : current.install_token_used;
+
+  return merged;
+}
+
 async function fetchProxies(silent = false, showFeedback = false) {
   if (isFetchingProxies.value) return;
   isFetchingProxies.value = true;
@@ -592,10 +615,10 @@ async function fetchProxies(silent = false, showFeedback = false) {
         (proxy: ProxyNode) => proxy.id === selectedProxy.value?.id,
       );
       if (latest) {
-        selectedProxy.value = {
-          ...selectedProxy.value,
-          ...latest,
-        };
+        selectedProxy.value = mergeProxyListUpdate(
+          selectedProxy.value,
+          latest,
+        );
       }
     }
   } catch (error) {
