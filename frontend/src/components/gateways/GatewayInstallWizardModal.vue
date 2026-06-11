@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   ArrowPathIcon,
@@ -6,8 +7,9 @@ import {
   ClipboardDocumentIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
+import { useGatewayRegistrationStatus } from "@/composables/useGatewayRegistrationStatus";
 
-defineProps<{
+const props = defineProps<{
   gateway: {
     id: string;
     name: string;
@@ -22,9 +24,46 @@ const emit = defineEmits<{
   previous: [];
   next: [];
   copyCommand: [];
+  registered: [];
 }>();
 
 const { t } = useI18n();
+
+const gatewayIdRef = computed(() => props.gateway?.id ?? null);
+
+const {
+  status: regStatus,
+  stop: stopRegistrationPolling,
+} = useGatewayRegistrationStatus(gatewayIdRef);
+
+watch(
+  () => props.step,
+  (s) => {
+    if (s !== 3) {
+      stopRegistrationPolling();
+    }
+  },
+);
+
+let successTimer: ReturnType<typeof setTimeout> | null = null;
+watch(regStatus, (s) => {
+  if (s === "registered") {
+    if (successTimer) clearTimeout(successTimer);
+    // 展示成功态 1.5s 后再通知父级关闭，避免 UI 闪烁。
+    successTimer = setTimeout(() => {
+      emit("registered");
+    }, 1500);
+  } else if (successTimer) {
+    clearTimeout(successTimer);
+    successTimer = null;
+  }
+});
+
+onUnmounted(() => {
+  if (successTimer) clearTimeout(successTimer);
+});
+
+const isRegistered = computed(() => regStatus.value === "registered");
 </script>
 
 <template>
@@ -149,22 +188,44 @@ const { t } = useI18n();
 
       <div v-if="step === 3" class="space-y-4">
         <h3 class="text-lg font-medium text-foreground">
-          {{ t("gateways.installWizard.step3Title") }}
+          {{
+            isRegistered
+              ? t("gateways.installWizard.registrationSuccessTitle")
+              : t("gateways.installWizard.step3Title")
+          }}
         </h3>
         <p class="text-foreground-secondary">
-          {{ t("gateways.installWizard.step3Desc") }}
+          {{
+            isRegistered
+              ? t("gateways.installWizard.registrationSuccessDesc")
+              : t("gateways.installWizard.step3Desc")
+          }}
         </p>
 
         <div class="flex flex-col items-center py-8">
           <div
-            class="w-16 h-16 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center mb-4"
+            :class="[
+              'w-16 h-16 rounded-full flex items-center justify-center mb-4',
+              isRegistered
+                ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                : 'bg-violet-100 dark:bg-violet-900/30',
+            ]"
           >
+            <CheckCircleIcon
+              v-if="isRegistered"
+              class="w-8 h-8 text-emerald-600 dark:text-emerald-400"
+            />
             <ArrowPathIcon
+              v-else
               class="w-8 h-8 text-violet-600 dark:text-violet-400 animate-spin"
             />
           </div>
           <p class="text-foreground-secondary">
-            {{ t("gateways.installWizard.waitingForRegistration") }}
+            {{
+              isRegistered
+                ? t("gateways.statusActive")
+                : t("gateways.installWizard.waitingForRegistration")
+            }}
           </p>
         </div>
 
@@ -212,10 +273,15 @@ const { t } = useI18n();
           </button>
           <button
             v-else
-            class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
+            :disabled="isRegistered"
+            class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
             @click="emit('close')"
           >
-            {{ t("common.finish") }}
+            {{
+              isRegistered
+                ? t("gateways.installWizard.finishing")
+                : t("common.finish")
+            }}
           </button>
         </div>
       </div>

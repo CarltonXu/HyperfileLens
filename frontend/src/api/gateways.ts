@@ -1,10 +1,11 @@
-import api from "./client";
+import api, { type AxiosRequestConfig } from "./client";
 
 export const gatewaysApi = {
   list: (params?: { page?: number; page_size?: number; status?: string }) =>
     api.get("/api/v1/gateways/", { params }),
 
-  detail: (id: string) => api.get(`/api/v1/gateways/${id}/`),
+  detail: (id: string, config?: AxiosRequestConfig) =>
+    api.get(`/api/v1/gateways/${id}/`, config),
 
   create: (data: {
     name: string;

@@ -3344,11 +3344,16 @@ export default {
       step3Title: "等待注册",
       step3Desc: "安装命令已执行，等待网关连接注册...",
       waitingForRegistration: "等待网关连接上线...",
+      registrationSuccessTitle: "网关注册成功",
+      registrationSuccessDesc: "网关已成功连接并上线，正在关闭安装向导...",
+      finishing: "完成中...",
       checklist: "安装检查清单",
       checklist1: "复制安装命令到目标服务器",
       checklist2: "执行安装命令",
       checklist3: "等待网关自动注册上线",
     },
+    // 顶层 gatewayRegistered，供 wizard 完成时 Toast 使用（独立于 installWizard，避免标题当消息）
+    gatewayRegistered: "网关已成功注册",
 
     // Mounts
     mountStatus: "挂载状态",

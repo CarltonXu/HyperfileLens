@@ -461,6 +461,17 @@ function closeInstallWizard() {
   resetNewGateway();
 }
 
+async function onGatewayRegistered() {
+  await fetchGateways(true);
+  closeInstallWizard();
+  appStore.showToast({
+    type: "success",
+    title: t("common.success"),
+    message: t("gateways.gatewayRegistered"),
+    duration: 3000,
+  });
+}
+
 function nextWizardStep() {
   if (wizardStep.value < 3) {
     wizardStep.value++;
@@ -935,6 +946,7 @@ onUnmounted(() => {
       @previous="prevWizardStep"
       @next="nextWizardStep"
       @copy-command="copyWizardCommand"
+      @registered="onGatewayRegistered"
     />
 
     <GatewayInstallInfoModal

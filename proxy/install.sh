@@ -361,6 +361,9 @@ create_config() {
     mkdir -p "$PROXY_HOME"
     mkdir -p /var/lib/hyperfilelens/cache /var/lib/hyperfilelens/tmp
     mkdir -p "$(dirname "$LOG_FILE")"
+    if [[ "$ROLE" == "sync" ]]; then
+        mkdir -p /mnt/hyperfilelens
+    fi
     
     # Mount dependencies for sync role
     if [[ "$ROLE" == "sync" ]]; then
@@ -427,6 +430,15 @@ EOF
 
 create_service() {
     log_info "Creating systemd service..."
+
+    SERVICE_USER_LINES="User=${PROXY_USER}
+Group=${PROXY_USER}"
+    SERVICE_RW_PATHS="${PROXY_HOME} /var/lib/hyperfilelens /var/log/hyperfilelens"
+    if [[ "$ROLE" == "sync" ]]; then
+        SERVICE_USER_LINES="User=root
+Group=root"
+        SERVICE_RW_PATHS="${SERVICE_RW_PATHS} /mnt/hyperfilelens"
+    fi
     
     cat > /etc/systemd/system/${PROXY_SERVICE}.service << EOF
 [Unit]
@@ -437,14 +449,15 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=${PROXY_USER}
-Group=${PROXY_USER}
+${SERVICE_USER_LINES}
 WorkingDirectory=${PROXY_HOME}
 ExecStart=/usr/local/bin/hyperfilelens-proxy --config ${PROXY_HOME}/config.yaml
 Restart=on-failure
 RestartSec=10
 
 Environment=CONFIG_PATH=${PROXY_HOME}/config.yaml
+Environment=HOME=/var/lib/hyperfilelens
+Environment=XDG_CACHE_HOME=/var/lib/hyperfilelens/cache
 
 StandardOutput=journal
 StandardError=journal
@@ -454,7 +467,7 @@ SyslogIdentifier=hyperfilelens-proxy
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${PROXY_HOME} /var/lib/hyperfilelens /var/log/hyperfilelens
+ReadWritePaths=${SERVICE_RW_PATHS}
 
 [Install]
 WantedBy=multi-user.target

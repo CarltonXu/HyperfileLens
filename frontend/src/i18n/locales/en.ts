@@ -3486,11 +3486,18 @@ export default {
       step3Desc:
         "Installation command executed. Waiting for gateway to register...",
       waitingForRegistration: "Waiting for gateway to come online...",
+      registrationSuccessTitle: "Gateway Registered",
+      registrationSuccessDesc:
+        "Gateway connected and is online. Closing the wizard...",
+      finishing: "Finishing...",
       checklist: "Installation Checklist",
       checklist1: "Copy install command to target server",
       checklist2: "Execute install command",
       checklist3: "Wait for gateway to register automatically",
     },
+    // Top-level gatewayRegistered, used for the wizard's completion toast.
+    // Kept separate from installWizard so the message reads as a full sentence.
+    gatewayRegistered: "Gateway has been registered successfully",
 
     // Mounts
     mountStatus: "Mount Status",
