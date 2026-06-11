@@ -53,18 +53,15 @@ const { t } = useI18n();
   <template v-if="loading">
     <div class="flex items-center justify-center py-12">
       <div
-        class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"
-      />
+        class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
     </div>
   </template>
 
   <div
     v-else-if="filteredCount === 0"
-    class="bg-background-secondary rounded-xl border border-border p-12 text-center"
-  >
+    class="rounded-xl border border-border p-12 text-center">
     <div
-      class="w-16 h-16 bg-background-tertiary/50 rounded-full flex items-center justify-center mx-auto mb-4"
-    >
+      class="w-16 h-16 bg-background-tertiary/50 rounded-full flex items-center justify-center mx-auto mb-4">
       <CircleStackIcon class="w-8 h-8 text-foreground-muted" />
     </div>
     <h3 class="text-lg font-medium text-foreground mb-1">
@@ -79,22 +76,19 @@ const { t } = useI18n();
     <div
       v-for="repo in repositories"
       :key="repo.id"
-      class="rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-shadow"
-    >
+      class="rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-shadow">
       <div class="flex items-start justify-between mb-3">
         <div
           :class="[
             'w-10 h-10 rounded-lg flex items-center justify-center',
             getRepoTypeColor(repo.repo_type),
-          ]"
-        >
+          ]">
           <component :is="getRepoTypeIcon(repo.repo_type)" class="w-5 h-5" />
         </div>
         <div class="flex items-center gap-2">
           <span
             v-if="repo.kopia_initialized"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"
-          >
+            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
             <CheckCircleIcon class="w-3 h-3" />
             Kopia
           </span>
@@ -104,8 +98,7 @@ const { t } = useI18n();
               repo.status === 'active'
                 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 dark:text-emerald-400'
                 : 'bg-background-tertiary/50 text-foreground-secondary',
-            ]"
-          >
+            ]">
             {{
               repo.status === "active"
                 ? t("common.active")
@@ -128,8 +121,7 @@ const { t } = useI18n();
             <GlobeAltIcon class="w-4 h-4 text-foreground-muted flex-shrink-0" />
             <span
               class="text-foreground-secondary truncate"
-              :title="repo.config?.endpoint"
-            >
+              :title="repo.config?.endpoint">
               {{ repo.config?.endpoint || "-" }}
             </span>
           </div>
@@ -159,8 +151,7 @@ const { t } = useI18n();
           </div>
           <div class="flex items-center gap-2 text-sm">
             <span
-              class="text-xs text-foreground-muted uppercase px-1.5 py-0.5 bg-slate-200 dark:bg-slate-600 rounded"
-            >
+              class="text-xs text-foreground-muted uppercase px-1.5 py-0.5 bg-slate-200 dark:bg-slate-600 rounded">
               {{ repo.config?.nas_type?.toUpperCase() || "NFS" }}
             </span>
           </div>
@@ -171,16 +162,14 @@ const { t } = useI18n();
             <FolderIcon class="w-4 h-4 text-foreground-muted flex-shrink-0" />
             <span
               class="text-foreground-secondary truncate"
-              :title="repo.config?.path"
-            >
+              :title="repo.config?.path">
               {{ repo.config?.path || "-" }}
             </span>
           </div>
         </template>
 
         <div
-          class="flex items-center gap-2 text-sm pt-2 border-t border-border"
-        >
+          class="flex items-center gap-2 text-sm pt-2 border-t border-border">
           <LinkIcon class="w-4 h-4 text-foreground-muted flex-shrink-0" />
           <span class="text-foreground-secondary">
             {{ getNodeName(repo.bound_node) }}
@@ -190,8 +179,7 @@ const { t } = useI18n();
 
       <div class="mb-4">
         <div
-          class="flex items-center justify-between text-xs text-foreground-secondary mb-1"
-        >
+          class="flex items-center justify-between text-xs text-foreground-secondary mb-1">
           <span>{{ t("repository.stats.usedSpace") }}</span>
           <span>
             {{ formatBytes(repo.used_space || 0) }} /
@@ -199,27 +187,23 @@ const { t } = useI18n();
           </span>
         </div>
         <div
-          class="h-2 bg-background-tertiary/50 rounded-full overflow-hidden relative"
-        >
+          class="h-2 bg-background-tertiary/50 rounded-full overflow-hidden relative">
           <div
             v-if="repo.quota_enabled && (repo.quota_bytes || 0) > 0"
             class="h-full absolute left-0 bg-slate-300 dark:bg-slate-600/50 dark:bg-slate-600/50 opacity-50 rounded-full transition-all"
             :style="{
               width: `${Math.min(((repo.quota_bytes || 0) / (repo.capacity || 1)) * 100, 100)}%`,
-            }"
-          />
+            }" />
           <div
             class="h-full rounded-full transition-all relative"
             :class="getProgressColor(repo.quota_status || 'unlimited')"
             :style="{
               width: `${repo.capacity ? ((repo.used_space || 0) / repo.capacity) * 100 : 0}%`,
-            }"
-          />
+            }" />
         </div>
         <div
           v-if="repo.quota_enabled && (repo.quota_bytes || 0) > 0"
-          class="mt-2 flex items-center justify-between text-xs"
-        >
+          class="mt-2 flex items-center justify-between text-xs">
           <div class="flex items-center gap-1">
             <ExclamationCircleIcon
               v-if="
@@ -231,8 +215,7 @@ const { t } = useI18n();
                 repo.quota_status === 'critical'
                   ? 'text-red-500 dark:text-red-400'
                   : 'text-amber-500 dark:text-amber-400',
-              ]"
-            />
+              ]" />
             <span class="text-foreground-secondary">
               {{ t("repository.stats.quota") }}:
               {{ repo.quota_bytes_formatted }}
@@ -246,15 +229,13 @@ const { t } = useI18n();
                 : repo.quota_status === 'warning'
                   ? 'text-amber-500 dark:text-amber-400'
                   : 'text-foreground-secondary',
-            ]"
-          >
+            ]">
             {{ repo.quota_usage_percentage?.toFixed(1) || 0 }}%
           </span>
         </div>
         <div
           v-else-if="repo.quota_enabled"
-          class="mt-2 flex items-center justify-between text-xs text-foreground-muted"
-        >
+          class="mt-2 flex items-center justify-between text-xs text-foreground-muted">
           <span>
             {{ t("repository.stats.quota") }}:
             {{ t("repository.stats.unlimited") }}
@@ -263,8 +244,7 @@ const { t } = useI18n();
       </div>
 
       <div
-        class="flex items-center justify-between pt-3 border-t border-border"
-      >
+        class="flex items-center justify-between pt-3 border-t border-border">
         <span class="text-xs text-foreground-muted uppercase">
           {{ getRepoTypeLabel(repo.repo_type) }}
         </span>
@@ -273,16 +253,14 @@ const { t } = useI18n();
             v-if="!repo.kopia_initialized && repo.bound_node"
             @click="emit('initKopia', repo)"
             class="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-            :title="t('repository.initKopia')"
-          >
+            :title="t('repository.initKopia')">
             <PlayIcon class="w-4 h-4" />
           </button>
           <button
             v-if="repo.kopia_initialized"
             @click="emit('saveKopiaPassword', repo)"
             class="p-1.5 text-foreground-muted hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition-colors"
-            :title="t('repository.saveKopiaPassword')"
-          >
+            :title="t('repository.saveKopiaPassword')">
             <KeyIcon class="w-4 h-4" />
           </button>
           <button
@@ -300,44 +278,37 @@ const { t } = useI18n();
               testingConnection === repo.id
                 ? t('repository.testing')
                 : t('repository.testConnection')
-            "
-          >
+            ">
             <SignalIcon
               v-if="testingConnection === repo.id"
-              class="w-4 h-4 animate-pulse"
-            />
+              class="w-4 h-4 animate-pulse" />
             <CheckCircleIcon
               v-else-if="connectionTestResult[repo.id]?.success"
-              class="w-4 h-4"
-            />
+              class="w-4 h-4" />
             <LinkIcon v-else class="w-4 h-4" />
           </button>
           <button
             @click="emit('analyze', repo)"
             class="p-1.5 text-foreground-muted hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 rounded-lg transition-colors"
-            :title="t('aiInsights.title')"
-          >
+            :title="t('aiInsights.title')">
             <SparklesIcon class="w-4 h-4" />
           </button>
           <button
             @click="emit('edit', repo)"
             class="p-1.5 text-foreground-muted hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-            :title="t('common.edit')"
-          >
+            :title="t('common.edit')">
             <PencilIcon class="w-4 h-4" />
           </button>
           <button
             @click="emit('detail', repo)"
             class="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-background-tertiary/50 rounded-lg transition-colors"
-            :title="t('common.details')"
-          >
+            :title="t('common.details')">
             <Cog6ToothIcon class="w-4 h-4" />
           </button>
           <button
             @click="emit('delete', repo)"
             class="p-1.5 text-foreground-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-            :title="t('common.delete')"
-          >
+            :title="t('common.delete')">
             <TrashIcon class="w-4 h-4" />
           </button>
         </div>
