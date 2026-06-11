@@ -41,13 +41,7 @@ build() {
 
     log_info "Building for $platform..."
 
-    # macOS requires CGO for gopsutil (memory, disk metrics)
-    local cgo_enabled=0
-    if [[ "$os" == "darwin" ]]; then
-        cgo_enabled=1
-    fi
-
-    (cd "$SOURCE_DIR" && CGO_ENABLED=$cgo_enabled GOOS=$os GOARCH=$arch go build \
+    (cd "$SOURCE_DIR" && CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build \
         -ldflags="-s -w -X main.Version=${VERSION}" \
         -o "${BUILD_DIR}/${output_name}" \
         .)
