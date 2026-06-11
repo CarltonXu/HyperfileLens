@@ -40,6 +40,10 @@ const testing = ref(false);
 const loadingDirectories = ref(false);
 const currentPath = ref("/");
 const directories = ref<Array<{ name: string; path: string }>>([]);
+const localPathTouched = ref(false);
+
+const WINDOWS_ROOT_PATH = "C:\\";
+const UNIX_ROOT_PATH = "/";
 
 const form = reactive({
   name: "",
@@ -95,6 +99,21 @@ const recommendedNodes = computed(() => {
   return props.nodes.filter((node) => node.role === "sync");
 });
 
+const selectedBoundNode = computed(() =>
+  props.nodes.find((node) => String(node.id) === String(form.bound_node)),
+);
+
+const selectedBoundNodeIsWindows = computed(() => {
+  const node = selectedBoundNode.value;
+  const os =
+    `${node?.target_os || node?.operating_system || node?.os || ""}`.toLowerCase();
+  return os.includes("windows") || os === "win32";
+});
+
+const defaultLocalPath = computed(() =>
+  selectedBoundNodeIsWindows.value ? WINDOWS_ROOT_PATH : UNIX_ROOT_PATH,
+);
+
 const canNext = computed(() => {
   if (step.value === 1) return !!form.source_kind;
   if (step.value === 2)
@@ -124,7 +143,8 @@ const hasConnectionConfig = computed(() => {
 });
 
 const endpointPreview = computed(() => {
-  if (form.source_kind === "local") return form.root_path || "/";
+  if (form.source_kind === "local")
+    return form.root_path || defaultLocalPath.value;
   if (form.source_kind === "nas") {
     return form.nas_protocol === "nfs"
       ? `${form.server || "-"}:${form.export_path || "-"}`
@@ -228,7 +248,8 @@ watch(
 
 watch([() => form.bound_node, () => form.source_kind], () => {
   if (form.bound_node && form.source_kind === "local") {
-    fetchLocalDirectories(form.root_path || "/");
+    applyDefaultLocalPath();
+    fetchLocalDirectories(form.root_path || defaultLocalPath.value);
   }
 });
 
@@ -264,13 +285,14 @@ const canGoToStep = (targetStep: number) => {
 };
 
 function reset() {
+  localPathTouched.value = false;
   Object.assign(form, {
     name: "",
     description: "",
     source_kind: "local",
     nas_protocol: "nfs",
     bound_node: "",
-    root_path: "/",
+    root_path: UNIX_ROOT_PATH,
     server: "",
     export_path: "",
     share: "",
@@ -293,7 +315,28 @@ function selectType(type: "local" | "nas" | "s3") {
   form.source_kind = type;
   testResult.value = null;
   directories.value = [];
-  currentPath.value = form.root_path || "/";
+  applyDefaultLocalPath();
+  currentPath.value = form.root_path || defaultLocalPath.value;
+}
+
+function onLocalPathInput() {
+  localPathTouched.value = true;
+}
+
+function isDefaultLocalPath(path: string) {
+  return [UNIX_ROOT_PATH, WINDOWS_ROOT_PATH].includes(path.trim());
+}
+
+function applyDefaultLocalPath() {
+  if (props.modelValue || form.source_kind !== "local") return;
+  if (
+    !form.root_path.trim() ||
+    !localPathTouched.value ||
+    isDefaultLocalPath(form.root_path)
+  ) {
+    form.root_path = defaultLocalPath.value;
+    currentPath.value = defaultLocalPath.value;
+  }
 }
 
 async function runDraftCheck() {
@@ -323,23 +366,22 @@ async function runDraftCheck() {
   }
 }
 
-async function fetchLocalDirectories(path = form.root_path || "/") {
+async function fetchLocalDirectories(
+  path = form.root_path || defaultLocalPath.value,
+) {
   if (form.source_kind !== "local" || !form.bound_node) return;
   loadingDirectories.value = true;
   try {
     const response = await nodesApi.getDirectories(
       form.bound_node,
-      path || "/",
+      path || defaultLocalPath.value,
     );
-    currentPath.value = response.data.path || path || "/";
+    currentPath.value = response.data.path || path || defaultLocalPath.value;
     directories.value =
       response.data.entries ||
       (response.data.directories || []).map((name: string) => ({
         name,
-        path:
-          currentPath.value === "/"
-            ? `/${name}`
-            : `${currentPath.value}/${name}`,
+        path: joinLocalPath(currentPath.value, name),
       }));
   } catch {
     directories.value = [];
@@ -349,15 +391,43 @@ async function fetchLocalDirectories(path = form.root_path || "/") {
 }
 
 function navigateLocalDirectory(path: string) {
+  localPathTouched.value = true;
   form.root_path = path;
   fetchLocalDirectories(path);
 }
 
 function navigateUp() {
-  if (!currentPath.value || currentPath.value === "/") return;
+  if (!currentPath.value || isLocalPathRoot(currentPath.value)) return;
+  if (isWindowsLocalPath(currentPath.value)) {
+    const normalized = currentPath.value.replace(/\//g, "\\").replace(/\\+$/, "");
+    const lastSeparator = normalized.lastIndexOf("\\");
+    const parent =
+      lastSeparator <= 2
+        ? `${normalized.slice(0, 2)}\\`
+        : normalized.slice(0, lastSeparator);
+    navigateLocalDirectory(parent);
+    return;
+  }
   const parts = currentPath.value.split("/").filter(Boolean);
   parts.pop();
-  navigateLocalDirectory(parts.length ? `/${parts.join("/")}` : "/");
+  navigateLocalDirectory(parts.length ? `/${parts.join("/")}` : UNIX_ROOT_PATH);
+}
+
+function isWindowsLocalPath(path: string) {
+  return /^[a-z]:[\\/]/i.test(path) || selectedBoundNodeIsWindows.value;
+}
+
+function isLocalPathRoot(path: string) {
+  if (path === UNIX_ROOT_PATH) return true;
+  return /^[a-z]:[\\/]?$/i.test(path);
+}
+
+function joinLocalPath(basePath: string, name: string) {
+  if (isWindowsLocalPath(basePath)) {
+    const base = basePath.replace(/\//g, "\\").replace(/\\+$/, "");
+    return `${base}\\${name}`;
+  }
+  return basePath === UNIX_ROOT_PATH ? `/${name}` : `${basePath}/${name}`;
 }
 
 function buildPayload() {
@@ -367,7 +437,7 @@ function buildPayload() {
 
   if (form.source_kind === "local") {
     resource_type = "local";
-    config.root_path = form.root_path || "/";
+    config.root_path = form.root_path || defaultLocalPath.value;
   } else if (form.source_kind === "nas") {
     resource_type = form.nas_protocol;
     config.server = form.server;
@@ -611,15 +681,23 @@ function save() {
                   >
                   <input
                     v-model="form.root_path"
-                    placeholder="/"
+                    :placeholder="defaultLocalPath"
                     class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    @input="onLocalPathInput"
                   />
+                  <p class="mt-1 text-xs text-foreground-muted">
+                    {{
+                      t("sourceResources.wizard.localPathHint", {
+                        defaultPath: defaultLocalPath,
+                      })
+                    }}
+                  </p>
                 </div>
                 <button
                   type="button"
                   class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-foreground hover:bg-hover disabled:opacity-50"
                   :disabled="!form.bound_node || loadingDirectories"
-                  @click="fetchLocalDirectories(form.root_path || '/')"
+                  @click="fetchLocalDirectories(form.root_path || defaultLocalPath)"
                 >
                   <FolderIcon class="w-4 h-4" />
                   {{
@@ -636,12 +714,12 @@ function save() {
                   class="px-3 py-2 border-b border-border flex items-center justify-between bg-background-secondary/60"
                 >
                   <code class="text-xs text-foreground break-all">{{
-                    currentPath || "/"
+                    currentPath || defaultLocalPath
                   }}</code>
                   <button
                     type="button"
                     class="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:text-foreground-muted"
-                    :disabled="currentPath === '/'"
+                    :disabled="isLocalPathRoot(currentPath)"
                     @click="navigateUp"
                   >
                     {{ t("repository.local.goUp") }}

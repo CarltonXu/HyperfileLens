@@ -2080,6 +2080,8 @@ export default {
       draftCheckPassed: "Required configuration is complete.",
       draftCheckFailed: "Please complete the required connection fields.",
       browsePath: "Browse Path",
+      localPathHint:
+        "Defaults to {defaultPath} for the selected proxy. You can browse directories or enter an absolute path manually.",
     },
 
     testResult: {

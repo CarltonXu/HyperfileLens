@@ -1987,6 +1987,8 @@ export default {
       draftCheckPassed: "必填配置已完整。",
       draftCheckFailed: "请先补全必填连接配置。",
       browsePath: "浏览路径",
+      localPathHint:
+        "已根据所选代理默认填入 {defaultPath}。你可以浏览目录，也可以手动填写绝对路径。",
     },
 
     testResult: {
