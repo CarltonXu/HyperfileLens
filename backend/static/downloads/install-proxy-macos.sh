@@ -230,6 +230,21 @@ create_service() {
   <string>${LOG_DIR}/proxy.log</string>
   <key>StandardErrorPath</key>
   <string>${LOG_DIR}/proxy.err.log</string>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>${PROXY_HOME}</string>
+    <key>XDG_CACHE_HOME</key>
+    <string>${PROXY_HOME}/cache</string>
+    <key>KOPIA_CACHE_DIR</key>
+    <string>${PROXY_HOME}/cache</string>
+    <key>CONFIG_PATH</key>
+    <string>${PROXY_HOME}/config.yaml</string>
+  </dict>
 </dict>
 </plist>
 EOF
@@ -238,7 +253,7 @@ EOF
     launchctl bootout system "/Library/LaunchDaemons/${PROXY_SERVICE}.plist" >/dev/null 2>&1 || true
     launchctl bootstrap system "/Library/LaunchDaemons/${PROXY_SERVICE}.plist"
     launchctl enable "system/${PROXY_SERVICE}"
-    log_success "launchd service created"
+    log_success "launchd service created (HOME / XDG_CACHE_HOME / KOPIA_CACHE_DIR injected)"
 }
 
 main() {
