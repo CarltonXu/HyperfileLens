@@ -2034,6 +2034,16 @@ export default {
         maintenance: "维护中",
         installing: "安装中",
       },
+      nodeRole: {
+        agent: "Agent Proxy",
+        sync: "Sync Proxy",
+      },
+      nodeOs: {
+        windows: "Windows",
+        linux: "Linux",
+        macos: "macOS",
+        unknown: "未知系统",
+      },
       server: "服务器",
       exportPath: "导出路径",
       share: "共享名称",

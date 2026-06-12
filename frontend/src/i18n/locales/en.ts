@@ -2127,6 +2127,16 @@ export default {
         maintenance: "Maintenance",
         installing: "Installing",
       },
+      nodeRole: {
+        agent: "Agent Proxy",
+        sync: "Sync Proxy",
+      },
+      nodeOs: {
+        windows: "Windows",
+        linux: "Linux",
+        macos: "macOS",
+        unknown: "Unknown OS",
+      },
       server: "Server",
       exportPath: "Export Path",
       share: "Share Name",

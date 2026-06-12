@@ -11,6 +11,7 @@ import {
   FolderIcon,
   ServerIcon,
   SignalIcon,
+  ServerStackIcon,
   SignalSlashIcon,
   XMarkIcon,
   XCircleIcon,
@@ -187,6 +188,49 @@ function nodeStatusBadgeClass(availability: NodeAvailability) {
     case "error":
       return "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
   }
+}
+
+type NodeOs = "windows" | "linux" | "macos" | "unknown";
+
+function nodeOs(node: ProxyNode): NodeOs {
+  const raw = (node.target_os || node.operating_system || node.os || "") as string;
+  const v = String(raw).toLowerCase();
+  if (v.includes("win")) return "windows";
+  if (v.includes("darwin") || v.includes("mac") || v.includes("osx")) return "macos";
+  if (v.includes("linux") || v.includes("ubuntu") || v.includes("debian") || v.includes("centos") || v.includes("rhel") || v.includes("alpine") || v.includes("unix"))
+    return "linux";
+  return "unknown";
+}
+
+function nodeOsLabel(node: ProxyNode) {
+  const o = nodeOs(node);
+  if (o === "windows") return t("sourceResources.form.nodeOs.windows");
+  if (o === "macos") return t("sourceResources.form.nodeOs.macos");
+  if (o === "linux") return t("sourceResources.form.nodeOs.linux");
+  return t("sourceResources.form.nodeOs.unknown");
+}
+
+function nodeRoleLabel(node: ProxyNode) {
+  if (node.role === "agent") return t("sourceResources.form.nodeRole.agent");
+  if (node.role === "sync") return t("sourceResources.form.nodeRole.sync");
+  return node.role;
+}
+
+function nodeRoleChipClass(role: ProxyNode["role"]) {
+  if (role === "agent")
+    return "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+  return "bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300";
+}
+
+function nodeOsIcon(node: ProxyNode) {
+  return nodeOs(node) === "windows" ? ComputerDesktopIcon : ServerStackIcon;
+}
+
+function nodeSubtitle(node: ProxyNode) {
+  const ip = node.internal_ip || node.connection_ip;
+  const host = node.hostname;
+  if (ip && host) return `${host} · ${ip}`;
+  return host || ip || "";
 }
 
 function closeNodeDropdown() {
@@ -774,11 +818,25 @@ function save() {
                     @click="nodeOpen = !nodeOpen"
                   >
                     <template v-if="selectedBoundNode">
+                      <component
+                        :is="nodeOsIcon(selectedBoundNode)"
+                        class="w-4 h-4 text-foreground-muted flex-shrink-0"
+                      />
                       <span class="font-medium truncate">{{
                         selectedBoundNode.name
                       }}</span>
-                      <span class="text-xs text-foreground-muted truncate">
-                        ({{ selectedBoundNode.role }})
+                      <span
+                        :class="[
+                          'hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide flex-shrink-0',
+                          nodeRoleChipClass(selectedBoundNode.role),
+                        ]"
+                      >
+                        {{ nodeRoleLabel(selectedBoundNode) }}
+                      </span>
+                      <span
+                        class="hidden md:inline text-xs text-foreground-muted truncate"
+                      >
+                        {{ nodeOsLabel(selectedBoundNode) }}
                       </span>
                       <span
                         v-if="selectedBoundNodeAvailability"
@@ -840,22 +898,41 @@ function save() {
                       v-for="node in availableNodes"
                       :key="`available-${node.id}`"
                       type="button"
-                      class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-hover border-b border-border"
+                      class="w-full px-3 py-2 text-left text-sm hover:bg-hover border-b border-border"
                       role="option"
                       :aria-selected="String(node.id) === form.bound_node"
                       @click="selectNode(node)"
                     >
-                      <span class="font-medium text-foreground truncate">{{
-                        node.name
-                      }}</span>
-                      <span class="text-xs text-foreground-muted truncate">
-                        ({{ node.role }})
-                      </span>
-                      <span
-                        class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                      <div class="flex items-center gap-2">
+                        <component
+                          :is="nodeOsIcon(node)"
+                          class="w-4 h-4 text-foreground-muted flex-shrink-0"
+                        />
+                        <span class="font-medium text-foreground truncate">{{
+                          node.name
+                        }}</span>
+                        <span
+                          :class="[
+                            'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide flex-shrink-0',
+                            nodeRoleChipClass(node.role),
+                          ]"
+                        >
+                          {{ nodeRoleLabel(node) }}
+                        </span>
+                        <span
+                          class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                        >
+                          {{ nodeStatusLabel("available") }}
+                        </span>
+                      </div>
+                      <div
+                        class="mt-1 ml-6 text-[11px] text-foreground-muted flex items-center gap-2 truncate"
                       >
-                        {{ nodeStatusLabel("available") }}
-                      </span>
+                        <span>{{ nodeOsLabel(node) }}</span>
+                        <span v-if="nodeSubtitle(node)" class="truncate">
+                          · {{ nodeSubtitle(node) }}
+                        </span>
+                      </div>
                     </button>
 
                     <div
@@ -871,28 +948,44 @@ function save() {
                     <div
                       v-for="node in unavailableNodes"
                       :key="`unavailable-${node.id}`"
-                      class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 border-b border-border last:border-b-0 opacity-60 cursor-not-allowed select-none"
+                      class="w-full px-3 py-2 text-left text-sm border-b border-border last:border-b-0 opacity-60 cursor-not-allowed select-none"
                       :title="t('sourceResources.form.boundNodeOfflineHint')"
                       :aria-disabled="true"
                     >
-                      <SignalSlashIcon
-                        class="w-3.5 h-3.5 text-foreground-muted"
-                      />
-                      <span
-                        class="font-medium text-foreground-secondary truncate"
-                        >{{ node.name }}</span
+                      <div class="flex items-center gap-2">
+                        <component
+                          :is="nodeOsIcon(node)"
+                          class="w-4 h-4 text-foreground-muted flex-shrink-0"
+                        />
+                        <span
+                          class="font-medium text-foreground-secondary truncate"
+                          >{{ node.name }}</span
+                        >
+                        <span
+                          :class="[
+                            'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide flex-shrink-0',
+                            nodeRoleChipClass(node.role),
+                          ]"
+                        >
+                          {{ nodeRoleLabel(node) }}
+                        </span>
+                        <span
+                          :class="[
+                            'ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0',
+                            nodeStatusBadgeClass(nodeAvailability(node)),
+                          ]"
+                        >
+                          {{ nodeStatusLabel(nodeAvailability(node)) }}
+                        </span>
+                      </div>
+                      <div
+                        class="mt-1 ml-6 text-[11px] text-foreground-muted flex items-center gap-2 truncate"
                       >
-                      <span class="text-xs text-foreground-muted truncate">
-                        ({{ node.role }})
-                      </span>
-                      <span
-                        :class="[
-                          'ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium',
-                          nodeStatusBadgeClass(nodeAvailability(node)),
-                        ]"
-                      >
-                        {{ nodeStatusLabel(nodeAvailability(node)) }}
-                      </span>
+                        <span>{{ nodeOsLabel(node) }}</span>
+                        <span v-if="nodeSubtitle(node)" class="truncate">
+                          · {{ nodeSubtitle(node) }}
+                        </span>
+                      </div>
                     </div>
 
                     <div
