@@ -2021,6 +2021,19 @@ export default {
       type: "资源类型",
       boundNode: "绑定节点",
       selectNode: "选择节点",
+      boundNodeOfflineHint:
+        "该节点当前不可用（离线、待安装、错误或维护中），请先恢复心跳后再绑定。",
+      nodeGroupOnline: "在线 ({count})",
+      nodeGroupOffline: "不可用 ({count})",
+      noNodes: "暂无可绑定的节点",
+      nodeStatus: {
+        online: "在线",
+        offline: "离线",
+        pending: "待安装",
+        error: "错误",
+        maintenance: "维护中",
+        installing: "安装中",
+      },
       server: "服务器",
       exportPath: "导出路径",
       share: "共享名称",
@@ -3194,6 +3207,8 @@ export default {
       description: "描述",
       sshPort: "SSH 端口",
       mountBasePath: "挂载基础路径",
+      mountBasePathHint:
+        "Gateway 默认使用 /mnt/kopia 作为挂载根目录。当前 Gateway 运行在 Linux 主机上，可按实际环境填写绝对路径。",
       maxConcurrentMounts: "最大并发挂载数",
       aiEnabled: "启用 AI 洞察",
     },

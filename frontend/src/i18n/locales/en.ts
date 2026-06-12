@@ -2114,6 +2114,19 @@ export default {
       type: "Resource Type",
       boundNode: "Bound Node",
       selectNode: "Select a node",
+      boundNodeOfflineHint:
+        "This node is currently unavailable (offline, pending, error, or under maintenance). Restore the heartbeat before binding.",
+      nodeGroupOnline: "Online ({count})",
+      nodeGroupOffline: "Unavailable ({count})",
+      noNodes: "No nodes available to bind",
+      nodeStatus: {
+        online: "Online",
+        offline: "Offline",
+        pending: "Pending",
+        error: "Error",
+        maintenance: "Maintenance",
+        installing: "Installing",
+      },
       server: "Server",
       exportPath: "Export Path",
       share: "Share Name",
@@ -3328,6 +3341,8 @@ export default {
       description: "Description",
       sshPort: "SSH Port",
       mountBasePath: "Mount Base Path",
+      mountBasePathHint:
+        "Gateways default to /mnt/kopia as the mount root. Gateways currently run on Linux hosts, so enter an absolute path for that host if you need to change it.",
       maxConcurrentMounts: "Max Concurrent Mounts",
       aiEnabled: "Enable AI Insights",
     },

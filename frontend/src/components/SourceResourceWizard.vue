@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   ArrowPathIcon,
@@ -11,6 +11,7 @@ import {
   FolderIcon,
   ServerIcon,
   SignalIcon,
+  SignalSlashIcon,
   XMarkIcon,
   XCircleIcon,
 } from "@heroicons/vue/24/outline";
@@ -90,6 +91,45 @@ const sourceTypes = computed(() => [
   },
 ]);
 
+const selectedBoundNode = computed(() =>
+  props.nodes.find((node) => String(node.id) === String(form.bound_node)),
+);
+
+type NodeAvailability =
+  | "available"
+  | "offline"
+  | "pending"
+  | "error"
+  | "maintenance"
+  | "installing";
+
+const nodeOpen = ref(false);
+const nodeTriggerRef = ref<HTMLElement | null>(null);
+const nodeMenuRef = ref<HTMLElement | null>(null);
+
+function nodeAvailability(node: ProxyNode): NodeAvailability {
+  if (node.is_online) return "available";
+  switch (node.status) {
+    case "online":
+      return "available";
+    case "pending":
+      return "pending";
+    case "error":
+      return "error";
+    case "maintenance":
+      return "maintenance";
+    case "installing":
+      return "installing";
+    case "offline":
+    default:
+      return "offline";
+  }
+}
+
+function isNodeAvailable(node: ProxyNode) {
+  return nodeAvailability(node) === "available";
+}
+
 const recommendedNodes = computed(() => {
   if (form.source_kind === "local") {
     return props.nodes.filter(
@@ -99,9 +139,94 @@ const recommendedNodes = computed(() => {
   return props.nodes.filter((node) => node.role === "sync");
 });
 
-const selectedBoundNode = computed(() =>
-  props.nodes.find((node) => String(node.id) === String(form.bound_node)),
+const availableNodes = computed(() =>
+  recommendedNodes.value.filter((node) => isNodeAvailable(node)),
 );
+
+const unavailableNodes = computed(() =>
+  recommendedNodes.value.filter((node) => !isNodeAvailable(node)),
+);
+
+const selectedBoundNodeAvailability = computed<NodeAvailability | null>(() =>
+  selectedBoundNode.value ? nodeAvailability(selectedBoundNode.value) : null,
+);
+
+const selectedBoundNodeIsAvailable = computed(
+  () => !selectedBoundNode.value || selectedBoundNodeAvailability.value === "available",
+);
+
+function nodeStatusLabel(availability: NodeAvailability) {
+  switch (availability) {
+    case "available":
+      return t("sourceResources.form.nodeStatus.online");
+    case "offline":
+      return t("sourceResources.form.nodeStatus.offline");
+    case "pending":
+      return t("sourceResources.form.nodeStatus.pending");
+    case "error":
+      return t("sourceResources.form.nodeStatus.error");
+    case "maintenance":
+      return t("sourceResources.form.nodeStatus.maintenance");
+    case "installing":
+      return t("sourceResources.form.nodeStatus.installing");
+  }
+}
+
+function nodeStatusBadgeClass(availability: NodeAvailability) {
+  switch (availability) {
+    case "available":
+      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
+    case "offline":
+      return "bg-slate-200 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300";
+    case "pending":
+      return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+    case "installing":
+      return "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300";
+    case "maintenance":
+      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300";
+    case "error":
+      return "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
+  }
+}
+
+function closeNodeDropdown() {
+  nodeOpen.value = false;
+}
+
+function selectNode(node: ProxyNode) {
+  if (!isNodeAvailable(node)) return;
+  form.bound_node = String(node.id);
+  closeNodeDropdown();
+}
+
+function onDocumentClickForNodeMenu(event: MouseEvent) {
+  if (!nodeOpen.value) return;
+  const target = event.target as Node | null;
+  if (!target) return;
+  if (nodeTriggerRef.value?.contains(target)) return;
+  if (nodeMenuRef.value?.contains(target)) return;
+  closeNodeDropdown();
+}
+
+function onNodeMenuKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") closeNodeDropdown();
+}
+
+onMounted(() => {
+  document.addEventListener("mousedown", onDocumentClickForNodeMenu);
+  document.addEventListener("keydown", onNodeMenuKeydown);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("mousedown", onDocumentClickForNodeMenu);
+  document.removeEventListener("keydown", onNodeMenuKeydown);
+});
+
+watch(selectedBoundNodeIsAvailable, (available) => {
+  if (!available && form.bound_node) {
+    form.bound_node = "";
+  }
+});
 
 const selectedBoundNodeIsWindows = computed(() => {
   const node = selectedBoundNode.value;
@@ -632,25 +757,154 @@ function save() {
                     class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <div>
+                <div class="relative">
                   <label class="block text-sm font-medium text-foreground mb-1"
                     >{{ t("sourceResources.form.boundNode") }} *</label
                   >
-                  <select
-                    v-model="form.bound_node"
-                    class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background/50 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <button
+                    ref="nodeTriggerRef"
+                    type="button"
+                    :class="[
+                      'w-full px-3 py-2 text-sm border rounded-lg bg-background/50 text-foreground flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                      selectedBoundNode && !selectedBoundNodeIsAvailable
+                        ? 'border-rose-300 dark:border-rose-700/60'
+                        : 'border-border',
+                    ]"
+                    :aria-expanded="nodeOpen"
+                    @click="nodeOpen = !nodeOpen"
                   >
-                    <option value="">
-                      {{ t("sourceResources.form.selectNode") }}
-                    </option>
-                    <option
-                      v-for="node in recommendedNodes"
-                      :key="node.id"
-                      :value="node.id"
+                    <template v-if="selectedBoundNode">
+                      <span class="font-medium truncate">{{
+                        selectedBoundNode.name
+                      }}</span>
+                      <span class="text-xs text-foreground-muted truncate">
+                        ({{ selectedBoundNode.role }})
+                      </span>
+                      <span
+                        v-if="selectedBoundNodeAvailability"
+                        :class="[
+                          'ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium',
+                          nodeStatusBadgeClass(selectedBoundNodeAvailability),
+                        ]"
+                      >
+                        <SignalSlashIcon
+                          v-if="selectedBoundNodeAvailability === 'offline'"
+                          class="w-3 h-3"
+                        />
+                        {{ nodeStatusLabel(selectedBoundNodeAvailability) }}
+                      </span>
+                    </template>
+                    <template v-else>
+                      <span class="text-foreground-muted">{{
+                        t("sourceResources.form.selectNode")
+                      }}</span>
+                    </template>
+                    <ChevronRightIcon
+                      class="w-4 h-4 text-foreground-muted transition-transform"
+                      :class="nodeOpen ? '-rotate-90' : 'rotate-90'"
+                    />
+                  </button>
+
+                  <p
+                    v-if="selectedBoundNode && !selectedBoundNodeIsAvailable"
+                    class="mt-1 text-xs text-rose-600 dark:text-rose-400"
+                  >
+                    {{ t("sourceResources.form.boundNodeOfflineHint") }}
+                  </p>
+
+                  <div
+                    v-if="nodeOpen"
+                    ref="nodeMenuRef"
+                    class="absolute z-20 mt-1 w-full max-h-72 overflow-y-auto rounded-lg border border-border bg-background shadow-lg"
+                    role="listbox"
+                  >
+                    <button
+                      type="button"
+                      class="w-full px-3 py-2 text-left text-sm hover:bg-hover border-b border-border text-foreground-secondary italic"
+                      @click="form.bound_node = ''; closeNodeDropdown()"
                     >
-                      {{ node.name }} ({{ node.role }})
-                    </option>
-                  </select>
+                      {{ t("sourceResources.form.selectNode") }}
+                    </button>
+
+                    <div
+                      v-if="availableNodes.length > 0"
+                      class="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-foreground-muted"
+                    >
+                      {{
+                        t("sourceResources.form.nodeGroupOnline", {
+                          count: availableNodes.length,
+                        })
+                      }}
+                    </div>
+                    <button
+                      v-for="node in availableNodes"
+                      :key="`available-${node.id}`"
+                      type="button"
+                      class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-hover border-b border-border"
+                      role="option"
+                      :aria-selected="String(node.id) === form.bound_node"
+                      @click="selectNode(node)"
+                    >
+                      <span class="font-medium text-foreground truncate">{{
+                        node.name
+                      }}</span>
+                      <span class="text-xs text-foreground-muted truncate">
+                        ({{ node.role }})
+                      </span>
+                      <span
+                        class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                      >
+                        {{ nodeStatusLabel("available") }}
+                      </span>
+                    </button>
+
+                    <div
+                      v-if="unavailableNodes.length > 0"
+                      class="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-foreground-muted border-t border-border"
+                    >
+                      {{
+                        t("sourceResources.form.nodeGroupOffline", {
+                          count: unavailableNodes.length,
+                        })
+                      }}
+                    </div>
+                    <div
+                      v-for="node in unavailableNodes"
+                      :key="`unavailable-${node.id}`"
+                      class="w-full px-3 py-2 text-left text-sm flex items-center gap-2 border-b border-border last:border-b-0 opacity-60 cursor-not-allowed select-none"
+                      :title="t('sourceResources.form.boundNodeOfflineHint')"
+                      :aria-disabled="true"
+                    >
+                      <SignalSlashIcon
+                        class="w-3.5 h-3.5 text-foreground-muted"
+                      />
+                      <span
+                        class="font-medium text-foreground-secondary truncate"
+                        >{{ node.name }}</span
+                      >
+                      <span class="text-xs text-foreground-muted truncate">
+                        ({{ node.role }})
+                      </span>
+                      <span
+                        :class="[
+                          'ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium',
+                          nodeStatusBadgeClass(nodeAvailability(node)),
+                        ]"
+                      >
+                        {{ nodeStatusLabel(nodeAvailability(node)) }}
+                      </span>
+                    </div>
+
+                    <div
+                      v-if="
+                        availableNodes.length === 0 &&
+                        unavailableNodes.length === 0
+                      "
+                      class="px-3 py-6 text-center text-sm text-foreground-muted"
+                    >
+                      {{ t("sourceResources.form.noNodes") }}
+                    </div>
+                  </div>
                 </div>
               </div>
               <div>

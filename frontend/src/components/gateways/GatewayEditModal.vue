@@ -84,6 +84,9 @@ const { t } = useI18n();
             type="text"
             class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
+          <p class="mt-1 text-xs text-foreground-muted">
+            {{ t("gateways.form.mountBasePathHint") }}
+          </p>
         </div>
         <div>
           <label class="block text-sm font-medium text-foreground mb-1">
