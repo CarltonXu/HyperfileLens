@@ -433,11 +433,9 @@ create_service() {
 
     SERVICE_USER_LINES="User=${PROXY_USER}
 Group=${PROXY_USER}"
-    SERVICE_RW_PATHS="${PROXY_HOME} /var/lib/hyperfilelens /var/log/hyperfilelens"
     if [[ "$ROLE" == "sync" ]]; then
         SERVICE_USER_LINES="User=root
 Group=root"
-        SERVICE_RW_PATHS="${SERVICE_RW_PATHS} /mnt/hyperfilelens"
     fi
     
     cat > /etc/systemd/system/${PROXY_SERVICE}.service << EOF
@@ -463,11 +461,13 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=hyperfilelens-proxy
 
-# Security hardening
+# Security hardening: keep the proxy root in scope (sync role requires
+# arbitrary mount/restore paths) but block trivial privilege escalation
+# and isolate /tmp. ReadWritePaths is intentionally omitted: systemd
+# freezes the writable-path whitelist at start time, so it cannot adapt
+# to mount points or restore targets added at runtime via the UI.
 NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=${SERVICE_RW_PATHS}
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
